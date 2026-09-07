@@ -79,6 +79,12 @@ pending. The sibling SteamCore commit `b54c993` supplies durable, verified chunk
 nine new resume tests, but the app's durable install orchestrator is not yet connected. See
 [controller/filter and downloader evidence](validation/2026-09-07-controller-filters.md).
 
+SteamCore `4d5a46e` now bounds CM request waits, cancels them on disconnect, isolates stale connection
+replies, injects depot-key storage, and preserves PICS launch/save metadata. The native account
+boundary cancels authenticated work on sign-out and uses memory-only depot keys. The live unauthenticated
+CM hello and expanded suites pass. The installer factory, pinned plan and durable orchestration remain
+the next integration work; see [installation boundary evidence](validation/2026-09-07-steam-install-boundary.md).
+
 ## 1. Planning defaults and PRD corrections
 
 Use these defaults to make the work concrete. Reconcile the referenced PRD requirements during

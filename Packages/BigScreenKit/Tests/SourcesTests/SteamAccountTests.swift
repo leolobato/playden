@@ -24,6 +24,49 @@ private struct DelayedBackend: SteamBackend {
     func ownedGames(_ auth: StoredAuth) async throws -> [SourceGameRecord] { [] }
 }
 final class SteamAccountTests: XCTestCase {
+    func testSignOutCancelsAuthenticatedOperationAndKeepsCredentialsCleared() async throws {
+        let store = MemoryCredentials(), started = Gate(), release = Gate(), operationStarted = Gate()
+        try store.save(StoredAuth(accountName: "Fixture", steamID: 1, refreshToken: "fixture"))
+        await release.open()
+        let account = SteamAccount(store: store, backend: DelayedBackend(started: started, release: release))
+        let task = Task {
+            try await account.authenticatedOperation { _ -> Int in
+                await operationStarted.open()
+                try await Task.sleep(for: .seconds(10))
+                return 1
+            }
+        }
+        await operationStarted.wait()
+        try await account.signOut()
+        do { _ = try await task.value; XCTFail("Signed-out operation returned a result") }
+        catch { XCTAssertEqual(error as? SourceFailure, .cancelled) }
+        XCTAssertNil(try store.load())
+    }
+    func testCallerCancellationStopsAuthenticatedOperationWithoutSigningOut() async throws {
+        let store = MemoryCredentials(), started = Gate(), release = Gate(), operationStarted = Gate()
+        try store.save(StoredAuth(accountName: "Fixture", steamID: 1, refreshToken: "fixture"))
+        await release.open()
+        let account = SteamAccount(store: store, backend: DelayedBackend(started: started, release: release))
+        let task = Task {
+            try await account.authenticatedOperation { _ -> Int in
+                await operationStarted.open()
+                try await Task.sleep(for: .seconds(10))
+                return 1
+            }
+        }
+        await operationStarted.wait(); task.cancel()
+        do { _ = try await task.value; XCTFail("Cancelled operation returned a result") }
+        catch { XCTAssertEqual(error as? SourceFailure, .cancelled) }
+        XCTAssertNotNil(try store.load())
+    }
+    func testAuthenticatedOperationDoesNotReadCLIAuthFallback() async throws {
+        let store = MemoryCredentials(), started = Gate(), release = Gate()
+        let account = SteamAccount(store: store, backend: DelayedBackend(started: started, release: release))
+        do {
+            _ = try await account.authenticatedOperation { _ -> Int in XCTFail("Signed-out operation started"); return 1 }
+            XCTFail("Expected signed-out failure")
+        } catch { XCTAssertEqual(error as? SourceFailure, .signedOut) }
+    }
     func testLiveQRChallengeAndPublicMetadataWhenRequested() async throws {
         guard ProcessInfo.processInfo.environment["BIGSCREEN_STEAM_NETWORK_PROBE"] == "1" else {
             throw XCTSkip("Set BIGSCREEN_STEAM_NETWORK_PROBE=1 for the unauthenticated network probe")

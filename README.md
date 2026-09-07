@@ -16,8 +16,9 @@ an isolated database; install/uninstall confirmations only change preview state.
 ## Build and run
 
 Requires Xcode 26.3 / Swift 6, XcodeGen, Homebrew xz/zstd (`brew install xcodegen xz zstd`), and an
-Apple Silicon Mac. Check out the sibling `../GameNative-macos` with commit `b54c993` or its descendant
-containing injected authentication storage and verified chunk-resume downloads. The local Swift package uses that checkout.
+Apple Silicon Mac. Check out the sibling `../GameNative-macos` with commit `4d5a46e` or its descendant
+containing injected authentication/key storage, verified chunk resume, and bounded CM requests.
+The local Swift package uses that checkout.
 The deployment target is macOS 15 because of the bundled compression libraries; actual execution
 has currently been checked on macOS 26.6.2. The build embeds xz/zstd in the app, so running the built
 app does not require Homebrew's library paths.
@@ -108,6 +109,9 @@ mapping, masked credential entry and stable focus during refresh. See
 [Steam/account validation](docs/validation/2026-09-07-steam-account.md),
 [setup/runtime validation](docs/validation/2026-09-07-setup-runtime.md),
 [controller/filter and download-resume validation](docs/validation/2026-09-07-controller-filters.md), and [recorded foundation/platform evidence](docs/validation/2026-09-07-foundation.md).
+
+The next installation dependency slice is recorded in
+[Steam installation boundary validation](docs/validation/2026-09-07-steam-install-boundary.md).
 
 Snapshots are actual native window captures in `.build/screenshots/`. They use a 1920×1080 logical
 canvas (pixel dimensions follow the display backing scale), a fixed clock, and the same artwork
