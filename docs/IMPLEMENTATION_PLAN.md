@@ -550,6 +550,12 @@ start; sync time does not count as playtime or trigger forced termination. Produ
 save-format validation and the app's controller UI/factory wiring remain before enabling live
 Cloud writes. See `docs/validation/2026-09-08-cloud-sessions.md`.
 
+Production Cloud root access now requires the current installation and journal claim, uses the
+owned game/bottle accessors without creating or stopping anything, and checks live/omitted writer
+processes by birth identity. It rejects stale claims after asynchronous folder access. A new
+pre-launch reservation no longer hides the most recent actual game process/outcome lookup needed
+for validation. The A Short Hike save-format validator and app controls/factory remain next.
+
 ### 8 September — SteamCore interface fix requested by the user
 
 - [x] Cherry-pick `c5dfc3f289acb5097e31d2fea4045e19095a2ca2` into GameNative-macos main and

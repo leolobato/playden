@@ -291,6 +291,15 @@ public final class CatalogStore: Sendable {
         }
     }
 
+    /// The most recent session that actually launched a writer. A new pre-launch reservation
+    /// must not hide the previous game's crash/forced outcome or process identities from Cloud.
+    public func latestRuntimeSession(for gameID: GameID) throws -> PlaySessionRecord? {
+        try database.read { db in
+            let sessions: [PlaySessionRecord] = try Self.values(db, table: "sessions", whereSQL: "source = ? AND game = ?", arguments: [gameID.source, gameID.value])
+            return sessions.filter { $0.runtime != nil }.max { $0.startedAt < $1.startedAt }
+        }
+    }
+
     private static func copyMetadata(from source: SourceGameRecord, to target: inout SourceGameRecord) {
         target.summary = source.summary; target.genres = source.genres; target.controllerSupport = source.controllerSupport
         target.coverURL = source.coverURL; target.heroURL = source.heroURL; target.logoURL = source.logoURL
