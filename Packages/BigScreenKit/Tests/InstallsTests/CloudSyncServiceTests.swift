@@ -73,7 +73,7 @@ final class CloudSyncServiceTests: XCTestCase {
         try String(contentsOf: root.appendingPathComponent("saves/" + name), encoding: .utf8)
     }
     private func service(_ store: CatalogStore, server: CloudServer, saves: SaveStore, root: URL,
-                         validate: @escaping CloudSyncService.UploadValidation = { _, _ in }) -> CloudSyncService {
+                         validate: @escaping CloudSyncService.UploadValidation = { _, _, _ in }) -> CloudSyncService {
         CloudSyncService(catalog: store, saves: saves, reader: server, writer: server, roots: { _ in [.game: root] }, validateUploads: validate)
     }
 
@@ -190,7 +190,7 @@ final class CloudSyncServiceTests: XCTestCase {
         await server.replace([], account: "account-b")
         let switched = await cloud.synchronize(installed, mapping: mapping)
         XCTAssertEqual(switched.state, .conflict); XCTAssertTrue(try XCTUnwrap(switched.operation?.plan).requiresAccountConfirmation)
-        let refusing = service(store, server: server, saves: saves, root: game) { _, _ in
+        let refusing = service(store, server: server, saves: saves, root: game) { _, _, _ in
             throw OperationFailure(stage: "Validate saves", reason: "The game closed unexpectedly. These saves need validation.", output: "")
         }
         let result = await refusing.synchronize(installed, mapping: mapping,
@@ -244,8 +244,9 @@ final class CloudSyncServiceTests: XCTestCase {
         let pulled = await cloud.synchronize(installed, mapping: mapping)
         XCTAssertEqual(pulled.state, .upToDate)
         try FileManager.default.removeItem(at: game.appendingPathComponent("saves/GameSaveNew.mountain"))
-        let refusing = service(store, server: server, saves: saves, root: game) { _, uploads in
+        let refusing = service(store, server: server, saves: saves, root: game) { _, uploads, deleting in
             guard uploads.isEmpty else { throw SourceFailure.storage("Unexpected upload") }
+            guard deleting.count == 1 else { throw SourceFailure.storage("Missing deletion review") }
             throw OperationFailure(stage: "Validate saves", reason: "Deletion needs validation", output: "")
         }
         let pending = await refusing.synchronize(installed, mapping: mapping)

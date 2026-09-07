@@ -8,7 +8,7 @@ import Catalog
 /// is mandatory and source/title-specific, including handling crash/forced-exit save formats.
 public actor CloudSyncService: CloudSyncManaging {
     public typealias RootAccess = @Sendable (InstallationRecord) async throws -> [SaveRoot: URL]
-    public typealias UploadValidation = @Sendable (InstallationRecord, [CloudUpload]) async throws -> Void
+    public typealias UploadValidation = @Sendable (InstallationRecord, [CloudUpload], [String]) async throws -> Void
     private let catalog: CatalogStore
     private let saves: SaveStore
     private let reader: any CloudReading
@@ -176,7 +176,7 @@ public actor CloudSyncService: CloudSyncManaging {
                 data: try await saves.stagedContents(local.id, gameID: gameID, location: location)))
         }
         let deletes = plan.decisions.filter { $0.action == .deleteRemote }.map(\.name)
-        if !uploads.isEmpty || !deletes.isEmpty { try await validateUploads(installation, uploads) }
+        if !uploads.isEmpty || !deletes.isEmpty { try await validateUploads(installation, uploads, deletes) }
         // Recheck ownership/idle writer and the entire local set before any remote write.
         let locations = try await roots(installation)
         let beforeWrite = try await saves.snapshot(gameID: gameID, installationID: installation.id, mapping: mapping, roots: locations)

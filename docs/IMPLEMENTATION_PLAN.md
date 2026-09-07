@@ -556,6 +556,14 @@ processes by birth identity. It rejects stale claims after asynchronous folder a
 pre-launch reservation no longer hides the most recent actual game process/outcome lookup needed
 for validation. The A Short Hike save-format validator and app controls/factory remain next.
 
+Native A Short Hike validation now walks the complete bounded NRBF graph without instantiating
+serialized types. Both preserved real saves pass; truncation/corruption/type/length checks fail
+as expected. The Steam upload policy validates staged hashes and requires an owned clean exit
+for unknown formats and deletion changes; A Short Hike receives structural validation regardless
+of exit outcome. The callback includes deletions so mixed upload/delete batches cannot bypass
+that policy. App factory, controller UI and live Cloud roundtrip remain.
+See `docs/validation/2026-09-08-save-validation.md`.
+
 ### 8 September — SteamCore interface fix requested by the user
 
 - [x] Cherry-pick `c5dfc3f289acb5097e31d2fea4045e19095a2ca2` into GameNative-macos main and
