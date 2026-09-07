@@ -202,10 +202,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 }
             }
             model.reducedMotion = false
-            for screen in ["home", "library", "library-paged", "library-return", "game", "downloads", "downloads-queued", "settings", "collections", "keyboard", "compatibility", "uninstall", "logs", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom"] {
+            let arguments = ProcessInfo.processInfo.arguments
+            let requestedScreens: Set<String>? = arguments.firstIndex(of: "--snapshot-screens").flatMap { index in
+                arguments.indices.contains(index + 1) ? Set(arguments[index + 1].split(separator: ",").map(String.init)) : nil
+            }
+            for screen in ["home", "library", "library-paged", "library-return", "game", "downloads", "downloads-queued", "settings", "collections", "keyboard", "compatibility", "uninstall", "logs", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom", "library-download-glyph", "library-download-focused", "game-unknown-size", "game-favorite"] {
+                if let requestedScreens, !requestedScreens.contains(screen) { continue }
                 model.panel = nil; model.detailID = nil; model.authScreen = nil; model.setupScreen = nil
                 model.setupBusy = false; model.setupFailure = nil; model.setupIndex = 0; model.onboarding = false
                 switch screen {
+                case "library-download-glyph", "library-download-focused":
+                    model.selectTab(.library); model.filter = .all
+                    if let index = model.games.firstIndex(where: { $0.title == "Disco Elysium" }) { model.games[index].status = .notInstalled }
+                    let title = screen == "library-download-focused" ? "Disco Elysium" : "A Short Hike"
+                    if let index = model.filteredGames.firstIndex(where: { $0.title == title }) { model.libraryCursor = GridCursor(index: index) }
+                case "game-unknown-size", "game-favorite":
+                    model.selectTab(.library)
+                    if let index = model.games.firstIndex(where: { $0.title == "TUNIC" }) {
+                        model.games[index].status = .notInstalled; model.games[index].size = "—"
+                        model.games[index].isFavorite = screen == "game-favorite"
+                        model.openGame(model.games[index]); model.detailAction = 1
+                    }
                 case "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready":
                     model.onboarding = true
                     model.setupScreen = screen == "setup-controller" ? .controller : screen == "setup-display" ? .display : screen == "setup-volume" ? .volume : .runtime

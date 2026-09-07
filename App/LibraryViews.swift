@@ -210,10 +210,12 @@ struct GamePage: View {
                 ScrollView(.horizontal) {
                     HStack(spacing: 14) {
                         ForEach(Array(model.detailActions.enumerated()), id: \.offset) { index, title in
-                            ActionButton(title: index == 1 ? (game.isFavorite ? "♥" : "□") : title == "Play" ? "▶  Play" : title,
-                                         primary: index == 0, detail: title == "Install" ? game.size : nil, focused: model.detailAction == index, large: index == 0, reducedMotion: model.reducedMotion) {
+                            ActionButton(title: title,
+                                         primary: index == 0, detail: title == "Install" ? game.knownSize : nil, focused: model.detailAction == index, large: index == 0, reducedMotion: model.reducedMotion,
+                                         systemImage: index == 1 ? (game.isFavorite ? "heart.fill" : "heart") : title == "Play" ? "play.fill" : nil,
+                                         iconOnly: index == 1, highlighted: index == 1 && game.isFavorite) {
                                 model.detailAction = index; model.activateDetail()
-                            }.id(index)
+                            }.help(index == 1 ? (game.isFavorite ? "Remove from favorites" : "Add to favorites") : title).id(index)
                         }
                     }.padding(.horizontal, 24).padding(.vertical, 18)
                 }.scrollIndicators(.hidden).scrollClipDisabled()

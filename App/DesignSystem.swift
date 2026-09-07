@@ -135,20 +135,25 @@ struct ActionButton: View {
     var focused = false
     var large = false
     var reducedMotion = false
+    var systemImage: String? = nil
+    var iconOnly = false
+    var highlighted = false
     var action: () -> Void
     var body: some View {
         Button(action: action) {
             HStack(spacing: 18) {
-                Text(title).font(Design.condensed(large ? 38 : 26, bold: primary))
+                if let systemImage { Image(systemName: systemImage).font(.system(size: 24, weight: .medium)) }
+                if !iconOnly { Text(title).font(Design.condensed(large ? 38 : 26, bold: primary)) }
                 if let detail { Text(detail).font(Design.body(22, weight: "Medium")).opacity(0.8) }
             }
-                .foregroundStyle(primary ? Color(hex: 0x1A1210) : Design.text)
-                .padding(.horizontal, large ? 44 : 22).frame(height: large ? 84 : 60)
+                .foregroundStyle(primary ? Color(hex: 0x1A1210) : highlighted ? Design.accent : Design.text)
+                .padding(.horizontal, iconOnly ? 0 : large ? 44 : 22).frame(width: iconOnly ? 60 : nil, height: large ? 84 : 60)
                 .background(primary ? Design.accent : .clear, in: RoundedRectangle(cornerRadius: 8))
                 .overlay(RoundedRectangle(cornerRadius: 8).stroke(primary ? .clear : Design.text.opacity(0.2), lineWidth: 2))
                 .focusRing(focused)
                 .scaleEffect(focused && !reducedMotion ? 1.04 : 1)
-        }.buttonStyle(.plain).animation(reducedMotion ? nil : .easeOut(duration: 0.18), value: focused)
+        }.buttonStyle(.plain).accessibilityLabel(title)
+            .animation(reducedMotion ? nil : .easeOut(duration: 0.18), value: focused)
     }
 }
 
@@ -161,6 +166,7 @@ struct GameTile: View {
     var paused = false
     var width: CGFloat { home ? 213 : 210 }
     var height: CGFloat { home ? 320 : 315 }
+    var showsDownloadMark: Bool { game.status == .notInstalled && game.compatibility != .broken }
     var badge: (String, Color)? {
         if game.status == .queued { return ("Queued", Design.secondary) }
         if game.status == .driveDisconnected { return ("Drive disconnected", Design.amber) }
@@ -171,13 +177,12 @@ struct GameTile: View {
         VStack(alignment: .leading, spacing: 22) {
             ZStack(alignment: .bottomLeading) {
                 Artwork(url: game.coverURL, title: game.title)
-                    .opacity([.notInstalled, .driveDisconnected].contains(game.status) ? 0.45 : 1)
                 if focused && !home {
                     LinearGradient(colors: [.clear, Design.background.opacity(0.92)], startPoint: .top, endPoint: .bottom).frame(height: 105)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(game.title).font(Design.condensed(24)).lineLimit(2)
                         Text(game.subtitle).font(Design.body(15)).foregroundStyle(Design.secondary)
-                    }.padding(14)
+                    }.padding(.trailing, showsDownloadMark ? 36 : 0).padding(14)
                 }
                 if game.status == .downloading {
                     VStack(spacing: 8) {
@@ -191,6 +196,16 @@ struct GameTile: View {
                 if let badge {
                     HStack(spacing: 6) { Circle().fill(badge.1).frame(width: 8, height: 8); Text(badge.0).font(Design.body(16, weight: "SemiBold")) }
                         .padding(.horizontal, 10).padding(.vertical, 6).background(Design.background.opacity(0.85), in: RoundedRectangle(cornerRadius: 6)).padding(10)
+                }
+            }
+            .overlay(alignment: .bottomTrailing) {
+                if showsDownloadMark {
+                    Image(systemName: "arrow.down.to.line")
+                        .font(.system(size: 13, weight: .medium)).foregroundStyle(Design.text)
+                        .frame(width: 30, height: 30)
+                        .background(Design.background.opacity(0.8), in: Circle())
+                        .overlay(Circle().strokeBorder(Design.text.opacity(0.5), lineWidth: 1.5))
+                        .padding(10).accessibilityHidden(true)
                 }
             }
             .focusRing(focused).scaleEffect(focused && !reducedMotion ? 1.08 : 1)
@@ -214,12 +229,16 @@ struct ProgressTrack: View {
     }
 }
 extension Game {
+    var knownSize: String? {
+        let value = size.trimmingCharacters(in: .whitespacesAndNewlines)
+        return ["", "—", "–", "-"].contains(value) ? nil : value
+    }
     var subtitle: String {
         switch status {
-        case .queued: "Queued · \(size)"
+        case .queued: knownSize.map { "Queued · \($0)" } ?? "Queued"
         case .downloading: "43% · 38 MB/s"
         case .driveDisconnected: "On VM · not mounted"
-        case .notInstalled: "Not installed · \(size)"
+        case .notInstalled: knownSize.map { "Not installed · \($0)" } ?? "Not installed"
         case .installed: "\(hoursPlayed) h played"
         }
     }
