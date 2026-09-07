@@ -12,8 +12,12 @@ struct DownloadRow: Identifiable {
     let headingTop: Double
 }
 extension LibraryModel {
-    var activeDownload: Game? { games.first { $0.status == .downloading } }
+    var activeDownload: Game? {
+        if !isPreview { return visibleInstallJobs.first(where: { $0.id == activeInstallID }).map { game(for: $0) } }
+        return games.first { $0.status == .downloading }
+    }
     var downloadGames: [Game] {
+        if !isPreview { return visibleInstallJobs.map { game(for: $0) } }
         let active = games.filter { $0.status == .downloading }
         let queued = games.filter { $0.status == .queued }.sorted {
             (queueOrder.firstIndex(of: $0.id) ?? Int.max) < (queueOrder.firstIndex(of: $1.id) ?? Int.max)
@@ -21,16 +25,20 @@ extension LibraryModel {
         let completed = games.filter { completedDownloads.contains($0.id) && $0.status == .installed }
         return active + queued + completed
     }
-    var pendingDownloadCount: Int { games.filter { [.queued, .downloading].contains($0.status) }.count }
+    var pendingDownloadCount: Int {
+        isPreview ? games.filter { [.queued, .downloading].contains($0.status) }.count : visibleInstallJobs.filter { ![.completed, .cancelled].contains($0.state) }.count
+    }
     var downloadRows: [DownloadRow] {
         var previousSection = "", top = 24.0
         return downloadGames.enumerated().map { index, game in
-            let section = game.status == .downloading ? "Downloading now" : game.status == .queued ? "Queued" : "Recently finished"
+            let job = isPreview ? nil : liveJob(for: game.id)
+            let section = job.map { $0.id == activeInstallID ? "Installing now" : $0.state == .failed ? "Needs attention" : [.completed, .cancelled].contains($0.state) ? "Recently finished" : "Queued" }
+                ?? (game.status == .downloading ? "Downloading now" : game.status == .queued ? "Queued" : "Recently finished")
             let heading: String? = section != previousSection ? section : nil
             if heading != nil && index > 0 { top += 20 }
             let headingTop = top
             if heading != nil { top += 36 }
-            let height = game.status == .downloading ? 220.0 : 118.0
+            let height = (job.map { $0.id == activeInstallID } ?? (game.status == .downloading)) ? 220.0 : job?.state == .failed ? 160.0 : 118.0
             let row = DownloadRow(game: game, index: index, top: top, height: height, heading: heading, headingTop: headingTop)
             previousSection = section; top += height + 12
             return row
@@ -42,6 +50,18 @@ extension LibraryModel {
             viewport: 840, content: last.top + last.height + 24)
     }
     func downloadActions(for id: GameID) -> [String] {
+        if !isPreview, let job = liveJob(for: id) {
+            let common = ["Open game", "View logs"]
+            if [.completed, .cancelled].contains(job.state) { return common }
+            if job.cancellationRequested == true { return (job.state == .paused || job.state == .failed ? ["Retry cancellation"] : []) + common }
+            switch job.state {
+            case .running: return ["Pause", "Cancel download…"] + common
+            case .stopping: return common
+            case .paused: return (job.pauseReasons == [.gameplay] ? [] : ["Resume"]) + ["Cancel download…"] + common
+            case .failed: return ["Retry", "Cancel download…"] + common
+            default: return ["Pause", "Move up", "Move down", "Cancel download…"] + common
+            }
+        }
         guard let game = games.first(where: { $0.id == id }) else { return [] }
         switch game.status {
         case .downloading: return [downloadPaused ? "Resume" : "Pause", "Cancel download…", "Open game", "View logs"]
@@ -50,6 +70,7 @@ extension LibraryModel {
         }
     }
     func activateDownloadAction(_ label: String, id: GameID) {
+        if !isPreview { performLiveDownloadAction(label, id: id); return }
         switch label {
         case "Pause", "Resume": downloadPaused.toggle(); panel = nil
         case "Cancel download…": show(.confirmation(.cancelDownload(id)))

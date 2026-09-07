@@ -164,11 +164,12 @@ struct GameTile: View {
     var reducedMotion = false
     var subtitle: String? = nil
     var paused = false
+    var job: JobRecord? = nil
     var width: CGFloat { home ? 213 : 210 }
     var height: CGFloat { home ? 320 : 315 }
     var showsDownloadMark: Bool { game.status == .notInstalled && game.compatibility != .broken }
     var badge: (String, Color)? {
-        if game.status == .queued { return ("Queued", Design.secondary) }
+        if game.status == .queued { return (job?.statusTitle ?? "Queued", job?.state == .failed ? Design.amber : Design.secondary) }
         if game.status == .driveDisconnected { return ("Drive disconnected", Design.amber) }
         if game.compatibility == .broken { return ("Broken", Design.red) }
         return nil
@@ -186,8 +187,8 @@ struct GameTile: View {
                 }
                 if game.status == .downloading {
                     VStack(spacing: 8) {
-                        HStack { Text(paused ? "Paused" : "Downloading"); Spacer(); Text("43%") }.font(Design.body(16, weight: "SemiBold"))
-                        ProgressTrack(value: 0.43, height: 6)
+                        HStack { Text(job?.statusTitle ?? (paused ? "Paused" : "Downloading")); Spacer(); if job == nil || job?.stage == .download { Text(job.map { $0.displayProgress.formatted(.percent.precision(.fractionLength(0))) } ?? "43%") } }.font(Design.body(16, weight: "SemiBold"))
+                        ProgressTrack(value: job?.displayProgress ?? 0.43, height: 6)
                     }.padding(12).background(LinearGradient(colors: [.clear, Design.background.opacity(0.9)], startPoint: .top, endPoint: .bottom))
                 }
             }

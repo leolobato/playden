@@ -406,3 +406,10 @@ does not replace M5's remaining v1 features or M6 acceptance.
 Platform reference: Apple's [background controller monitoring documentation](https://developer.apple.com/documentation/gamecontroller/gccontroller/shouldmonitorbackgroundevents)
 describes background event delivery; it does not establish that an overlay can exclusively route
 input away from a CrossOver game. That behavior remains an M0 test.
+
+### 7 September — persistent install queue and live UI
+
+The app now connects resolved install estimates and confirmation to a serial, persistent queue,
+owned game storage/bottles, source staging and atomic installation commit. Downloads controls and
+progress use saved jobs. This is a tested implementation checkpoint, not completion of the real-game
+or v1 gates. See [queue and UI evidence](validation/2026-09-07-install-queue.md) for checks and remaining work.

@@ -5,6 +5,7 @@ import Focus
 import Input
 import Catalog
 import Runner
+import Installs
 
 enum AppTab: String, CaseIterable { case home = "Home", library = "Library", downloads = "Downloads", settings = "Settings"
     var symbol: String { switch self { case .home: "house"; case .library: "square.grid.2x2"; case .downloads: "arrow.down.to.line"; case .settings: "gearshape" } }
@@ -15,6 +16,7 @@ enum Confirmation: Equatable { case deleteCollection(UUID), uninstall(GameID), i
 enum Panel: Equatable {
     case context, filters, search, compatibility, information(String), persistenceFailure, signOut, controllerTest
     case downloadActions(GameID)
+    case installOffer(GameID)
     case textEditor(TextPurpose), collections(GameID), collectionOptions(UUID), confirmation(Confirmation), logs(GameID)
 }
 
@@ -25,6 +27,15 @@ final class LibraryModel {
     @ObservationIgnored let syncCoordinator: LibrarySyncCoordinator?
     @ObservationIgnored let runtime: (any BottleManaging)?
     @ObservationIgnored let volumeStore: (any VolumeManaging)?
+    @ObservationIgnored let installQueue: (any InstallQueuing)?
+    @ObservationIgnored var installObserver: Task<Void, Never>?
+    @ObservationIgnored var installOfferTask: Task<Void, Never>?
+    var installOffer: InstallOffer?
+    var installOfferError: String?
+    var resolvingInstall = false
+    var installJobs: [JobRecord] = []
+    var activeInstallID: UUID?
+    var installPersistenceError: String?
     @ObservationIgnored var setupTask: Task<Void, Never>?
     @ObservationIgnored var onDisplaySelected: ((UInt32) -> Void)?
     var setupScreen: SetupScreen?
@@ -71,7 +82,11 @@ final class LibraryModel {
     var downloadWhilePlaying = false { didSet { persistPreferences() } }
     var tab: AppTab = .home
     var detailID: GameID?
-    var panel: Panel?
+    var panel: Panel? {
+        didSet {
+            if case .installOffer = oldValue, panel != oldValue { installOfferTask?.cancel(); resolvingInstall = false }
+        }
+    }
     var panelIndex = 0
     var homeRow = 0 { didSet { revealHomeFocus() } }
     var homeColumns: [Int: Int] = [:] { didSet { revealHomeFocus() } }
@@ -107,10 +122,15 @@ final class LibraryModel {
     var keyRow = 1
     var keyColumn = 0
     var uppercase = false
-    init(catalog: CatalogStore? = nil, preview: Bool = true, source: (any GameSource)? = nil, runtime: (any BottleManaging)? = nil, volumeStore: (any VolumeManaging)? = nil) {
+    init(catalog: CatalogStore? = nil, preview: Bool = true, source: (any GameSource)? = nil, runtime: (any BottleManaging)? = nil, volumeStore: (any VolumeManaging)? = nil, installQueue: (any InstallQueuing)? = nil) {
         self.catalog = catalog; self.isPreview = preview; self.source = source
         self.runtime = runtime; self.volumeStore = volumeStore
         self.syncCoordinator = catalog.map { LibrarySyncCoordinator(catalog: $0) }
+        if let installQueue { self.installQueue = installQueue }
+        else if !preview, let catalog, let source {
+            do { self.installQueue = try InstallQueue(catalog: catalog, sources: [source], storage: InstallStorage(volumes: volumeStore ?? GamesVolumeStore()), bottles: CrossOverGameBottles(runtime: runtime ?? CrossOverRuntime())) }
+            catch { self.installQueue = nil; self.installPersistenceError = error.localizedDescription }
+        } else { self.installQueue = nil }
         if !preview { games = []; collections = []; queueOrder = []; completedDownloads = [] }
         restoreCatalog()
         restoringState = false
@@ -168,14 +188,16 @@ final class LibraryModel {
         return result.filter { !$0.1.isEmpty }
     }
     var focusedGame: Game? {
-        if let detailID { return games.first { $0.id == detailID } }
+        if let detailID { return games.first { $0.id == detailID } ?? liveJob(for: detailID).map { game(for: $0) } }
         if tab == .library { return filteredGames[safe: libraryCursor.index] }
         if tab == .downloads { return downloadGames[safe: downloadIndex] }
         return rows[safe: homeRow]?.games[safe: homeColumns[homeRow, default: 0]]
     }
     var detailActions: [String] {
         guard let game = focusedGame else { return [] }
-        let primary = switch game.status { case .installed: "Play"; case .downloading: downloadPaused ? "Resume download" : "Pause download"; case .queued: "View download"; case .driveDisconnected: "Drive disconnected"; case .notInstalled: "Install" }
+        let primary: String
+        if !isPreview, let job = liveJob(for: game.id), ![.completed, .cancelled].contains(job.state) { primary = "View download" }
+        else { primary = switch game.status { case .installed: "Play"; case .downloading: downloadPaused ? "Resume download" : "Pause download"; case .queued: "View download"; case .driveDisconnected: "Drive disconnected"; case .notInstalled: "Install" } }
         return [primary, game.isFavorite ? "Favorited" : "Favorite", "Add to collection", game.isHidden ? "Unhide" : "Hide", "Set compatibility"] + (game.status == .installed ? ["Verify files", "Uninstall"] : []) + ["View logs"]
     }
     var contextActions: [String] { ["Open game", focusedGame?.isFavorite == true ? "Unfavorite" : "Favorite", "Set compatibility", focusedGame?.isHidden == true ? "Unhide" : "Hide", "View logs", "Add to collection"] }
@@ -183,6 +205,7 @@ final class LibraryModel {
         switch panel {
         case .context: contextActions
         case .downloadActions(let id): downloadActions(for: id)
+        case .installOffer: resolvingInstall ? [installOffer == nil ? "Cancel" : "Close"] : installOfferError != nil ? ["Cancel", "Retry"] : installOffer?.canInstall == true ? ["Cancel", "Install"] : ["Cancel", "Check space again"]
         case .filters: []
         case .compatibility: Compatibility.allCases.map(\.rawValue) + ["Edit note"]
         case .collections: collections.map(\.name) + ["New collection…"]
@@ -294,7 +317,8 @@ final class LibraryModel {
             if detailID != nil { activateDetail() }
             else if tab == .settings { activateSetting() }
             else if tab == .downloads {
-                if focusedGame?.status == .downloading { downloadPaused.toggle() }
+                if !isPreview, let game = focusedGame { show(.downloadActions(game.id)) }
+                else if focusedGame?.status == .downloading { downloadPaused.toggle() }
                 else if let game = focusedGame { openGame(game) }
                 else { browseAvailableGames() }
             }
@@ -359,21 +383,27 @@ final class LibraryModel {
         case "Set compatibility": show(.compatibility)
         case "Add to collection": if let id = focusedGame?.id { show(.collections(id)) }
         case "View logs": if let id = focusedGame?.id { show(.logs(id)) }
-        case "Uninstall": if let id = focusedGame?.id { show(.confirmation(.uninstall(id))) }
+        case "Uninstall":
+            if !isPreview { show(.information("Uninstall and save retention are still being implemented. Your installed files have been kept.")) }
+            else if let id = focusedGame?.id { show(.confirmation(.uninstall(id))) }
         case "Install":
-            if !isPreview { show(.information("Game installation is not connected yet. Steam sign-in, library sync and local library edits are available.")) }
+            if !isPreview, let id = focusedGame?.id { beginInstall(id) }
             else if let id = focusedGame?.id { show(.confirmation(.install(id))) }
         case "Pause download", "Resume download": downloadPaused.toggle()
         case "View download":
             let id = focusedGame?.id
             selectTab(.downloads)
             downloadIndex = downloadGames.firstIndex(where: { $0.id == id }) ?? 0
-        default: show(.information("This is the design preview. \(label) will connect to the real game service in a later milestone. No game files are changed."))
+        default: show(.information(isPreview ? "This is the design preview. \(label) will connect to the real game service in a later milestone. No game files are changed." : "\(label) is still being implemented. Your game files have been kept."))
         }
     }
     func activatePanel() {
         guard let label = panelActions[safe: panelIndex] else { return }
         switch panel {
+        case .installOffer(let id):
+            if panelIndex == 0 { panel = nil }
+            else if installOfferError != nil || installOffer?.canInstall != true { beginInstall(id) }
+            else { confirmInstall() }
         case .signOut:
             if panelIndex == 1 { signOut() } else { panel = nil }
         case .persistenceFailure:

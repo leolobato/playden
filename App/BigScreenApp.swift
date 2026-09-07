@@ -108,6 +108,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+    private var terminating = false
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let queue = model.installQueue else { return .terminateNow }
+        guard !terminating else { return .terminateLater }
+        terminating = true
+        model.stopServices()
+        Task {
+            await queue.shutdown()
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
+    }
     func applicationWillTerminate(_ notification: Notification) {
         model.stopServices()
         controller.stop()
@@ -206,7 +218,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let requestedScreens: Set<String>? = arguments.firstIndex(of: "--snapshot-screens").flatMap { index in
                 arguments.indices.contains(index + 1) ? Set(arguments[index + 1].split(separator: ",").map(String.init)) : nil
             }
-            for screen in ["home", "library", "library-paged", "library-return", "game", "downloads", "downloads-queued", "settings", "collections", "keyboard", "compatibility", "uninstall", "logs", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom", "library-download-glyph", "library-download-focused", "game-unknown-size", "game-favorite"] {
+            for screen in ["home", "library", "library-paged", "library-return", "game", "downloads", "downloads-queued", "settings", "collections", "keyboard", "compatibility", "uninstall", "logs", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom", "library-download-glyph", "library-download-focused", "game-unknown-size", "game-favorite", "install-offer", "install-offer-space", "install-queue", "install-game-progress"] {
                 if let requestedScreens, !requestedScreens.contains(screen) { continue }
                 model.panel = nil; model.detailID = nil; model.authScreen = nil; model.setupScreen = nil
                 model.setupBusy = false; model.setupFailure = nil; model.setupIndex = 0; model.onboarding = false
@@ -290,6 +302,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     }
                 default: model.selectTab(.home)
                 }
+                if screen.hasPrefix("install-") {
+                    window.contentView = NSHostingView(rootView: LauncherView(model: InstallSnapshots.model(for: screen)))
+                } else { window.contentView = NSHostingView(rootView: LauncherView(model: model)) }
                 try await Task.sleep(for: .seconds(2))
                 guard let view = window.contentView else { continue }
                 view.layoutSubtreeIfNeeded()

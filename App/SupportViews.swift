@@ -23,7 +23,8 @@ struct DownloadsScreen: View {
                 } else {
                     Text(model.gamesVolume == nil ? "No games drive selected" : "Games folder").font(Design.condensed(36))
                     Text(model.gamesVolume?.lastKnownRoot.path ?? "Choose a drive in Settings → Library.").font(Design.body(24)).foregroundStyle(Design.secondary)
-                    Text("Game installation is still being implemented.").font(Design.body(22)).foregroundStyle(Design.muted)
+                    Text("One game installs at a time. Pause, reorder or cancel an installation from its menu.").font(Design.body(22)).foregroundStyle(Design.secondary).lineSpacing(6)
+                    if let error = model.installPersistenceError { Text(error).font(Design.body(22)).foregroundStyle(Design.amber) }
                 }
             }.frame(width: 524)
         }.offset(x: 96, y: 150)
@@ -89,6 +90,8 @@ struct ModalLayer: View {
                 SearchKeyboard(model: model).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if case .confirmation(let intent) = model.panel {
                 ConfirmDialog(model: model, intent: intent).frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if case .installOffer(let gameID) = model.panel {
+                InstallOfferDialog(model: model, gameID: gameID).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if case .logs(let gameID) = model.panel {
                 LogViewer(model: model, gameID: gameID).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if case .information(let message) = model.panel {
@@ -178,12 +181,26 @@ struct DownloadCard: View {
     @Bindable var model: LibraryModel
     let row: DownloadRow
     var body: some View {
-        let active = row.game.status == .downloading
+        let job = model.isPreview ? nil : model.liveJob(for: row.game.id)
+        let active = job.map { $0.id == model.activeInstallID } ?? (row.game.status == .downloading)
         HStack(alignment: active ? .top : .center, spacing: 24) {
             Artwork(url: row.game.coverURL).frame(width: active ? 120 : 60, height: active ? 180 : 90).clipShape(RoundedRectangle(cornerRadius: 6))
             VStack(alignment: .leading, spacing: active ? 16 : 8) {
-                Text(row.game.title).font(Design.condensed(active ? 36 : 30))
-                if active {
+                Text(row.game.title).font(Design.condensed(active ? 36 : 30)).lineLimit(1)
+                if let job {
+                    HStack(spacing: 12) {
+                        Text(job.statusTitle).foregroundStyle(job.state == .failed ? Design.amber : active ? Design.accent : Design.secondary)
+                        if active && job.stage == .download { Text(job.displayProgress.formatted(.percent.precision(.fractionLength(0)))).foregroundStyle(Design.accent) }
+                    }.font(Design.body(active ? 24 : 22, weight: "Medium"))
+                    if !active, let failure = job.failure {
+                        Text(job.stageTitle + " · " + failure.reason).font(Design.body(20)).foregroundStyle(Design.secondary).lineLimit(2)
+                    }
+                    if active {
+                        ProgressTrack(value: job.displayProgress)
+                        Text(job.bytesLabel).font(Design.body(22)).foregroundStyle(Design.secondary)
+                        Text(job.currentFile ?? "Your game will be ready after verification and setup.").font(Design.body(18)).foregroundStyle(Design.muted).lineLimit(1).truncationMode(.middle)
+                    }
+                } else if active {
                     Text(model.downloadPaused ? "Paused · 43%" : "Download · 43%").font(Design.body(24, weight: "Medium")).foregroundStyle(Design.accent)
                     ProgressTrack(value: 0.43)
                     Text(model.downloadPaused ? "3.8 of 8.9 GB · ready to resume" : "3.8 of 8.9 GB · 38 MB/s · 2 min 14 s left").font(Design.body(22)).foregroundStyle(Design.secondary)
@@ -195,7 +212,11 @@ struct DownloadCard: View {
                     }
                 }
             }
-            if !active { Spacer(); Text(row.game.status == .queued ? String((model.queueOrder.firstIndex(of: row.game.id) ?? 0) + 1) : "Today").font(Design.body(22)).foregroundStyle(Design.muted) }
+            if !active {
+                Spacer()
+                if let job { Image(systemName: job.state == .completed ? "checkmark.circle" : job.state == .failed ? "exclamationmark.circle" : job.state == .paused ? "pause.circle" : "ellipsis").font(.system(size: 26)).foregroundStyle(Design.secondary) }
+                else { Text(row.game.status == .queued ? String((model.queueOrder.firstIndex(of: row.game.id) ?? 0) + 1) : "Today").font(Design.body(22)).foregroundStyle(Design.muted) }
+            }
         }.padding(.horizontal, 20).padding(.vertical, active ? 20 : 14)
             .background(Design.text.opacity(active ? 0.06 : 0.04), in: RoundedRectangle(cornerRadius: 8))
             .focusRing(model.downloadIndex == row.index)

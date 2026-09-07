@@ -8,6 +8,7 @@ enum AuthenticationScreen { case qr, credentials, approval, guardCode }
 extension LibraryModel {
     func startServices() {
         guard !isPreview, let source else { return }
+        startInstallServices()
         periodicSyncTask = Task { [weak self] in
             guard let self else { return }
             do { identity = try await source.auth.identity() }
@@ -21,6 +22,7 @@ extension LibraryModel {
     }
     func stopServices() {
         cancelAuthentication(); syncTask?.cancel(); periodicSyncTask?.cancel(); setupTask?.cancel()
+        installObserver?.cancel(); installOfferTask?.cancel()
     }
     func beginSignIn() {
         guard source != nil else {

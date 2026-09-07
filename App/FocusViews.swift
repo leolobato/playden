@@ -12,7 +12,7 @@ struct FocusedLibraryGrid: View {
             ForEach(Array(model.libraryVisibleIndices), id: \.self) { index in
                 if let game = games[safe: index] {
                     GameTile(game: game, focused: model.libraryCursor.index == index && !model.railFocused,
-                             reducedMotion: model.reducedMotion, paused: model.downloadPaused)
+                             reducedMotion: model.reducedMotion, paused: model.downloadPaused, job: model.isPreview ? nil : model.liveJob(for: game.id))
                         .offset(x: 24 + Double(index % 6) * 234,
                                 y: 24 + Double(index / 6) * 339 - model.libraryScrollOffset)
                         .zIndex(model.libraryCursor.index == index ? 1 : 0)
@@ -36,7 +36,7 @@ struct FocusedHomeRows: View {
                         ForEach(Array(row.games.enumerated()), id: \.element.id) { column, game in
                             GameTile(game: game, focused: model.homeRow == index && model.homeColumns[index, default: 0] == column,
                                      home: true, reducedMotion: model.reducedMotion,
-                                     subtitle: model.isPreview && index == 0 && column == 0 ? "31 h played · yesterday" : nil, paused: model.downloadPaused)
+                                     subtitle: model.isPreview && index == 0 && column == 0 ? "31 h played · yesterday" : nil, paused: model.downloadPaused, job: model.isPreview ? nil : model.liveJob(for: game.id))
                                 .onTapGesture { model.homeRow = index; model.homeColumns[index] = column; model.openGame(game) }
                         }
                     }.padding(.horizontal, 24).offset(x: -model.homeRowOffsets[index, default: 0])

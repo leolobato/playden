@@ -39,6 +39,7 @@ extension LibraryModel {
             sort = preferences.sort; refinements = preferences.refinements ?? LibraryRefinements()
             reducedMotion = preferences.reducedMotion; downloadWhilePlaying = preferences.downloadWhilePlaying
             gamesVolume = preferences.gamesVolume; selectedDisplayID = preferences.selectedDisplayID
+            applyInstallStatuses()
             reconcileFocus()
         } catch { recordPersistenceError(error) }
     }

@@ -123,7 +123,7 @@ struct BottomBar: View {
     private var keyboard: Bool { model.controllerName == nil || model.keyboardNavigation }
     var body: some View {
         HStack(spacing: 30) {
-            LegendItem(glyph: keyboard ? "↵" : model.playStationGlyphs ? "✕" : "A", title: model.detailID != nil ? "Select" : model.tab == .downloads && model.focusedGame?.status == .downloading ? (model.downloadPaused ? "Resume" : "Pause") : "Open")
+            LegendItem(glyph: keyboard ? "↵" : model.playStationGlyphs ? "✕" : "A", title: model.detailID != nil ? "Select" : model.tab == .downloads && !model.isPreview && model.focusedGame != nil ? "Manage" : model.tab == .downloads && model.focusedGame?.status == .downloading ? (model.downloadPaused ? "Resume" : "Pause") : "Open")
             if model.detailID != nil || model.tab == .library { LegendItem(glyph: keyboard ? "ESC" : model.playStationGlyphs ? "○" : "B", title: "Back") }
             if model.tab != .settings { LegendItem(glyph: keyboard ? "T" : model.playStationGlyphs ? "△" : "Y", title: "More") }
             if model.detailID == nil && model.tab == .home { LegendItem(glyph: keyboard ? "F" : model.playStationGlyphs ? "□" : "X", title: "Favorite") }
@@ -138,8 +138,8 @@ struct BottomBar: View {
                 HStack(spacing: 16) {
                     Image(systemName: model.downloadPaused ? "pause.fill" : "arrow.down.to.line").foregroundStyle(Design.accent)
                     Text(download.title).font(Design.body(20, weight: "SemiBold"))
-                    ProgressTrack(value: 0.43, height: 6).frame(width: 120)
-                    Text(model.downloadPaused ? "Paused" : "43% · 38 MB/s").font(Design.body(20, weight: "SemiBold")).foregroundStyle(Design.secondary)
+                    ProgressTrack(value: model.isPreview ? 0.43 : model.liveJob(for: download.id)?.displayProgress ?? 0, height: 6).frame(width: 120)
+                    Text(model.isPreview ? (model.downloadPaused ? "Paused" : "43% · 38 MB/s") : model.liveJob(for: download.id).map { $0.stage == .download ? $0.displayProgress.formatted(.percent.precision(.fractionLength(0))) : $0.statusTitle } ?? "Queued").font(Design.body(20, weight: "SemiBold")).foregroundStyle(Design.secondary)
                 }.padding(.horizontal, 16).frame(height: 40).background(Design.text.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
             }
         }
@@ -200,6 +200,7 @@ struct LibraryScreen: View {
 struct GamePage: View {
     @Bindable var model: LibraryModel
     let game: Game
+    private var hasInstallProgress: Bool { !model.isPreview && model.liveJob(for: game.id).map { ![.completed, .cancelled].contains($0.state) } == true }
     var body: some View {
         ZStack(alignment: .topLeading) {
             Artwork(url: game.heroURL, fadeIn: !model.reducedMotion).frame(width: 1920, height: 620)
@@ -223,11 +224,18 @@ struct GamePage: View {
             }.frame(width: 1776, height: 120).offset(x: 72, y: 622)
             HStack(alignment: .top, spacing: 80) {
                 VStack(alignment: .leading, spacing: 24) {
-                    Text(game.summary).font(Design.body(26)).foregroundStyle(Color(hex: 0xD6D0C8)).lineSpacing(7).fixedSize(horizontal: false, vertical: true)
-                    HStack(spacing: 12) {
-                        ForEach(game.genres, id: \.self) { tag in Text(tag).font(Design.body(20, weight: "Medium")).padding(.horizontal, 16).padding(.vertical, 8).background(Design.text.opacity(0.1), in: RoundedRectangle(cornerRadius: 6)) }
+                    if !model.isPreview, let job = model.liveJob(for: game.id), ![.completed, .cancelled].contains(job.state) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack { Text(job.statusTitle); Spacer(); Text(job.bytesLabel).foregroundStyle(Design.secondary) }.font(Design.body(22, weight: "Medium"))
+                            ProgressTrack(value: job.displayProgress, height: 8)
+                            if let failure = job.failure { Text(failure.reason).font(Design.body(20)).foregroundStyle(Design.amber).lineLimit(2) }
+                        }.padding(20).background(Design.text.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
                     }
-                    if let note = model.compatibilityNotes[game.id], !note.isEmpty {
+                    Text(game.summary).font(Design.body(26)).foregroundStyle(Color(hex: 0xD6D0C8)).lineSpacing(7).lineLimit(hasInstallProgress ? 2 : 4)
+                    if !hasInstallProgress { HStack(spacing: 12) {
+                        ForEach(game.genres, id: \.self) { tag in Text(tag).font(Design.body(20, weight: "Medium")).padding(.horizontal, 16).padding(.vertical, 8).background(Design.text.opacity(0.1), in: RoundedRectangle(cornerRadius: 6)) }
+                    } }
+                    if !hasInstallProgress, let note = model.compatibilityNotes[game.id], !note.isEmpty {
                         Text(note).font(Design.body(20)).foregroundStyle(Design.secondary).lineLimit(2)
                     }
                 }.frame(width: 1128, alignment: .leading)

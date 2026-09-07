@@ -26,7 +26,9 @@
 		30306F64D650CE41AADD0B44 /* LibraryPersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EB9DBF77AE790F10C180E46 /* LibraryPersistenceTests.swift */; };
 		339B25E5D038DDAF8B50576E /* LibraryInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99B69173E3CBF5EC838826D5 /* LibraryInteractionTests.swift */; };
 		36F6307D8E8DC73C2A6AF33F /* AccountModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 960AF38981989E6B845AE12D /* AccountModel.swift */; };
+		38E2837AB3519707459E65EF /* InstallModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 290BD195A4CE920AC4FD05D0 /* InstallModel.swift */; };
 		39CC303E3BA3D56385AAECF9 /* Catalog in Frameworks */ = {isa = PBXBuildFile; productRef = 28715DC80ABF712BDFAB9025 /* Catalog */; };
+		3D06C7DD0B318C2EDB32000C /* InstallSnapshots.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2282843F7F4162EBF4E8583C /* InstallSnapshots.swift */; };
 		47D3331506D352A34D2918D0 /* LibraryFilterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C9C86672EFCA75AD8158EA9 /* LibraryFilterTests.swift */; };
 		557F062A5951E40EC82A7F69 /* FocusViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = F51F9BB1C1297E755C6FB654 /* FocusViews.swift */; };
 		764655582701C0B1C2F9BA54 /* SupportViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0ABE6CC32C22767FC77D4D03 /* SupportViews.swift */; };
@@ -37,6 +39,7 @@
 		9056FBDE7AA54810D6A27738 /* BarlowCondensed-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = BBF8335C78563AB54988A674 /* BarlowCondensed-Bold.ttf */; };
 		A1FF886A1306CD7D8B5CE27F /* Installs in Frameworks */ = {isa = PBXBuildFile; productRef = 616AFAA57B1C670A9E38212D /* Installs */; };
 		A5BB015D1145708E9D242027 /* Focus in Frameworks */ = {isa = PBXBuildFile; productRef = 7DAA6C5CD5D24A18E0472A09 /* Focus */; };
+		A87C77D05E6DD17B5E85C9BD /* InstallInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 766C5E1AA303977304DFD467 /* InstallInteractionTests.swift */; };
 		B1283F0A6BA67AEA7A9C5AE0 /* ControllerInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E569123866C09B72649085F1 /* ControllerInteractionTests.swift */; };
 		B1A657D405AAD7C8B281677C /* EditingViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4038C0219269A842D64FC94D /* EditingViews.swift */; };
 		B25B1F80C0B90AEC6CA8BC60 /* LibraryModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7E1299E802C11E73F8A1EDA /* LibraryModel.swift */; };
@@ -64,7 +67,9 @@
 		08513EE3EB4D3FF23A5EC440 /* Barlow-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Barlow-Medium.ttf"; sourceTree = "<group>"; };
 		0ABE6CC32C22767FC77D4D03 /* SupportViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupportViews.swift; sourceTree = "<group>"; };
 		0EB9DBF77AE790F10C180E46 /* LibraryPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryPersistenceTests.swift; sourceTree = "<group>"; };
+		2282843F7F4162EBF4E8583C /* InstallSnapshots.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallSnapshots.swift; sourceTree = "<group>"; };
 		281D1CCE073CC4C5E8961058 /* AccountInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountInteractionTests.swift; sourceTree = "<group>"; };
+		290BD195A4CE920AC4FD05D0 /* InstallModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallModel.swift; sourceTree = "<group>"; };
 		2ABB68A7CE89083ACCBE20BC /* LibraryEditing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryEditing.swift; sourceTree = "<group>"; };
 		4038C0219269A842D64FC94D /* EditingViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditingViews.swift; sourceTree = "<group>"; };
 		4622DF2E186C3B6F638C30B1 /* Barlow-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Barlow-Regular.ttf"; sourceTree = "<group>"; };
@@ -73,6 +78,7 @@
 		675832B109B2E37BE237EB27 /* BarlowCondensed-SemiBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "BarlowCondensed-SemiBold.ttf"; sourceTree = "<group>"; };
 		6AF948AAF0BAAEF8084DC07F /* Barlow-SemiBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Barlow-SemiBold.ttf"; sourceTree = "<group>"; };
 		6C51BD54920288A7687D10E5 /* AmbientBackdrop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AmbientBackdrop.swift; sourceTree = "<group>"; };
+		766C5E1AA303977304DFD467 /* InstallInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallInteractionTests.swift; sourceTree = "<group>"; };
 		8D6705B879274E7AFECA275A /* AuthenticationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationView.swift; sourceTree = "<group>"; };
 		8DF603146150E3A8F502D3AF /* BarlowCondensed-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "BarlowCondensed-Medium.ttf"; sourceTree = "<group>"; };
 		8E9A8D8C39868D9CD1F07282 /* SetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupView.swift; sourceTree = "<group>"; };
@@ -123,6 +129,7 @@
 			children = (
 				281D1CCE073CC4C5E8961058 /* AccountInteractionTests.swift */,
 				E569123866C09B72649085F1 /* ControllerInteractionTests.swift */,
+				766C5E1AA303977304DFD467 /* InstallInteractionTests.swift */,
 				BAA058B561808E36274C4A53 /* LibraryEditingTests.swift */,
 				4C9C86672EFCA75AD8158EA9 /* LibraryFilterTests.swift */,
 				99B69173E3CBF5EC838826D5 /* LibraryInteractionTests.swift */,
@@ -154,6 +161,8 @@
 				F368FC58634A6CD38017484C /* DownloadPresentation.swift */,
 				4038C0219269A842D64FC94D /* EditingViews.swift */,
 				F51F9BB1C1297E755C6FB654 /* FocusViews.swift */,
+				290BD195A4CE920AC4FD05D0 /* InstallModel.swift */,
+				2282843F7F4162EBF4E8583C /* InstallSnapshots.swift */,
 				2ABB68A7CE89083ACCBE20BC /* LibraryEditing.swift */,
 				BD033BB2ED7ABC84DF20A75D /* LibraryFilters.swift */,
 				A7E1299E802C11E73F8A1EDA /* LibraryModel.swift */,
@@ -353,6 +362,8 @@
 				1EFD31AE2D9D221A91B9222D /* DownloadPresentation.swift in Sources */,
 				B1A657D405AAD7C8B281677C /* EditingViews.swift in Sources */,
 				557F062A5951E40EC82A7F69 /* FocusViews.swift in Sources */,
+				38E2837AB3519707459E65EF /* InstallModel.swift in Sources */,
+				3D06C7DD0B318C2EDB32000C /* InstallSnapshots.swift in Sources */,
 				026CD25A5A7A4881AC6252AE /* LibraryEditing.swift in Sources */,
 				8F6786AF7BABC6BECC836D3F /* LibraryFilters.swift in Sources */,
 				B25B1F80C0B90AEC6CA8BC60 /* LibraryModel.swift in Sources */,
@@ -372,6 +383,7 @@
 			files = (
 				B2A98FB795CC03E24E7989E6 /* AccountInteractionTests.swift in Sources */,
 				B1283F0A6BA67AEA7A9C5AE0 /* ControllerInteractionTests.swift in Sources */,
+				A87C77D05E6DD17B5E85C9BD /* InstallInteractionTests.swift in Sources */,
 				F97B357CF2C84140B4D6FD9C /* LibraryEditingTests.swift in Sources */,
 				47D3331506D352A34D2918D0 /* LibraryFilterTests.swift in Sources */,
 				339B25E5D038DDAF8B50576E /* LibraryInteractionTests.swift in Sources */,

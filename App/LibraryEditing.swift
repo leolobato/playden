@@ -120,7 +120,7 @@ extension LibraryModel {
         case .deleteCollection: "Only the collection is removed. Your games, favorites and play history are kept."
         case .uninstall: "Remove this preview installation. Game files and saves on your Mac are untouched while the runtime is disconnected."
         case .install(let id): "\(games.first { $0.id == id }?.size ?? "Unknown size") required. This adds a preview queue entry; downloading will be available when Steam is connected."
-        case .cancelDownload: "Remove this entry from the preview queue. No game files on your Mac are changed."
+        case .cancelDownload: isPreview ? "Remove this entry from the preview queue. No game files on your Mac are changed." : "Stop this installation and remove its downloaded files. You can install the game again from your library."
         }
     }
     func confirm(_ intent: Confirmation) {
@@ -137,12 +137,13 @@ extension LibraryModel {
             if !queueOrder.contains(id) { queueOrder.append(id) }
             detailAction = 0
         case .cancelDownload(let id):
+            if !isPreview { cancelLiveDownload(id); return }
             queueOrder.removeAll { $0 == id }
             if let i = games.firstIndex(where: { $0.id == id }) { games[i].status = .notInstalled }
         }
         panel = nil; reconcileFocus()
     }
-    func gameName(_ id: GameID) -> String { games.first { $0.id == id }?.title ?? "Game" }
+    func gameName(_ id: GameID) -> String { games.first { $0.id == id }?.title ?? liveJob(for: id)?.plan?.game.title ?? "Game" }
     var panelTitle: String {
         switch panel {
         case .filters: "Sort & filter"
