@@ -99,6 +99,7 @@ public struct PlaySessionRecord: Codable, Equatable, Sendable, Identifiable {
     /// Accumulated from a monotonic clock, never computed from restart wall-clock gaps.
     public var playedSeconds: Int64
     public var outcome: SessionOutcome?
+    public var runtime: RunSnapshot?
     public init(id: UUID = UUID(), gameID: GameID, bottleID: String, startedAt: Date = .now) {
         self.id = id; self.gameID = gameID; self.bottleID = bottleID; self.startedAt = startedAt
         self.lastCheckpointAt = startedAt; self.endedAt = nil; self.playedSeconds = 0; self.outcome = nil

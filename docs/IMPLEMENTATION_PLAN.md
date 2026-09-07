@@ -421,3 +421,11 @@ links with bottle-local Windows folders. The verified download was reused on Ret
 clone probes, folder ownership tests and the real installed folder audit passed. This establishes
 one real installation; play/session/save-reinstall acceptance remains open. See
 [private-folder and installation evidence](validation/2026-09-07-private-game-folders.md).
+
+### 7 September — game process observation and scoped quit
+
+The injected CrossOver runner now has literal launch arguments, bottle/process/window attribution,
+scoped graceful/forced termination and process-identity recovery. A real Oniken window and ten-second
+quit escalation were observed. The session service and Play/overlay UI remain unconnected, and
+controller handoff/player-controlled gameplay are not yet proven. See
+[runner evidence](validation/2026-09-07-game-runner.md).
