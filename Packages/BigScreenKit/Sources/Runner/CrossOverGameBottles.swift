@@ -39,6 +39,7 @@ public actor CrossOverGameBottles: GameBottleManaging {
         guard exists(destination) else { return false }
         guard try readMarker(at: destination, matching: bottle).ready else { return false }
         try checkConfiguration(destination)
+        try BottleFolders.verify(destination)
         return true
     }
     public func prepare(_ bottle: GameBottle) async throws {
@@ -52,28 +53,44 @@ public actor CrossOverGameBottles: GameBottleManaging {
         let destination = bottles.appendingPathComponent(bottle.name)
         if exists(destination) {
             let marker = try readMarker(at: destination, matching: bottle)
-            if marker.ready { try checkConfiguration(destination); return }
+            if marker.ready {
+                try checkConfiguration(destination)
+                if (try? BottleFolders.verify(destination)) != nil { return }
+                try write(Marker(bottle: bottle, ready: false), at: destination)
+            }
         } else {
             let container = try ownedContainer(bottle, create: true)
             let clone = container.appendingPathComponent("clone")
             // The container marker predates the command, including copies interrupted before
             // CrossOver writes any recognizable bottle metadata.
-            if exists(clone) { try files.removeItem(at: clone) }
+            if exists(clone) {
+                try requireDirectory(clone, under: container)
+                if exists(clone.appendingPathComponent("system.reg")), exists(clone.appendingPathComponent("cxbottle.conf")) {
+                    // wineserver can outlive its administrative parent's process group.
+                    // Stop only this owned partial clone before removing its prefix.
+                    try await run("wine", ["--bottle", clone.path, "--ux-app", "wineserver", "-k"], timeout: 15)
+                    try await run("wine", ["--bottle", clone.path, "--ux-app", "wineserver", "-w"], timeout: 15)
+                }
+                try files.removeItem(at: clone)
+            }
             let template = bottles.appendingPathComponent(templateName)
             try requireDirectory(template, under: bottles)
             try await run("cxbottle", ["--bottle", clone.path, "--copy", template.path], timeout: 120)
             try requireDirectory(clone, under: container)
             try checkConfiguration(clone)
             try write(Marker(bottle: bottle, ready: false), at: clone)
+            try BottleFolders.configure(clone, publishedAt: destination)
             try Task.checkCancellation()
             guard !exists(destination) else { throw problem("A bottle with this name appeared during setup. Its files have been kept.") }
             try files.moveItem(at: clone, to: destination)
         }
         // Repairs path-dependent CrossOver metadata after the atomic directory move.
+        try BottleFolders.configure(destination)
         try await run("cxbottle", ["--bottle", destination.path, "--restored"], timeout: 45)
         try checkConfiguration(destination)
         let result = try await run("cxstart", ["--bottle", destination.path, "--no-gui", "--wait-children", "cmd.exe", "/c", "echo BIGSCREEN_GAME_BOTTLE_READY"], timeout: 45)
         guard result.output.contains("BIGSCREEN_GAME_BOTTLE_READY") else { throw problem("The game's runtime did not finish its startup check.", output: result.output) }
+        try BottleFolders.verify(destination)
         try Task.checkCancellation()
         _ = try readMarker(at: destination, matching: bottle)
         try write(Marker(bottle: bottle, ready: true), at: destination)

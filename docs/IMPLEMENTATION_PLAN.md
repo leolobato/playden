@@ -413,3 +413,11 @@ The app now connects resolved install estimates and confirmation to a serial, pe
 owned game storage/bottles, source staging and atomic installation commit. Downloads controls and
 progress use saved jobs. This is a tested implementation checkpoint, not completion of the real-game
 or v1 gates. See [queue and UI evidence](validation/2026-09-07-install-queue.md) for checks and remaining work.
+
+### 7 September — real install and private Windows folders
+
+Oniken completed the real Steam install pipeline in the signed app after replacing native-folder
+links with bottle-local Windows folders. The verified download was reused on Retry. Template and
+clone probes, folder ownership tests and the real installed folder audit passed. This establishes
+one real installation; play/session/save-reinstall acceptance remains open. See
+[private-folder and installation evidence](validation/2026-09-07-private-game-folders.md).

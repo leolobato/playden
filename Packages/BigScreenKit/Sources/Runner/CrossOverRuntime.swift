@@ -42,7 +42,7 @@ public actor CrossOverRuntime: BottleManaging {
             let version = try checkRuntime()
             var ready = false
             if let receipt = try loadReceipt(), receipt.ready {
-                try verifyOwnership(receipt.owner); try verifyConfiguration(); ready = true
+                try verifyOwnership(receipt.owner); try verifyConfiguration(); try BottleFolders.verify(template); ready = true
             }
             let failure = (try? Data(contentsOf: failureURL)).flatMap { try? JSONDecoder().decode(OperationFailure.self, from: $0) }
             return RuntimeInfo(version: version, templateVersion: Self.templateVersion, templateReady: ready, failure: failure)
@@ -69,7 +69,11 @@ public actor CrossOverRuntime: BottleManaging {
             if !exists(template) {
                 receipt.ready = false; try write(receipt, to: receiptURL)
                 stage = "Create template"; onProgress(.creating)
-                let result = try await commands.run(executable: tool("cxbottle"), arguments: ["--bottle", templateName,
+                let bootstrap = try BottleFolders.bootstrap(at: stateDirectory.appendingPathComponent("folder-bootstrap"))
+                // The template's first Wine startup precedes its final configuration file.
+                // Supply private shell-folder targets from the first child process onward.
+                let result = try await commands.run(executable: URL(fileURLWithPath: "/usr/bin/env"), arguments: [
+                    "XDG_CONFIG_HOME=" + bootstrap.path, "CX_DIRECT_DESKTOP=1", tool("cxbottle").path, "--bottle", templateName,
                     "--create", "--template", "win10_64", "--description", receipt.owner.description,
                     "--param", "EnvironmentVariables:WINEMSYNC=1", "--param", "EnvironmentVariables:CX_GRAPHICS_BACKEND=d3dmetal"], timeout: 90)
                 // A durable reservation and the command's own description identify partial creation.
@@ -79,6 +83,7 @@ public actor CrossOverRuntime: BottleManaging {
             stage = "Configure template"; onProgress(.configuring)
             if !exists(template.appendingPathComponent(".bigscreen-owner.json")) { try claimCreatedBottle(receipt.owner) }
             try verifyOwnership(receipt.owner); try verifyConfiguration()
+            try BottleFolders.configure(template)
             receipt.ready = false; try write(receipt, to: receiptURL)
             stage = "Validate template"; onProgress(.validating)
             // Exercises Wine startup and any license/runtime errors before the first install.
@@ -86,6 +91,7 @@ public actor CrossOverRuntime: BottleManaging {
                 "--no-gui", "--wait-children", "cmd.exe", "/c", "echo BIGSCREEN_TEMPLATE_READY"], timeout: 45)
             try requireSuccess(result, stage: stage)
             guard result.output.contains("BIGSCREEN_TEMPLATE_READY") else { throw issue(stage, "The game runtime did not finish its startup check.", output: result.output) }
+            try BottleFolders.verify(template)
             try Task.checkCancellation()
             receipt.ready = true; try write(receipt, to: receiptURL)
             if exists(failureURL) { try files.removeItem(at: failureURL) }
