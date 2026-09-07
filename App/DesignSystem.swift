@@ -25,12 +25,20 @@ extension Color {
     init(hex: UInt32) { self.init(.sRGB, red: Double((hex >> 16) & 255) / 255, green: Double((hex >> 8) & 255) / 255, blue: Double(hex & 255) / 255, opacity: 1) }
 }
 
+private struct FocusRingScope: EnvironmentKey { static let defaultValue = true }
+extension EnvironmentValues {
+    var showsFocusRing: Bool {
+        get { self[FocusRingScope.self] }
+        set { self[FocusRingScope.self] = newValue }
+    }
+}
 struct FocusTreatment: ViewModifier {
+    @Environment(\.showsFocusRing) private var enabled
     let active: Bool
     var compact = false
     func body(content: Content) -> some View {
         content.overlay {
-            if active {
+            if active && enabled {
                 ZStack {
                     RoundedRectangle(cornerRadius: compact ? 12 : 13)
                         .stroke(Design.accent.opacity(0.55), lineWidth: 12).blur(radius: 22)

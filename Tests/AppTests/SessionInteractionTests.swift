@@ -62,6 +62,35 @@ final class SessionInteractionTests: XCTestCase {
         model.perform(.nextTab); XCTAssertEqual(model.tab, .library)
         model.perform(.confirm); XCTAssertFalse(model.exitOverlay)
     }
+    func testNotificationActionsHaveTheirOwnFocusAndDoNotStealSortFilter() {
+        let model = LibraryModel(); model.tab = .library
+        model.session = snapshot(phase: .idle)
+        model.sessionIssue = .init(stage: "Game closed unexpectedly", reason: "Test failure", output: "")
+        model.perform(.options)
+        XCTAssertEqual(model.panel, .filters)
+        model.perform(.back)
+        let cursor = model.libraryCursor
+        model.perform(.context)
+        XCTAssertTrue(model.sessionIssueFocused); XCTAssertEqual(model.sessionIssueIndex, 0)
+        model.perform(.confirm)
+        XCTAssertEqual(model.panel, .logs(id))
+        model.perform(.back); model.perform(.context); model.perform(.move(.right))
+        XCTAssertEqual(model.sessionIssueIndex, 1)
+        XCTAssertEqual(model.libraryCursor, cursor)
+        model.perform(.confirm)
+        XCTAssertNil(model.sessionIssue); XCTAssertFalse(model.sessionIssueFocused)
+    }
+    func testNotificationFocusDoesNotInterceptOtherPanelsAndFocusWarningEndsWithGame() {
+        let model = LibraryModel(); model.session = snapshot(phase: .idle)
+        model.sessionIssue = .init(stage: "Test", reason: "Test", output: "")
+        model.show(.search); model.perform(.context)
+        XCTAssertFalse(model.sessionIssueFocused); XCTAssertEqual(model.panel, .search)
+        model.panel = nil; model.session = snapshot()
+        model.sessionIssue = .init(stage: "Return to game", reason: "Focus declined", output: "")
+        var ended = snapshot(phase: .idle); ended.session?.endedAt = .now; ended.session?.outcome = .clean
+        model.receiveSession(ended)
+        XCTAssertNil(model.sessionIssue)
+    }
     func testHomeExitReturnsHomeButEarlyFailureReturnsGamePage() {
         for failed in [false, true] {
             let model = LibraryModel(); model.sessionOrigin = .home

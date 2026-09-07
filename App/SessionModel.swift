@@ -4,6 +4,13 @@ import Sessions
 import Input
 
 extension LibraryModel {
+    var showsSessionIssue: Bool { sessionIssue != nil && !hasActiveSession && panel == nil && authScreen == nil && setupScreen == nil }
+    var sessionIssueActions: [String] { (session.session?.gameID == nil ? [] : ["View logs"]) + ["Dismiss"] }
+    func activateSessionIssue() {
+        if sessionIssueActions[safe: sessionIssueIndex] == "View logs", let id = session.session?.gameID {
+            sessionIssueFocused = false; show(.logs(id))
+        } else { sessionIssue = nil }
+    }
     var hasActiveSession: Bool { session.phase != .idle }
     var isLaunchingGame: Bool { session.phase == .preparing || session.phase == .launching }
     var sessionGame: Game? {
@@ -34,6 +41,7 @@ extension LibraryModel {
             onGameWindow?(window)
         }
         if snapshot.phase == .idle && (previous.phase != .idle || (snapshot.session?.endedAt != nil && previous.session?.id != snapshot.session?.id)) {
+            if sessionIssue?.stage == "Return to game" { sessionIssue = nil }
             setExitOverlay(false); sessionBusy = false
             reloadCatalog()
             tab = sessionOrigin
@@ -118,9 +126,18 @@ extension LibraryModel {
             if case .back = action { setExitOverlay(true) }
             return true
         }
-        if case .options = action, sessionIssue != nil, let id = session.session?.gameID {
-            show(.logs(id)); return true
-        }
+        if showsSessionIssue {
+            if case .context = action { sessionIssueFocused.toggle(); sessionIssueIndex = 0; return true }
+            if sessionIssueFocused {
+                switch action {
+                case .move(let direction): sessionIssueIndex = min(max(0, sessionIssueIndex + (direction == .left || direction == .up ? -1 : 1)), sessionIssueActions.count - 1)
+                case .confirm: activateSessionIssue()
+                case .back: sessionIssueFocused = false
+                default: sessionIssueFocused = false; return false
+                }
+                return true
+            }
+        } else { sessionIssueFocused = false }
         return false
     }
     func updateSessionDownloadPolicy() {

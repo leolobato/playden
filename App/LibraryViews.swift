@@ -32,11 +32,13 @@ struct CanvasView: View {
                 }
                 TopBar(model: model).frame(width: 1728, height: 56).offset(x: 96, y: 54)
             }.frame(width: 1920, height: 1080, alignment: .topLeading)
+                .environment(\.showsFocusRing, !model.sessionIssueFocused)
                 .opacity(model.detailID == nil ? 1 : 0)
                 .allowsHitTesting(model.detailID == nil)
                 .accessibilityHidden(model.detailID != nil)
             if model.detailID != nil, let game = model.focusedGame {
                 GamePage(model: model, game: game)
+                    .environment(\.showsFocusRing, !model.sessionIssueFocused)
                     .transition(model.reducedMotion ? .identity : .opacity.combined(with: .offset(y: 24)))
                     .zIndex(1)
             }
@@ -65,17 +67,22 @@ struct CanvasView: View {
                     .font(Design.body(24)).foregroundStyle(Design.amber).padding(24)
                     .background(Design.panel, in: RoundedRectangle(cornerRadius: 12)).offset(x: 96, y: 880).zIndex(6)
             }
-            if let issue = model.sessionIssue, !model.hasActiveSession, model.panel == nil {
-                HStack(spacing: 24) {
+            if let issue = model.sessionIssue, model.showsSessionIssue {
+                VStack(alignment: .leading, spacing: 20) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(issue.stage).font(Design.condensed(28))
                         Text(issue.reason).font(Design.body(22)).foregroundStyle(Design.secondary).lineLimit(2)
                     }
-                    if let id = model.session.session?.gameID {
-                        ActionButton(title: "View logs", reducedMotion: model.reducedMotion) { model.show(.logs(id)) }
+                    HStack(spacing: 16) {
+                        ForEach(Array(model.sessionIssueActions.enumerated()), id: \.offset) { index, title in
+                            ActionButton(title: title, focused: model.sessionIssueFocused && model.sessionIssueIndex == index, reducedMotion: model.reducedMotion) {
+                                model.sessionIssueIndex = index; model.activateSessionIssue()
+                            }
+                        }
+                        Spacer()
+                        LegendItem(glyph: model.keyboardNavigation || model.controllerName == nil ? "T" : model.playStationGlyphs ? "△" : "Y", title: "Notification actions")
                     }
-                    Button { model.sessionIssue = nil } label: { Image(systemName: "xmark").font(.system(size: 22)) }.buttonStyle(.plain).accessibilityLabel("Dismiss")
-                }.padding(24).frame(width: 1100).background(Design.panel, in: RoundedRectangle(cornerRadius: 12)).offset(x: 96, y: 814).zIndex(6)
+                }.padding(24).frame(width: 1100).background(Design.panel, in: RoundedRectangle(cornerRadius: 12)).offset(x: 96, y: 750).zIndex(6)
             }
             if model.isLaunchingGame { LaunchingGameView(model: model).transition(.opacity).zIndex(7) }
             if model.exitOverlay && model.fixedClock { GameExitOverlay(model: model).zIndex(8) }
@@ -138,15 +145,21 @@ struct BottomBar: View {
     private var keyboard: Bool { model.controllerName == nil || model.keyboardNavigation }
     var body: some View {
         HStack(spacing: 30) {
+            if model.showsSessionIssue && model.sessionIssueFocused {
+                LegendItem(glyph: keyboard ? "↵" : model.playStationGlyphs ? "✕" : "A", title: "Select")
+                LegendItem(glyph: keyboard ? "ESC" : model.playStationGlyphs ? "○" : "B", title: "Back")
+                LegendItem(glyph: "← →", title: "Choose action")
+            } else {
             LegendItem(glyph: keyboard ? "↵" : model.playStationGlyphs ? "✕" : "A", title: model.detailID != nil || model.tab == .settings ? "Select" : model.tab == .downloads && !model.isPreview && model.focusedGame != nil ? "Manage" : model.tab == .downloads && model.focusedGame?.status == .downloading ? (model.downloadPaused ? "Resume" : "Pause") : "Open")
             if model.detailID != nil || model.tab == .library { LegendItem(glyph: keyboard ? "ESC" : model.playStationGlyphs ? "○" : "B", title: "Back") }
-            if model.tab != .settings { LegendItem(glyph: keyboard ? "T" : model.playStationGlyphs ? "△" : "Y", title: "More") }
+            if model.tab != .settings || model.showsSessionIssue { LegendItem(glyph: keyboard ? "T" : model.playStationGlyphs ? "△" : "Y", title: model.showsSessionIssue ? "Notification" : "More") }
             if model.detailID == nil && model.tab == .home { LegendItem(glyph: keyboard ? "F" : model.playStationGlyphs ? "□" : "X", title: "Favorite") }
             if model.detailID == nil {
                 if keyboard { LegendItem(glyph: "TAB", title: "Tabs") }
                 if model.tab == .library { LegendItem(glyph: keyboard ? "O" : model.playStationGlyphs ? "OPTIONS" : "MENU", title: "Sort & filter") }
                 else if !keyboard { HStack(spacing: 10) { Glyph(text: model.playStationGlyphs ? "L1" : "LB"); Glyph(text: model.playStationGlyphs ? "R1" : "RB"); Text("Tabs").font(Design.body(22, weight: "Medium")) } }
                 if model.tab == .home || model.tab == .library { LegendItem(glyph: keyboard ? "/" : model.playStationGlyphs ? "PAD" : "VIEW", title: "Search") }
+            }
             }
             Spacer(minLength: 0)
             if model.detailID == nil && model.tab != .downloads && model.tab != .settings, let download = model.activeDownload {

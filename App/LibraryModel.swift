@@ -39,7 +39,9 @@ final class LibraryModel {
     @ObservationIgnored var onExitOverlayChanged: ((Bool) -> Void)?
     var session = SessionSnapshot()
     var sessionReady = false
-    var sessionIssue: OperationFailure?
+    var sessionIssue: OperationFailure? { didSet { if oldValue != sessionIssue { sessionIssueFocused = false; sessionIssueIndex = 0 } } }
+    var sessionIssueFocused = false
+    var sessionIssueIndex = 0
     var sessionOrigin: AppTab = .library
     var exitOverlay = false
     var exitIndex = 0
