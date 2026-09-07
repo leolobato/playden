@@ -7,7 +7,9 @@ if [[ ! -d "$built_app" ]]; then
 fi
 # Never run from DerivedData: Xcode replaces/signs that bundle during builds and tests,
 # which can invalidate Keychain access for the process that is still running from it.
-run_root="$PWD/.build/Run"
+# Keep the launch copy outside Documents/Desktop. Wine reads bundled Windows helpers at
+# runtime; launching from a protected repository folder otherwise triggers a TCC prompt.
+run_root="$HOME/Library/Application Support/Big Screen/Run"
 mkdir -p "$run_root"
 staging_root=$(mktemp -d "$run_root/.staging.XXXXXX")
 trap 'rm -rf -- "$staging_root"' EXIT
