@@ -449,3 +449,8 @@ return to fullscreen were observed; continuous gameplay, physical DS4 handoff an
 are still open. See `docs/validation/2026-09-07-session-ui.md`. User additionally requested clear
 preferred-monitor settings for launcher/game placement and a saved startup-fullscreen option;
 these are the next display work, beyond the existing first-run launcher display selector.
+
+2026-09-07 permission follow-up: confirmed Big Screen is already unsandboxed. Removed emulator
+LAN discovery from offline preparation and updated existing generated configs after checking
+installation ownership and idle sessions. This reduces an unnecessary permission trigger;
+macOS privacy grants remain separate from App Sandbox and are not bypassed.

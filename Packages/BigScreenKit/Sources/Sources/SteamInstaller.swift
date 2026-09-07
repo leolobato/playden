@@ -72,6 +72,10 @@ public struct SteamInstaller: Installer {
             guard stagedPath.hasPrefix(canonicalRoot), backupPath.hasPrefix(canonicalRoot) else {
                 throw SteamPlanBuilder.failure("Prepare", "A prepared file leaves the installation folder.")
             }
+            // Steam's offline status alone still starts GBE's LAN discovery. Big Screen v1
+            // uses offline play, so do not request local-network access just by launching it.
+            let connectivity = dll.dll.deletingLastPathComponent().appendingPathComponent("steam_settings/configs.main.ini")
+            try "[main::connectivity]\ndisable_lan_only=0\noffline=1\ndisable_networking=1\n".write(to: connectivity, atomically: true, encoding: .utf8)
             let relative = String(stagedPath.dropFirst(canonicalRoot.count))
             let backup = String(backupPath.dropFirst(canonicalRoot.count))
             mutations.append(FileMutation(relativePath: relative, originalRelativePath: backup, stagedSHA256: try digest(dll.dll)))

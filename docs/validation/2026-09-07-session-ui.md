@@ -54,3 +54,11 @@ Quit restored the launcher's fullscreen game page and finalized the session. Thi
 keyboard gameplay: subsequent tool invocations brought Terminal forward. Activation now yields
 to the game before lowering Big Screen's window and reports a declined activation request;
 that final adjustment passed the build and still needs an uninterrupted live input check.
+
+Offline permission follow-up: the signed running application has no App Sandbox entitlement,
+and `ENABLE_APP_SANDBOX` is explicitly `NO`. These macOS privacy prompts therefore are not
+caused by App Sandbox. New Steam staging now writes `disable_networking=1` alongside offline
+status, disabling the emulator's unnecessary LAN discovery. The eight source-installer tests
+pass, including the generated connectivity config check; the app build passes. Three unchanged,
+Big Screen-generated config files in owned existing installations were migrated after confirming
+no session was active. No macOS privacy permission was granted or reset by this migration.
