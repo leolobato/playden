@@ -11,8 +11,11 @@ step is the one exception and is designed for it.
   changeable in Settings.
 - **FR-DISP-2 (v1):** UI scales by display size: layouts are specified at 1920×1080 and scale
   proportionally to 4K. Type and focus ring remain legible from 3 m.
-- **FR-DISP-3 (v1):** Mouse cursor hidden while the app is frontmost. Mouse movement does nothing;
-  keyboard arrows and Return/Escape mirror D-pad/Cross/Circle for development convenience.
+- **FR-DISP-3 (v1):** Keyboard arrows and Return/Escape mirror D-pad/Cross/Circle. Cursor visibility
+  follows the active input device: mouse movement and clicks reveal the pointer and keep mouse
+  interaction usable; keyboard/controller navigation can hide it. Do not capture or lock the mouse.
+  Restore normal cursor behavior when the launcher loses focus. Updated after user feedback on
+  7 September 2026 about the cursor disappearing during mouse interaction.
 - **FR-DISP-4 (later):** Kiosk: launch at login, re-assert fullscreen if another app steals it, keep
   the display awake while a game runs, sleep and wake the Mac from the PS button.
 
