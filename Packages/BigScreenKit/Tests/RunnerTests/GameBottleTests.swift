@@ -1,4 +1,5 @@
 import XCTest
+import Darwin
 import Domain
 @testable import Runner
 
@@ -82,6 +83,21 @@ final class GameBottleTests: XCTestCase {
         do { try await manager.remove(bottle); XCTFail("Symlink accepted") } catch {}
         let count = await commands.copies; XCTAssertEqual(count, 0)
         XCTAssertTrue(FileManager.default.fileExists(atPath: destination.path))
+    }
+    func testSaveAccessRequiresAnOwnedReadyBottleAndReturnsPhysicalRoot() async throws {
+        let root = try fixture(), bottle = reference(), commands = BottleCommands()
+        let manager = CrossOverGameBottles(bottles: root, runtime: ReadyTemplate(), commands: commands)
+        do { _ = try await manager.ownedDirectory(bottle); XCTFail("Missing bottle exposed") } catch {}
+        try await manager.prepare(bottle)
+        let directory = try await manager.ownedDirectory(bottle)
+        let physical = try XCTUnwrap(realpath(root.appendingPathComponent(bottle.name).path, nil))
+        defer { free(physical) }
+        XCTAssertEqual(directory.path, String(cString: physical))
+        let wrong = GameBottle(gameID: bottle.gameID, name: bottle.name, ownershipToken: UUID())
+        do { _ = try await manager.ownedDirectory(wrong); XCTFail("Other ownership token exposed") } catch {}
+        let marker = directory.appendingPathComponent(".bigscreen-game-owner.json")
+        try FileManager.default.removeItem(at: marker)
+        do { _ = try await manager.ownedDirectory(bottle); XCTFail("Unowned save folder exposed") } catch {}
     }
     func testRealCrossOverCloneStartupAndScopedDeleteWhenRequested() async throws {
         guard ProcessInfo.processInfo.environment["BIGSCREEN_CROSSOVER_BOTTLE_PROBE"] == "1" else { throw XCTSkip("Opt in to a unique owned game-bottle clone/startup/delete probe") }

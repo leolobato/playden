@@ -20,10 +20,13 @@ public struct SaveSnapshot: Codable, Equatable, Sendable, Identifiable {
     public let createdAt: Date
     public let mapping: SaveMapping
     public let files: [SavedFile]
+    /// Present only for a downloaded Cloud staging copy. Local snapshots do not imply account
+    /// attachment; the Catalog journal owns that consent and the successful sync baseline.
+    public var cloud: CloudFileList? = nil
     public var retainedBytes: Int64 { files.reduce(0) { $0 + $1.bytes } }
 }
 
-/// Local retention, independent of Cloud account journals. Callers must first claim the game's
+/// Verified staging copies, independent of Cloud account journals. Callers must first claim the game's
 /// maintenance/session lock and verify ownership of every supplied game/bottle root. Metadata
 /// mappings can be backed up, but cannot authorize deletion of unresolved storage.
 public actor SaveStore {
@@ -37,7 +40,7 @@ public actor SaveStore {
         let store = try gameDirectory(gameID, create: true)
         if try store.info(id.uuidString) != nil {
             let existing = try verified(id, gameID: gameID)
-            guard existing.installationID == installationID, existing.mapping == mapping else {
+            guard existing.installationID == installationID, existing.mapping == mapping, existing.cloud == nil else {
                 throw saveFailure("This save backup belongs to a different operation.")
             }
             return existing
@@ -134,16 +137,17 @@ public actor SaveStore {
         return snapshot
     }
 
-    private struct Location: Equatable {
+    struct Location: Equatable {
         let root: SaveRoot
         let path: String
         var key: String { root.rawValue + "/" + path.lowercased() }
     }
-    private func select(_ mapping: SaveMapping, in roots: [SaveRoot: SaveDirectory]) throws -> [Location] {
+    func select(_ mapping: SaveMapping, in roots: [SaveRoot: SaveDirectory]) throws -> [Location] {
         var locations: [String: Location] = [:]
         func walk(_ directory: SaveDirectory, prefix: String, rule: SaveRule) throws {
             for name in try directory.names() {
                 try Task.checkCancellation()
+                if SaveDirectory.isSaveTemporary(name) { continue }
                 let path = prefix.isEmpty ? name : prefix + "/" + name
                 _ = try SaveDirectory.components(path)
                 guard let info = try directory.info(name) else { throw saveFailure("A save disappeared during scanning.") }
@@ -168,7 +172,7 @@ public actor SaveStore {
         }
         return locations.values.sorted { $0.key < $1.key }
     }
-    private func validate(_ mapping: SaveMapping) throws {
+    func validate(_ mapping: SaveMapping) throws {
         guard mapping.rules.count <= 1024 else { throw saveFailure("There are too many save locations.") }
         for rule in mapping.rules {
             _ = try SaveDirectory.components(rule.directory)
@@ -178,7 +182,7 @@ public actor SaveStore {
             }
         }
     }
-    private func verifyFiles(_ snapshot: SaveSnapshot, in archive: SaveDirectory) throws {
+    func verifyFiles(_ snapshot: SaveSnapshot, in archive: SaveDirectory) throws {
         var keys = Set<String>(), total: Int64 = 0
         for (index, entry) in snapshot.files.enumerated() {
             let parts = try SaveDirectory.components(entry.path)
@@ -203,11 +207,11 @@ public actor SaveStore {
         guard rule.recursive || !suffix.contains("/") else { return false }
         return fnmatch(rule.pattern.lowercased(), String(suffix.split(separator: "/").last ?? "").lowercased(), 0) == 0
     }
-    private func digest(_ entry: SavedFile) -> SaveDigest { .init(bytes: entry.bytes, sha256: entry.sha256, sha1: entry.sha1) }
-    private func open(_ roots: [SaveRoot: URL]) throws -> [SaveRoot: SaveDirectory] {
+    func digest(_ entry: SavedFile) -> SaveDigest { .init(bytes: entry.bytes, sha256: entry.sha256, sha1: entry.sha1) }
+    func open(_ roots: [SaveRoot: URL]) throws -> [SaveRoot: SaveDirectory] {
         try roots.mapValues { try SaveDirectory(url: $0) }
     }
-    private func gameDirectory(_ id: GameID, create: Bool = false) throws -> SaveDirectory {
+    func gameDirectory(_ id: GameID, create: Bool = false) throws -> SaveDirectory {
         let parent = try SaveDirectory(url: root, create: create)
         guard let result = try parent.directory(CrossOverGameBottles.name(for: id), create: create) else {
             throw saveFailure("This game has no retained save backup.")

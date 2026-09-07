@@ -528,3 +528,20 @@ for offline play; partial local application keeps play blocked until verified re
 database guarantees, not completed sync: the coordinator, actual staging/replacement, launch/exit
 integration, conflict UI and real Cloud roundtrip remain. Validation and limits are recorded in
 `docs/validation/2026-09-08-cloud-journal.md`.
+
+Cloud staging now publishes account/revision-bound downloaded copies, and local application
+verifies both backups and the complete live save set before replacement/deletion. Atomic file
+publication and retry support cover interruption between files; original/downloaded copies remain
+available for conflict recovery. Owned bottle save access is exposed and tested. Coordinator,
+launch/exit/offline integration, conflict UI and a live Steam roundtrip are still required.
+See `docs/validation/2026-09-08-cloud-files.md`.
+
+### 8 September — SteamCore interface fix requested by the user
+
+- [x] Cherry-pick `c5dfc3f289acb5097e31d2fea4045e19095a2ca2` into GameNative-macos main and
+  ensure the active sibling checkout used by Big Screen includes it, preserving existing work.
+  Main: `9ce9f16`; active `investigation/ios-runtime` checkout: `13312ff`. User changes are intact.
+- [ ] Rebuild Big Screen, regenerate Oniken's existing interface configuration through its real
+  preparation path, and verify all 17 interfaces including `STEAMUSERSTATS_INTERFACE_VERSION011`.
+- [ ] Preserve app settings, original DLLs and saves; replay Oniken's Store User Data action and
+  record the live result. The supplied worktree validation used disposable DLL copies only.

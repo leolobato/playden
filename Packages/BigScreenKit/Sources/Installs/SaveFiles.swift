@@ -38,7 +38,11 @@ final class SaveDirectory {
         guard initial >= 0 else { throw Self.posix() }
         var current = SaveDirectory(fd: initial)
         for name in try Self.components(path) {
-            if create && mkdirat(current.fd, name, 0o700) != 0 && errno != EEXIST { throw Self.posix() }
+            if create {
+                if mkdirat(current.fd, name, 0o700) == 0 {
+                    guard fsync(current.fd) == 0 else { throw Self.posix() }
+                } else if errno != EEXIST { throw Self.posix() }
+            }
             let next = openat(current.fd, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
             if next < 0 {
                 if !create && errno == ENOENT { return nil }
@@ -100,14 +104,87 @@ final class SaveDirectory {
         defer { close(descriptor); unlinkat(parent.fd, temporary, 0) }
         try body(descriptor)
         guard fsync(descriptor) == 0 else { throw Self.posix() }
-        guard linkat(parent.fd, temporary, parent.fd, name, 0) == 0 else {
+        guard renameatx_np(parent.fd, temporary, parent.fd, name, UInt32(RENAME_EXCL)) == 0 else {
             if errno == EEXIST { throw saveFailure("A local save already exists. Both copies have been kept; choose which save to use.") }
             throw Self.posix()
         }
-        guard unlinkat(parent.fd, temporary, 0) == 0, fsync(parent.fd) == 0 else { throw Self.posix() }
+        guard fsync(parent.fd) == 0 else { throw Self.posix() }
     }
     func write(_ data: Data, to path: String) throws {
         try write(path) { try Self.writeAll(data, to: $0) }
+    }
+    /// Temporary filenames are reserved for this app's save publication protocol. An interrupted
+    /// scratch write must never be discovered as player progress by a recursive '*' save rule.
+    static func isSaveTemporary(_ name: String) -> Bool {
+        for prefix in [".bigscreen-save-", ".bigscreen-cloud-"] where name.hasPrefix(prefix) && name.hasSuffix(".tmp") {
+            if UUID(uuidString: String(name.dropFirst(prefix.count).dropLast(4))) != nil { return true }
+        }
+        return false
+    }
+
+    /// Caller holds the game claim, has stopped its writer, and has verified a durable backup of
+    /// `expected`. A replacement exchanges names atomically, so a crash exposes a complete old or
+    /// new file. Deletion first moves the old file into the operation's stable temporary name.
+    /// Recovery accepts only the reviewed fingerprints; unexpected bytes are never discarded.
+    func changeCloudFile(_ path: String, expected: SaveDigest?, desired: SaveDigest?, temporary: String,
+                         body: (Int32) throws -> Void) throws {
+        guard Self.isSaveTemporary(temporary), temporary.hasPrefix(".bigscreen-cloud-") else {
+            throw saveFailure("The Cloud save staging identity is invalid.")
+        }
+        guard let (parent, name) = try parent(path, create: desired != nil) else {
+            if desired == nil { return }
+            throw Self.posix()
+        }
+        func fingerprint(_ name: String) throws -> SaveDigest? { try parent.file(name)?.stream() }
+        let current = try fingerprint(name)
+        guard current == expected || current == desired else { throw saveFailure("A local save changed after review. Both staged copies have been kept.") }
+        let staged = try fingerprint(temporary)
+        if let staged, staged != expected && staged != desired {
+            throw saveFailure("An interrupted save replacement contains unexpected data. All copies have been kept.")
+        }
+        if current == desired {
+            if staged != nil, unlinkat(parent.fd, temporary, 0) != 0 { throw Self.posix() }
+            guard fsync(parent.fd) == 0 else { throw Self.posix() }
+            return
+        }
+        if desired != nil {
+            if staged != desired {
+                if staged != nil, unlinkat(parent.fd, temporary, 0) != 0 { throw Self.posix() }
+                try parent.write(temporary, body: body)
+                guard try fingerprint(temporary) == desired else { throw saveFailure("The staged Cloud save failed verification.") }
+            }
+            // Recheck after writing the temporary file; publishing must not overwrite new progress.
+            let original = try parent.file(name)
+            guard try original?.stream() == expected else { throw saveFailure("A local save changed during Cloud staging. All copies have been kept.") }
+            if expected == nil {
+                guard renameatx_np(parent.fd, temporary, parent.fd, name, UInt32(RENAME_EXCL)) == 0 else { throw Self.posix() }
+            } else {
+                guard let original, try parent.info(name).map(original.matchesEntry) == true else {
+                    throw saveFailure("A save was replaced during Cloud staging. All copies have been kept.")
+                }
+                guard renameatx_np(parent.fd, temporary, parent.fd, name, UInt32(RENAME_SWAP)) == 0,
+                      fsync(parent.fd) == 0 else { throw Self.posix() }
+                guard try fingerprint(temporary) == expected else {
+                    throw saveFailure("A save changed during replacement. The additional copy has been kept for recovery.")
+                }
+                guard unlinkat(parent.fd, temporary, 0) == 0 else { throw Self.posix() }
+            }
+        } else {
+            if staged != nil, unlinkat(parent.fd, temporary, 0) != 0 { throw Self.posix() }
+            guard let original = try parent.file(name), try original.stream() == expected,
+                  try parent.info(name).map(original.matchesEntry) == true else {
+                throw saveFailure("A local save changed before removal. Both staged copies have been kept.")
+            }
+            guard renameatx_np(parent.fd, name, parent.fd, temporary, UInt32(RENAME_EXCL)) == 0,
+                  fsync(parent.fd) == 0 else { throw Self.posix() }
+            guard try fingerprint(temporary) == expected else {
+                throw saveFailure("A save changed during removal. The additional copy has been kept for recovery.")
+            }
+            guard unlinkat(parent.fd, temporary, 0) == 0 else { throw Self.posix() }
+        }
+        guard fsync(parent.fd) == 0, try fingerprint(name) == desired else {
+            throw saveFailure("The local Cloud save result could not be verified. Both staged copies have been kept.")
+        }
     }
     /// Only used for this operation's unpublished staging folder, never a game/save source.
     func discardStaging(_ name: String) throws {
@@ -157,6 +234,7 @@ final class SaveFile {
     }
     deinit { close(fd) }
     var modifiedAt: Date { Date(timeIntervalSince1970: Double(original.st_mtimespec.tv_sec) + Double(original.st_mtimespec.tv_nsec) / 1e9) }
+    func matchesEntry(_ info: stat) -> Bool { info.st_dev == original.st_dev && info.st_ino == original.st_ino }
     func contents(maximum: Int) throws -> Data {
         guard original.st_size <= maximum else { throw saveFailure("The save index is too large.") }
         var output = Data()

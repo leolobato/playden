@@ -75,7 +75,11 @@ public struct CloudSavePaths: Sendable {
         guard path.rangeOfCharacter(from: CharacterSet(charactersIn: "%{}*?<>|\r\n")) == nil else {
             throw saveFailure("A Cloud save path contains unsupported characters or unresolved placeholders.")
         }
-        return try SaveDirectory.components(path)
+        let parts = try SaveDirectory.components(path)
+        guard !parts.contains(where: SaveDirectory.isSaveTemporary) else {
+            throw saveFailure("A Cloud path uses a reserved save staging name.")
+        }
+        return parts
     }
     private static func suffix(_ name: String, after prefix: String) -> String? {
         if prefix.isEmpty { return name.isEmpty ? nil : name }

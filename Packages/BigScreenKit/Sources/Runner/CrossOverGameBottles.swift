@@ -6,8 +6,17 @@ import Domain
 public protocol GameBottleManaging: Sendable {
     func prepare(_ bottle: GameBottle) async throws
     func isReady(_ bottle: GameBottle) async throws -> Bool
+    /// Returns a physical, ownership-checked ready root for descriptor-relative save access.
+    /// Does not create a bottle or establish that its game process has stopped.
+    func ownedDirectory(_ bottle: GameBottle) async throws -> URL
     /// Caller must stop the game's session and resolve pending Cloud uploads before removing an installed bottle.
     func remove(_ bottle: GameBottle) async throws
+}
+
+extension GameBottleManaging {
+    public func ownedDirectory(_ bottle: GameBottle) async throws -> URL {
+        throw OperationFailure(stage: "Cloud saves", reason: "The game's owned save folder is unavailable.", output: "")
+    }
 }
 
 /// Clones inside an owned container, then publishes into CrossOver's private bottle directory.
@@ -41,6 +50,15 @@ public actor CrossOverGameBottles: GameBottleManaging {
         try checkConfiguration(destination)
         try BottleFolders.verify(destination)
         return true
+    }
+    public func ownedDirectory(_ bottle: GameBottle) async throws -> URL {
+        guard !busy.contains(bottle.name), try isReady(bottle) else { throw problem("The game's save folder is not ready.") }
+        let destination = bottles.appendingPathComponent(bottle.name)
+        guard let physical = realpath(destination.path, nil) else { throw problem("The game's save folder is unavailable.") }
+        defer { free(physical) }
+        let directory = URL(fileURLWithPath: String(cString: physical))
+        guard try readMarker(at: directory, matching: bottle).ready else { throw problem("The game's save folder changed during verification.") }
+        return directory
     }
     public func prepare(_ bottle: GameBottle) async throws {
         try validateIdentity(bottle)
