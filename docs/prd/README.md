@@ -8,6 +8,10 @@ Product requirements for a couch-first game launcher on macOS. This folder is th
 Drafted 2026-09-07 (Leo + Claude brainstorm). Decisions recorded below are dated; everything else is
 proposal-stage until built.
 
+The [v1 implementation plan](../IMPLEMENTATION_PLAN.md) translates this PRD into delivery milestones,
+including proposed corrections and planning defaults from the implementation review. Those proposals
+are identified separately from the dated decisions below.
+
 ## Product in one sentence
 
 A fullscreen, controller-only launcher that shows your game libraries on the TV, installs Windows

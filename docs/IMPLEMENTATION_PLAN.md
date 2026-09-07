@@ -1,0 +1,331 @@
+# GameNative Big Screen — v1 implementation plan
+
+Written 2026-09-07 following review of [the PRD](prd/README.md), the sibling Swift implementation,
+and the installed CrossOver command-line help. This is an implementation proposal, not evidence
+that a title or integration already works. Implementation has not started.
+
+The delivery sequence is: prove controller-driven CrossOver launch and exit, establish durable
+state and shared contracts, complete one real install/play/save/reinstall journey, then complete
+the v1 interface and acceptance matrix. Home remains in v1; the background helper remains in v2.
+
+## 1. Planning defaults and PRD corrections
+
+Use these defaults to make the work concrete. Reconcile the referenced PRD requirements during
+M1; record any changed product decision explicitly rather than silently reducing v1 scope.
+
+| Topic | Planning default / correction | Requirements |
+|---|---|---|
+| Supported titles | Begin with Cuphead; evaluate A Short Hike and TUNIC as candidates. Release requires at least one explicitly verified title completing every acceptance step. Display the full owned library without implying universal compatibility. | README MVP bar |
+| Exit control | Attempt PS-hold first. A tested controller chord is a proposed fallback if the OS/controller combination prevents reliable PS-hold. Record that mapping change before release if needed. | FR-IN-3, FR-INGAME-1/2 |
+| Input modes | Separate launcher, game, and exit-overlay modes. The overlay accepts navigation and confirmation while a game runs. In game mode, short PS is ignored; PS-hold opens the exit overlay. | FR-IN-3, FR-INGAME-1/2 |
+| Download resume | Implement persistent chunk resume as written in the PRD. Existing SteamCore only resumes completed files. Completed-file resume is a possible scope reduction, not the planned acceptance bar. | FR-INST-3/6 |
+| Verification | Verify depot originals before modifications. Track modified files and validate staging separately. Repair uses the installed manifest and reapplies staging. | FR-INST-8/9 |
+| Launch delay | After a configurable launch threshold, show a recoverable delayed-launch state with Keep waiting, Stop, and View logs. Do not infer a crash solely from elapsed time. Start with 60 seconds and tune against verified titles. | FR-LAUNCH-2/3, FR-FAIL-1 |
+| Return destination | Return to Home after game exit; retain the just-played tile as focus when visible, otherwise use the normal Home fallback. Launch failures return to the game page. | FR-HOME-1, FR-EXIT-1 |
+| Empty Home | Show a focused Browse library action, or Sign in when appropriate, if no rows have content. | FR-HOME-1/2, FR-DONE-1 |
+| Save retention | Keep saves defaults on. Use verified save/config locations; preserve unresolved storage instead of deleting data under a promise of preservation. Unknown layouts may retain the bottle and affected game-directory content, with retained space explained. | FR-UN-1/2 |
+| App quit | While playing, normal Quit offers Keep launcher open or Quit game and launcher. With downloads only, checkpoint/pause jobs and quit. Recover separately from unexpected launcher termination. | AR-PROC-1, FR-INST-6 |
+| Account policy | One device-local player profile in v1: installs, saves, ratings, collections, and local play history survive logout. Logout clears credentials and the source-owned library/identity cache. Retained local installs remain visible for offline play; downloads require authentication. Signing in to another account does not create separate saves. | FR-AUTH-3/4, AR-STOR-1 |
+| Themes | Dark is the v1 implementation baseline. The designer brief's light-theme deliverables do not create an untagged v1 theme-switcher requirement; reconcile the brief explicitly. | GUI_DESIGN_BRIEF |
+
+Additional corrections: pin a concrete macOS/Xcode/Swift/CrossOver baseline during M0; distinguish
+installation failure from the user's Broken compatibility rating; show Verify files in an actual
+controller-accessible action menu; define “recently added” as first observed by this launcher;
+separate imported Steam playtime from locally recorded sessions so sync cannot double-count or
+overwrite local time. Pairing and installing/licensing CrossOver are desk prerequisites; measure
+the two-minute onboarding goal after those prerequisites, under a documented network condition.
+
+## 2. Existing code: reuse and required work
+
+Only link the sibling package's `SteamCore` library product. Do not import `steamcli` or
+`GameNativeRuntime` to obtain convenience functions.
+
+| Area | Evidence at review | Planned work |
+|---|---|---|
+| Authentication | SteamCore has QR/credentials paths; `SteamAuth` directly persists through `TokenStore.save`. | Inject credential persistence inside SteamCore; supply a Keychain implementation from Sources. Test that the app path never writes auth JSON. Preserve CLI behavior through its existing/default adapter. |
+| Downloads | `DownloadEngine` skips completed files by size and rebuilds partial files; progress is per depot. | Add durable chunk checkpoints, cooperative cancellation, manifest selection/persistence, aggregate progress, and explicit pause semantics. |
+| Depot selection | `selectDepots` skips shared redistributables and DLC depots. | Add a CrossOver prerequisite plan and verified entitlement handling. A metadata DLC list is not ownership proof. No DLC-management UI is required in v1. |
+| Metadata | `AppInfo` exposes depot/install/UFS data, but no executable launch entries, genres, controller support, or descriptions. | Extend parsing/adapters where available; document any additional source endpoint. Missing fields remain unknown rather than guessed. Load owned games before enriching metadata. |
+| Steam emulation | SteamPreparer bundles/checks gbe_fork assets, replaces DLLs with backups, and reports SteamStub requirements. | Reuse staging primitives, assemble cached offline metadata in Sources, and implement a versioned Steamless invocation where required. Handle games without a Steam API DLL as a distinct case. |
+| Launch selection | CLI launch/config helpers live outside SteamCore. | Implement source-neutral launch resolution; use Windows launch metadata and internal title recipes, with explicit ambiguity failure. No arbitrary “first exe” fallback. |
+| Build dependencies | The Swift package declares macOS 14 and uses liblzma/libzstd system libraries. | Validate the actual minimum and arrange runtime library/resources delivery for the app. Distribution polish remains deferred, but the app must find its required libraries. |
+
+Source references: [Package.swift](../../GameNative-macos/swift/Package.swift),
+[DownloadEngine.swift](../../GameNative-macos/swift/Sources/SteamCore/DownloadEngine.swift),
+[PICS.swift](../../GameNative-macos/swift/Sources/SteamCore/PICS.swift),
+[SteamAuth.swift](../../GameNative-macos/swift/Sources/SteamCore/SteamAuth.swift),
+[Prepare.swift](../../GameNative-macos/swift/Sources/SteamCore/Prepare.swift), and
+[CLI Mode A orchestration](../../GameNative-macos/swift/Sources/steamcli/ModeAStaging.swift).
+
+SteamCore changes are a separate dependency deliverable in `GameNative-macos`, with targeted
+regression tests and a recorded compatible commit. Keep this repository's local-path dependency
+and document the sibling checkout requirement.
+
+## 3. Architecture and durable contracts
+
+### Modules
+
+Create one Xcode app target and a local Swift package with these targets. Add targets with their
+first real implementation rather than populating an empty framework in advance.
+
+| Target | Ownership | Dependencies |
+|---|---|---|
+| Domain | Stable IDs, source-neutral models, service protocols, job/session snapshots, failure values | Foundation |
+| Catalog | SQLite migrations and repositories; sole owner of durable app-state writes | Domain, GRDB |
+| Input | Hardware events, semantic mapping, repeat/deadzone, connection state, glyphs | Foundation, GameController |
+| Focus | Geometry, focus containers, stable item IDs, modal stack, focus memory | Foundation |
+| Sources | GameSource/Installer implementations, Keychain adapter, Steam translation and staging | Domain, SteamCore |
+| Runner | CrossOver capabilities, templates, bottles, process/session supervision | Domain, Foundation |
+| Installs | Install/repair/uninstall job scheduling and recovery | Domain, Catalog, Sources, Runner |
+| Sessions | Launch orchestration, session persistence, download pause coordination, post-exit recovery | Domain, Catalog, Sources, Runner, Installs |
+| Artwork | Fetch, bounded disk/memory cache, cancellation and placeholders | Domain, Foundation |
+| BigScreenApp | Views, AppKit presentation, dependency wiring, input-mode coordination | Targets above |
+
+`Sessions` owns the ordering between installer preparation and runner launch; Runner never calls
+back into a source. UI commands go through injected install/session service protocols. Use
+`Sendable` value snapshots, stable IDs and reconnectable observations so v2 can add XPC adapters;
+do not implement IPC or claim that Swift streams themselves are XPC contracts in v1.
+
+### Models and operations
+
+- Use `(sourceID, sourceGameID)` as game identity; keep install, job, and session IDs separate.
+- Persist source catalog data independently from local edits, install records, and compatibility.
+- Install records include volume identity and relative path, depot manifest IDs, selected language,
+  template/recipe/staging versions, launch spec, ownership marker, and mutation/backup records.
+- Jobs expose start, pause, resume, cancel, retry, reorder and observe-by-ID. Observing progress
+  must not create work; closing a screen must not cancel a job. Define cancellable boundaries for
+  each stage and expose “Stopping…” while a noninterruptible operation settles.
+- Serialize mutating jobs in v1; skip blocked/paused jobs so another eligible job can run. Hold a
+  per-game lock across install, repair, uninstall, and play. Permit only one active game session.
+- Track pause reasons as a set: user, gameplay, authentication, unavailable drive, insufficient
+  space. Removing the gameplay reason must not remove another reason.
+- Use one transactional SQLite source of truth for app state. Optional JSON is a versioned recipe
+  or export, not a second writable copy of database state. Filesystem checkpoints are reconciled
+  with the database after interruption.
+
+### State and UI contract
+
+Keep install state, job state, run state, drive availability, and compatibility rating separate.
+Publish a single derived presentation snapshot for each game; all screens use the same values.
+
+| Condition | Primary action / presentation |
+|---|---|
+| No installation | Install, or an explicit prerequisite/authentication action |
+| Queued | View download; queue position |
+| Downloading/preparing/verifying | View progress; stage-specific pause/cancel availability |
+| User-paused | Resume download |
+| Blocked | Resolve the named cause; retained progress |
+| Failed install/repair | Retry and View logs; play availability depends on validated install state |
+| Installed and available | Play |
+| Drive disconnected | Reconnect drive; Play disabled |
+| Launching/delayed launch | Launch status and Stop; delayed state also offers Keep waiting |
+| Running | Return to game |
+| Uninstalling | Removal progress; Play disabled |
+
+Every empty screen and disabled primary action needs a valid focus fallback. Hiding/removing a
+focused game, refreshing a list, changing filters, and virtualizing tiles must preserve or
+deterministically relocate focus. Navigation uses logical grid geometry even for unmounted views.
+
+### Install, repair and uninstall transactions
+
+Install pipeline:
+
+`Resolve recipe/manifests → Estimate/confirm/reserve → Download → Verify originals →
+Prepare bottle/prerequisites → Stage emulation → Validate launch configuration → Commit installed`
+
+- Account for games-volume bytes, partial downloads/backups, bottle-volume bytes, and save-backup
+  space separately. Reservations are app accounting, not an OS guarantee; recheck before writes.
+- Store volume identity rather than trusting a mount path alone. Define supported writable local
+  filesystem types from M0 testing. Existing installs on earlier selected volumes stay tracked.
+- Persist chunk completion only after the corresponding data is durable; validate checkpoints
+  against manifest identity. Persisted manifests prevent a restart from silently selecting an update.
+- Make every stage safe to retry. On startup inspect ownership markers and outputs, reconcile
+  checkpoints, then continue at the first incomplete or invalid stage. Never blindly trust a
+  “completed” flag or repeat destructive work solely because a flag was not committed.
+- Maintain original and transformed-file integrity separately. Repair originals using the pinned
+  manifest, refresh affected backups, reapply modifications, then validate launch readiness.
+- Cancellation removes only resources created/owned by that new install. Canceling a repair must
+  not uninstall an existing game. Canonical path containment, symlink handling, and ownership
+  markers govern deletion; a matching bottle name alone is insufficient.
+- Uninstall acquires the game lock, stops the session, copies/verifies retained data, removes owned
+  files/bottle, then clears install state. Backup failure stops deletion. Partial removal remains
+  a recoverable job. Restore validates backup versions and never silently overwrites newer saves.
+
+### Session lifecycle
+
+- Persist session ID, bottle identity, observed processes with identity checks beyond PID alone,
+  timestamps, and outcome. Reconcile live sessions before restarting queued work on app launch.
+- Evaluate `cxstart --wait-children` and window-to-process attribution in M0; a wrapper PID exiting
+  must not end a session whose game child still runs. Lingering Wine services must not keep a
+  finished session alive indefinitely.
+- Define launching, running, delayed, stopping, exited, failed and interrupted states. A first
+  relevant window is a presentation signal, not proof of player-controlled gameplay.
+- Attribute foreground activation, cursor visibility and overlay dismissal explicitly. Opening an
+  overlay must not assume it pauses the game or suppresses its controller events; prove behavior.
+- Attempt the validated graceful-close mechanism, wait up to 10 seconds, then terminate only the
+  owned bottle's processes. Force termination is recorded as forced, not crash.
+- Record clean, crash, forced, launch-failed or unknown/interrupted outcomes using evidence. A
+  short clean session is still clean. Use monotonic duration within a live process and bounded
+  durable checkpoints for recovery; do not charge launcher downtime as playtime.
+
+## 4. Milestones and completion gates
+
+Each milestone should produce reviewable code and its validation evidence. Split by the
+deliverables below; do not estimate the complete schedule until M0 has resolved feasibility and
+the upstream work has been sized.
+
+### M0 — Prove the actual platform path
+
+Dependencies: installed CrossOver, connected DS4, TV, and access to a candidate game.
+
+- [ ] Record hardware, macOS, Xcode/Swift, CrossOver version/path/license state and supported display modes.
+- [ ] Build a minimal native harness: controller event display, fullscreen launcher window, and exit dialog.
+- [ ] Validate PS short/hold delivery while backgrounded, relevant OS controller settings, disconnect/reconnect,
+  overlay focus and input leakage, game activation, and return to the selected display.
+- [ ] Create/copy/delete a throwaway owned bottle using explicit `--bottle`; verify MSync/D3DMetal settings
+  and actual prerequisite needs. Capture command arguments and outcomes without credentials.
+- [ ] Launch a trivial Windows process and a real candidate; exercise child handoff, clean quit, forced quit,
+  missing exe, delayed/no-window launch, and a second unrelated bottle that must remain unaffected.
+- [ ] Locate the candidate's saves/config and demonstrate backup/restore. Check whether bottle mappings
+  redirect save paths outside the bottle or into the game directory.
+- [ ] Record required macOS permissions/system setup and test the intended games-volume filesystem.
+
+Gate: a controller can launch, control and exit at least one candidate on the TV, and scoped process
+supervision is demonstrated. If the overlay cannot avoid unsafe input leakage, revise that interaction
+before building the full UI. Deliver a feasibility note with observed results and reproducible commands;
+do not promote a candidate to Works based only on a window appearing.
+
+### M1 — App foundation, contracts, input and persistence
+
+Dependencies: M0 results.
+
+- [ ] Reconcile PRD corrections/defaults in section 1, including the designer brief.
+- [ ] Establish Xcode app/local package, documented build command, dependency baseline and runtime resources.
+- [ ] Add Domain contracts, Catalog migrations, structured redacted failures/logs, and injected fake services.
+- [ ] Implement Input timing/deadzone, cardinal-action resolution for diagonal stick input, glyph fallbacks,
+  mode transitions, and long-press behavior that does not also trigger short press.
+- [ ] Implement Focus containers, column memory, handoff, modal stack, scrolling and missing-item fallback.
+- [ ] Build display selection/persistence, disconnect fallback, safe-area scaling, reduced motion and shell tabs.
+- [ ] Build a reusable modal/dialog and basic on-screen keyboard for subsequent setup and search screens.
+
+Gate: controller-only navigation works on a fake Home/library, including empty states, keyboard/modal
+focus and reconnect. Focus geometry and synthetic input tests cover FR-FOCUS-1–7 and FR-IN-1–3.
+Catalog migrations and interrupted-job reconstruction are tested without the UI.
+
+### M2 — Real Steam account and catalog
+
+Dependencies: M1; SteamCore authentication and metadata changes.
+
+- [ ] Implement injected Keychain persistence end to end; isolate app storage from the sibling CLI.
+- [ ] Implement QR waiting/approved/expired/network states, cancellation, password/Guard fallback and logout.
+- [ ] Load/cache the owned library; preserve it on transient sync failures and support offline startup.
+- [ ] Add progressive metadata enrichment with bounded concurrency, retries/backoff and unknown values.
+- [ ] Implement source-provided artwork descriptors, lazy artwork cache, placeholders and bounded eviction.
+- [ ] Persist favorites, hidden status, collections, compatibility notes and local playtime independently.
+- [ ] Add Windows launch/depot resolution and cached verified entitlement data needed by M3.
+
+Gate: a real 600-title library loads progressively with keyboard-free sign-in, artwork and offline
+restart. Logout follows the selected policy. Recorded fixtures cover mapping and errors; auth tests
+verify no credential file is produced and no secret appears in captured diagnostics.
+
+### M3 — Durable install and repair engine
+
+Dependencies: M1/M2; upstream chunk-resume work; M0 bottle/prerequisite findings.
+
+- [ ] Implement versioned internal title recipes: executable selection, prerequisite actions, runner settings,
+  launch args/env and save mappings. Editing properties stays v2; execution of required recipes is v1.
+- [ ] Implement estimates/confirmation, per-volume reservations, serial queue, reorder and shared progress.
+- [ ] Implement pinned-manifest download/checkpoints and per-stage pause/cancel/retry behavior.
+- [ ] Implement template versioning and bottle creation with ownership checks and recoverable checkpoints.
+- [ ] Integrate prerequisites, gbe_fork, synthetic offline identity and Steamless where detected/required.
+- [ ] Implement original-file verification, mutation records, launch-readiness validation and repair.
+- [ ] Implement startup reconciliation, drive reconnect, authentication expiry and disk-full recovery.
+- [ ] Wire minimal game-page and Downloads progress/actions; reuse those components in M5.
+
+Gate: a candidate installs without the CrossOver GUI, survives interruption within a large file and
+between every stage, and repairs a missing/corrupt file without losing emulation changes. FakeInstaller
+tests inject failures at each stage and around completion commits. A FakeSource exercises materially
+different metadata/auth/capability behavior through the same pipeline, not just a renamed Steam fixture.
+
+### M4 — Complete play, saves and reinstall for one title
+
+Dependencies: M3; M0 process/input validation.
+
+- [ ] Implement Sessions orchestration, installed-state checks, missing-bottle recovery and offline launch.
+- [ ] Implement launch/delayed/error states, window handoff, exit overlay, graceful/forced stop and Home return.
+- [ ] Implement single-session enforcement, playtime/outcome recording, automatic pause-reason coordination,
+  normal app quit, launcher-crash reconciliation and prevention of duplicate sessions after restart.
+- [ ] Implement backup/restore, controller uninstall confirmation, partial-removal recovery and retained-space reporting.
+- [ ] Ensure missing-bottle recreation reapplies the recorded recipe and restores retained saves where possible.
+- [ ] Evaluate all three candidate titles and document which are verified, unsupported or still unknown.
+
+Gate: from fresh game state, install → player-controlled gameplay → save → quit → offline relaunch →
+uninstall with Keep saves → reinstall → load the same save succeeds using only the controller after
+setup. Test quitting within 30 seconds, child-process handoff, force quit, and launcher restart while
+a game survives. Session completion and playtime are recorded once.
+
+### M5 — Complete the v1 couch interface
+
+Dependencies: M2–M4 services.
+
+- [ ] Finish first run: pairing guidance, display/volume choice, sign-in/skip, CrossOver retry and template progress.
+- [ ] Finish Home rows, empty fallback, persistent tabs/legend/download indicator and exit focus behavior.
+- [ ] Finish Library rail/grid, sorting, filters, live search, hidden-only visibility and collection management.
+- [ ] Finish game page metadata/actions, all install/run states, compatibility editor and Verify files entry point.
+- [ ] Finish Downloads queue/reorder/history, storage breakdown and actionable retained failures.
+- [ ] Finish keyboard shortcuts/password masking, contextual actions, confirmations and controller glyph legends.
+- [ ] Finish Settings: account/refresh, download toggle, volume/display/reduced motion, button test, versions,
+  log viewer/Finder action and reset. Reset preserves games/saves by default and requires explicit consequences.
+- [ ] Make transient toasts informational; durable failure actions remain accessible without chasing a disappearing toast.
+- [ ] Bound/redact per-job/session logs and rotate to the last 10 per game; keep technical names in diagnostics.
+
+Gate: every v1 user journey and error action is reachable from the DS4. Snapshot all screens at 1080p
+and 4K with reduced motion. Test live data changes, hidden focused games, empty filtered results, and
+controller reconnect. Measure 600+ title scrolling on the recorded target hardware with cold and warm artwork caches.
+
+### M6 — Release acceptance and handoff
+
+Dependencies: M0–M5 gates passed.
+
+- [ ] Run the acceptance matrix below and record versions, title/build IDs, outcomes and relevant log locations.
+- [ ] Verify the app can run with its required resources/libraries without relying on the development shell's environment.
+- [ ] Check every v1 requirement against its implementation and evidence; unresolved items are recorded failures or
+  explicit scope decisions, not silently marked complete.
+- [ ] Document build/run instructions, required sibling commit, CrossOver/system setup, supported-title results,
+  known limitations and recovery steps. Do not claim cloud saves, updates or general game compatibility.
+
+Gate: README's corrected MVP bar and all retained v1 requirements pass. A skipped CrossOver integration
+test on a machine without CrossOver cannot satisfy the real-platform release gate.
+
+## 5. Acceptance matrix
+
+| Area | Required evidence |
+|---|---|
+| Setup | Fresh app, QR expiry/retry, credential fallback, skip, missing/unlicensed CrossOver, selected display absent; timed onboarding under recorded prerequisites/network |
+| Controller/focus | DS4 Bluetooth, repeat/deadzone/diagonal behavior, disconnect/reconnect, modal traps, removed items, virtualized grid, background exit activation and overlay input leakage |
+| Catalog/UI | 600+ titles, progressive art/metadata, offline cache, failed refresh preserves data, hidden/collections/search, 1080p/4K snapshots and measured frame pacing |
+| Download | Mid-file process termination, chunk integrity/checkpoint recovery, queue reorder, user-vs-gameplay pause reasons, cancel cleanup, auth expiry, network loss, disk full and drive removal |
+| Install/repair | Failure/crash around each commit boundary, partial bottle clone, prerequisites, SteamStub handling, originals vs transformed integrity, pinned manifests, no silent updates |
+| Session | Relevant window vs splash, no-window delay, child handoff, normal/early/forced exit, hanging close, one game at a time, restart reconciliation and exact-once history |
+| Save/uninstall | Save restored after reinstall, unknown save layout, backup failure prevents deletion, partial removal retry, restore conflict, game-local saves, unrelated bottle untouched |
+| Storage/privacy | Volume rename/remount, separate game/bottle/backup capacity, path/symlink containment, app-owned deletion only, logout/reset semantics, Keychain-only auth and log redaction |
+| Extensibility | FakeSource/FakeInstaller run through unchanged UI/orchestration; only Sources imports SteamCore; services expose durable IDs and value snapshots |
+
+Run focused unit/integration tests with the milestone that introduces the behavior. Manual TV and
+CrossOver evidence complements those tests; snapshots do not prove navigation or gameplay. Broaden
+testing when an integration change creates a new concern, then run the full matrix once for release.
+
+## 6. Deferred work and scheduling boundary
+
+Keep these out of the v1 critical path: background helper/XPC implementation, a second real store,
+user-editable per-game properties, updates, cloud saves, achievements UI, Quick Access features,
+controller remapping, kiosk/power management, community compatibility, and distribution/notarization polish.
+
+The main scheduling uncertainties are M0 background input/window behavior, upstream chunk resume,
+title-specific prerequisites/Steamless, and safe save discovery. Size these after their evidence is
+available. The first complete real-game journey is the M4 checkpoint; completion of that checkpoint
+does not replace M5's remaining v1 features or M6 acceptance.
+
+Platform reference: Apple's [background controller monitoring documentation](https://developer.apple.com/documentation/gamecontroller/gccontroller/shouldmonitorbackgroundevents)
+describes background event delivery; it does not establish that an overlay can exclusively route
+input away from a CrossOver game. That behavior remains an M0 test.

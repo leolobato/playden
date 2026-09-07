@@ -6,6 +6,9 @@ and plays them.
 
 Status: product definition. The PRD lives in [`docs/prd/`](docs/prd/README.md); start there.
 
+The [v1 implementation plan](docs/IMPLEMENTATION_PLAN.md) records proposed PRD corrections,
+dependency work, delivery milestones and acceptance gates.
+
 Related repositories (siblings under `../`):
 
 - `GameNative-macos` — the Swift Steam layer (`SteamCore`) this app depends on, plus the VM runtime
