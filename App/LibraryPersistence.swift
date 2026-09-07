@@ -27,7 +27,9 @@ extension LibraryModel {
                     compatibility: entry.edits.compatibility, hoursPlayed: Int(entry.totalPlaytimeSeconds / 3600),
                     size: isPreview ? fixtures[record.id]?.size ?? "—" : entry.installation.map { ByteCountFormatter.string(fromByteCount: $0.installedBytes, countStyle: .file) } ?? record.downloadBytes.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "—",
                     summary: record.summary, genres: record.genres, coverURL: record.coverURL, heroURL: record.heroURL,
-                    logoURL: record.logoURL, isFavorite: entry.edits.isFavorite, isHidden: entry.edits.isHidden)
+                    logoURL: record.logoURL, isFavorite: entry.edits.isFavorite, isHidden: entry.edits.isHidden,
+                    lastPlayedAt: entry.lastPlayedAt, addedAt: record.firstObservedAt, installedAt: entry.installation?.installedAt,
+                    controllerSupport: record.controllerSupport, lastSessionOutcome: entry.lastSession?.outcome)
             }
             collections = snapshot.collections
             compatibilityNotes = Dictionary(uniqueKeysWithValues: snapshot.entries.map { ($0.id, $0.edits.note) })

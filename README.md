@@ -1,36 +1,46 @@
 # Big Screen
 
 A living-room launcher for Windows games on a Mac: a TV-sized native SwiftUI/AppKit interface,
-controlled with a gamepad, with Steam and CrossOver integration planned.
+controlled with a gamepad, with Steam library integration and CrossOver game installation in progress.
 
-The first implementation is a **design preview**, matching the [designer handoff](docs/design/README.md).
-Home, Library, the split game page, Downloads, Settings, search keyboard, filters and context panels
-use isolated sample data. Collections (create, rename, pin and membership), compatibility ratings/notes,
-favorites and hiding are saved in the preview's own SQLite database. Download queue edits remain
-session-local fixtures. Install/uninstall and cancel confirmations update preview state only.
-**Steam authentication, installation and game launching are not connected yet.**
+Normal launches use your local catalog. Steam QR sign-in, password/Steam Guard fallback, Keychain
+credential storage, progressive library refresh and offline cached browsing are connected. Favorites,
+hidden games, collections and compatibility notes persist independently of Steam refreshes.
+**Game installation, launching and complete first-run setup are still being implemented.**
+
+Use `--preview` for the designer's sample library and simulated Downloads queue. Preview edits use
+an isolated database; install/uninstall confirmations only change preview state.
 
 ## Build and run
 
-Requires Xcode 26.3 / Swift 6, XcodeGen (`brew install xcodegen`), and an Apple Silicon Mac.
-The deployment target is macOS 14; actual execution has currently been checked on macOS 26.6.2.
+Requires Xcode 26.3 / Swift 6, XcodeGen, Homebrew xz/zstd (`brew install xcodegen xz zstd`), and an
+Apple Silicon Mac. Check out the sibling `../GameNative-macos` with commit `8da61ce` or its descendant
+containing the injected authentication storage changes. The local Swift package uses that checkout.
+The deployment target is macOS 15 because of the bundled compression libraries; actual execution
+has currently been checked on macOS 26.6.2. The build embeds xz/zstd in the app, so running the built
+app does not require Homebrew's library paths.
 
 ```sh
 ./scripts/build.sh
 ./scripts/run.sh
-# Optional fullscreen presentation:
-./scripts/run.sh --fullscreen
+# Optional windowed presentation or isolated design preview:
+./scripts/run.sh --windowed
+./scripts/run.sh --preview
 ```
 
 Open `BigScreen.xcodeproj` to work in Xcode. `project.yml` is the project source of truth; regenerate
-with `xcodegen generate` after changing targets or resources. The preview does not require Steam,
-CrossOver or the sibling checkout. Its eventual Steam integration will use the sibling package.
+with `xcodegen generate` after changing targets or resources. The preview does not require a Steam
+account or CrossOver; building either mode requires the sibling package.
 
 The Barlow/Barlow Condensed fonts and their OFL licenses are bundled. Steam artwork loads over the
 network on first use and is cached in `~/Library/Caches/GameNative BigScreen/artwork/`. Missing art
 shows a title placeholder. Local edits and preferences are stored separately in
-`~/Library/Application Support/Big Screen/Preview/catalog.sqlite`. Tests and snapshots use isolated
-in-memory catalogs. No login credentials or game files are accessed by the preview.
+`~/Library/Application Support/Big Screen/catalog.sqlite` (live) and
+`~/Library/Application Support/Big Screen/Preview/catalog.sqlite` (preview). Tests and snapshots use
+isolated in-memory catalogs. Authentication tokens use the macOS Keychain service
+`com.gamenative.bigscreen.steam`, with no credential-file fallback. Passwords are kept only for the
+current sign-in attempt. Signing out clears credentials and cached Steam ownership while retaining
+local edits and installation records. The preview does not access account credentials or game files.
 
 ## Navigation
 
@@ -45,11 +55,12 @@ in-memory catalogs. No login credentials or game files are accessed by the previ
 | Page Up / Page Down | L2 / R2 | Move two grid rows |
 | Home | PS | Return to Home |
 | Control-Command-F | — | Toggle fullscreen |
-| Command-Q | — | Quit preview |
+| Command-Q | — | Quit Big Screen |
 
 Type normally in search, collection names or compatibility notes, or navigate the on-screen keys.
 While editing, L1/R1 (Tab/Shift-Tab) moves the text cursor, Square deletes, Triangle inserts a space,
 and Options switches symbols. Select Done to save; Circle/Escape cancels collection/note drafts.
+Command-Return finishes text entry from a physical keyboard. Password and Guard fields are masked.
 Use More on a collection in the Library rail to rename, pin to Home, or delete it. On Downloads,
 More opens pause/cancel/reorder actions for the selected row. Mouse clicks are also supported.
 
@@ -71,13 +82,16 @@ The test suite covers logical grid movement/repeat and native presentation-state
 (modal focus, navigation memory, search, collection/note editing, Unicode text cursors,
 queue reordering, cancellation and focus-driven scrolling/empty-state recovery). Catalog tests cover
 SQLite reopen/rollback, source refresh/logout retention, job reconstruction, exact session accounting,
-and credential redaction. See [recorded foundation/platform evidence](docs/validation/2026-09-07-foundation.md).
+and credential redaction. Account tests cover Keychain isolation, cancellation/logout races, metadata
+mapping, masked credential entry and stable focus during refresh. See
+[Steam/account validation](docs/validation/2026-09-07-steam-account.md) and [recorded foundation/platform evidence](docs/validation/2026-09-07-foundation.md).
 
 Snapshots are actual native window captures in `.build/screenshots/`. They use a 1920×1080 logical
 canvas (pixel dimensions follow the display backing scale), a fixed clock, and the same artwork
 cache as the app. Window capture requires existing macOS Screen Recording access for the launching
 terminal; the script fails with an explicit error if it is unavailable. Reference screenshots live
-in `docs/design/screenshots/`. Snapshot capture never launches a game.
+in `docs/design/screenshots/`. Snapshot capture never launches a game. Sign-in captures contain a non-authenticating example QR,
+never a live challenge or account credentials.
 
 ## Product and delivery
 

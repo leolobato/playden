@@ -35,6 +35,9 @@ extension LibraryModel {
         switch panel {
         case .search: "Search your library"
         case .textEditor(.newCollection): "New collection"
+        case .textEditor(.accountName): "Steam account name"
+        case .textEditor(.password): "Steam password"
+        case .textEditor(.guardCode): "Steam Guard code"
         case .textEditor(.renameCollection): "Rename collection"
         case .textEditor(.compatibilityNote): "Compatibility note"
         default: "Enter text"
@@ -44,6 +47,8 @@ extension LibraryModel {
         let initial: String
         switch purpose {
         case .newCollection: initial = ""
+        case .accountName: initial = accountNameDraft
+        case .password, .guardCode: initial = ""
         case .renameCollection(let id): initial = collections.first { $0.id == id }?.name ?? ""
         case .compatibilityNote(let id): initial = compatibilityNotes[id] ?? ""
         }
@@ -65,12 +70,17 @@ extension LibraryModel {
         symbols.toggle(); keyRow = min(keyRow, searchKeys.count - 1)
         keyColumn = min(keyColumn, searchKeys[keyRow].count - 1)
     }
+    var maskedText: Bool { panel == .textEditor(.password) || panel == .textEditor(.guardCode) }
     func cancelText() {
+        if maskedText { textEditor = TextEditorState() }
         if case .textEditor(.compatibilityNote) = panel { show(.compatibility) }
         else { panel = nil }
     }
     func finishText() {
         guard case .textEditor(let purpose) = panel else { panel = nil; return }
+        if purpose == .accountName || purpose == .password || purpose == .guardCode {
+            finishAuthenticationText(purpose); return
+        }
         let value = textEditor.text.trimmingCharacters(in: .whitespacesAndNewlines)
         if case .compatibilityNote(let id) = purpose {
             compatibilityNotes[id] = value
@@ -90,7 +100,7 @@ extension LibraryModel {
         case .renameCollection(let id):
             if let index = collections.firstIndex(where: { $0.id == id }) { collections[index].name = value }
             show(.collectionOptions(id))
-        case .compatibilityNote: break
+        case .compatibilityNote, .accountName, .password, .guardCode: break
         }
         reconcileFocus()
     }
@@ -137,6 +147,7 @@ extension LibraryModel {
         switch panel {
         case .filters: "Sort & filter"
         case .persistenceFailure: "Changes weren’t saved"
+        case .signOut: "Sign out of Steam?"
         case .compatibility: "Compatibility"
         case .collections: "Add to collection"
         case .collectionOptions(let id): collections.first { $0.id == id }?.name ?? "Collection"

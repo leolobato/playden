@@ -9,10 +9,10 @@ enum AppTab: String, CaseIterable { case home = "Home", library = "Library", dow
     var symbol: String { switch self { case .home: "house"; case .library: "square.grid.2x2"; case .downloads: "arrow.down.to.line"; case .settings: "gearshape" } }
 }
 typealias LibraryFilter = LibraryScope
-enum TextPurpose: Equatable { case newCollection(GameID?), renameCollection(UUID), compatibilityNote(GameID) }
+enum TextPurpose: Equatable { case newCollection(GameID?), renameCollection(UUID), compatibilityNote(GameID), accountName, password, guardCode }
 enum Confirmation: Equatable { case deleteCollection(UUID), uninstall(GameID), install(GameID), cancelDownload(GameID) }
 enum Panel: Equatable {
-    case context, filters, search, compatibility, information(String), persistenceFailure
+    case context, filters, search, compatibility, information(String), persistenceFailure, signOut
     case downloadActions(GameID)
     case textEditor(TextPurpose), collections(GameID), collectionOptions(UUID), confirmation(Confirmation), logs(GameID)
 }
@@ -20,6 +20,24 @@ enum Panel: Equatable {
 @MainActor @Observable
 final class LibraryModel {
     @ObservationIgnored let catalog: CatalogStore?
+    @ObservationIgnored let source: (any GameSource)?
+    @ObservationIgnored let syncCoordinator: LibrarySyncCoordinator?
+    @ObservationIgnored var authTask: Task<Void, Never>?
+    @ObservationIgnored var syncTask: Task<Void, Never>?
+    @ObservationIgnored var periodicSyncTask: Task<Void, Never>?
+    @ObservationIgnored var guardContinuation: CheckedContinuation<String, Error>?
+    var identity: SourceIdentity?
+    var authScreen: AuthenticationScreen?
+    var authIndex = 0
+    var authAttempt = UUID()
+    var authQR: URL?
+    var authExpiresAt: Date?
+    var authMessage = "Connecting to Steam…"
+    var authError: String?
+    var accountNameDraft = ""
+    var passwordDraft = ""
+    var syncError: String?
+    var syncing = false
     @ObservationIgnored var restoringState = true
     let isPreview: Bool
     var persistenceError: String?
@@ -63,8 +81,9 @@ final class LibraryModel {
     var keyRow = 1
     var keyColumn = 0
     var uppercase = false
-    init(catalog: CatalogStore? = nil, preview: Bool = true) {
-        self.catalog = catalog; self.isPreview = preview
+    init(catalog: CatalogStore? = nil, preview: Bool = true, source: (any GameSource)? = nil) {
+        self.catalog = catalog; self.isPreview = preview; self.source = source
+        self.syncCoordinator = catalog.map { LibrarySyncCoordinator(catalog: $0) }
         if !preview { games = []; collections = []; queueOrder = []; completedDownloads = [] }
         restoreCatalog()
         restoringState = false
@@ -103,9 +122,9 @@ final class LibraryModel {
     var rows: [(name: String, games: [Game])] {
         let visible = games.filter { !$0.isHidden }
         let result: [(String, [Game])] = [
-            ("Continue playing", ["Hades", "Cuphead", "Hollow Knight", "Dead Cells", "Stardew Valley", "Slay the Spire", "Celeste", "Outer Wilds"].compactMap { title in visible.first { $0.title == title } }),
+            ("Continue playing", isPreview ? ["Hades", "Cuphead", "Hollow Knight", "Dead Cells", "Stardew Valley", "Slay the Spire", "Celeste", "Outer Wilds"].compactMap { title in visible.first { $0.title == title } } : visible.filter { $0.lastPlayedAt != nil }.sorted { $0.lastPlayedAt! > $1.lastPlayedAt! }),
             ("Downloading now", visible.filter { [.queued, .downloading].contains($0.status) }.sorted { $0.status == .downloading && $1.status != .downloading }),
-            ("Recently installed", visible.filter { $0.status == .installed && $0.hoursPlayed <= 9 }),
+            ("Recently installed", isPreview ? visible.filter { $0.status == .installed && $0.hoursPlayed <= 9 } : visible.filter { $0.status == .installed && $0.installedAt != nil }.sorted { $0.installedAt! > $1.installedAt! }),
             ("Favorites", visible.filter(\.isFavorite)),
         ] + collections.filter(\.isPinned).map { collection in
             (collection.name, visible.filter { collection.gameIDs.contains($0.id) })
@@ -135,6 +154,7 @@ final class LibraryModel {
         case .confirmation(let intent): ["Cancel", confirmationAction(intent)]
         case .information: ["Got it"]
         case .persistenceFailure: ["Retry saving", "Continue without saving"]
+        case .signOut: ["Stay signed in", "Sign out"]
         default: []
         }
     }
@@ -204,6 +224,7 @@ final class LibraryModel {
             }
             return
         }
+        if authScreen != nil && panel == nil { performAuthentication(action); return }
         if case .logs = panel {
             switch action {
             case .back, .confirm: panel = nil
@@ -237,7 +258,9 @@ final class LibraryModel {
                 else { railFocused = false }
             }
             else if let game = focusedGame { openGame(game) }
-            else if tab == .home || tab == .library { browseAvailableGames() }
+            else if tab == .home || tab == .library {
+                if !isPreview && games.isEmpty && identity == nil && query.isEmpty { beginSignIn() } else { browseAvailableGames() }
+            }
         case .back:
             if detailID != nil { detailID = nil }
             else if !query.isEmpty { updateQuery("") }
@@ -292,7 +315,9 @@ final class LibraryModel {
         case "Add to collection": if let id = focusedGame?.id { show(.collections(id)) }
         case "View logs": if let id = focusedGame?.id { show(.logs(id)) }
         case "Uninstall": if let id = focusedGame?.id { show(.confirmation(.uninstall(id))) }
-        case "Install": if let id = focusedGame?.id { show(.confirmation(.install(id))) }
+        case "Install":
+            if !isPreview { show(.information("Game installation is not connected yet. Steam sign-in, library sync and local library edits are available.")) }
+            else if let id = focusedGame?.id { show(.confirmation(.install(id))) }
         case "Pause download", "Resume download": downloadPaused.toggle()
         case "View download":
             let id = focusedGame?.id
@@ -304,6 +329,8 @@ final class LibraryModel {
     func activatePanel() {
         guard let label = panelActions[safe: panelIndex] else { return }
         switch panel {
+        case .signOut:
+            if panelIndex == 1 { signOut() } else { panel = nil }
         case .persistenceFailure:
             if panelIndex == 0 { retryPersistence() } else { panel = nil }
         case .context:
@@ -347,7 +374,12 @@ final class LibraryModel {
     }
     func activateSetting() {
         if settingsRailFocused { settingsRailFocused = false; return }
-        if settingsSection == 2 && settingsIndex == 1 { reducedMotion.toggle() }
+        if settingsSection == 0 && !isPreview {
+            if identity == nil { beginSignIn() }
+            else { show(.signOut) }
+        }
+        else if settingsSection == 1 && settingsIndex == 0 && !isPreview { refreshLibrary() }
+        else if settingsSection == 2 && settingsIndex == 1 { reducedMotion.toggle() }
         else if settingsSection == 1 && settingsIndex == 2 { downloadWhilePlaying.toggle() }
         else { show(.information("The native interface is running with designer preview data. Steam, game installation, and CrossOver sessions are not connected yet.")) }
     }

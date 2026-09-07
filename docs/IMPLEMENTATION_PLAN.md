@@ -23,8 +23,8 @@ ambient artwork waits 400 ms before crossfading. Reduced motion skips transition
 create/rename/delete/membership/pinning, compatibility notes, controller text cursor/symbol entry,
 and preview queue reorder/cancel/install confirmations are implemented with session-local state.
 
-M0 real-game/controller handoff, first-run auth, install/session services and remaining
-v1 actions are still outstanding. The user confirmed DS4 foreground input works on 2026-09-07;
+At that UI checkpoint, M0 real-game/controller handoff, first-run auth, install/session services and
+remaining v1 actions were outstanding. The user confirmed DS4 foreground input works on 2026-09-07;
 background game handoff is still unverified. Validation: Xcode build, five package tests and sixteen
 app tests, plus native window captures at 1920×1080 and 1280×720 logical sizes (Retina pixel output).
 The newer captures include paged Library return, queued download focus, collection/text editing,
@@ -42,8 +42,22 @@ process restart check verified persisted favorites and restored the original val
 The CrossOver probe created/cloned/deleted owned Windows 10 bottles, verified MSync/D3DMetal settings,
 and ran a Windows command. Missing-executable invocation hung even with `--no-gui`; Runner must
 preflight paths and provide recoverable delayed launch. This is a recorded failure, not a passed M0
-gate. See [foundation/platform evidence](validation/2026-09-07-foundation.md). Real Steam wiring,
-chunk-resumable jobs, actual game sessions, background exit input, and release acceptance remain open.
+gate. See [foundation/platform evidence](validation/2026-09-07-foundation.md). Chunk-resumable jobs,
+actual game sessions, background exit input, and release acceptance remain open.
+
+The M2 account/catalog slice is now connected to the native UI. Normal launches use the real SQLite
+catalog; `--preview` explicitly selects the isolated design fixtures. QR, password/Steam Guard,
+cancel/retry and logout use injected Keychain storage, with no CLI credential-file fallback. Owned
+library refresh commits before optional metadata enrichment, preserves cached data on failure, and
+keeps focus by stable game ID. Startup/manual/six-hour refresh and actual source play history are
+wired into Home/Library/Settings. Compression libraries are embedded; the app target is macOS 15
+because the available Homebrew binaries require it. Execution remains verified only on macOS 26.6.2.
+
+The unauthenticated Steam QR challenge and public metadata probe passed. Native sign-in snapshots,
+24 app tests and 22 package tests passed (the optional network test was run separately). Full account
+approval, a real 600-title library and authenticated offline restart remain unverified. This does not
+complete the M2 gate or v1: installer, runner/session services, setup and remaining UI acceptance are
+still pending. See [account validation](validation/2026-09-07-steam-account.md).
 
 ## 1. Planning defaults and PRD corrections
 

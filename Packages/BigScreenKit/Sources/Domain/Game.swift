@@ -28,14 +28,23 @@ public struct Game: Identifiable, Hashable, Sendable {
     public var logoURL: URL?
     public var isFavorite: Bool
     public var isHidden: Bool
+    public var lastPlayedAt: Date?
+    public var addedAt: Date?
+    public var installedAt: Date?
+    public var controllerSupport: ControllerSupport
+    public var lastSessionOutcome: SessionOutcome?
 
     public init(id: GameID, title: String, status: InstallStatus = .notInstalled,
                 compatibility: Compatibility = .untested, hoursPlayed: Int = 0, size: String = "—",
                 summary: String = "", genres: [String] = [], coverURL: URL? = nil,
-                heroURL: URL? = nil, logoURL: URL? = nil, isFavorite: Bool = false, isHidden: Bool = false) {
+                heroURL: URL? = nil, logoURL: URL? = nil, isFavorite: Bool = false, isHidden: Bool = false,
+                lastPlayedAt: Date? = nil, addedAt: Date? = nil, installedAt: Date? = nil,
+                controllerSupport: ControllerSupport = .unknown, lastSessionOutcome: SessionOutcome? = nil) {
         self.id = id; self.title = title; self.status = status; self.compatibility = compatibility
         self.hoursPlayed = hoursPlayed; self.size = size; self.summary = summary; self.genres = genres
         self.coverURL = coverURL; self.heroURL = heroURL; self.logoURL = logoURL
         self.isFavorite = isFavorite; self.isHidden = isHidden
+        self.lastPlayedAt = lastPlayedAt; self.addedAt = addedAt; self.installedAt = installedAt
+        self.controllerSupport = controllerSupport; self.lastSessionOutcome = lastSessionOutcome
     }
 }

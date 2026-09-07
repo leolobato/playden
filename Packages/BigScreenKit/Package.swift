@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "BigScreenKit",
-    platforms: [.macOS(.v14)],
+    platforms: [.macOS(.v15)],
     products: [
         .library(name: "Domain", targets: ["Domain"]),
         .library(name: "Focus", targets: ["Focus"]),

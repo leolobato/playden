@@ -2,11 +2,11 @@ name: BigScreen
 options:
   bundleIdPrefix: com.gamenative
   deploymentTarget:
-    macOS: '14.0'
+    macOS: '15.0'
 settings:
   base:
     SWIFT_VERSION: '6.0'
-    MACOSX_DEPLOYMENT_TARGET: '14.0'
+    MACOSX_DEPLOYMENT_TARGET: '15.0'
 packages:
   BigScreenKit:
     path: Packages/BigScreenKit
@@ -16,6 +16,15 @@ targets:
     platform: macOS
     sources:
       - path: App
+    postBuildScripts:
+      - path: scripts/embed-runtime.sh
+        name: Embed Steam runtime libraries
+        basedOnDependencyAnalysis: false
+        outputFiles:
+          - '$(TARGET_BUILD_DIR)/$(FRAMEWORKS_FOLDER_PATH)/liblzma.5.dylib'
+          - '$(TARGET_BUILD_DIR)/$(FRAMEWORKS_FOLDER_PATH)/libzstd.1.dylib'
+          - '$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Licenses/liblzma.txt'
+          - '$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Licenses/zstd.txt'
     dependencies:
       - package: BigScreenKit
         product: Domain
@@ -25,11 +34,16 @@ targets:
         product: Input
       - package: BigScreenKit
         product: Catalog
+      - package: BigScreenKit
+        product: Sources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.gamenative.bigscreen
         PRODUCT_NAME: Big Screen
         PRODUCT_MODULE_NAME: BigScreen
+        HEADER_SEARCH_PATHS: ['$(inherited)', /opt/homebrew/include]
+        LIBRARY_SEARCH_PATHS: ['$(inherited)', /opt/homebrew/lib]
+        LD_RUNPATH_SEARCH_PATHS: ['$(inherited)', '@executable_path/../Frameworks', '@loader_path/../Frameworks']
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: Big Screen
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.games

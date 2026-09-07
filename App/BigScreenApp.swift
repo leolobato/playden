@@ -4,6 +4,7 @@ import SwiftUI
 import Input
 import Focus
 import Catalog
+import Sources
 
 @main
 struct BigScreenApp {
@@ -24,12 +25,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // Keep tests and visual fixtures deterministic and separate from the interactive profile.
         if args.contains("--snapshot") || isTest { model = LibraryModel() }
         else {
+            let preview = args.contains("--preview")
             do {
                 let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-                    .appendingPathComponent("Big Screen/Preview", isDirectory: true)
-                model = LibraryModel(catalog: try CatalogStore(path: root.appendingPathComponent("catalog.sqlite").path))
+                    .appendingPathComponent(preview ? "Big Screen/Preview" : "Big Screen", isDirectory: true)
+                model = LibraryModel(catalog: try CatalogStore(path: root.appendingPathComponent("catalog.sqlite").path), preview: preview, source: preview ? nil : SteamSource())
             } catch {
-                model = LibraryModel()
+                model = LibraryModel(preview: preview)
                 model.persistenceError = error.localizedDescription
                 model.show(.information("The library database could not be opened. This session will not save changes. Your existing database has been left in place.\n\n\(error.localizedDescription)"))
             }
@@ -47,7 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let snapshotIndex = args.firstIndex(of: "--snapshot")
         let isSnapshot = snapshotIndex != nil
         model.fixedClock = isSnapshot
-        model.reducedMotion = isSnapshot
+        if isSnapshot { model.reducedMotion = true }
         let requestedWidth: Int? = args.firstIndex(of: "--snapshot-width").flatMap { index in
             args.indices.contains(index + 1) ? Int(args[index + 1]) : nil
         }
@@ -57,7 +59,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: width, height: height),
                           styleMask: isSnapshot ? [.borderless] : [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                           backing: .buffered, defer: false)
-        window.title = "Big Screen — Design Preview"
+        window.title = model.isPreview ? "Big Screen — Design Preview" : "Big Screen"
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.backgroundColor = NSColor(red: 14 / 255, green: 13 / 255, blue: 12 / 255, alpha: 1)
@@ -71,7 +73,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         } else {
             installMenus()
             window.center(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
-            if args.contains("--fullscreen") { window.toggleFullScreen(nil) }
+            if args.contains("--fullscreen") || (!model.isPreview && !args.contains("--windowed")) { window.toggleFullScreen(nil) }
+            model.startServices()
             controller.onAction = { [weak self] action in
                 guard NSApp.isActive else { return }
                 self?.model.perform(action)
@@ -92,6 +95,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
     func applicationWillTerminate(_ notification: Notification) {
+        model.stopServices()
         controller.stop()
         if let keyboardMonitor { NSEvent.removeMonitor(keyboardMonitor) }
         restoreCursor()
@@ -100,8 +104,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func restoreCursor() { if cursorHidden { NSCursor.unhide(); cursorHidden = false } }
     private func handle(_ event: NSEvent) -> NSEvent? {
         if event.modifierFlags.contains(.command) {
+            if [36, 76].contains(event.keyCode), model.isEditingText { model.finishText(); return nil }
             if let digit = Int(event.charactersIgnoringModifiers ?? ""), (1...4).contains(digit) {
-                if model.panel == nil { model.selectTab(AppTab.allCases[digit - 1]) }
+                if model.panel == nil && model.authScreen == nil { model.selectTab(AppTab.allCases[digit - 1]) }
                 return nil
             }
             return event
@@ -160,8 +165,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 }
             }
             model.reducedMotion = false
-            for screen in ["home", "library", "library-paged", "library-return", "game", "downloads", "downloads-queued", "settings", "collections", "keyboard", "compatibility", "uninstall", "logs"] {
-                model.panel = nil; model.detailID = nil
+            for screen in ["home", "library", "library-paged", "library-return", "game", "downloads", "downloads-queued", "settings", "collections", "keyboard", "compatibility", "uninstall", "logs", "signin-qr", "signin-password", "signin-error"] {
+                model.panel = nil; model.detailID = nil; model.authScreen = nil
                 switch screen {
                 case "library": model.selectTab(.library)
                 case "library-paged":
@@ -180,6 +185,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     if let index = model.games.firstIndex(where: { $0.title == "TUNIC" }) { model.games[index].status = .downloading }
                     model.selectTab(.downloads)
                 case "settings": model.selectTab(.settings)
+                case "signin-qr", "signin-password", "signin-error":
+                    model.authScreen = screen == "signin-password" ? .credentials : .qr
+                    model.authIndex = 0
+                    // A non-authenticating design sample; real challenges are never written to captures.
+                    model.authQR = screen == "signin-qr" ? URL(string: "https://example.invalid/big-screen-design-preview") : nil
+                    model.authMessage = "Design preview · QR layout"
+                    model.authError = screen == "signin-error" ? "Steam can’t be reached. Check your connection and try again." : nil
                 case "collections", "keyboard", "compatibility", "uninstall", "logs":
                     model.selectTab(.library)
                     if let game = model.games.first(where: { $0.title == "Hades" }) {

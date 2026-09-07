@@ -8,6 +8,7 @@ struct DownloadsScreen: View {
             DownloadQueue(model: model).frame(width: 1188, height: 894).offset(x: -24, y: -24)
             VStack(alignment: .leading, spacing: 28) {
                 SectionLabel(text: "Games volume")
+                if model.isPreview {
                 VStack(alignment: .leading, spacing: 24) {
                     Text("VM").font(Design.condensed(36))
                     Text("412 GB free of 2 TB").font(Design.body(22)).foregroundStyle(Design.secondary)
@@ -19,6 +20,10 @@ struct DownloadsScreen: View {
                     Text(model.downloadWhilePlaying ? "Downloads continue while you play." : "Downloads pause automatically while you play.").font(Design.body(22)).foregroundStyle(Design.secondary).lineSpacing(6)
                 }.padding(28).background(Design.text.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
                 Text("Preview queue · no files are being downloaded").font(Design.body(18)).foregroundStyle(Design.muted)
+                } else {
+                    Text("No games drive selected").font(Design.condensed(36))
+                    Text("Game installation setup is still being implemented. Your Steam library and local edits are available.").font(Design.body(24)).foregroundStyle(Design.secondary)
+                }
             }.frame(width: 524)
         }.offset(x: 96, y: 150)
     }
@@ -32,8 +37,8 @@ struct SettingsScreen: View {
     let sections = ["Account", "Library", "Display", "Controller", "About"]
     var settings: [(String, String, String)] {
         switch model.settingsSection {
-        case 0: [("Steam", "Using designer preview data", "Not connected")]
-        case 1: [("Refresh library", "Your games and artwork, up to date", "Refresh"), ("Games volume", "/Volumes/VM/GameNative/games", "Change ›"), ("Download while playing", "Downloads pause automatically when a game starts", model.downloadWhilePlaying ? "On" : "Off"), ("Runtime", "CrossOver integration is a later milestone", "Not connected")]
+        case 0: [("Steam", model.isPreview ? "Using designer preview data" : model.identity.map { "Signed in as \($0.displayName)" } ?? "Sign in to see your games", model.identity == nil ? "Sign in" : "Sign out")]
+        case 1: [("Refresh library", model.syncError ?? (model.syncing ? "Loading your library…" : "Your games and artwork, up to date"), model.syncing ? "Refreshing" : "Refresh"), ("Games volume", model.isPreview ? "/Volumes/VM/GameNative/games" : "Not configured", "Change ›"), ("Download while playing", "Downloads pause automatically when a game starts", model.downloadWhilePlaying ? "On" : "Off"), ("Runtime", "CrossOver integration is a later milestone", "Not connected")]
         case 2: [("Display", "A 1920 × 1080 canvas, scaled to your window", "Change ›"), ("Reduced motion", "Keep the focus ring; turn off scaling and transitions", model.reducedMotion ? "On" : "Off")]
         case 3: [("Controller", model.controllerName ?? "No controller connected · keyboard navigation available", "Button test")]
         default: [("Big Screen", "Native UI preview · Barlow / Barlow Condensed", "v0.1")]
@@ -93,6 +98,7 @@ struct ModalLayer: View {
                         .font(Design.condensed(48))
                     if model.panel == .persistenceFailure { Text(model.persistenceError ?? "The library database is unavailable.").font(Design.body(24)).foregroundStyle(Design.secondary) }
                     if model.panel == .compatibility { Text(model.isPreview ? "Your rating · preview library" : "Your rating").font(Design.body(22)).foregroundStyle(Design.secondary) }
+                    if model.panel == .signOut { Text("Installed games, saves, collections and play history stay on this Mac.").font(Design.body(24)).foregroundStyle(Design.secondary) }
                     PanelActionList(model: model)
                     if model.panel == .compatibility, let id = model.focusedGame?.id {
                         Text(model.compatibilityNotes[id].flatMap { $0.isEmpty ? nil : $0 } ?? "Add a note about settings, controls or anything that needs a workaround.")
@@ -113,9 +119,9 @@ struct SearchKeyboard: View {
             HStack { Text(model.keyboardTitle).font(Design.condensed(40)); Spacer(); if model.panel == .search { Text("\(model.filteredGames.count) results").font(Design.body(22)).foregroundStyle(Design.secondary) } }
             HStack(spacing: 0) {
                 Image(systemName: model.panel == .search ? "magnifyingglass" : "pencil").padding(.trailing, 16).foregroundStyle(Design.secondary)
-                Text(model.textEditor.beforeCursor)
+                Text(model.maskedText ? String(repeating: "•", count: model.textEditor.beforeCursor.count) : model.textEditor.beforeCursor)
                 Rectangle().fill(Design.accent).frame(width: 3, height: 34).padding(.horizontal, 2)
-                Text(model.textEditor.afterCursor)
+                Text(model.maskedText ? String(repeating: "•", count: model.textEditor.afterCursor.count) : model.textEditor.afterCursor)
                 Spacer(minLength: 0)
             }.font(Design.body(30, weight: "Medium")).lineLimit(1)
                 .padding(.horizontal, 22).frame(height: 64).background(Design.text.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))

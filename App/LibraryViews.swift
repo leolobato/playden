@@ -52,7 +52,13 @@ struct CanvasView: View {
                     }.padding(22).background(Design.panel, in: RoundedRectangle(cornerRadius: 12))
                 }.buttonStyle(.plain).offset(x: 1150, y: 880).zIndex(3)
             }
-            if model.panel != nil { ModalLayer(model: model).transition(.opacity).zIndex(4) }
+            if let error = model.syncError, model.panel == nil, model.authScreen == nil {
+                Text(error).font(Design.body(22)).foregroundStyle(Design.amber).lineLimit(2)
+                    .padding(20).frame(width: 720, alignment: .leading).background(Design.panel, in: RoundedRectangle(cornerRadius: 10))
+                    .offset(x: 1104, y: 880).zIndex(3)
+            }
+            if model.authScreen != nil { AuthenticationView(model: model).transition(.opacity).zIndex(4) }
+            if model.panel != nil { ModalLayer(model: model).transition(.opacity).zIndex(5) }
         }.frame(width: 1920, height: 1080).clipped().foregroundStyle(Design.text)
             .environment(\.colorScheme, .dark)
             .animation(model.reducedMotion ? nil : .easeInOut(duration: 0.28), value: model.detailID)
@@ -90,7 +96,7 @@ struct TopBar: View {
             HStack(spacing: 22) {
                 HStack(spacing: 12) {
                     Circle().fill(LinearGradient(colors: [Design.accent, Color(hex: 0x8A3D15)], startPoint: .topLeading, endPoint: .bottomTrailing)).frame(width: 40, height: 40)
-                    Text("Preview").font(Design.body(24, weight: "Medium"))
+                    Text(model.isPreview ? "Preview" : model.identity?.displayName ?? "Offline").font(Design.body(24, weight: "Medium")).lineLimit(1).frame(maxWidth: 260).fixedSize(horizontal: true, vertical: false)
                 }
                 ClockLabel(fixed: model.fixedClock)
             }
@@ -142,9 +148,11 @@ struct HomeScreen: View {
             LinearGradient(colors: [.clear, Design.background.opacity(0.6), Design.background], startPoint: .top, endPoint: .bottom)
             if model.rows.isEmpty {
                 VStack(spacing: 28) {
-                    Text("Your next adventure starts here").font(Design.condensed(56))
-                    Text("Find a game in your library and make yourself at home.").font(Design.body(26)).foregroundStyle(Design.secondary)
-                    ActionButton(title: "Browse library", primary: true, focused: true, reducedMotion: model.reducedMotion) { model.browseAvailableGames() }
+                    Text(!model.isPreview && model.identity == nil ? "Your games, on the big screen" : "Your next adventure starts here").font(Design.condensed(56))
+                    Text(!model.isPreview && model.identity == nil ? "Sign in to Steam to see your library." : model.syncing ? "Loading your library…" : "Find a game in your library and make yourself at home.").font(Design.body(26)).foregroundStyle(Design.secondary)
+                    ActionButton(title: !model.isPreview && model.identity == nil ? "Sign in to Steam" : "Browse library", primary: true, focused: true, reducedMotion: model.reducedMotion) {
+                        if !model.isPreview && model.identity == nil { model.beginSignIn() } else { model.browseAvailableGames() }
+                    }
                 }.frame(width: 1920, height: 1080)
             }
             FocusedHomeRows(model: model).frame(width: 1848, height: 894).offset(x: 72, y: 126)
@@ -170,9 +178,11 @@ struct LibraryScreen: View {
                 .offset(x: 420, y: model.query.isEmpty ? 126 : 216)
             if model.filteredGames.isEmpty {
                 VStack(spacing: 24) {
-                    Text(model.query.isEmpty ? "Nothing here yet" : "No games match ‘\(model.query)’").font(Design.condensed(56))
-                    Text("Try another collection or clear your search.").font(Design.body(26)).foregroundStyle(Design.secondary)
-                    ActionButton(title: "Browse all games", primary: true, focused: !model.railFocused) { model.browseAvailableGames() }
+                    Text(!model.isPreview && model.identity == nil && model.games.isEmpty && model.query.isEmpty ? "Your Steam library starts here" : model.query.isEmpty ? "Nothing here yet" : "No games match ‘\(model.query)’").font(Design.condensed(56))
+                    Text(!model.isPreview && model.identity == nil && model.games.isEmpty && model.query.isEmpty ? "Sign in to bring your games to Big Screen." : "Try another collection or clear your search.").font(Design.body(26)).foregroundStyle(Design.secondary)
+                    ActionButton(title: !model.isPreview && model.identity == nil && model.games.isEmpty && model.query.isEmpty ? "Sign in to Steam" : "Browse all games", primary: true, focused: !model.railFocused) {
+                        if !model.isPreview && model.identity == nil && model.games.isEmpty && model.query.isEmpty { model.beginSignIn() } else { model.browseAvailableGames() }
+                    }
                 }.frame(width: 1380, height: 650).offset(x: 444, y: 150)
             }
         }
@@ -214,9 +224,12 @@ struct GamePage: View {
                 }.frame(width: 1128, alignment: .leading)
                 VStack(alignment: .leading, spacing: 18) {
                     HStack(alignment: .top, spacing: 40) { metadata("Playtime", game.hoursPlayed == 0 ? "Never played" : "\(game.hoursPlayed) hours"); metadata(game.status == .installed ? "Size" : "Download", game.size) }
-                    HStack(alignment: .top, spacing: 40) { metadata("Source", "Steam"); metadata("Compatibility", game.compatibility.rawValue) }
-                    metadata("Controller", "Full support")
-                    if game.status == .installed { HStack(spacing: 8) { Circle().fill(Design.green).frame(width: 8, height: 8); Text("Last session ended cleanly").font(Design.body(18)).foregroundStyle(Design.secondary) } }
+                    HStack(alignment: .top, spacing: 40) { metadata("Source", game.id.source.capitalized); metadata("Compatibility", game.compatibility.rawValue) }
+                    HStack(alignment: .top, spacing: 40) {
+                        metadata("Controller", model.isPreview ? "Full support" : game.controllerSupport == .full ? "Full support" : game.controllerSupport == .partial ? "Partial support" : "Unknown")
+                        if let date = game.lastPlayedAt { metadata("Last played", date.formatted(.dateTime.month(.abbreviated).day())) }
+                    }
+                    if game.status == .installed && (model.isPreview || game.lastSessionOutcome == .clean) { HStack(spacing: 8) { Circle().fill(Design.green).frame(width: 8, height: 8); Text("Last session ended cleanly").font(Design.body(18)).foregroundStyle(Design.secondary) } }
                 }.frame(width: 520)
             }.offset(x: 96, y: 754)
         }

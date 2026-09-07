@@ -24,6 +24,28 @@ private struct DelayedBackend: SteamBackend {
     func ownedGames(_ auth: StoredAuth) async throws -> [SourceGameRecord] { [] }
 }
 final class SteamAccountTests: XCTestCase {
+    func testLiveQRChallengeAndPublicMetadataWhenRequested() async throws {
+        guard ProcessInfo.processInfo.environment["BIGSCREEN_STEAM_NETWORK_PROBE"] == "1" else {
+            throw XCTSkip("Set BIGSCREEN_STEAM_NETWORK_PROBE=1 for the unauthenticated network probe")
+        }
+        let store = MemoryCredentials()
+        let account = SteamAccount(store: store, backend: LiveSteamBackend())
+        let ready = expectation(description: "Steam issued an HTTPS QR challenge")
+        ready.assertForOverFulfill = false
+        let login = Task {
+            try await account.signInWithQR { event in
+                if case .qrChallenge(let url, _) = event, url.scheme == "https" { ready.fulfill() }
+            }
+        }
+        await fulfillment(of: [ready], timeout: 20)
+        login.cancel(); await account.cancelSignIn()
+        _ = try? await login.value
+        XCTAssertNil(try store.load())
+        let game = SourceGameRecord(id: GameID(source: "steam", value: "268910"), title: "Cuphead")
+        let metadata = try await SteamSource().metadata(for: game)
+        XCTAssertFalse(metadata.summary.isEmpty)
+        XCTAssertFalse(metadata.genres.isEmpty)
+    }
     func testSignOutDuringRenewalCannotResurrectKeychainCredentials() async throws {
         let store = MemoryCredentials()
         try store.save(StoredAuth(accountName: "Fixture", steamID: 1, refreshToken: "fixture-refresh"))
