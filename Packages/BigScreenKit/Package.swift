@@ -29,6 +29,7 @@ let package = Package(
         .testTarget(name: "CatalogTests", dependencies: ["Catalog", "Domain"]),
         .target(name: "Focus"),
         .target(name: "Input", dependencies: ["Focus"]),
+        .testTarget(name: "InputTests", dependencies: ["Input"]),
         .testTarget(name: "FocusTests", dependencies: ["Focus"]),
     ]
 )

@@ -16,7 +16,7 @@ extension LibraryModel {
                 }
                 try catalog.replaceSourceCatalog(source: "steam", games: records)
                 try catalog.saveLibraryState(edits: Dictionary(uniqueKeysWithValues: games.map { ($0.id, edits(for: $0)) }),
-                    collections: collections, preferences: LibraryPreferences())
+                    collections: collections, preferences: try catalog.preferences())
             }
             let snapshot = try catalog.snapshot()
             let fixtures = Dictionary(uniqueKeysWithValues: PreviewCatalog.games.map { ($0.id, $0) })
@@ -36,7 +36,7 @@ extension LibraryModel {
             let preferences = snapshot.preferences
             filter = preferences.scope
             if !libraryFilters.contains(filter) { filter = .all }
-            sortByPlaytime = preferences.sort == .playtime
+            sort = preferences.sort; refinements = preferences.refinements ?? LibraryRefinements()
             reducedMotion = preferences.reducedMotion; downloadWhilePlaying = preferences.downloadWhilePlaying
             gamesVolume = preferences.gamesVolume; selectedDisplayID = preferences.selectedDisplayID
             reconcileFocus()
@@ -47,7 +47,7 @@ extension LibraryModel {
     }
     private var preferences: LibraryPreferences {
         var value = LibraryPreferences()
-        value.scope = filter; value.sort = sortByPlaytime ? .playtime : .name
+        value.scope = filter; value.sort = sort; value.refinements = refinements
         value.reducedMotion = reducedMotion; value.downloadWhilePlaying = downloadWhilePlaying
         return value
     }
@@ -76,7 +76,7 @@ extension LibraryModel {
         do {
             // Preserve setup/display fields owned by their corresponding settings flows.
             var saved = try catalog.preferences()
-            saved.scope = filter; saved.sort = preferences.sort
+            saved.scope = filter; saved.sort = preferences.sort; saved.refinements = refinements
             saved.reducedMotion = reducedMotion; saved.downloadWhilePlaying = downloadWhilePlaying
             try catalog.savePreferences(saved)
         } catch { recordPersistenceError(error) }
@@ -85,7 +85,7 @@ extension LibraryModel {
         guard let catalog else { return }
         do {
             var saved = try catalog.preferences()
-            saved.scope = filter; saved.sort = preferences.sort
+            saved.scope = filter; saved.sort = preferences.sort; saved.refinements = refinements
             saved.reducedMotion = reducedMotion; saved.downloadWhilePlaying = downloadWhilePlaying
             try catalog.saveLibraryState(edits: Dictionary(uniqueKeysWithValues: games.map { ($0.id, edits(for: $0)) }), collections: collections, preferences: saved)
             persistenceError = nil; panel = nil

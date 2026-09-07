@@ -16,8 +16,8 @@ an isolated database; install/uninstall confirmations only change preview state.
 ## Build and run
 
 Requires Xcode 26.3 / Swift 6, XcodeGen, Homebrew xz/zstd (`brew install xcodegen xz zstd`), and an
-Apple Silicon Mac. Check out the sibling `../GameNative-macos` with commit `8da61ce` or its descendant
-containing the injected authentication storage changes. The local Swift package uses that checkout.
+Apple Silicon Mac. Check out the sibling `../GameNative-macos` with commit `b54c993` or its descendant
+containing injected authentication storage and verified chunk-resume downloads. The local Swift package uses that checkout.
 The deployment target is macOS 15 because of the bundled compression libraries; actual execution
 has currently been checked on macOS 26.6.2. The build embeds xz/zstd in the app, so running the built
 app does not require Homebrew's library paths.
@@ -77,7 +77,18 @@ More opens pause/cancel/reorder actions for the selected row. Mouse clicks are a
 DS4 foreground input has been confirmed on hardware by the user. Background exit-overlay handoff
 remains unverified. Focus drives scrolling in Home, Library and Downloads; rapid Home navigation
 waits 400 ms before crossfading its ambient artwork. Game details fade in with a short upward motion.
-Settings → Display → Reduced motion disables these transitions.
+Settings → Display → Reduced motion disables these transitions. Footer hints switch to keyboard
+shortcuts when you use the keyboard, and back to gamepad glyphs when you use the controller.
+
+Sort & Filter has grouped chips for all four sort orders, installation, genre, controller support
+and compatibility; Source appears when multiple sources are present. The sheet scrolls with focus,
+updates the result count immediately, and persists selections. Reset clears refinements and sorting
+while preserving the current collection and search. Browse all games recovers an empty result.
+
+Settings → Controller → Button test shows live button presses, both sticks, and trigger pressure.
+Press a control on another connected pad to switch the readout. Short Circle/B presses are testable;
+hold Circle/B for 1.2 seconds to close, or press Escape. Launcher actions stay trapped in this screen.
+Hardware validation of this new diagnostic screen is still pending.
 
 ## Validation
 
@@ -95,7 +106,8 @@ SQLite reopen/rollback, source refresh/logout retention, job reconstruction, exa
 and credential redaction. Account tests cover Keychain isolation, cancellation/logout races, metadata
 mapping, masked credential entry and stable focus during refresh. See
 [Steam/account validation](docs/validation/2026-09-07-steam-account.md),
-[setup/runtime validation](docs/validation/2026-09-07-setup-runtime.md), and [recorded foundation/platform evidence](docs/validation/2026-09-07-foundation.md).
+[setup/runtime validation](docs/validation/2026-09-07-setup-runtime.md),
+[controller/filter and download-resume validation](docs/validation/2026-09-07-controller-filters.md), and [recorded foundation/platform evidence](docs/validation/2026-09-07-foundation.md).
 
 Snapshots are actual native window captures in `.build/screenshots/`. They use a 1920×1080 logical
 canvas (pixel dimensions follow the display backing scale), a fixed clock, and the same artwork

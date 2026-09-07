@@ -13,7 +13,7 @@ typealias LibraryFilter = LibraryScope
 enum TextPurpose: Equatable { case newCollection(GameID?), renameCollection(UUID), compatibilityNote(GameID), accountName, password, guardCode }
 enum Confirmation: Equatable { case deleteCollection(UUID), uninstall(GameID), install(GameID), cancelDownload(GameID) }
 enum Panel: Equatable {
-    case context, filters, search, compatibility, information(String), persistenceFailure, signOut
+    case context, filters, search, compatibility, information(String), persistenceFailure, signOut, controllerTest
     case downloadActions(GameID)
     case textEditor(TextPurpose), collections(GameID), collectionOptions(UUID), confirmation(Confirmation), logs(GameID)
 }
@@ -82,11 +82,18 @@ final class LibraryModel {
     var railFocused = false
     var filter: LibraryFilter = .all { didSet { libraryCursor = .init(); libraryScrollOffset = 0; libraryRailIndex = libraryFilters.firstIndex(of: filter) ?? 1; persistPreferences() } }
     var query = ""
-    var sortByPlaytime = false { didSet { persistPreferences() } }
+    var sort: LibrarySort = .name { didSet { libraryCursor = .init(); persistPreferences() } }
+    var refinements = LibraryRefinements() { didSet { libraryCursor = .init(); persistPreferences() } }
+    var filterChoiceIndex = 0
+    var filterScrollOffset = 0.0
+    var expandedGenres = false
     var detailAction = 0
     var reducedMotion = false { didSet { persistPreferences() } }
     var controllerName: String?
+    var connectedControllers: [ControllerSnapshot] = []
+    var controllerTest = ControllerTestState()
     var playStationGlyphs = true
+    var keyboardNavigation = false
     var downloadPaused = false
     var downloadIndex = 0 { didSet { revealDownloadFocus() } }
     var downloadScrollOffset = 0.0
@@ -135,9 +142,18 @@ final class LibraryModel {
             case .collection(let id): collections.first { $0.id == id }?.gameIDs.contains(game.id) == true
             case .all, .hidden: true
             }
-            return matches && (query.isEmpty || game.title.localizedCaseInsensitiveContains(query))
+            return matches && refinements.includes(game) && (query.isEmpty || game.title.localizedCaseInsensitiveContains(query))
         }
-        return result.sorted { sortByPlaytime && $0.hoursPlayed != $1.hoursPlayed ? $0.hoursPlayed > $1.hoursPlayed : $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+        return result.sorted { lhs, rhs in
+            switch sort {
+            case .playtime: if lhs.hoursPlayed != rhs.hoursPlayed { return lhs.hoursPlayed > rhs.hoursPlayed }
+            case .recentlyPlayed: if lhs.lastPlayedAt != rhs.lastPlayedAt { return (lhs.lastPlayedAt ?? .distantPast) > (rhs.lastPlayedAt ?? .distantPast) }
+            case .recentlyAdded: if lhs.addedAt != rhs.addedAt { return (lhs.addedAt ?? .distantPast) > (rhs.addedAt ?? .distantPast) }
+            case .name: break
+            }
+            let order = lhs.title.localizedStandardCompare(rhs.title)
+            return order == .orderedSame ? (lhs.id.source, lhs.id.value) < (rhs.id.source, rhs.id.value) : order == .orderedAscending
+        }
     }
     var rows: [(name: String, games: [Game])] {
         let visible = games.filter { !$0.isHidden }
@@ -167,7 +183,7 @@ final class LibraryModel {
         switch panel {
         case .context: contextActions
         case .downloadActions(let id): downloadActions(for: id)
-        case .filters: ["Name", "Playtime", "All games", "Installed", "Favorites", "Reset"]
+        case .filters: []
         case .compatibility: Compatibility.allCases.map(\.rawValue) + ["Edit note"]
         case .collections: collections.map(\.name) + ["New collection…"]
         case .collectionOptions(let id): ["Rename", collections.first { $0.id == id }?.isPinned == true ? "Unpin from Home" : "Pin to Home", "Delete collection…"]
@@ -178,7 +194,8 @@ final class LibraryModel {
         default: []
         }
     }
-    var libraryViewportHeight: Double { query.isEmpty ? 840 : 750 }
+    var libraryHasSummary: Bool { !query.isEmpty || refinements.isActive }
+    var libraryViewportHeight: Double { libraryHasSummary ? 750 : 840 }
     var libraryVisibleIndices: Range<Int> {
         let firstRow = max(0, Int(libraryScrollOffset / 339) - 2)
         let lastRow = Int((libraryScrollOffset + libraryViewportHeight) / 339) + 3
@@ -203,12 +220,14 @@ final class LibraryModel {
     }
     func browseAvailableGames() {
         selectTab(.library)
+        refinements = .init()
         filter = !games.isEmpty && games.allSatisfy(\.isHidden) ? .hidden : .all
         updateQuery("")
     }
     func selectTab(_ value: AppTab) { tab = value; detailID = nil; panel = nil; railFocused = false }
     func show(_ value: Panel) {
         panel = value; panelIndex = 0
+        if value == .filters { filterChoiceIndex = 0; filterScrollOffset = 0; expandedGenres = false }
         if value == .search { textEditor = TextEditorState(query); keyboardError = nil }
         if case .confirmation = value { keepSaves = true }
     }
@@ -225,7 +244,12 @@ final class LibraryModel {
         for (i, row) in rows.enumerated() { homeColumns[i] = min(homeColumns[i, default: 0], max(0, row.games.count - 1)) }
     }
     func perform(_ action: InputAction) {
+        if panel == .controllerTest {
+            if case .back = action { panel = nil }
+            return
+        }
         if case .options = action, panel == nil, persistenceError != nil { retryPersistence(); return }
+        if panel == .filters { performFilters(action); return }
         if isEditingText {
             switch action {
             case .back: cancelText()
@@ -361,14 +385,6 @@ final class LibraryModel {
             else if label == "Hide" || label == "Unhide" { hideFocused(); panel = nil }
             else if label == "Add to collection", let id = focusedGame?.id { show(.collections(id)) }
             else if let id = focusedGame?.id { show(.logs(id)) }
-        case .filters:
-            if label == "Name" { sortByPlaytime = false }
-            if label == "Playtime" { sortByPlaytime = true }
-            if label == "All games" { filter = .all }
-            if label == "Installed" { filter = .installed }
-            if label == "Favorites" { filter = .favorites }
-            if label == "Reset" { sortByPlaytime = false; filter = .all; query = "" }
-            libraryCursor = .init()
         case .compatibility:
             if label == "Edit note", let id = focusedGame?.id { beginText(.compatibilityNote(id)) }
             else if let id = focusedGame?.id, let i = games.firstIndex(where: { $0.id == id }), let rating = Compatibility(rawValue: label) { games[i].compatibility = rating }
@@ -405,7 +421,23 @@ final class LibraryModel {
         else if settingsSection == 2 && settingsIndex == 0 { onboarding = false; setupScreen = .display; setupIndex = 0 }
         else if settingsSection == 2 && settingsIndex == 1 { reducedMotion.toggle() }
         else if settingsSection == 1 && settingsIndex == 2 { downloadWhilePlaying.toggle() }
+        else if settingsSection == 3 { openControllerTest() }
         else { show(.information(isPreview ? "The design preview uses sample games. Launch without --preview to connect your account and set up your Mac." : "This setting is still being implemented.")) }
+    }
+    func openControllerTest() {
+        controllerTest = ControllerTestState()
+        controllerTest.update(connectedControllers, at: ProcessInfo.processInfo.systemUptime)
+        show(.controllerTest)
+    }
+    func receiveControllers(_ values: [ControllerSnapshot], at time: Double) {
+        if connectedControllers != values { connectedControllers = values }
+        guard panel == .controllerTest else { return }
+        if controllerTest.update(values, at: time) { panel = nil }
+    }
+    func performController(_ action: InputAction) {
+        keyboardNavigation = false
+        guard panel != .controllerTest else { return }
+        perform(action)
     }
 }
 private extension InputAction { var isNextTab: Bool { if case .nextTab = self { true } else { false } } }

@@ -49,6 +49,7 @@ public enum LibrarySort: String, Codable, CaseIterable, Sendable {
 public struct LibraryPreferences: Codable, Equatable, Sendable {
     public var scope: LibraryScope = .all
     public var sort: LibrarySort = .name
+    public var refinements: LibraryRefinements?
     public var reducedMotion = false
     public var downloadWhilePlaying = false
     public var selectedDisplayID: UInt32?

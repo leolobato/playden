@@ -71,6 +71,14 @@ These controls are also reachable from Settings. Display choice and setup comple
 controller-disconnect banner preserves focus. Actual game launch and background input are still
 unverified. See [setup/runtime evidence](validation/2026-09-07-setup-runtime.md).
 
+The latest UI slice completes the native controller button-test screen and grouped library
+Sort & Filter sheet, including every v1 sort, combined refinements, persistent selections and
+keyboard-aware footer hints. Seventy tests pass, with two optional probes skipped; native
+keyboard navigation and window captures were checked. New diagnostic hardware validation remains
+pending. The sibling SteamCore commit `b54c993` supplies durable, verified chunk checkpoints with
+nine new resume tests, but the app's durable install orchestrator is not yet connected. See
+[controller/filter and downloader evidence](validation/2026-09-07-controller-filters.md).
+
 ## 1. Planning defaults and PRD corrections
 
 Use these defaults to make the work concrete. Reconcile the referenced PRD requirements during

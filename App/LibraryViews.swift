@@ -60,7 +60,7 @@ struct CanvasView: View {
             if model.setupScreen != nil && model.setupScreen != .account { SetupView(model: model).transition(.opacity).zIndex(4) }
             if model.authScreen != nil { AuthenticationView(model: model).transition(.opacity).zIndex(4) }
             if model.panel != nil { ModalLayer(model: model).transition(.opacity).zIndex(5) }
-            if model.controllerDisconnected {
+            if model.controllerDisconnected && model.panel != .controllerTest {
                 Label("Controller disconnected · reconnect to keep playing", systemImage: "gamecontroller")
                     .font(Design.body(24)).foregroundStyle(Design.amber).padding(24)
                     .background(Design.panel, in: RoundedRectangle(cornerRadius: 12)).offset(x: 96, y: 880).zIndex(6)
@@ -120,17 +120,18 @@ struct ClockLabel: View {
 }
 struct BottomBar: View {
     @Bindable var model: LibraryModel
+    private var keyboard: Bool { model.controllerName == nil || model.keyboardNavigation }
     var body: some View {
         HStack(spacing: 30) {
-            LegendItem(glyph: model.playStationGlyphs ? "✕" : "A", title: model.detailID != nil ? "Select" : model.tab == .downloads && model.focusedGame?.status == .downloading ? (model.downloadPaused ? "Resume" : "Pause") : "Open")
-            if model.detailID != nil || model.tab == .library { LegendItem(glyph: model.playStationGlyphs ? "○" : "B", title: "Back") }
-            if model.tab != .settings { LegendItem(glyph: model.playStationGlyphs ? "△" : "Y", title: "More") }
-            if model.detailID == nil && model.tab == .home { LegendItem(glyph: model.playStationGlyphs ? "□" : "X", title: "Favorite") }
+            LegendItem(glyph: keyboard ? "↵" : model.playStationGlyphs ? "✕" : "A", title: model.detailID != nil ? "Select" : model.tab == .downloads && model.focusedGame?.status == .downloading ? (model.downloadPaused ? "Resume" : "Pause") : "Open")
+            if model.detailID != nil || model.tab == .library { LegendItem(glyph: keyboard ? "ESC" : model.playStationGlyphs ? "○" : "B", title: "Back") }
+            if model.tab != .settings { LegendItem(glyph: keyboard ? "T" : model.playStationGlyphs ? "△" : "Y", title: "More") }
+            if model.detailID == nil && model.tab == .home { LegendItem(glyph: keyboard ? "F" : model.playStationGlyphs ? "□" : "X", title: "Favorite") }
             if model.detailID == nil {
-                if model.controllerName == nil { LegendItem(glyph: "TAB", title: "Tabs") }
-                if model.tab == .library { LegendItem(glyph: model.playStationGlyphs ? "OPTIONS" : "MENU", title: "Sort & filter") }
-                else if model.controllerName != nil { HStack(spacing: 10) { Glyph(text: model.playStationGlyphs ? "L1" : "LB"); Glyph(text: model.playStationGlyphs ? "R1" : "RB"); Text("Tabs").font(Design.body(22, weight: "Medium")) } }
-                if model.tab == .home || model.tab == .library { LegendItem(glyph: model.playStationGlyphs ? "PAD" : "VIEW", title: "Search") }
+                if keyboard { LegendItem(glyph: "TAB", title: "Tabs") }
+                if model.tab == .library { LegendItem(glyph: keyboard ? "O" : model.playStationGlyphs ? "OPTIONS" : "MENU", title: "Sort & filter") }
+                else if !keyboard { HStack(spacing: 10) { Glyph(text: model.playStationGlyphs ? "L1" : "LB"); Glyph(text: model.playStationGlyphs ? "R1" : "RB"); Text("Tabs").font(Design.body(22, weight: "Medium")) } }
+                if model.tab == .home || model.tab == .library { LegendItem(glyph: keyboard ? "/" : model.playStationGlyphs ? "PAD" : "VIEW", title: "Search") }
             }
             Spacer(minLength: 0)
             if model.detailID == nil && model.tab != .downloads && model.tab != .settings, let download = model.activeDownload {
@@ -171,21 +172,21 @@ struct LibraryScreen: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             LibraryRail(model: model).frame(width: 348, height: 840).offset(x: 72, y: 126)
-            if !model.query.isEmpty {
+            if model.libraryHasSummary {
                 HStack {
                     Image(systemName: "magnifyingglass").font(.system(size: 26)).foregroundStyle(Design.secondary)
-                    Text(model.query).font(Design.body(30, weight: "Medium"))
+                    Text(model.query.isEmpty ? "Filtered library" : model.query).font(Design.body(30, weight: "Medium")).lineLimit(1)
                     Spacer()
                     Text("\(model.filteredGames.count) results").font(Design.body(24)).foregroundStyle(Design.secondary)
                 }.padding(.horizontal, 22).frame(width: 1380, height: 64).background(Design.text.opacity(0.08), in: RoundedRectangle(cornerRadius: 8)).offset(x: 444, y: 150)
             }
             FocusedLibraryGrid(model: model)
                 .frame(width: 1428, height: model.libraryViewportHeight + 54)
-                .offset(x: 420, y: model.query.isEmpty ? 126 : 216)
+                .offset(x: 420, y: model.libraryHasSummary ? 216 : 126)
             if model.filteredGames.isEmpty {
                 VStack(spacing: 24) {
-                    Text(!model.isPreview && model.identity == nil && model.games.isEmpty && model.query.isEmpty ? "Your Steam library starts here" : model.query.isEmpty ? "Nothing here yet" : "No games match ‘\(model.query)’").font(Design.condensed(56))
-                    Text(!model.isPreview && model.identity == nil && model.games.isEmpty && model.query.isEmpty ? "Sign in to bring your games to Big Screen." : "Try another collection or clear your search.").font(Design.body(26)).foregroundStyle(Design.secondary)
+                    Text(!model.isPreview && model.identity == nil && model.games.isEmpty && model.query.isEmpty ? "Your Steam library starts here" : model.refinements.isActive ? "No games match these filters" : model.query.isEmpty ? "Nothing here yet" : "No games match ‘\(model.query)’").font(Design.condensed(56))
+                    Text(!model.isPreview && model.identity == nil && model.games.isEmpty && model.query.isEmpty ? "Sign in to bring your games to Big Screen." : model.refinements.isActive ? "Reset your filters, or browse all your games." : "Try another collection or clear your search.").font(Design.body(26)).foregroundStyle(Design.secondary)
                     ActionButton(title: !model.isPreview && model.identity == nil && model.games.isEmpty && model.query.isEmpty ? "Sign in to Steam" : "Browse all games", primary: true, focused: !model.railFocused) {
                         if !model.isPreview && model.identity == nil && model.games.isEmpty && model.query.isEmpty { model.beginSignIn() } else { model.browseAvailableGames() }
                     }

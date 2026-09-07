@@ -158,7 +158,6 @@ extension LibraryModel {
         switch panel {
         case .collections(let id): collections[safe: index]?.gameIDs.contains(id) == true
         case .compatibility: index < Compatibility.allCases.count && focusedGame?.compatibility == Compatibility.allCases[index]
-        case .filters: (index == 0 && !sortByPlaytime) || (index == 1 && sortByPlaytime)
         default: false
         }
     }

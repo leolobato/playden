@@ -85,7 +85,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             model.startSetupServices()
             controller.onAction = { [weak self] action in
                 guard NSApp.isActive else { return }
-                self?.model.perform(action)
+                self?.model.performController(action)
+            }
+            controller.onSnapshot = { [weak self] values, time in
+                guard NSApp.isActive else { return }
+                self?.model.receiveControllers(values, at: time)
             }
             controller.onConnection = { [weak self] name, playStation in
                 if self?.model.controllerName != nil && name == nil { self?.model.controllerDisconnected = true }
@@ -135,6 +139,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     private func restoreCursor() { if cursorHidden { NSCursor.unhide(); cursorHidden = false } }
     private func handle(_ event: NSEvent) -> NSEvent? {
+        model.keyboardNavigation = true
         if event.modifierFlags.contains(.command) {
             if [36, 76].contains(event.keyCode), model.isEditingText { model.finishText(); return nil }
             if let digit = Int(event.charactersIgnoringModifiers ?? ""), (1...4).contains(digit) {
@@ -197,7 +202,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 }
             }
             model.reducedMotion = false
-            for screen in ["home", "library", "library-paged", "library-return", "game", "downloads", "downloads-queued", "settings", "collections", "keyboard", "compatibility", "uninstall", "logs", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready"] {
+            for screen in ["home", "library", "library-paged", "library-return", "game", "downloads", "downloads-queued", "settings", "collections", "keyboard", "compatibility", "uninstall", "logs", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom"] {
                 model.panel = nil; model.detailID = nil; model.authScreen = nil; model.setupScreen = nil
                 model.setupBusy = false; model.setupFailure = nil; model.setupIndex = 0; model.onboarding = false
                 switch screen {
@@ -227,6 +232,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 case "downloads":
                     if let index = model.games.firstIndex(where: { $0.title == "TUNIC" }) { model.games[index].status = .downloading }
                     model.selectTab(.downloads)
+                case "library-filters", "library-filters-bottom":
+                    model.selectTab(.library); model.show(.filters)
+                    if screen == "library-filters-bottom" {
+                        model.refinements.compatibility = .playable
+                        model.filterChoiceIndex = max(0, model.filterLayout.chips.count - 1); model.revealFilterFocus()
+                    }
+                case "controller-test", "controller-waiting":
+                    model.selectTab(.settings); model.settingsSection = 3
+                    let buttons = Dictionary(uniqueKeysWithValues: ControllerControl.allCases.map { ($0, Float(0)) })
+                    let idle = ControllerSnapshot(id: "fixture-ds4", name: "DUALSHOCK 4 Wireless Controller", playStation: true, buttons: buttons)
+                    model.connectedControllers = screen == "controller-test" ? [idle] : []
+                    model.openControllerTest()
+                    if screen == "controller-test" {
+                        var pressed = buttons; pressed[.south] = 1; pressed[.leftTrigger] = 0.64
+                        model.receiveControllers([ControllerSnapshot(id: idle.id, name: idle.name, playStation: true, buttons: pressed,
+                            leftStick: .init(x: 0.62, y: 0.4), rightStick: .init(x: -0.2, y: -0.7))], at: ProcessInfo.processInfo.systemUptime)
+                    }
                 case "settings": model.selectTab(.settings)
                 case "signin-qr", "signin-password", "signin-error":
                     model.authScreen = screen == "signin-password" ? .credentials : .qr

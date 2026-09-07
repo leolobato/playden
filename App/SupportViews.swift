@@ -41,7 +41,7 @@ struct SettingsScreen: View {
         case 0: [("Steam", model.isPreview ? "Using designer preview data" : model.identity.map { "Signed in as \($0.displayName)" } ?? "Sign in to see your games", model.identity == nil ? "Sign in" : "Sign out")]
         case 1: [("Refresh library", model.syncError ?? (model.syncing ? "Loading your library…" : "Refresh your games and artwork"), model.syncing ? "Refreshing" : "Refresh"), ("Games volume", model.gamesVolume?.lastKnownRoot.path ?? (model.isPreview ? "/Volumes/VM/GameNative/games" : "Not configured"), "Change ›"), ("Download while playing", "Downloads pause automatically when a game starts", model.downloadWhilePlaying ? "On" : "Off"), ("Runtime", model.runtimeInfo.map { "CrossOver \($0.version ?? "not found") · Template \($0.templateVersion)" } ?? "Checking game setup", model.runtimeInfo?.templateReady == true ? "Ready" : "Set up ›")]
         case 2: [("Display", model.displays.first(where: { $0.id == model.selectedDisplayID })?.name ?? "Current display", "Change ›"), ("Reduced motion", "Keep the focus ring; turn off scaling and transitions", model.reducedMotion ? "On" : "Off")]
-        case 3: [("Controller", model.controllerName ?? "No controller connected · keyboard navigation available", "Button test")]
+        case 3: [("Connected controllers", model.connectedControllers.isEmpty ? "No controller connected · keyboard navigation available" : model.connectedControllers.map(\.name).joined(separator: " · "), "Button test")]
         default: [("Big Screen", model.isPreview ? "Design preview" : "Your living-room game library", "v0.1")]
         }
     }
@@ -81,7 +81,11 @@ struct ModalLayer: View {
     var body: some View {
         ZStack(alignment: .trailing) {
             Design.background.opacity(0.72).onTapGesture { model.panel = nil }
-            if model.isEditingText {
+            if model.panel == .filters {
+                LibraryFilterSheet(model: model)
+            } else if model.panel == .controllerTest {
+                ControllerTestView(model: model).frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if model.isEditingText {
                 SearchKeyboard(model: model).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if case .confirmation(let intent) = model.panel {
                 ConfirmDialog(model: model, intent: intent).frame(maxWidth: .infinity, maxHeight: .infinity)
