@@ -100,11 +100,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         case 115: action = .home
         case 116: action = .previousPage
         case 121: action = .nextPage
-        case 51 where model.panel == .search: model.updateQuery(String(model.query.dropLast())); return nil
+        case 51 where model.isEditingText: model.eraseText(); return nil
         default:
             let text = event.characters ?? ""
-            if model.panel == .search && !text.isEmpty && !event.modifierFlags.contains(.control) {
-                model.updateQuery(model.query + text); return nil
+            if model.isEditingText && !text.isEmpty && !event.modifierFlags.contains(.control) {
+                model.insertText(text); return nil
             }
             action = switch text.lowercased() {
             case "[": .previousTab
@@ -141,7 +141,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 }
             }
             model.reducedMotion = false
-            for screen in ["home", "library", "library-paged", "library-return", "game", "downloads", "downloads-queued", "settings"] {
+            for screen in ["home", "library", "library-paged", "library-return", "game", "downloads", "downloads-queued", "settings", "collections", "keyboard", "compatibility", "uninstall", "logs"] {
                 model.panel = nil; model.detailID = nil
                 switch screen {
                 case "library": model.selectTab(.library)
@@ -161,6 +161,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     if let index = model.games.firstIndex(where: { $0.title == "TUNIC" }) { model.games[index].status = .downloading }
                     model.selectTab(.downloads)
                 case "settings": model.selectTab(.settings)
+                case "collections", "keyboard", "compatibility", "uninstall", "logs":
+                    model.selectTab(.library)
+                    if let game = model.games.first(where: { $0.title == "Hades" }) {
+                        model.openGame(game)
+                        switch screen {
+                        case "collections": model.show(.collections(game.id))
+                        case "keyboard": model.beginText(.newCollection(game.id)); model.insertText("Weekend favorites")
+                        case "compatibility":
+                            model.compatibilityNotes[game.id] = "Works well with the controller. Try a lower resolution for a quieter Mac."
+                            model.show(.compatibility); model.panelIndex = 1
+                        case "uninstall": model.show(.confirmation(.uninstall(game.id)))
+                        default: model.show(.logs(game.id))
+                        }
+                    }
                 default: model.selectTab(.home)
                 }
                 try await Task.sleep(for: .seconds(2))

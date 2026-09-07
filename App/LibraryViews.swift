@@ -21,9 +21,7 @@ struct CanvasView: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             Design.background
-            if model.detailID != nil, let game = model.focusedGame {
-                GamePage(model: model, game: game)
-            } else {
+            ZStack(alignment: .topLeading) {
                 Group {
                     switch model.tab {
                     case .home: HomeScreen(model: model)
@@ -33,13 +31,23 @@ struct CanvasView: View {
                     }
                 }
                 TopBar(model: model).frame(width: 1728, height: 56).offset(x: 96, y: 54)
+            }.frame(width: 1920, height: 1080, alignment: .topLeading)
+                .opacity(model.detailID == nil ? 1 : 0)
+                .allowsHitTesting(model.detailID == nil)
+                .accessibilityHidden(model.detailID != nil)
+            if model.detailID != nil, let game = model.focusedGame {
+                GamePage(model: model, game: game)
+                    .transition(model.reducedMotion ? .identity : .opacity.combined(with: .offset(y: 24)))
+                    .zIndex(1)
             }
             LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: Design.background, location: 0.6)], startPoint: .top, endPoint: .bottom)
-                .frame(height: 150).offset(y: 930).allowsHitTesting(false)
-            BottomBar(model: model).frame(width: 1728, height: 40).offset(x: 96, y: 986)
-            if model.panel != nil { ModalLayer(model: model) }
+                .frame(height: 150).offset(y: 930).allowsHitTesting(false).zIndex(2)
+            BottomBar(model: model).frame(width: 1728, height: 40).offset(x: 96, y: 986).zIndex(3)
+            if model.panel != nil { ModalLayer(model: model).transition(.opacity).zIndex(4) }
         }.frame(width: 1920, height: 1080).clipped().foregroundStyle(Design.text)
             .environment(\.colorScheme, .dark)
+            .animation(model.reducedMotion ? nil : .easeInOut(duration: 0.28), value: model.detailID)
+            .animation(model.reducedMotion ? nil : .easeOut(duration: 0.2), value: model.panel != nil)
     }
 }
 struct TopBar: View {
@@ -52,7 +60,7 @@ struct TopBar: View {
                         HStack(spacing: 10) {
                             Image(systemName: tab.symbol).font(.system(size: 26, weight: .regular))
                             Text(tab.rawValue).font(Design.condensed(30, bold: model.tab == tab))
-                            if tab == .downloads { Text("1").font(Design.body(16, weight: "SemiBold")).foregroundStyle(Design.background).padding(.horizontal, 8).padding(.vertical, 5).background(Design.accent, in: Capsule()) }
+                            if tab == .downloads && model.pendingDownloadCount > 0 { Text("\(model.pendingDownloadCount)").font(Design.body(16, weight: "SemiBold")).foregroundStyle(Design.background).padding(.horizontal, 8).padding(.vertical, 5).background(Design.accent, in: Capsule()) }
                         }.padding(.horizontal, 22).frame(height: 52)
                             .foregroundStyle(model.tab == tab ? Design.text : Design.secondary)
                             .background(model.tab == tab ? Design.text.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 8))
@@ -95,10 +103,10 @@ struct BottomBar: View {
                 if model.tab == .home || model.tab == .library { LegendItem(glyph: model.playStationGlyphs ? "PAD" : "VIEW", title: "Search") }
             }
             Spacer(minLength: 0)
-            if model.detailID == nil && model.tab != .downloads && model.tab != .settings {
+            if model.detailID == nil && model.tab != .downloads && model.tab != .settings, let download = model.activeDownload {
                 HStack(spacing: 16) {
                     Image(systemName: model.downloadPaused ? "pause.fill" : "arrow.down.to.line").foregroundStyle(Design.accent)
-                    Text("TUNIC").font(Design.body(20, weight: "SemiBold"))
+                    Text(download.title).font(Design.body(20, weight: "SemiBold"))
                     ProgressTrack(value: 0.43, height: 6).frame(width: 120)
                     Text(model.downloadPaused ? "Paused" : "43% · 38 MB/s").font(Design.body(20, weight: "SemiBold")).foregroundStyle(Design.secondary)
                 }.padding(.horizontal, 16).frame(height: 40).background(Design.text.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
@@ -109,10 +117,10 @@ struct BottomBar: View {
 
 struct HomeScreen: View {
     @Bindable var model: LibraryModel
-    @State private var ambientURL: URL?
     var body: some View {
         ZStack(alignment: .topLeading) {
-            Artwork(url: ambientURL).blur(radius: 90).opacity(0.22).frame(width: 1920, height: 1080)
+            AmbientBackdrop(url: model.focusedGame?.heroURL, reducedMotion: model.reducedMotion)
+                .frame(width: 1920, height: 1080)
             LinearGradient(colors: [.clear, Design.background.opacity(0.6), Design.background], startPoint: .top, endPoint: .bottom)
             if model.rows.isEmpty {
                 VStack(spacing: 28) {
@@ -122,11 +130,6 @@ struct HomeScreen: View {
                 }.frame(width: 1920, height: 1080)
             }
             FocusedHomeRows(model: model).frame(width: 1848, height: 894).offset(x: 72, y: 126)
-        }.task(id: model.focusedGame?.heroURL) {
-            let url = model.focusedGame?.heroURL
-            if ambientURL != nil && !model.reducedMotion { try? await Task.sleep(for: .milliseconds(400)) }
-            guard !Task.isCancelled else { return }
-            withAnimation(model.reducedMotion ? nil : .easeOut(duration: 0.25)) { ambientURL = url }
         }
     }
 }
@@ -135,21 +138,7 @@ struct LibraryScreen: View {
     @Bindable var model: LibraryModel
     var body: some View {
         ZStack(alignment: .topLeading) {
-            VStack(spacing: 6) {
-                ForEach(Array(LibraryFilter.allCases.enumerated()), id: \.element) { index, value in
-                    if index == 4 { Rectangle().fill(Design.text.opacity(0.12)).frame(height: 1).padding(.horizontal, 22).padding(.vertical, 18) }
-                    Button { model.filter = value; model.libraryCursor = .init(); model.railFocused = false } label: {
-                        HStack {
-                            Text(value.rawValue).font(Design.condensed(28, bold: model.filter == value))
-                            Spacer()
-                            Text(count(value)).font(Design.body(20)).foregroundStyle(Design.muted)
-                        }.padding(.horizontal, 22).frame(height: 60)
-                            .foregroundStyle(model.filter == value ? Design.text : Design.secondary)
-                            .background(model.filter == value ? Design.text.opacity(0.1) : .clear, in: RoundedRectangle(cornerRadius: 8))
-                            .focusRing(model.railFocused && model.filter == value, compact: true)
-                    }.buttonStyle(.plain)
-                }
-            }.frame(width: 300).offset(x: 96, y: 150)
+            LibraryRail(model: model).frame(width: 348, height: 840).offset(x: 72, y: 126)
             if !model.query.isEmpty {
                 HStack {
                     Image(systemName: "magnifyingglass").font(.system(size: 26)).foregroundStyle(Design.secondary)
@@ -170,14 +159,8 @@ struct LibraryScreen: View {
             }
         }
     }
-    private func count(_ filter: LibraryFilter) -> String {
-        String(model.games.filter { game in
-            if filter == .hidden { return game.isHidden }
-            guard !game.isHidden else { return false }
-            return switch filter { case .all: true; case .installed: [.installed,.driveDisconnected].contains(game.status); case .favorites: game.isFavorite; case .coop: game.genres.contains("Couch co-op"); case .short: game.hoursPlayed > 0 && game.hoursPlayed < 8; case .hidden: false }
-        }.count)
-    }
 }
+
 
 struct GamePage: View {
     @Bindable var model: LibraryModel
@@ -206,6 +189,9 @@ struct GamePage: View {
                     Text(game.summary).font(Design.body(26)).foregroundStyle(Color(hex: 0xD6D0C8)).lineSpacing(7).fixedSize(horizontal: false, vertical: true)
                     HStack(spacing: 12) {
                         ForEach(game.genres, id: \.self) { tag in Text(tag).font(Design.body(20, weight: "Medium")).padding(.horizontal, 16).padding(.vertical, 8).background(Design.text.opacity(0.1), in: RoundedRectangle(cornerRadius: 6)) }
+                    }
+                    if let note = model.compatibilityNotes[game.id], !note.isEmpty {
+                        Text(note).font(Design.body(20)).foregroundStyle(Design.secondary).lineLimit(2)
                     }
                 }.frame(width: 1128, alignment: .leading)
                 VStack(alignment: .leading, spacing: 18) {

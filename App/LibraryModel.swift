@@ -7,12 +7,26 @@ import Input
 enum AppTab: String, CaseIterable { case home = "Home", library = "Library", downloads = "Downloads", settings = "Settings"
     var symbol: String { switch self { case .home: "house"; case .library: "square.grid.2x2"; case .downloads: "arrow.down.to.line"; case .settings: "gearshape" } }
 }
-enum LibraryFilter: String, CaseIterable { case installed = "Installed", all = "All", favorites = "Favorites", hidden = "Hidden", coop = "Couch co-op", short = "Short sessions" }
-enum Panel: Equatable { case context, filters, search, compatibility, information(String) }
+enum LibraryFilter: Hashable { case installed, all, favorites, hidden, collection(UUID) }
+enum TextPurpose: Equatable { case newCollection(GameID?), renameCollection(UUID), compatibilityNote(GameID) }
+enum Confirmation: Equatable { case deleteCollection(UUID), uninstall(GameID), install(GameID), cancelDownload(GameID) }
+enum Panel: Equatable {
+    case context, filters, search, compatibility, information(String)
+    case downloadActions(GameID)
+    case textEditor(TextPurpose), collections(GameID), collectionOptions(UUID), confirmation(Confirmation), logs(GameID)
+}
 
 @MainActor @Observable
 final class LibraryModel {
     var games = PreviewCatalog.games
+    var collections = PreviewCatalog.collections
+    var compatibilityNotes: [GameID: String] = [:]
+    var libraryRailIndex = 1
+    var textEditor = TextEditorState()
+    var keyboardError: String?
+    var symbols = false
+    var keepSaves = true
+    var downloadWhilePlaying = false
     var tab: AppTab = .home
     var detailID: GameID?
     var panel: Panel?
@@ -24,7 +38,7 @@ final class LibraryModel {
     var libraryScrollOffset = 0.0
     var libraryCursor = GridCursor() { didSet { revealLibraryFocus() } }
     var railFocused = false
-    var filter: LibraryFilter = .all { didSet { libraryCursor = .init(); libraryScrollOffset = 0 } }
+    var filter: LibraryFilter = .all { didSet { libraryCursor = .init(); libraryScrollOffset = 0; libraryRailIndex = libraryFilters.firstIndex(of: filter) ?? 1 } }
     var query = ""
     var sortByPlaytime = false
     var detailAction = 0
@@ -32,10 +46,10 @@ final class LibraryModel {
     var controllerName: String?
     var playStationGlyphs = true
     var downloadPaused = false
-    var downloadIndex = 0
-    var downloadGames: [Game] {
-        ["TUNIC", "Celeste", "Cuphead"].compactMap { title in games.first { $0.title == title } }
-    }
+    var downloadIndex = 0 { didSet { revealDownloadFocus() } }
+    var downloadScrollOffset = 0.0
+    var queueOrder = PreviewCatalog.games.filter { $0.status == .queued }.map(\.id)
+    var completedDownloads = Set(PreviewCatalog.games.filter { $0.title == "Cuphead" }.map(\.id))
     var toast: String?
     var settingsIndex = 0
     var settingsSection = 1
@@ -45,16 +59,20 @@ final class LibraryModel {
     var keyColumn = 0
     var uppercase = false
     var searchKeys: [[String]] {
-        [Array("1234567890").map(String.init), Array(uppercase ? "QWERTYUIOP" : "qwertyuiop").map(String.init), Array(uppercase ? "ASDFGHJKL" : "asdfghjkl").map(String.init), ["⇧"] + Array(uppercase ? "ZXCVBNM" : "zxcvbnm").map(String.init) + ["⌫"], ["Space", "Done"]]
+        func keys(_ string: String) -> [String] { string.map { String($0) } }
+        if symbols { return [keys("!@#$%&*()?"), keys("-_=+[]{}<>"), keys(".,:;/\\'\"~"), ["ABC", "⌫"], ["Space", "Done"]] }
+        let bottom = ["#+=", "⇧"] + keys(uppercase ? "ZXCVBNM" : "zxcvbnm") + ["⌫"]
+        return [keys("1234567890"), keys(uppercase ? "QWERTYUIOP" : "qwertyuiop"), keys(uppercase ? "ASDFGHJKL" : "asdfghjkl"), bottom, ["Space", "Done"]]
     }
     func activateKey() {
         let key = searchKeys[keyRow][keyColumn]
         switch key {
         case "⇧": uppercase.toggle()
-        case "⌫": updateQuery(String(query.dropLast()))
-        case "Space": updateQuery(query + " ")
-        case "Done": panel = nil
-        default: updateQuery(query + key)
+        case "#+=", "ABC": toggleSymbols()
+        case "⌫": eraseText()
+        case "Space": insertText(" ")
+        case "Done": finishText()
+        default: insertText(key)
         }
     }
 
@@ -64,8 +82,7 @@ final class LibraryModel {
             let matches = switch filter {
             case .installed: game.status == .installed || game.status == .driveDisconnected
             case .favorites: game.isFavorite
-            case .coop: game.genres.contains("Couch co-op")
-            case .short: game.hoursPlayed > 0 && game.hoursPlayed < 8
+            case .collection(let id): collections.first { $0.id == id }?.gameIDs.contains(game.id) == true
             case .all, .hidden: true
             }
             return matches && (query.isEmpty || game.title.localizedCaseInsensitiveContains(query))
@@ -74,13 +91,15 @@ final class LibraryModel {
     }
     var rows: [(name: String, games: [Game])] {
         let visible = games.filter { !$0.isHidden }
-        return [
+        let result: [(String, [Game])] = [
             ("Continue playing", ["Hades", "Cuphead", "Hollow Knight", "Dead Cells", "Stardew Valley", "Slay the Spire", "Celeste", "Outer Wilds"].compactMap { title in visible.first { $0.title == title } }),
             ("Downloading now", visible.filter { [.queued, .downloading].contains($0.status) }.sorted { $0.status == .downloading && $1.status != .downloading }),
             ("Recently installed", visible.filter { $0.status == .installed && $0.hoursPlayed <= 9 }),
             ("Favorites", visible.filter(\.isFavorite)),
-            ("Couch co-op", visible.filter { $0.genres.contains("Couch co-op") }),
-        ].filter { !$0.1.isEmpty }
+        ] + collections.filter(\.isPinned).map { collection in
+            (collection.name, visible.filter { collection.gameIDs.contains($0.id) })
+        }
+        return result.filter { !$0.1.isEmpty }
     }
     var focusedGame: Game? {
         if let detailID { return games.first { $0.id == detailID } }
@@ -91,14 +110,18 @@ final class LibraryModel {
     var detailActions: [String] {
         guard let game = focusedGame else { return [] }
         let primary = switch game.status { case .installed: "Play"; case .downloading: downloadPaused ? "Resume download" : "Pause download"; case .queued: "View download"; case .driveDisconnected: "Drive disconnected"; case .notInstalled: "Install" }
-        return [primary, game.isFavorite ? "Favorited" : "Favorite", "Add to collection", "Hide", "Set compatibility"] + (game.status == .installed ? ["Verify files", "Uninstall"] : []) + ["View logs"]
+        return [primary, game.isFavorite ? "Favorited" : "Favorite", "Add to collection", game.isHidden ? "Unhide" : "Hide", "Set compatibility"] + (game.status == .installed ? ["Verify files", "Uninstall"] : []) + ["View logs"]
     }
-    var contextActions: [String] { ["Open game", focusedGame?.isFavorite == true ? "Unfavorite" : "Favorite", "Set compatibility", focusedGame?.isHidden == true ? "Unhide" : "Hide", "View logs"] }
+    var contextActions: [String] { ["Open game", focusedGame?.isFavorite == true ? "Unfavorite" : "Favorite", "Set compatibility", focusedGame?.isHidden == true ? "Unhide" : "Hide", "View logs", "Add to collection"] }
     var panelActions: [String] {
         switch panel {
         case .context: contextActions
+        case .downloadActions(let id): downloadActions(for: id)
         case .filters: ["Name", "Playtime", "All games", "Installed", "Favorites", "Reset"]
-        case .compatibility: Compatibility.allCases.map(\.rawValue)
+        case .compatibility: Compatibility.allCases.map(\.rawValue) + ["Edit note"]
+        case .collections: collections.map(\.name) + ["New collection…"]
+        case .collectionOptions(let id): ["Rename", collections.first { $0.id == id }?.isPinned == true ? "Unpin from Home" : "Pin to Home", "Delete collection…"]
+        case .confirmation(let intent): ["Cancel", confirmationAction(intent)]
         case .information: ["Got it"]
         default: []
         }
@@ -132,7 +155,11 @@ final class LibraryModel {
         updateQuery("")
     }
     func selectTab(_ value: AppTab) { tab = value; detailID = nil; panel = nil; railFocused = false }
-    func show(_ value: Panel) { panel = value; panelIndex = 0 }
+    func show(_ value: Panel) {
+        panel = value; panelIndex = 0
+        if value == .search { textEditor = TextEditorState(query); keyboardError = nil }
+        if case .confirmation = value { keepSaves = true }
+    }
     func updateQuery(_ value: String) { query = value; libraryCursor = .init() }
     func openGame(_ game: Game) { detailID = game.id; detailAction = 0; panel = nil }
     func toggleFavorite() {
@@ -141,16 +168,20 @@ final class LibraryModel {
     }
     func reconcileFocus() {
         libraryCursor.clamp(count: filteredGames.count)
+        downloadIndex = min(downloadIndex, max(0, downloadGames.count - 1))
         homeRow = min(homeRow, max(0, rows.count - 1))
         for (i, row) in rows.enumerated() { homeColumns[i] = min(homeColumns[i, default: 0], max(0, row.games.count - 1)) }
     }
     func perform(_ action: InputAction) {
-        if panel == .search {
+        if isEditingText {
             switch action {
-            case .back: panel = nil
+            case .back: cancelText()
             case .confirm: activateKey()
-            case .favorite: updateQuery(String(query.dropLast()))
-            case .context: updateQuery(query + " ")
+            case .favorite: eraseText()
+            case .context: insertText(" ")
+            case .previousTab: textEditor.moveCursor(by: -1)
+            case .nextTab: textEditor.moveCursor(by: 1)
+            case .options: toggleSymbols()
             case .move(let direction):
                 if direction == .up || direction == .down {
                     keyRow = min(max(0, keyRow + (direction == .up ? -1 : 1)), searchKeys.count - 1)
@@ -160,8 +191,17 @@ final class LibraryModel {
             }
             return
         }
+        if case .logs = panel {
+            switch action {
+            case .back, .confirm: panel = nil
+            default: break
+            }
+            return
+        }
         if panel != nil {
             switch action {
+            case .favorite:
+                if case .confirmation(.uninstall) = panel { keepSaves.toggle() }
             case .back: panel = nil
             case .move(let direction): panelIndex = min(max(0, panelIndex + (direction == .up || direction == .left ? -1 : 1)), max(0, panelActions.count - 1))
             case .confirm: activatePanel()
@@ -177,8 +217,12 @@ final class LibraryModel {
             else if tab == .downloads {
                 if focusedGame?.status == .downloading { downloadPaused.toggle() }
                 else if let game = focusedGame { openGame(game) }
+                else { browseAvailableGames() }
             }
-            else if tab == .library && railFocused { railFocused = false }
+            else if tab == .library && railFocused {
+                if libraryRailIndex == libraryFilters.count { beginText(.newCollection(nil)) }
+                else { railFocused = false }
+            }
             else if let game = focusedGame { openGame(game) }
             else if tab == .home || tab == .library { browseAvailableGames() }
         case .back:
@@ -186,7 +230,11 @@ final class LibraryModel {
             else if !query.isEmpty { updateQuery("") }
             else { selectTab(.home) }
         case .favorite: if !(tab == .library && railFocused) { toggleFavorite() }
-        case .context: if focusedGame != nil && !(tab == .library && railFocused) { show(.context) }
+        case .context:
+            if tab == .downloads && detailID == nil, let id = focusedGame?.id { show(.downloadActions(id)) }
+            else if tab == .library && railFocused {
+                if libraryRailIndex < libraryFilters.count, case .collection(let id) = filter { show(.collectionOptions(id)) }
+            } else if focusedGame != nil { show(.context) }
         case .options: if tab == .library && detailID == nil { show(.filters) }
         case .search: selectTab(.library); show(.search)
         case .home: selectTab(.home); homeRow = 0; homeColumns[0] = 0
@@ -207,9 +255,8 @@ final class LibraryModel {
             if railFocused {
                 if direction == .right { railFocused = false }
                 else if direction == .up || direction == .down {
-                    let values = LibraryFilter.allCases, i = values.firstIndex(of: filter) ?? 1
-                    filter = values[min(max(0, i + (direction == .up ? -1 : 1)), values.count - 1)]
-                    libraryCursor = .init()
+                    libraryRailIndex = min(max(0, libraryRailIndex + (direction == .up ? -1 : 1)), libraryFilters.count)
+                    if libraryRailIndex < libraryFilters.count { filter = libraryFilters[libraryRailIndex] }
                 }
             } else if !libraryCursor.move(direction, count: filteredGames.count, columns: 6), direction == .left { railFocused = true }
         } else if tab == .downloads {
@@ -227,10 +274,17 @@ final class LibraryModel {
         guard let label = detailActions[safe: detailAction] else { return }
         switch label {
         case "Favorite", "Favorited": toggleFavorite()
-        case "Hide": hideFocused()
+        case "Hide", "Unhide": hideFocused()
         case "Set compatibility": show(.compatibility)
+        case "Add to collection": if let id = focusedGame?.id { show(.collections(id)) }
+        case "View logs": if let id = focusedGame?.id { show(.logs(id)) }
+        case "Uninstall": if let id = focusedGame?.id { show(.confirmation(.uninstall(id))) }
+        case "Install": if let id = focusedGame?.id { show(.confirmation(.install(id))) }
         case "Pause download", "Resume download": downloadPaused.toggle()
-        case "View download": selectTab(.downloads)
+        case "View download":
+            let id = focusedGame?.id
+            selectTab(.downloads)
+            downloadIndex = downloadGames.firstIndex(where: { $0.id == id }) ?? 0
         default: show(.information("This is the design preview. \(label) will connect to the real game service in a later milestone. No game files are changed."))
         }
     }
@@ -242,7 +296,8 @@ final class LibraryModel {
             else if label == "Favorite" || label == "Unfavorite" { toggleFavorite(); panel = nil }
             else if label == "Set compatibility" { show(.compatibility) }
             else if label == "Hide" || label == "Unhide" { hideFocused(); panel = nil }
-            else { show(.information("Logs will appear here when real installation and play sessions are connected.")) }
+            else if label == "Add to collection", let id = focusedGame?.id { show(.collections(id)) }
+            else if let id = focusedGame?.id { show(.logs(id)) }
         case .filters:
             if label == "Name" { sortByPlaytime = false }
             if label == "Playtime" { sortByPlaytime = true }
@@ -252,8 +307,22 @@ final class LibraryModel {
             if label == "Reset" { sortByPlaytime = false; filter = .all; query = "" }
             libraryCursor = .init()
         case .compatibility:
-            if let id = focusedGame?.id, let i = games.firstIndex(where: { $0.id == id }), let rating = Compatibility(rawValue: label) { games[i].compatibility = rating }
-            panel = nil
+            if label == "Edit note", let id = focusedGame?.id { beginText(.compatibilityNote(id)) }
+            else if let id = focusedGame?.id, let i = games.firstIndex(where: { $0.id == id }), let rating = Compatibility(rawValue: label) { games[i].compatibility = rating }
+        case .collections(let gameID):
+            if panelIndex == collections.count { beginText(.newCollection(gameID)) }
+            else if collections[panelIndex].gameIDs.contains(gameID) { collections[panelIndex].gameIDs.remove(gameID) }
+            else { collections[panelIndex].gameIDs.insert(gameID) }
+            reconcileFocus()
+        case .collectionOptions(let id):
+            guard let index = collections.firstIndex(where: { $0.id == id }) else { panel = nil; return }
+            if label == "Rename" { beginText(.renameCollection(id)) }
+            else if label == "Delete collection…" { show(.confirmation(.deleteCollection(id))) }
+            else { collections[index].isPinned.toggle(); reconcileFocus(); panel = nil }
+        case .downloadActions(let id): activateDownloadAction(label, id: id)
+        case .confirmation(let intent):
+            if panelIndex == 0 { panel = nil }
+            else { confirm(intent) }
         default: panel = nil
         }
     }
@@ -264,6 +333,7 @@ final class LibraryModel {
     func activateSetting() {
         if settingsRailFocused { settingsRailFocused = false; return }
         if settingsSection == 2 && settingsIndex == 1 { reducedMotion.toggle() }
+        else if settingsSection == 1 && settingsIndex == 2 { downloadWhilePlaying.toggle() }
         else { show(.information("The native interface is running with designer preview data. Steam, game installation, and CrossOver sessions are not connected yet.")) }
     }
 }

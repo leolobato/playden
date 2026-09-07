@@ -4,43 +4,8 @@ import Domain
 struct DownloadsScreen: View {
     @Bindable var model: LibraryModel
     var body: some View {
-        HStack(alignment: .top, spacing: 64) {
-            VStack(alignment: .leading, spacing: 32) {
-                SectionLabel(text: "Downloading now")
-                if let game = model.games.first(where: { $0.title == "TUNIC" }) {
-                    HStack(alignment: .top, spacing: 24) {
-                        Artwork(url: game.coverURL).frame(width: 120, height: 180).clipShape(RoundedRectangle(cornerRadius: 6))
-                        VStack(alignment: .leading, spacing: 16) {
-                            Text("TUNIC").font(Design.condensed(36))
-                            Text(model.downloadPaused ? "Paused · 43%" : "Download · 43%").font(Design.body(24, weight: "Medium")).foregroundStyle(Design.accent)
-                            ProgressTrack(value: 0.43)
-                            Text(model.downloadPaused ? "3.8 of 8.9 GB · ready to resume" : "3.8 of 8.9 GB · 38 MB/s · 2 min 14 s left").font(Design.body(22)).foregroundStyle(Design.secondary)
-                            Text("Estimate › Reserve space › Download › Verify › Prepare › Ready").font(Design.body(18)).foregroundStyle(Design.muted)
-                        }
-                    }.padding(20).background(Design.text.opacity(0.06), in: RoundedRectangle(cornerRadius: 8)).focusRing(model.downloadIndex == 0)
-                        .onTapGesture { model.downloadIndex = 0; model.perform(.confirm) }
-                }
-                SectionLabel(text: "Queued · 1")
-                if let game = model.games.first(where: { $0.title == "Celeste" }) {
-                    HStack(spacing: 22) {
-                        Artwork(url: game.coverURL).frame(width: 60, height: 90).clipShape(RoundedRectangle(cornerRadius: 6))
-                        VStack(alignment: .leading, spacing: 8) { Text(game.title).font(Design.condensed(30)); Text("Queued · 1.2 GB").font(Design.body(22)).foregroundStyle(Design.secondary) }
-                        Spacer(); Text("1").font(Design.condensed(30)).foregroundStyle(Design.muted)
-                    }.padding(.horizontal, 20).padding(.vertical, 14).background(Design.text.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
-                        .focusRing(model.focusedGame?.id == game.id)
-                        .onTapGesture { model.downloadIndex = model.downloadGames.firstIndex(where: { $0.id == game.id }) ?? 0; model.perform(.confirm) }
-                }
-                SectionLabel(text: "Recently finished")
-                if let game = model.games.first(where: { $0.title == "Cuphead" }) {
-                    HStack(spacing: 22) {
-                        Artwork(url: game.coverURL).frame(width: 60, height: 90).clipShape(RoundedRectangle(cornerRadius: 6))
-                        VStack(alignment: .leading, spacing: 8) { Text(game.title).font(Design.condensed(30)); HStack(spacing: 8) { Circle().fill(Design.green).frame(width: 8, height: 8); Text("Installed").font(Design.body(22)).foregroundStyle(Design.secondary) } }
-                        Spacer(); Text("Today").font(Design.body(22)).foregroundStyle(Design.muted)
-                    }.padding(.horizontal, 20).padding(.vertical, 14).background(Design.text.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
-                        .focusRing(model.focusedGame?.id == game.id)
-                        .onTapGesture { model.downloadIndex = model.downloadGames.firstIndex(where: { $0.id == game.id }) ?? 0; model.perform(.confirm) }
-                }
-            }.frame(width: 1140)
+        HStack(alignment: .top, spacing: 16) {
+            DownloadQueue(model: model).frame(width: 1188, height: 894).offset(x: -24, y: -24)
             VStack(alignment: .leading, spacing: 28) {
                 SectionLabel(text: "Games volume")
                 VStack(alignment: .leading, spacing: 24) {
@@ -68,7 +33,7 @@ struct SettingsScreen: View {
     var settings: [(String, String, String)] {
         switch model.settingsSection {
         case 0: [("Steam", "Using designer preview data", "Not connected")]
-        case 1: [("Refresh library", "Your games and artwork, up to date", "Refresh"), ("Games volume", "/Volumes/VM/GameNative/games", "Change ›"), ("Download while playing", "Downloads pause automatically when a game starts", "Off"), ("Runtime", "CrossOver integration is a later milestone", "Not connected")]
+        case 1: [("Refresh library", "Your games and artwork, up to date", "Refresh"), ("Games volume", "/Volumes/VM/GameNative/games", "Change ›"), ("Download while playing", "Downloads pause automatically when a game starts", model.downloadWhilePlaying ? "On" : "Off"), ("Runtime", "CrossOver integration is a later milestone", "Not connected")]
         case 2: [("Display", "A 1920 × 1080 canvas, scaled to your window", "Change ›"), ("Reduced motion", "Keep the focus ring; turn off scaling and transitions", model.reducedMotion ? "On" : "Off")]
         case 3: [("Controller", model.controllerName ?? "No controller connected · keyboard navigation available", "Button test")]
         default: [("Big Screen", "Native UI preview · Barlow / Barlow Condensed", "v0.1")]
@@ -110,8 +75,12 @@ struct ModalLayer: View {
     var body: some View {
         ZStack(alignment: .trailing) {
             Design.background.opacity(0.72).onTapGesture { model.panel = nil }
-            if model.panel == .search {
+            if model.isEditingText {
                 SearchKeyboard(model: model).frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if case .confirmation(let intent) = model.panel {
+                ConfirmDialog(model: model, intent: intent).frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if case .logs(let gameID) = model.panel {
+                LogViewer(model: model, gameID: gameID).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if case .information(let message) = model.panel {
                 VStack(alignment: .leading, spacing: 30) {
                     Text("Design preview").font(Design.condensed(48))
@@ -120,17 +89,13 @@ struct ModalLayer: View {
                 }.padding(44).frame(width: 720).background(Design.panel, in: RoundedRectangle(cornerRadius: 12)).shadow(color: .black.opacity(0.7), radius: 50, y: 40).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 VStack(alignment: .leading, spacing: 30) {
-                    Text(model.panel == .filters ? "Sort & filter" : model.panel == .compatibility ? "Compatibility" : model.focusedGame?.title ?? "Game")
+                    Text(model.panelTitle)
                         .font(Design.condensed(48))
                     if model.panel == .compatibility { Text("Your rating · preview only").font(Design.body(22)).foregroundStyle(Design.secondary) }
-                    ForEach(Array(model.panelActions.enumerated()), id: \.offset) { index, title in
-                        Button { model.panelIndex = index; model.activatePanel() } label: {
-                            HStack {
-                                Text(title).font(Design.body(26, weight: "Medium"))
-                                Spacer()
-                                if model.panel == .filters && ((title == "Name" && !model.sortByPlaytime) || (title == "Playtime" && model.sortByPlaytime)) { Image(systemName: "checkmark").foregroundStyle(Design.accent) }
-                            }.padding(18).background(model.panelIndex == index ? Design.text.opacity(0.1) : .clear, in: RoundedRectangle(cornerRadius: 8)).focusRing(model.panelIndex == index, compact: true)
-                        }.buttonStyle(.plain)
+                    PanelActionList(model: model)
+                    if model.panel == .compatibility, let id = model.focusedGame?.id {
+                        Text(model.compatibilityNotes[id].flatMap { $0.isEmpty ? nil : $0 } ?? "Add a note about settings, controls or anything that needs a workaround.")
+                            .font(Design.body(22)).foregroundStyle(Design.secondary).lineLimit(3)
                     }
                     Spacer()
                     if model.panel == .filters { Text("\(model.filteredGames.count) games match").font(Design.body(24)).foregroundStyle(Design.secondary) }
@@ -144,9 +109,16 @@ struct SearchKeyboard: View {
     @Bindable var model: LibraryModel
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
-            HStack { Text("Search your library").font(Design.condensed(40)); Spacer(); Text("\(model.filteredGames.count) results").font(Design.body(22)).foregroundStyle(Design.secondary) }
-            HStack { Image(systemName: "magnifyingglass"); Text(model.query.isEmpty ? "Search games…" : model.query).foregroundStyle(model.query.isEmpty ? Design.muted : Design.text); Rectangle().fill(Design.accent).frame(width: 3, height: 34); Spacer() }
-                .font(Design.body(30, weight: "Medium")).padding(.horizontal, 22).frame(height: 64).background(Design.text.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            HStack { Text(model.keyboardTitle).font(Design.condensed(40)); Spacer(); if model.panel == .search { Text("\(model.filteredGames.count) results").font(Design.body(22)).foregroundStyle(Design.secondary) } }
+            HStack(spacing: 0) {
+                Image(systemName: model.panel == .search ? "magnifyingglass" : "pencil").padding(.trailing, 16).foregroundStyle(Design.secondary)
+                Text(model.textEditor.beforeCursor)
+                Rectangle().fill(Design.accent).frame(width: 3, height: 34).padding(.horizontal, 2)
+                Text(model.textEditor.afterCursor)
+                Spacer(minLength: 0)
+            }.font(Design.body(30, weight: "Medium")).lineLimit(1)
+                .padding(.horizontal, 22).frame(height: 64).background(Design.text.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            if let error = model.keyboardError { Text(error).font(Design.body(22)).foregroundStyle(Design.red) }
             VStack(spacing: 8) {
                 ForEach(Array(model.searchKeys.enumerated()), id: \.offset) { row, keys in
                     HStack(spacing: 8) {
@@ -159,7 +131,62 @@ struct SearchKeyboard: View {
                     }.frame(maxWidth: .infinity)
                 }
             }
-            HStack(spacing: 30) { LegendItem(glyph: "□", title: "Backspace"); LegendItem(glyph: "△", title: "Space"); LegendItem(glyph: "○", title: "Done") }.padding(.top, 8)
+            HStack(spacing: 26) {
+                LegendItem(glyph: model.playStationGlyphs ? "□" : "X", title: "Backspace")
+                LegendItem(glyph: model.playStationGlyphs ? "△" : "Y", title: "Space")
+                LegendItem(glyph: model.playStationGlyphs ? "L1 R1" : "LB RB", title: "Cursor")
+                LegendItem(glyph: model.playStationGlyphs ? "OPTIONS" : "MENU", title: "Symbols")
+                LegendItem(glyph: model.playStationGlyphs ? "○" : "B", title: model.panel == .search ? "Done" : "Cancel")
+            }.padding(.top, 8)
         }.padding(28).frame(width: 1280).background(Design.panel, in: RoundedRectangle(cornerRadius: 12)).shadow(color: .black.opacity(0.7), radius: 50, y: 40)
+    }
+}
+
+struct DownloadQueue: View {
+    @Bindable var model: LibraryModel
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            ForEach(model.downloadRows) { row in
+                if let heading = row.heading { SectionLabel(text: heading).offset(x: 24, y: row.headingTop - model.downloadScrollOffset) }
+                DownloadCard(model: model, row: row).frame(width: 1140, height: row.height)
+                    .offset(x: 24, y: row.top - model.downloadScrollOffset)
+            }
+            if model.downloadRows.isEmpty {
+                VStack(spacing: 24) {
+                    Text("All caught up").font(Design.condensed(56))
+                    Text("Games you install will appear here.").font(Design.body(26)).foregroundStyle(Design.secondary)
+                    ActionButton(title: "Browse library", primary: true, focused: true) { model.browseAvailableGames() }
+                }.frame(width: 1188, height: 700)
+            }
+        }.frame(width: 1188, height: 894, alignment: .topLeading).clipped()
+            .animation(model.reducedMotion ? nil : .easeOut(duration: 0.18), value: model.downloadScrollOffset)
+    }
+}
+struct DownloadCard: View {
+    @Bindable var model: LibraryModel
+    let row: DownloadRow
+    var body: some View {
+        let active = row.game.status == .downloading
+        HStack(alignment: active ? .top : .center, spacing: 24) {
+            Artwork(url: row.game.coverURL).frame(width: active ? 120 : 60, height: active ? 180 : 90).clipShape(RoundedRectangle(cornerRadius: 6))
+            VStack(alignment: .leading, spacing: active ? 16 : 8) {
+                Text(row.game.title).font(Design.condensed(active ? 36 : 30))
+                if active {
+                    Text(model.downloadPaused ? "Paused · 43%" : "Download · 43%").font(Design.body(24, weight: "Medium")).foregroundStyle(Design.accent)
+                    ProgressTrack(value: 0.43)
+                    Text(model.downloadPaused ? "3.8 of 8.9 GB · ready to resume" : "3.8 of 8.9 GB · 38 MB/s · 2 min 14 s left").font(Design.body(22)).foregroundStyle(Design.secondary)
+                    Text("Estimate › Reserve space › Download › Verify › Prepare › Ready").font(Design.body(18)).foregroundStyle(Design.muted)
+                } else {
+                    HStack(spacing: 8) {
+                        if row.game.status == .installed { Circle().fill(Design.green).frame(width: 8, height: 8) }
+                        Text(row.game.status == .queued ? "Queued · \(row.game.size)" : "Installed").font(Design.body(22)).foregroundStyle(Design.secondary)
+                    }
+                }
+            }
+            if !active { Spacer(); Text(row.game.status == .queued ? String((model.queueOrder.firstIndex(of: row.game.id) ?? 0) + 1) : "Today").font(Design.body(22)).foregroundStyle(Design.muted) }
+        }.padding(.horizontal, 20).padding(.vertical, active ? 20 : 14)
+            .background(Design.text.opacity(active ? 0.06 : 0.04), in: RoundedRectangle(cornerRadius: 8))
+            .focusRing(model.downloadIndex == row.index)
+            .onTapGesture { model.downloadIndex = row.index; model.perform(.confirm) }
     }
 }

@@ -47,3 +47,32 @@ struct FocusedHomeRows: View {
             .animation(model.reducedMotion ? nil : .easeOut(duration: 0.18), value: model.homeScrollOffset)
     }
 }
+
+struct LibraryRail: View {
+    @Bindable var model: LibraryModel
+    var body: some View {
+        let filters = model.libraryFilters
+        let items = filters.map { model.filterTitle($0) } + ["＋ New collection"]
+        let offset = max(0, Double(model.libraryRailIndex - 9) * 66)
+        ZStack(alignment: .topLeading) {
+            Rectangle().fill(Design.text.opacity(0.12)).frame(width: 256, height: 1).offset(x: 46, y: 303 - offset)
+            ForEach(Array(items.enumerated()), id: \.offset) { index, title in
+                Button {
+                    model.libraryRailIndex = index
+                    if let value = filters[safe: index] { model.filter = value; model.railFocused = false }
+                    else { model.beginText(.newCollection(nil)) }
+                } label: {
+                    HStack {
+                        Text(title).font(Design.condensed(28, bold: filters[safe: index] == model.filter)).lineLimit(1)
+                        Spacer(minLength: 8)
+                        if let filter = filters[safe: index] { Text(String(model.count(for: filter))).font(Design.body(20)).foregroundStyle(Design.muted) }
+                    }.padding(.horizontal, 22).frame(width: 300, height: 60)
+                        .foregroundStyle(filters[safe: index] == model.filter ? Design.text : Design.secondary)
+                        .background(filters[safe: index] == model.filter ? Design.text.opacity(0.1) : .clear, in: RoundedRectangle(cornerRadius: 8))
+                        .focusRing(model.railFocused && model.libraryRailIndex == index, compact: true)
+                }.buttonStyle(.plain).offset(x: 24, y: 24 + Double(index) * 66 + (index >= 4 ? 40 : 0) - offset)
+            }
+        }.frame(width: 348, height: 840, alignment: .topLeading).clipped()
+            .animation(model.reducedMotion ? nil : .easeOut(duration: 0.18), value: offset)
+    }
+}

@@ -46,3 +46,10 @@ enum PreviewCatalog {
         }
     }()
 }
+
+extension PreviewCatalog {
+    static let collections: [GameCollection] = [
+        GameCollection(name: "Couch co-op", gameIDs: Set(games.filter { $0.genres.contains("Couch co-op") }.map(\.id)), isPinned: true),
+        GameCollection(name: "Short sessions", gameIDs: Set(games.filter { $0.hoursPlayed > 0 && $0.hoursPlayed < 8 }.map(\.id))),
+    ]
+}
