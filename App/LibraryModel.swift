@@ -68,7 +68,7 @@ final class LibraryModel {
     var rows: [(name: String, games: [Game])] {
         let visible = games.filter { !$0.isHidden }
         return [
-            ("Continue playing", visible.filter { $0.hoursPlayed > 0 }.prefix(8).map { $0 }),
+            ("Continue playing", ["Hades", "Cuphead", "Hollow Knight", "Dead Cells", "Stardew Valley", "Slay the Spire", "Celeste", "Outer Wilds"].compactMap { title in visible.first { $0.title == title } }),
             ("Downloading now", visible.filter { [.queued, .downloading].contains($0.status) }.sorted { $0.status == .downloading && $1.status != .downloading }),
             ("Recently installed", visible.filter { $0.status == .installed && $0.hoursPlayed <= 9 }),
             ("Favorites", visible.filter(\.isFavorite)),
@@ -95,6 +95,11 @@ final class LibraryModel {
         case .information: ["Got it"]
         default: []
         }
+    }
+    func browseAvailableGames() {
+        selectTab(.library)
+        filter = !games.isEmpty && games.allSatisfy(\.isHidden) ? .hidden : .all
+        updateQuery("")
     }
     func selectTab(_ value: AppTab) { tab = value; detailID = nil; panel = nil; railFocused = false }
     func show(_ value: Panel) { panel = value; panelIndex = 0 }
@@ -142,12 +147,13 @@ final class LibraryModel {
             else if tab == .downloads { downloadPaused.toggle() }
             else if tab == .library && railFocused { railFocused = false }
             else if let game = focusedGame { openGame(game) }
+            else if tab == .home || tab == .library { browseAvailableGames() }
         case .back:
             if detailID != nil { detailID = nil }
             else if !query.isEmpty { updateQuery("") }
             else { selectTab(.home) }
-        case .favorite: toggleFavorite()
-        case .context: if focusedGame != nil { show(.context) }
+        case .favorite: if !(tab == .library && railFocused) { toggleFavorite() }
+        case .context: if focusedGame != nil && !(tab == .library && railFocused) { show(.context) }
         case .options: if tab == .library && detailID == nil { show(.filters) }
         case .search: selectTab(.library); show(.search)
         case .home: selectTab(.home); homeRow = 0; homeColumns[0] = 0

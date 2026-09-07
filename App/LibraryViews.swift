@@ -113,6 +113,13 @@ struct HomeScreen: View {
         ZStack(alignment: .topLeading) {
             Artwork(url: ambientURL).blur(radius: 90).opacity(0.22).frame(width: 1920, height: 1080)
             LinearGradient(colors: [.clear, Design.background.opacity(0.6), Design.background], startPoint: .top, endPoint: .bottom)
+            if model.rows.isEmpty {
+                VStack(spacing: 28) {
+                    Text("Your next adventure starts here").font(Design.condensed(56))
+                    Text("Find a game in your library and make yourself at home.").font(Design.body(26)).foregroundStyle(Design.secondary)
+                    ActionButton(title: "Browse library", primary: true, focused: true, reducedMotion: model.reducedMotion) { model.browseAvailableGames() }
+                }.frame(width: 1920, height: 1080)
+            }
             ScrollViewReader { vertical in
                 ScrollView(.vertical) {
                     VStack(alignment: .leading, spacing: 6) {
@@ -195,7 +202,7 @@ struct LibraryScreen: View {
                 VStack(spacing: 24) {
                     Text(model.query.isEmpty ? "Nothing here yet" : "No games match ‘\(model.query)’").font(Design.condensed(56))
                     Text("Try another collection or clear your search.").font(Design.body(26)).foregroundStyle(Design.secondary)
-                    ActionButton(title: "Browse all games", primary: true, focused: !model.railFocused) { model.filter = .all; model.updateQuery("") }
+                    ActionButton(title: "Browse all games", primary: true, focused: !model.railFocused) { model.browseAvailableGames() }
                 }.frame(width: 1380, height: 650).offset(x: 444, y: 150)
             }
         }

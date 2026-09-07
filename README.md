@@ -50,9 +50,12 @@ DS4 testing and background exit-overlay handoff are still unverified.
 ## Validation
 
 ```sh
-swift test --package-path Packages/BigScreenKit
+./scripts/test.sh
 ./scripts/snapshot.sh
 ```
+
+The test suite covers logical grid movement/repeat and native presentation-state interactions
+(modal focus, navigation memory, search, hidden collections and empty-state recovery).
 
 Snapshots are actual native window captures in `.build/screenshots/`. They use a 1920×1080 logical
 canvas (pixel dimensions follow the display backing scale), a fixed clock, and the same artwork

@@ -33,8 +33,21 @@ targets:
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: '-'
         ENABLE_APP_SANDBOX: NO
+  BigScreenTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources: [Tests/AppTests]
+    dependencies:
+      - target: BigScreen
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_IDENTITY: '-'
+        TEST_HOST: '$(BUILT_PRODUCTS_DIR)/GameNative Big Screen.app/Contents/MacOS/GameNative Big Screen'
 schemes:
   BigScreen:
     build:
       targets:
         BigScreen: all
+    test:
+      targets: [BigScreenTests]

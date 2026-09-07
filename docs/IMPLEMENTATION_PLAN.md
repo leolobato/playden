@@ -19,7 +19,9 @@ captured for visual review. This is partial M1/M5 work, not completion of either
 
 M0 real-game/controller handoff, persistence, first-run auth, install/session services and remaining
 v1 actions are still outstanding. Physical DS4 availability was asked about and has not yet been
-confirmed. See the root README for reproducible build/run/validation commands.
+confirmed. Validation so far: Xcode build, four package tests, eight app interaction tests, and
+native window captures of Home, Library, game page, Downloads and Settings. See the root README
+for reproducible build/run/validation commands.
 
 ## 1. Planning defaults and PRD corrections
 
