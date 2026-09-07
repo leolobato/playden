@@ -30,7 +30,7 @@ struct FocusedHomeRows: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             ForEach(Array(model.rows.enumerated()), id: \.offset) { index, row in
-                VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 28) {
                     SectionLabel(text: row.name).padding(.leading, 24)
                     HStack(alignment: .top, spacing: 20) {
                         ForEach(Array(row.games.enumerated()), id: \.element.id) { column, game in
@@ -41,7 +41,7 @@ struct FocusedHomeRows: View {
                         }
                     }.padding(.horizontal, 24).offset(x: -model.homeRowOffsets[index, default: 0])
                         .animation(model.reducedMotion ? nil : .easeOut(duration: 0.18), value: model.homeRowOffsets[index])
-                }.offset(y: 24 + Double(index) * 442 - model.homeScrollOffset)
+                }.offset(y: 24 + Double(index) * 456 - model.homeScrollOffset)
             }
         }.frame(width: 1848, height: 894, alignment: .topLeading).clipped()
             .animation(model.reducedMotion ? nil : .easeOut(duration: 0.18), value: model.homeScrollOffset)

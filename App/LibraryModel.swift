@@ -153,9 +153,9 @@ final class LibraryModel {
             itemMax: top + 315, viewport: libraryViewportHeight, content: content)
     }
     func revealHomeFocus() {
-        let top = 24.0 + Double(homeRow) * 442
+        let top = 24.0 + Double(homeRow) * 456
         homeScrollOffset = FocusViewport.reveal(offset: homeScrollOffset, itemMin: top,
-            itemMax: top + 420, viewport: 840, content: 48 + Double(rows.count) * 442)
+            itemMax: top + 450, viewport: 840, content: 48 + Double(rows.count) * 456)
         let column = homeColumns[homeRow, default: 0]
         let left = 24.0 + Double(column) * 233
         homeRowOffsets[homeRow] = FocusViewport.reveal(offset: homeRowOffsets[homeRow, default: 0], itemMin: left,
