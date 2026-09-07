@@ -34,6 +34,12 @@ app does not require Homebrew's library paths.
 `run.sh` launches a verified copy in `.build/Run`, separate from Xcode's build output, and
 quits the previous instance before replacing that copy. This lets builds/tests run while you
 browse without replacing the signed bundle underneath the running app or disrupting Keychain access.
+Build/test scripts reuse an available Apple Development certificate, caching the local selection in
+`.build/signing-identity`, so the app retains a stable identity across rebuilds. Set
+`BIGSCREEN_CODE_SIGN_IDENTITY` to choose another identity, or `-` for ad-hoc signing. Without a development
+certificate the scripts fall back to ad-hoc signing, which may require Keychain approval after rebuilds.
+Moving an existing sign-in from an ad-hoc build to development signing requires one macOS Keychain
+approval; the app never requests or stores your Mac password.
 
 Open `BigScreen.xcodeproj` to work in Xcode. `project.yml` is the project source of truth; regenerate
 with `xcodegen generate` after changing targets or resources. The preview does not require a Steam

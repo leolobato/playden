@@ -20,6 +20,27 @@ running. A full Xcode test/build ran while that copy stayed open; its signature 
 Refreshing through Settings afterward completed successfully: 538 games, a new sync timestamp,
 and no Keychain error. The user can continue browsing while builds run.
 
+### Follow-up: stable identity across different builds
+
+After a subsequent code change, macOS displayed its own Keychain prompt for
+`com.gamenative.bigscreen.steam`. This exposed a second development issue: ad-hoc signing
+does not give successive binaries a stable identity. Isolating the running copy protects it
+from in-place replacement, but does not itself preserve trust across changed binaries.
+
+Build/test scripts now select an existing Apple Development certificate and cache the selected
+fingerprint locally under `.build/signing-identity`. They never create/import certificates or
+change Keychain item access controls. An environment override is supported; machines without
+a development certificate retain an explicit ad-hoc fallback. The certificate-based build and
+the full 83-pass/2-skip test run succeeded. The app's designated requirement remains compatible
+across build/test packaging changes. Existing ad-hoc credentials require a one-time native
+Keychain approval when moving to this signing identity; only the user enters the Mac password
+into that macOS dialog. End-to-end approval/rebuild persistence remains to be observed afterward.
+
+Apple's [code-signing requirements note](https://developer.apple.com/documentation/technotes/tn3127-inside-code-signing-requirements)
+explains how macOS recognizes successive versions through their designated requirement;
+[TN2206](https://developer.apple.com/library/archive/technotes/tn2206/_index.html) describes its use
+for Keychain access.
+
 ## Source installer boundary
 
 Domain now defines `Installer`, immutable/versioned `InstallPlan`, estimates, progress, staging
