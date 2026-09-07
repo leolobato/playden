@@ -536,6 +536,13 @@ available for conflict recovery. Owned bottle save access is exposed and tested.
 launch/exit/offline integration, conflict UI and a live Steam roundtrip are still required.
 See `docs/validation/2026-09-08-cloud-files.md`.
 
+The Cloud coordinator now connects verified staging, three-way planning, conflict authorization,
+upload receipts, local application and final baseline verification under the durable game claim.
+Tests exercise download/edit/upload, offline play/retry, lost commit responses, changed review
+data, account changes, interrupted local recovery and validation of remote deletions. Production
+owned-root/upload validation, race-free session handoff, controller status/conflict UI and live
+Steam upload/restore acceptance remain. See `docs/validation/2026-09-08-cloud-coordinator.md`.
+
 ### 8 September — SteamCore interface fix requested by the user
 
 - [x] Cherry-pick `c5dfc3f289acb5097e31d2fea4045e19095a2ca2` into GameNative-macos main and

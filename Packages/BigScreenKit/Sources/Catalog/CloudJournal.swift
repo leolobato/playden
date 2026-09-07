@@ -7,6 +7,40 @@ public enum CloudJournalError: Error, Equatable {
 }
 
 extension CatalogStore {
+    /// A stable installation-of-Big-Screen identifier, separate from editable library preferences.
+    /// Preferences row 1 remains the library model; row 2 is this private Cloud client receipt.
+    public func cloudClientID() throws -> UInt64 {
+        try database.write { db in
+            if let bytes = try Data.fetchOne(db, sql: "SELECT payload FROM preferences WHERE id = 2") {
+                let id = try Self.decode(UInt64.self, bytes)
+                guard id != 0 else { throw CloudJournalError.identityMismatch }
+                return id
+            }
+            let id = UInt64.random(in: 1...UInt64.max)
+            try db.execute(sql: "INSERT INTO preferences (id, payload) VALUES (2, ?)", arguments: [try Self.encode(id)])
+            return id
+        }
+    }
+
+    /// Save local staging before network access, so offline failure still has a durable copy.
+    public func recordCloudLocalSnapshot(_ expected: CloudSyncOperation, snapshotID: UUID) throws -> CloudSyncOperation {
+        try changeCloud(expected) { _, value in
+            guard value.plan == nil, value.localSnapshotID == nil || value.localSnapshotID == snapshotID else {
+                throw CloudJournalError.invalidTransition
+            }
+            value.localSnapshotID = snapshotID
+        }
+    }
+
+    /// The coordinator has reapplied and verified the complete local result. Remote reconciliation
+    /// can remain pending without blocking offline play. This does not advance a sync baseline.
+    public func markCloudLocalApplied(_ expected: CloudSyncOperation) throws -> CloudSyncOperation {
+        try changeCloud(expected) { db, value in
+            try Self.requireExecutable(db, value)
+            guard value.phase == .applyingLocal else { throw CloudJournalError.invalidTransition }
+            value.needsLocalRecovery = false; value.phase = .verifying
+        }
+    }
     public func cloudOperations(for gameID: GameID? = nil) throws -> [CloudSyncOperation] {
         try database.read { db in
             let operations: [CloudSyncOperation] = try Self.values(db, table: "cloud_operations",
@@ -60,7 +94,8 @@ extension CatalogStore {
                   plan.gameID == value.gameID, plan.installationID == value.installationID,
                   plan.accountKey == value.accountKey, remote.gameID == value.gameID,
                   remote.accountKey == value.accountKey, plan.remoteRevision == remote.revision,
-                  localSnapshotID != remoteSnapshotID else { throw CloudJournalError.invalidTransition }
+                  localSnapshotID != remoteSnapshotID,
+                  value.localSnapshotID == nil || value.localSnapshotID == localSnapshotID else { throw CloudJournalError.invalidTransition }
             guard Set(plan.decisions.map(\.name)).count == plan.decisions.count else { throw CloudJournalError.invalidTransition }
             value.plan = plan; value.remote = remote
             value.localSnapshotID = localSnapshotID; value.remoteSnapshotID = remoteSnapshotID
