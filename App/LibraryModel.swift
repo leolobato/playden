@@ -105,7 +105,6 @@ final class LibraryModel {
     var textEditor = TextEditorState()
     var keyboardError: String?
     var symbols = false
-    var keepSaves = true
     var downloadWhilePlaying = false { didSet { persistPreferences(); updateSessionDownloadPolicy() } }
     var tab: AppTab = .home
     var detailID: GameID?
@@ -292,7 +291,6 @@ final class LibraryModel {
         panel = value; panelIndex = 0
         if value == .filters { filterChoiceIndex = 0; filterScrollOffset = 0; expandedGenres = false }
         if value == .search { textEditor = TextEditorState(query); keyboardError = nil }
-        if case .confirmation = value { keepSaves = true }
     }
     func updateQuery(_ value: String) { query = value; libraryCursor = .init() }
     func openGame(_ game: Game) { detailID = game.id; detailAction = 0; panel = nil }
@@ -343,8 +341,6 @@ final class LibraryModel {
         }
         if panel != nil {
             switch action {
-            case .favorite:
-                if case .confirmation(.uninstall) = panel { keepSaves.toggle() }
             case .back: panel = nil
             case .move(let direction): panelIndex = min(max(0, panelIndex + (direction == .up || direction == .left ? -1 : 1)), max(0, panelActions.count - 1))
             case .confirm: activatePanel()

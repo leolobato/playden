@@ -32,14 +32,6 @@ struct ConfirmDialog: View {
         VStack(alignment: .leading, spacing: 28) {
             Text(model.confirmationTitle(intent)).font(Design.condensed(40)).fixedSize(horizontal: false, vertical: true)
             Text(model.confirmationMessage(intent)).font(Design.body(24)).foregroundStyle(Design.secondary).lineSpacing(6)
-            if case .uninstall = intent {
-                HStack {
-                    Text("Keep saves").font(Design.body(24, weight: "Medium"))
-                    Spacer()
-                    Glyph(text: model.playStationGlyphs ? "□" : "X")
-                    Image(systemName: model.keepSaves ? "checkmark.square.fill" : "square").font(.system(size: 32)).foregroundStyle(Design.accent)
-                }.padding(18).background(Design.text.opacity(0.06), in: RoundedRectangle(cornerRadius: 8)).onTapGesture { model.keepSaves.toggle() }
-            }
             HStack(spacing: 20) {
                 ForEach(Array(model.panelActions.enumerated()), id: \.offset) { index, title in
                     Button { model.panelIndex = index; model.activatePanel() } label: {

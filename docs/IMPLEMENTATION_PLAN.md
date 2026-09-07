@@ -100,7 +100,7 @@ M1; record any changed product decision explicitly rather than silently reducing
 | Launch delay | After a configurable launch threshold, show a recoverable delayed-launch state with Keep waiting, Stop, and View logs. Do not infer a crash solely from elapsed time. Start with 60 seconds and tune against verified titles. | FR-LAUNCH-2/3, FR-FAIL-1 |
 | Return destination | Return to Home after game exit; retain the just-played tile as focus when visible, otherwise use the normal Home fallback. Launch failures return to the game page. | FR-HOME-1, FR-EXIT-1 |
 | Empty Home | Show a focused Browse library action, or Sign in when appropriate, if no rows have content. | FR-HOME-1/2, FR-DONE-1 |
-| Save retention | Keep saves defaults on. Use verified save/config locations; preserve unresolved storage instead of deleting data under a promise of preservation. Unknown layouts may retain the bottle and affected game-directory content, with retained space explained. | FR-UN-1/2 |
+| Save retention | Deferred to a future version by the user. v1 uninstall explains local save deletion and resolves pending Cloud uploads before removal; reinstall restores synchronized saves from Cloud. No Keep saves option in v1. | FR-UN-1/2/4 |
 | App quit | While playing, normal Quit offers Keep launcher open or Quit game and launcher. With downloads only, checkpoint/pause jobs and quit. Recover separately from unexpected launcher termination. | AR-PROC-1, FR-INST-6 |
 | Account policy | One device-local player profile in v1: installs, saves, ratings, collections, and local play history survive logout. Logout clears credentials and the source-owned library/identity cache. Retained local installs remain visible for offline play; downloads require authentication. Signing in to another account does not create separate saves. | FR-AUTH-3/4, AR-STOR-1 |
 | Themes | Dark is the v1 implementation baseline. The designer brief's light-theme deliverables do not create an untagged v1 theme-switcher requirement; reconcile the brief explicitly. | GUI_DESIGN_BRIEF |
@@ -224,9 +224,10 @@ Prepare bottle/prerequisites → Stage emulation → Validate launch configurati
 - Cancellation removes only resources created/owned by that new install. Canceling a repair must
   not uninstall an existing game. Canonical path containment, symlink handling, and ownership
   markers govern deletion; a matching bottle name alone is insufficient.
-- Uninstall acquires the game lock, stops the session, copies/verifies retained data, removes owned
-  files/bottle, then clears install state. Backup failure stops deletion. Partial removal remains
-  a recoverable job. Restore validates backup versions and never silently overwrites newer saves.
+- Uninstall acquires the game lock, stops the session, resolves pending Cloud uploads, removes owned
+  files/bottle, then clears install state. Failed sync requires retry or explicit confirmation to
+  discard unsynced progress. Partial removal remains a recoverable job. Local uninstall archives
+  and restore are deferred; reinstall uses pre-launch Cloud sync with normal conflict handling.
 
 ### Session lifecycle
 
@@ -332,16 +333,17 @@ Dependencies: M3; M0 process/input validation.
 - [ ] Implement launch/delayed/error states, window handoff, exit overlay, graceful/forced stop and Home return.
 - [ ] Implement single-session enforcement, playtime/outcome recording, automatic pause-reason coordination,
   normal app quit, launcher-crash reconciliation and prevention of duplicate sessions after restart.
-- [ ] Implement backup/restore, controller uninstall confirmation, partial-removal recovery and retained-space reporting.
-- [ ] Ensure missing-bottle recreation reapplies the recorded recipe and restores retained saves where possible.
+- [ ] Implement controller uninstall confirmation with local-save deletion consequences, pending Cloud
+  upload handling and partial-removal recovery. Local save retention is deferred.
+- [ ] Ensure missing-bottle recreation reapplies the recorded recipe and synchronizes available Cloud saves.
 - [ ] Implement Steam Cloud metadata/transfer adapters, verified save-path mapping, account-scoped
   sync journals, pre-launch pull, post-exit push, offline retry and controller conflict resolution.
 - [ ] Verify cloud roundtrip, concurrent edits, interrupted transfer/restart, account switching and
-  preservation of pending uploads during uninstall/reinstall.
+  pending-upload retry/discard confirmation during uninstall and Cloud restore after reinstall.
 - [ ] Evaluate candidate titles and document which are verified, unsupported or still unknown.
 
 Gate: from fresh game state, install → player-controlled gameplay → save → quit → offline relaunch →
-uninstall with Keep saves → reinstall → load the same save succeeds using only the controller after
+successful Cloud upload → uninstall → reinstall → Cloud download → load the same save succeeds using only the controller after
 setup. Test quitting within 30 seconds, child-process handoff, force quit, and launcher restart while
 a game survives. Session completion and playtime are recorded once.
 
@@ -399,7 +401,7 @@ test on a machine without CrossOver cannot satisfy the real-platform release gat
 | Download | Mid-file process termination, chunk integrity/checkpoint recovery, queue reorder, user-vs-gameplay pause reasons, cancel cleanup, auth expiry, network loss, disk full and drive removal |
 | Install/repair | Failure/crash around each commit boundary, partial bottle clone, prerequisites, SteamStub handling, originals vs transformed integrity, pinned manifests, no silent updates |
 | Session | Relevant window vs splash, no-window delay, child handoff, normal/early/forced exit, hanging close, one game at a time, restart reconciliation and exact-once history |
-| Save/uninstall | Save restored after reinstall, unknown save layout, backup failure prevents deletion, partial removal retry, restore conflict, game-local saves, unrelated bottle untouched |
+| Cloud/uninstall | Cloud save restored after reinstall, unsupported mapping, failed upload blocks removal until explicit discard, partial removal retry, sync conflict, game-local saves, unrelated bottle untouched |
 | Storage/privacy | Volume rename/remount, separate game/bottle/backup capacity, path/symlink containment, app-owned deletion only, logout/reset semantics, Keychain-only auth and log redaction |
 | Extensibility | FakeSource/FakeInstaller run through unchanged UI/orchestration; only Sources imports SteamCore; services expose durable IDs and value snapshots |
 
@@ -495,8 +497,12 @@ installed-game discovery and launch integration with the official Steam macOS cl
 build must never be enforced. Installation choices and ownership stay distinct even when the
 library merges them under one Steam app ID. See FR-MAC-1–4.
 
-Current priorities: finish installed-file repair; complete save mapping, local retention and
-uninstall/reinstall; implement and validate Steam Cloud sync; complete remaining runtime recipes,
+Local save retention was subsequently deferred to a **future version** by the user on 7 September.
+The existing save-copy primitives can support Cloud transfer staging/conflict backups, but v1 does
+not offer local uninstall archives or Keep saves. This supersedes earlier retention milestones.
+
+Current priorities: implement and validate Steam Cloud sync; finish uninstall/reinstall with Cloud
+recovery and explicit local-save deletion consequences; complete remaining runtime recipes,
 download/storage and diagnostic UI; run the full v1 controller/TV acceptance matrix. Monitor
 selection and fullscreen startup are implemented and verified; the session notification actions
 now have explicit keyboard/controller hints and focus. These checkpoints do not complete v1.

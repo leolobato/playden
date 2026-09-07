@@ -53,11 +53,12 @@ Installed.**
 ## 4. Uninstall
 
 - **FR-UN-1 (v1):** Uninstall confirms with what is removed: game files size and the game's bottle.
-  Order: stop the game if running, delete game files, `cxbottle --delete` the bottle, clear install
-  state. Collections, rating, favorite and playtime are kept.
-- **FR-UN-2 (v1):** Saves: gbe_fork stores saves inside the game's bottle, so uninstall would delete
-  them. v1 offers "Keep saves" (default on), which moves the bottle's save directories into
-  `Application Support/GameNative BigScreen/saves/<source>-<id>/` and restores them on reinstall.
+  Order: stop the game if running, finish pending Cloud uploads or obtain explicit confirmation
+  to discard unsynced local progress, delete game files, `cxbottle --delete` the bottle, clear install
+  state. State clearly that local saves are removed; collections, rating, favorite and playtime are kept.
+- **FR-UN-2 (future):** Optional local save retention and restore on reinstall are deferred by the
+  user on 7 September 2026. v1 has no "Keep saves" option. Reinstalled games recover synchronized
+  saves through Steam Cloud (§6); games without supported Cloud sync have no uninstall backup.
 - **FR-UN-3 (v1):** Uninstall never touches a bottle not named `gn-<source>-<id>` for that game.
 - **FR-UN-4 (v1):** Cloud saves through the source; see §6. Uninstall does not delete remote saves
   and cannot silently discard pending local uploads.
@@ -93,8 +94,10 @@ Scope changed by the user on 7 September 2026: cloud save sync is required for v
   local progress; require explicit resolution before attaching existing local saves to a new account.
 - **FR-CLOUD-6 (v1):** Resolve save paths within verified owned locations; do not follow arbitrary
   remote paths or Wine links into unrelated files. Unknown mappings show an honest unsupported
-  status, retain local data and do not claim synchronization. Keep saves/uninstall/reinstall uses
-  the same mapping and accounts for pending uploads before deleting anything.
+  status and do not claim synchronization. Sync failures never delete local data. Uninstall
+  accounts for pending uploads before deletion and explicitly describes loss of unsynced saves;
+  reinstall downloads available Cloud saves before launch. This does not require local uninstall
+  archives or a "Keep saves" feature in v1.
 
 ## 7. Native macOS games and official Steam integration (v2)
 
