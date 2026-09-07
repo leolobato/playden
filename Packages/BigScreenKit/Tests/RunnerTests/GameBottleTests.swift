@@ -1,0 +1,95 @@
+import XCTest
+import Domain
+@testable import Runner
+
+private struct ReadyTemplate: BottleManaging {
+    func inspect() async -> RuntimeInfo { .init(version: "26.2", templateVersion: "1", templateReady: true) }
+    func prepareTemplate(onProgress: @escaping @Sendable (TemplateStage) -> Void) async throws -> RuntimeInfo { await inspect() }
+}
+private actor BottleCommands: CommandExecuting {
+    var copies = 0
+    var interruptCopy: Bool
+    var failValidation: Bool
+    init(interruptCopy: Bool = false, failValidation: Bool = false) { self.interruptCopy = interruptCopy; self.failValidation = failValidation }
+    func run(executable: URL, arguments: [String], timeout: TimeInterval) async throws -> CommandResult {
+        let destination = URL(fileURLWithPath: arguments[arguments.firstIndex(of: "--bottle")! + 1])
+        if let index = arguments.firstIndex(of: "--copy") {
+            copies += 1
+            if interruptCopy {
+                interruptCopy = false
+                try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+                try Data("partial".utf8).write(to: destination.appendingPathComponent("partial.data"))
+                return .init(exitCode: 15, output: "", cancelled: true)
+            }
+            try FileManager.default.copyItem(at: URL(fileURLWithPath: arguments[index + 1]), to: destination)
+        } else if arguments.contains("--delete") { try FileManager.default.removeItem(at: destination) }
+        else if executable.lastPathComponent == "cxstart", failValidation {
+            failValidation = false; return .init(exitCode: 1, output: "fixture runtime failure")
+        }
+        return .init(exitCode: 0, output: "BIGSCREEN_GAME_BOTTLE_READY")
+    }
+}
+final class GameBottleTests: XCTestCase {
+    private func fixture() throws -> URL {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("BigScreen-bottles-\(UUID().uuidString)")
+        let template = root.appendingPathComponent("gn-template-1")
+        try FileManager.default.createDirectory(at: template, withIntermediateDirectories: true)
+        try "[EnvironmentVariables]\n\"WINEMSYNC\" = \"1\"\n\"CX_GRAPHICS_BACKEND\" = \"d3dmetal\"\n".write(to: template.appendingPathComponent("cxbottle.conf"), atomically: true, encoding: .utf8)
+        addTeardownBlock { try FileManager.default.removeItem(at: root) }
+        return root
+    }
+    private func reference(_ value: String = "100") -> GameBottle {
+        let id = GameID(source: "fixture", value: value)
+        return .init(gameID: id, name: CrossOverGameBottles.name(for: id), ownershipToken: UUID())
+    }
+    func testInterruptedCloneCanRetryAndCleanupRemovesOnlyOwnedFiles() async throws {
+        let root = try fixture(), commands = BottleCommands(interruptCopy: true), bottle = reference()
+        let manager = CrossOverGameBottles(bottles: root, runtime: ReadyTemplate(), commands: commands)
+        let unrelated = root.appendingPathComponent("user-bottle")
+        try FileManager.default.createDirectory(at: unrelated, withIntermediateDirectories: true)
+        do { try await manager.prepare(bottle); XCTFail("Expected interruption") } catch is CancellationError {}
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(bottle.name).path))
+        try await manager.prepare(bottle)
+        let ready = try await manager.isReady(bottle); XCTAssertTrue(ready)
+        try await manager.prepare(bottle)
+        let count = await commands.copies; XCTAssertEqual(count, 2)
+        try await manager.remove(bottle)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(bottle.name).path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: unrelated.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent("gn-template-1").path))
+    }
+    func testValidationFailureResumesPublishedCloneWithoutCopyingAgain() async throws {
+        let root = try fixture(), commands = BottleCommands(failValidation: true), bottle = reference()
+        let first = CrossOverGameBottles(bottles: root, runtime: ReadyTemplate(), commands: commands)
+        do { try await first.prepare(bottle); XCTFail("Expected runtime failure") } catch {}
+        let ready = try await first.isReady(bottle); XCTAssertFalse(ready)
+        let restarted = CrossOverGameBottles(bottles: root, runtime: ReadyTemplate(), commands: commands)
+        try await restarted.prepare(bottle)
+        let count = await commands.copies; XCTAssertEqual(count, 1)
+        let recovered = try await restarted.isReady(bottle); XCTAssertTrue(recovered)
+        let wrong = GameBottle(gameID: bottle.gameID, name: bottle.name, ownershipToken: UUID())
+        do { try await restarted.remove(wrong); XCTFail("Wrong ownership token accepted") } catch {}
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent(bottle.name).path))
+    }
+    func testUnownedDestinationAndSymlinkAreRejected() async throws {
+        let root = try fixture(), bottle = reference(), commands = BottleCommands()
+        let destination = root.appendingPathComponent(bottle.name)
+        try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+        let manager = CrossOverGameBottles(bottles: root, runtime: ReadyTemplate(), commands: commands)
+        do { try await manager.prepare(bottle); XCTFail("Unowned bottle adopted") } catch {}
+        try FileManager.default.removeItem(at: destination)
+        try FileManager.default.createSymbolicLink(at: destination, withDestinationURL: root.appendingPathComponent("gn-template-1"))
+        do { try await manager.remove(bottle); XCTFail("Symlink accepted") } catch {}
+        let count = await commands.copies; XCTAssertEqual(count, 0)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: destination.path))
+    }
+    func testRealCrossOverCloneStartupAndScopedDeleteWhenRequested() async throws {
+        guard ProcessInfo.processInfo.environment["BIGSCREEN_CROSSOVER_BOTTLE_PROBE"] == "1" else { throw XCTSkip("Opt in to a unique owned game-bottle clone/startup/delete probe") }
+        let bottle = reference(UUID().uuidString.lowercased())
+        let manager = CrossOverGameBottles()
+        try await manager.prepare(bottle)
+        let ready = try await manager.isReady(bottle); XCTAssertTrue(ready)
+        try await manager.remove(bottle)
+        let removed = try await manager.isReady(bottle); XCTAssertFalse(removed)
+    }
+}
