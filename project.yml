@@ -40,6 +40,8 @@ targets:
         product: Runner
       - package: BigScreenKit
         product: Installs
+      - package: BigScreenKit
+        product: Sessions
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.gamenative.bigscreen

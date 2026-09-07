@@ -49,7 +49,8 @@ public struct RunSnapshot: Codable, Equatable, Sendable {
     }
 }
 public protocol GameRunner: Sendable {
-    func prepare(_ bottle: GameBottle) async throws
+    /// True when the runtime changed and source staging must be revalidated.
+    @discardableResult func prepare(_ bottle: GameBottle) async throws -> Bool
     func launch(_ spec: LaunchSpec, in bottle: GameBottle, directory: URL) async throws -> RunningGame
     func observe(_ run: RunningGame) async -> AsyncStream<RunSnapshot>
     func recover(_ snapshot: RunSnapshot) async throws -> RunSnapshot

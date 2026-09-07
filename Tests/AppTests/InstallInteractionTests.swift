@@ -14,6 +14,7 @@ private actor InteractionQueue: InstallQueuing {
     init(_ result: InstallOffer) { self.result = result }
     func start() async throws {}
     func shutdown() async {}
+    func setGameplayPaused(_ paused: Bool) async throws {}
     func updates() -> AsyncStream<InstallQueueSnapshot> {
         AsyncStream { observer = $0; $0.yield(.init(jobs: [])) }
     }

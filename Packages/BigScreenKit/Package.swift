@@ -12,6 +12,7 @@ let package = Package(
         .library(name: "Sources", targets: ["Sources"]),
         .library(name: "Runner", targets: ["Runner"]),
         .library(name: "Installs", targets: ["Installs"]),
+        .library(name: "Sessions", targets: ["Sessions"]),
     ],
     dependencies: [
         .package(path: "../../../GameNative-macos/swift"),
@@ -19,6 +20,8 @@ let package = Package(
     ],
     targets: [
         .target(name: "Domain"),
+        .target(name: "Sessions", dependencies: ["Domain", "Catalog", "Installs"]),
+        .testTarget(name: "SessionsTests", dependencies: ["Sessions", "Domain", "Catalog"]),
         .target(name: "Runner", dependencies: ["Domain"]),
         .target(name: "Installs", dependencies: ["Domain", "Catalog", "Runner"]),
         .testTarget(name: "InstallsTests", dependencies: ["Installs", "Domain"]),

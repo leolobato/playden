@@ -1,0 +1,239 @@
+import Foundation
+import Domain
+import Catalog
+import Installs
+
+public enum SessionPhase: String, Sendable { case idle, preparing, launching, running, stopping }
+public struct SessionSnapshot: Sendable {
+    public var phase: SessionPhase
+    public var game: SourceGameRecord?
+    public var session: PlaySessionRecord?
+    public var failure: OperationFailure?
+    public init(phase: SessionPhase = .idle, game: SourceGameRecord? = nil, session: PlaySessionRecord? = nil, failure: OperationFailure? = nil) {
+        self.phase = phase; self.game = game; self.session = session; self.failure = failure
+    }
+}
+public protocol SessionClock: Sendable {
+    var wallTime: Date { get }
+    var uptime: TimeInterval { get }
+}
+public struct SystemSessionClock: SessionClock {
+    public init() {}
+    public var wallTime: Date { .now }
+    public var uptime: TimeInterval { ProcessInfo.processInfo.systemUptime }
+}
+public protocol SessionManaging: Sendable {
+    func start(downloadWhilePlaying: Bool) async throws
+    func updates() async -> AsyncStream<SessionSnapshot>
+    func play(_ gameID: GameID) async throws
+    func quit() async throws
+    func setDownloadWhilePlaying(_ enabled: Bool) async throws
+    func shutdown() async throws
+}
+/// Coordinates source preparation, runner lifetime and catalog checkpoints. UI subscriptions do
+/// not own the session. Recovery finishes before the install queue is allowed to start.
+public actor SessionService: SessionManaging {
+    private let catalog: CatalogStore
+    private let sources: [String: any GameSource]
+    private let runner: any GameRunner
+    private let queue: any InstallQueuing
+    private let storage: any InstallStorageManaging
+    private let clock: any SessionClock
+    private let quitGrace: Duration
+    private let stopTimeout: Duration
+    private var started = false, starting = false, shuttingDown = false
+    private var downloadWhilePlaying = false
+    private var value = SessionSnapshot()
+    private var active: PlaySessionRecord?
+    private var worker: Task<Void, Never>?
+    private var observers: [UUID: AsyncStream<SessionSnapshot>.Continuation] = [:]
+    private var playAnchor: TimeInterval?
+    private var baseSeconds: Int64 = 0
+    private var lastSave: TimeInterval = 0, lastPublish: TimeInterval = 0
+    public init(catalog: CatalogStore, sources: [any GameSource], runner: any GameRunner, queue: any InstallQueuing,
+                storage: any InstallStorageManaging = InstallStorage(), clock: any SessionClock = SystemSessionClock(),
+                quitGrace: Duration = .seconds(10), stopTimeout: Duration = .seconds(10)) throws {
+        self.catalog = catalog; self.runner = runner; self.queue = queue; self.storage = storage; self.clock = clock
+        self.quitGrace = quitGrace; self.stopTimeout = stopTimeout
+        var registry: [String: any GameSource] = [:]
+        for source in sources { guard registry.updateValue(source, forKey: source.id) == nil else { throw SourceFailure.unavailable } }
+        self.sources = registry
+    }
+    public func updates() -> AsyncStream<SessionSnapshot> {
+        let id = UUID()
+        return AsyncStream(bufferingPolicy: .bufferingNewest(1)) { stream in
+            observers[id] = stream; stream.yield(value)
+            stream.onTermination = { @Sendable _ in Task { await self.removeObserver(id) } }
+        }
+    }
+    public func start(downloadWhilePlaying: Bool) async throws {
+        guard !started else { return }
+        guard !starting else { throw issue("Recover session", "Session recovery is already in progress.") }
+        starting = true; defer { starting = false }
+        self.downloadWhilePlaying = downloadWhilePlaying
+        let unfinished = try catalog.unfinishedSessions().sorted { $0.startedAt < $1.startedAt }
+        // Persist the pause before recovery; a previously user-paused job keeps that reason too.
+        try await queue.setGameplayPaused(true)
+        for var saved in unfinished {
+            if active?.id == saved.id { continue }
+            let entry = try catalog.snapshot().entries.first { $0.id == saved.gameID }
+            if let runtime = saved.runtime {
+                let recovered = try await runner.recover(runtime)
+                saved.runtime = recovered
+                if recovered.phase != .exited {
+                    guard active == nil else { throw issue("Recover session", "More than one running session needs attention before downloads can resume.") }
+                    active = saved; baseSeconds = saved.playedSeconds
+                    playAnchor = recovered.hadWindow ? clock.uptime : nil
+                    value = .init(phase: phase(recovered), game: entry?.source, session: saved)
+                    worker = Task { await self.observe(recovered.run) }
+                    publish()
+                    try catalog.saveSession(saved)
+                    continue
+                }
+            } else if let installed = entry?.installation {
+                // An interrupted pre-launch record has no PID receipt. The runner refuses to
+                // prepare a bottle with a live game, so uncertainty cannot restart downloads.
+                _ = try await runner.prepare(bottle(installed))
+            }
+            saved.endedAt = max(clock.wallTime, saved.lastCheckpointAt)
+            saved.lastCheckpointAt = saved.endedAt!; saved.outcome = saved.runtime?.forced == true ? .forced : .interrupted
+            try catalog.saveSession(saved)
+        }
+        try await queue.setGameplayPaused(active != nil && !downloadWhilePlaying)
+        try await queue.start(); started = true
+    }
+    public func play(_ gameID: GameID) async throws {
+        guard started, !shuttingDown else { throw issue("Launch game", "Session recovery must finish before a game can start.") }
+        guard active == nil else { throw issue("Launch game", "Quit the current game before starting another one.") }
+        guard let installation = try catalog.snapshot().entries.first(where: { $0.id == gameID })?.installation else {
+            throw issue("Launch game", "This game is not installed. Install it from your library first.")
+        }
+        var session = PlaySessionRecord(gameID: gameID, bottleID: installation.bottleID, startedAt: clock.wallTime)
+        session.lastCheckpointAt = session.startedAt
+        try catalog.saveSession(session)
+        active = session; value = .init(phase: .preparing, game: installation.game, session: session)
+        playAnchor = nil; baseSeconds = 0; lastSave = clock.uptime; lastPublish = clock.uptime
+        publish()
+        worker = Task { await self.launch(installation) }
+    }
+    private func launch(_ original: InstallationRecord) async {
+        do {
+            try await queue.setGameplayPaused(!downloadWhilePlaying)
+            try Task.checkCancellation()
+            let directory = try await storage.directory(original.location, gameID: original.gameID, owner: original.ownershipToken)
+            var installed = original
+            if try await runner.prepare(bottle(installed)) {
+                guard let source = sources[installed.gameID.source], let plan = installed.plan else { throw issue("Prepare game", "The saved install plan is unavailable. Verify or reinstall this game.") }
+                let installer = try source.installer(for: installed.game)
+                let staging = try await installer.postInstall(plan, at: directory)
+                installed.launchSpec = try await installer.validate(plan, at: directory, staging: staging)
+                installed.staging = staging; try catalog.saveInstallation(installed)
+            }
+            try Task.checkCancellation()
+            let run = try await runner.launch(installed.launchSpec, in: bottle(installed), directory: directory)
+            guard var session = active else { try await runner.terminate(run, force: true); return }
+            session.runtime = .init(run: run); active = session
+            // Keep observing even if a checkpoint fails; a database error must not orphan a game.
+            do { try catalog.saveSession(session) }
+            catch { value.failure = issue("Save session", "The process checkpoint could not be saved. Your game is still being tracked.") }
+            value.phase = .launching; value.session = session; publish()
+            worker = Task { await self.observe(run) }
+        } catch {
+            let cancelled = error is CancellationError || Task.isCancelled
+            await finish(outcome: cancelled ? .interrupted : .launchFailed,
+                         failure: cancelled ? nil : error as? OperationFailure ?? issue("Launch game", error.localizedDescription))
+        }
+    }
+    private func observe(_ run: RunningGame) async {
+        for await runtime in await runner.observe(run) {
+            guard var session = active, session.runtime?.run.id == run.id else { return }
+            let changed = session.runtime?.phase != runtime.phase || session.runtime?.window != runtime.window || session.runtime?.processes != runtime.processes
+            if runtime.hadWindow && playAnchor == nil { playAnchor = clock.uptime }
+            session.runtime = runtime
+            session.playedSeconds = elapsed()
+            session.lastCheckpointAt = max(clock.wallTime, session.lastCheckpointAt)
+            active = session; value.phase = phase(runtime); value.session = session
+            if runtime.phase == .exited {
+                let outcome: SessionOutcome = runtime.forced ? .forced : !runtime.hadWindow ? .launchFailed : runtime.exitCode == 0 ? .clean : runtime.exitCode == nil ? .interrupted : .crash
+                await finish(outcome: outcome, failure: runtime.failure)
+                return
+            }
+            if changed || clock.uptime - lastSave >= 5 {
+                do { try catalog.saveSession(session); lastSave = clock.uptime }
+                catch { value.failure = issue("Save session", "Playtime could not be saved. Your game is still being tracked.") }
+            }
+            if changed || clock.uptime - lastPublish >= 1 { publish(); lastPublish = clock.uptime }
+        }
+    }
+    public func quit() async throws {
+        guard var session = active else { return }
+        if let outcome = session.outcome, session.endedAt != nil {
+            await finish(outcome: outcome, failure: value.failure)
+            if active != nil { throw issue("Save session", "The final checkpoint still could not be saved. Free space and try again.") }
+            return
+        }
+        value.phase = .stopping; publish()
+        if session.runtime == nil {
+            let preparing = worker
+            preparing?.cancel(); await preparing?.value
+            guard let remaining = active else { return }
+            session = remaining
+        }
+        guard let run = session.runtime?.run else { throw issue("Quit game", "Game preparation has not finished stopping. Try again.") }
+        let start = ContinuousClock.now
+        do { try await runner.terminate(run, force: false) }
+        catch { value.failure = error as? OperationFailure ?? issue("Quit game", error.localizedDescription); publish() }
+        let remaining = quitGrace - start.duration(to: .now)
+        if remaining > .zero {
+            let deadline = ContinuousClock.now.advanced(by: remaining)
+            while active?.id == session.id && ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(100)) }
+        }
+        if active?.id == session.id { try await runner.terminate(run, force: true) }
+        let deadline = ContinuousClock.now.advanced(by: stopTimeout)
+        while active?.id == session.id && ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(100)) }
+        if active?.id == session.id { throw issue("Quit game", "The game has not finished stopping. Try again.") }
+    }
+    public func setDownloadWhilePlaying(_ enabled: Bool) async throws {
+        downloadWhilePlaying = enabled
+        try await queue.setGameplayPaused(active != nil && !enabled)
+    }
+    public func shutdown() async throws {
+        shuttingDown = true
+        await queue.shutdown()
+        do { try await quit() }
+        catch { shuttingDown = false; try? await queue.start(); throw error }
+    }
+    private func finish(outcome: SessionOutcome, failure: OperationFailure?) async {
+        guard var session = active else { return }
+        if session.endedAt == nil {
+            session.playedSeconds = elapsed(); session.lastCheckpointAt = max(clock.wallTime, session.lastCheckpointAt)
+            session.endedAt = session.lastCheckpointAt; session.outcome = outcome
+        }
+        do { try catalog.saveSession(session) }
+        catch {
+            active = session
+            value.failure = issue("Save session", "The session ended, but its final checkpoint could not be saved. Free space and try quitting again.")
+            value.session = session; value.phase = .stopping; publish(); return
+        }
+        active = nil; worker = nil; playAnchor = nil
+        value = .init(phase: .idle, game: value.game, session: session, failure: failure)
+        if !shuttingDown {
+            do { try await queue.setGameplayPaused(false) }
+            catch { value.failure = issue("Resume downloads", error.localizedDescription) }
+        }
+        publish()
+    }
+    private func elapsed() -> Int64 {
+        guard let playAnchor else { return baseSeconds }
+        let seconds = max(0, clock.uptime - playAnchor)
+        guard seconds.isFinite, seconds < Double(Int64.max - baseSeconds) else { return Int64.max }
+        return baseSeconds + Int64(seconds)
+    }
+    private func bottle(_ installation: InstallationRecord) -> GameBottle { .init(gameID: installation.gameID, name: installation.bottleID, ownershipToken: installation.ownershipToken, templateVersion: installation.templateVersion) }
+    private func phase(_ runtime: RunSnapshot) -> SessionPhase {
+        switch runtime.phase { case .launching: .launching; case .running: .running; case .stopping: .stopping; case .exited: .idle }
+    }
+    private func publish() { for stream in observers.values { stream.yield(value) } }
+    private func removeObserver(_ id: UUID) { observers[id] = nil }
+    private func issue(_ stage: String, _ reason: String) -> OperationFailure { .init(stage: stage, reason: reason, output: reason) }
+}

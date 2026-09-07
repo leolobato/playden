@@ -159,6 +159,21 @@ final class InstallQueueTests: XCTestCase {
         XCTAssertTrue(try catalog.snapshot().entries.isEmpty)
         await queue.shutdown()
     }
+    func testGameplayPauseWaitsForDownloadWorkerToFinish() async throws {
+        let root = try root(), catalog = try CatalogStore(), content = OfflineContent(), volumes = FixtureVolumes(root: root)
+        await content.hold("playing")
+        let queue = try InstallQueue(catalog: catalog, sources: [OfflineSource(content: content)], storage: InstallStorage(volumes: volumes), bottles: FixtureBottles())
+        let id = try await queue.enqueue(queue.offer(for: game("playing"), volume: volumes.selection)); try await queue.start()
+        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+        while !(await content.events.contains("download:playing")) && ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
+        let downloading = await content.events.contains("download:playing"); XCTAssertTrue(downloading)
+        try await queue.setGameplayPaused(true)
+        let snapshot = await queue.snapshot()
+        XCTAssertNil(snapshot.activeJobID)
+        XCTAssertEqual(snapshot.jobs.first(where: { $0.id == id })?.state, .paused)
+        XCTAssertEqual(snapshot.jobs.first(where: { $0.id == id })?.pauseReasons, [.gameplay])
+        await queue.shutdown()
+    }
     func testRestartKeepsPinnedPlanAndCompletedDownloadAfterPostInstallFailure() async throws {
         let root = try root(), database = root.appendingPathComponent("catalog.sqlite").path
         let content = OfflineContent(), volumes = FixtureVolumes(root: root), bottles = FixtureBottles()

@@ -44,6 +44,7 @@
 		B1A657D405AAD7C8B281677C /* EditingViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4038C0219269A842D64FC94D /* EditingViews.swift */; };
 		B25B1F80C0B90AEC6CA8BC60 /* LibraryModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7E1299E802C11E73F8A1EDA /* LibraryModel.swift */; };
 		B2A98FB795CC03E24E7989E6 /* AccountInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 281D1CCE073CC4C5E8961058 /* AccountInteractionTests.swift */; };
+		B9C9F1D5CF194B3D92E7705B /* Sessions in Frameworks */ = {isa = PBXBuildFile; productRef = F113430A9DD2F5547F593DAD /* Sessions */; };
 		C1FB15B5D9027944888D38FA /* BarlowCondensed-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 8DF603146150E3A8F502D3AF /* BarlowCondensed-Medium.ttf */; };
 		CA15BEFA39C7E33110214117 /* Runner in Frameworks */ = {isa = PBXBuildFile; productRef = 6310A68293BC5942095233F5 /* Runner */; };
 		CA2CD29BB2A361B7CCF5F01C /* PreviewCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB21DA9AE3F1CFE573775A04 /* PreviewCatalog.swift */; };
@@ -118,6 +119,7 @@
 				27CA48F6804A313742ECE091 /* Sources in Frameworks */,
 				CA15BEFA39C7E33110214117 /* Runner in Frameworks */,
 				A1FF886A1306CD7D8B5CE27F /* Installs in Frameworks */,
+				B9C9F1D5CF194B3D92E7705B /* Sessions in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -244,6 +246,7 @@
 				AA4199507081D0EE49C53585 /* Sources */,
 				6310A68293BC5942095233F5 /* Runner */,
 				616AFAA57B1C670A9E38212D /* Installs */,
+				F113430A9DD2F5547F593DAD /* Sessions */,
 			);
 			productName = BigScreen;
 			productReference = F549D7F628B1DA7071BA2F75 /* BigScreen.app */;
@@ -689,6 +692,10 @@
 		DCB264D4EC935990E4A49C62 /* Domain */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = Domain;
+		};
+		F113430A9DD2F5547F593DAD /* Sessions */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Sessions;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

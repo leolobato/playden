@@ -32,6 +32,7 @@ public protocol InstallQueuing: Sendable {
     func retry(_ jobID: UUID) async throws
     func cancel(_ jobID: UUID) async throws
     func move(_ jobID: UUID, before otherID: UUID) async throws
+    func setGameplayPaused(_ paused: Bool) async throws
 }
 
 /// The sole writer of install-job state. UI tasks may subscribe or disconnect without owning work.
@@ -128,9 +129,11 @@ public actor InstallQueue: InstallQueuing {
         if !job.pauseReasons.isEmpty, activeID == jobID { activeTask?.cancel() }
         pump()
     }
-    public func setGameplayPaused(_ paused: Bool) throws {
+    public func setGameplayPaused(_ paused: Bool) async throws {
         gameplayPaused = paused
         for job in ordered where ![.completed, .cancelled].contains(job.state) { try setPaused(paused, reason: .gameplay, jobID: job.id) }
+        // Launching must wait for the download worker to release its files and runtime work.
+        if paused { await activeTask?.value }
     }
     public func retry(_ jobID: UUID) throws {
         guard var job = records[jobID], job.state == .failed else { return }

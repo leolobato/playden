@@ -429,3 +429,13 @@ scoped graceful/forced termination and process-identity recovery. A real Oniken 
 quit escalation were observed. The session service and Play/overlay UI remain unconnected, and
 controller handoff/player-controlled gameplay are not yet proven. See
 [runner evidence](validation/2026-09-07-game-runner.md).
+
+2026-09-07 session service checkpoint: launch preparation, a single active game, monotonic
+playtime starting at the first window, persisted runtime receipts, recovery before queue restart,
+and graceful/forced quit coordination now run independently of UI subscriptions. Recreating a
+runtime reruns source staging and saves the validated launch spec. Gameplay pause waits for the
+install worker to release its work; user pause remains independent. Six session tests and a new
+queue cancellation-boundary test pass, along with the full package/app suite. The Play button,
+launching screen, background hold-Home routing and exit panel still need integration and live
+validation with A Short Hike. Ambiguous launches without a saved process receipt deliberately
+hold recovery and downloads pending further recovery work.
