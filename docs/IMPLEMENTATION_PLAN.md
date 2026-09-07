@@ -510,3 +510,13 @@ recovery and explicit local-save deletion consequences; complete remaining runti
 download/storage and diagnostic UI; run the full v1 controller/TV acceptance matrix. Monitor
 selection and fullscreen startup are implemented and verified; the session notification actions
 now have explicit keyboard/controller hints and focus. These checkpoints do not complete v1.
+
+### 8 September — Cloud sync core checkpoint
+
+The read adapter has downloaded and verified A Short Hike's existing Cloud save without changing
+its remote revision. UFS path mapping and three-way comparison now cover conflicts, account
+attachment, deletions and reinstall. The upload-batch transport passes simulated protocol/failure
+tests, with a mandatory durable-checkpoint callback and final remote verification. This is not yet
+connected to launch/exit or a completed Cloud sync feature. Next: persistent journal, owned local
+file application, session integration, controller conflict UI and real upload/restore acceptance.
+See `docs/validation/2026-09-08-cloud-planning-upload.md` for exact evidence and remaining limits.

@@ -1,0 +1,85 @@
+syntax = "proto2";
+package BigScreenCloud;
+
+// Wire-compatible upload subset; provenance and regeneration in README.md.
+
+message CCloud_BeginAppUploadBatch_Request {
+	optional uint32 appid = 1;
+	optional string machine_name = 2;
+	repeated string files_to_upload = 3;
+	repeated string files_to_delete = 4;
+	optional uint64 client_id = 5;
+	optional uint64 app_build_id = 6;
+}
+
+message CCloud_BeginAppUploadBatch_Response {
+	optional uint64 batch_id = 1;
+	optional uint64 app_change_number = 4;
+}
+
+message CCloud_CompleteAppUploadBatch_Request {
+	optional uint32 appid = 1;
+	optional uint64 batch_id = 2;
+	optional uint32 batch_eresult = 3;
+}
+
+message CCloud_CompleteAppUploadBatch_Response {
+}
+
+message CCloud_ClientBeginFileUpload_Request {
+	optional uint32 appid = 1;
+	optional uint32 file_size = 2;
+	optional uint32 raw_file_size = 3;
+	optional bytes file_sha = 4;
+	optional uint64 time_stamp = 5;
+	optional string filename = 6;
+	optional uint32 platforms_to_sync = 7 [default = 4294967295];
+	optional uint32 cell_id = 9;
+	optional bool can_encrypt = 10;
+	optional bool is_shared_file = 11;
+	optional uint32 deprecated_realm = 12;
+	optional uint64 upload_batch_id = 13;
+}
+
+message ClientCloudFileUploadBlockDetails {
+	message HTTPHeaders {
+		optional string name = 1;
+		optional string value = 2;
+	}
+
+	optional string url_host = 1;
+	optional string url_path = 2;
+	optional bool use_https = 3;
+	optional int32 http_method = 4;
+	repeated ClientCloudFileUploadBlockDetails.HTTPHeaders request_headers = 5;
+	optional uint64 block_offset = 6;
+	optional uint32 block_length = 7;
+	optional bytes explicit_body_data = 8;
+	optional bool may_parallelize = 9;
+}
+
+message CCloud_ClientBeginFileUpload_Response {
+	optional bool encrypt_file = 1;
+	repeated ClientCloudFileUploadBlockDetails block_requests = 2;
+}
+
+message CCloud_ClientCommitFileUpload_Request {
+	optional bool transfer_succeeded = 1;
+	optional uint32 appid = 2;
+	optional bytes file_sha = 3;
+	optional string filename = 4;
+}
+
+message CCloud_ClientCommitFileUpload_Response {
+	optional bool file_committed = 1;
+}
+
+message CCloud_ClientDeleteFile_Request {
+	optional uint32 appid = 1;
+	optional string filename = 2;
+	optional bool is_explicit_delete = 3;
+	optional uint64 upload_batch_id = 4;
+}
+
+message CCloud_ClientDeleteFile_Response {
+}

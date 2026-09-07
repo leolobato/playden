@@ -33,3 +33,23 @@ public protocol CloudReading: Sendable {
     /// Returns validated bytes only. Does not replace local saves or advance the sync baseline.
     func download(_ file: CloudFile, from list: CloudFileList) async throws -> Data
 }
+
+/// Immutable payload from a verified, durable local staging copy, never a game's live file handle.
+public struct CloudUpload: Sendable {
+    public let file: CloudFile
+    public let data: Data
+    public init(file: CloudFile, data: Data) { self.file = file; self.data = data }
+}
+public struct CloudUploadBatch: Codable, Equatable, Sendable {
+    public let id: UInt64
+    public let revision: UInt64
+    public init(id: UInt64, revision: UInt64) { self.id = id; self.revision = revision }
+}
+public protocol CloudWriting: Sendable {
+    /// Caller owns conflict resolution, account consent and durable staging. The callback must
+    /// persist the batch receipt before any file transfer. A failed batch can be partially applied
+    /// remotely; always reconcile its saved receipt and the actual remote list on retry.
+    func upload(_ files: [CloudUpload], deleting: [String], basedOn: CloudFileList,
+                clientID: UInt64, buildID: UInt64,
+                onBatchStarted: @escaping @Sendable (CloudUploadBatch) async throws -> Void) async throws -> CloudFileList
+}

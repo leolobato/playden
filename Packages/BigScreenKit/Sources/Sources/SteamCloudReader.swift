@@ -117,20 +117,25 @@ enum SteamCloudResponse {
         guard response.fileSize <= maximumFileBytes, response.rawFileSize <= maximumFileBytes else {
             throw cloudFailure("This Cloud save exceeds the supported 64 MB transfer size. Local saves have been kept.")
         }
+        return try transferRequest(host: response.urlHost, path: response.urlPath, https: response.useHTTPS,
+                                   headers: response.requestHeaders.map { ($0.name, $0.value) })
+    }
+
+    static func transferRequest(host: String, path: String, https: Bool, headers: [(name: String, value: String)]) throws -> URLRequest {
         // Steam supplies signed transfer URLs/headers. Never log them or carry them over a redirect.
-        guard response.useHTTPS, !response.urlHost.isEmpty,
-              response.urlHost.rangeOfCharacter(from: CharacterSet(charactersIn: "/\\@?#\r\n")) == nil,
-              response.urlPath.hasPrefix("/"), !response.urlPath.hasPrefix("//"),
-              var url = URLComponents(string: "https://" + response.urlHost + response.urlPath),
+        guard https, !host.isEmpty,
+              host.rangeOfCharacter(from: CharacterSet(charactersIn: "/\\@?#\r\n")) == nil,
+              path.hasPrefix("/"), !path.hasPrefix("//"),
+              var url = URLComponents(string: "https://" + host + path),
               url.user == nil, url.password == nil, url.fragment == nil,
-              let host = url.host, !host.isEmpty, url.port == nil || url.port == 443 else {
+              let parsedHost = url.host, !parsedHost.isEmpty, url.port == nil || url.port == 443 else {
             throw cloudFailure("Steam returned an unsupported Cloud download address.")
         }
         url.scheme = "https"
         guard let destination = url.url else { throw cloudFailure("The Cloud download address is invalid.") }
         var request = URLRequest(url: destination)
         request.httpMethod = "GET"
-        for header in response.requestHeaders {
+        for header in headers {
             guard !header.name.isEmpty,
                   header.name.rangeOfCharacter(from: CharacterSet(charactersIn: "\r\n:")) == nil,
                   header.value.rangeOfCharacter(from: CharacterSet(charactersIn: "\r\n")) == nil else {
@@ -159,6 +164,29 @@ enum SteamCloudHTTP {
         func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
                         newRequest request: URLRequest, completionHandler: @escaping @Sendable (URLRequest?) -> Void) {
             completionHandler(nil)
+        }
+    }
+    static func write(_ request: URLRequest) async throws {
+        let config = URLSessionConfiguration.ephemeral
+        config.urlCache = nil; config.httpCookieStorage = nil; config.urlCredentialStorage = nil
+        config.timeoutIntervalForRequest = 30; config.timeoutIntervalForResource = 120
+        let session = URLSession(configuration: config, delegate: NoRedirect(), delegateQueue: nil)
+        defer { session.invalidateAndCancel() }
+        do {
+            let (stream, response) = try await session.bytes(for: request)
+            guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
+                  response.expectedContentLength <= 65536 else { throw cloudFailure("Steam did not accept a Cloud upload block.") }
+            var count = 0
+            for try await _ in stream {
+                count += 1
+                guard count <= 65536 else { throw cloudFailure("The Cloud upload response exceeded its supported size.") }
+            }
+            try Task.checkCancellation()
+        } catch is CancellationError { throw CancellationError() }
+        catch let error as OperationFailure { throw error }
+        catch {
+            if Task.isCancelled { throw CancellationError() }
+            throw cloudFailure("The Cloud upload was interrupted. Local saves have been kept for retry.")
         }
     }
     static func read(_ request: URLRequest, expectedBytes: Int) async throws -> Data {

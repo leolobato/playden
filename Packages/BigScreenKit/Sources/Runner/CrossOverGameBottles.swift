@@ -6,7 +6,7 @@ import Domain
 public protocol GameBottleManaging: Sendable {
     func prepare(_ bottle: GameBottle) async throws
     func isReady(_ bottle: GameBottle) async throws -> Bool
-    /// Caller must stop the game's session and retain saves before destroying an installed bottle.
+    /// Caller must stop the game's session and resolve pending Cloud uploads before removing an installed bottle.
     func remove(_ bottle: GameBottle) async throws
 }
 
