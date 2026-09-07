@@ -54,6 +54,7 @@ final class LibraryModel {
     var installPersistenceError: String?
     @ObservationIgnored var setupTask: Task<Void, Never>?
     @ObservationIgnored var onDisplaySelected: ((UInt32) -> Void)?
+    @ObservationIgnored var onFullscreenRequested: ((Bool) -> Void)?
     var setupScreen: SetupScreen?
     var setupIndex = 0
     var onboarding = false
@@ -67,6 +68,12 @@ final class LibraryModel {
     var gamesVolume: GamesVolumeSelection?
     var displays: [DisplayChoice] = []
     var selectedDisplayID: UInt32?
+    var selectedDisplayUUID: String?
+    var selectedDisplayName: String?
+    var currentDisplayName: String?
+    var isFullscreen = false
+    var fullscreenTransitioning = false
+    var startInFullscreen = true
     var controllerDisconnected = false
     @ObservationIgnored var authTask: Task<Void, Never>?
     @ObservationIgnored var syncTask: Task<Void, Never>?
@@ -396,7 +403,7 @@ final class LibraryModel {
             if direction == .left { settingsRailFocused = true }
             else if direction == .right { settingsRailFocused = false }
             else if settingsRailFocused { settingsSection = min(max(0, settingsSection + (direction == .up ? -1 : 1)), 4); settingsIndex = 0 }
-            else { settingsIndex = min(max(0, settingsIndex + (direction == .up ? -1 : 1)), settingsSection == 1 ? 3 : settingsSection == 2 ? 1 : 0) }
+            else { settingsIndex = min(max(0, settingsIndex + (direction == .up ? -1 : 1)), settingsSection == 1 || settingsSection == 2 ? 3 : 0) }
         }
     }
     func activateDetail() {
@@ -474,8 +481,10 @@ final class LibraryModel {
         else if settingsSection == 1 && settingsIndex == 0 && !isPreview { refreshLibrary() }
         else if settingsSection == 1 && settingsIndex == 1 { openVolumeSetup() }
         else if settingsSection == 1 && settingsIndex == 3 { openRuntimeSetup() }
-        else if settingsSection == 2 && settingsIndex == 0 { onboarding = false; setupScreen = .display; setupIndex = 0 }
-        else if settingsSection == 2 && settingsIndex == 1 { reducedMotion.toggle() }
+        else if settingsSection == 2 && settingsIndex == 0 { onboarding = false; setupScreen = .display; setupIndex = displays.firstIndex(where: { $0.id == preferredDisplay?.id }) ?? 0 }
+        else if settingsSection == 2 && settingsIndex == 1 { requestFullscreen() }
+        else if settingsSection == 2 && settingsIndex == 2 { toggleStartInFullscreen() }
+        else if settingsSection == 2 && settingsIndex == 3 { reducedMotion.toggle() }
         else if settingsSection == 1 && settingsIndex == 2 { downloadWhilePlaying.toggle() }
         else if settingsSection == 3 { openControllerTest() }
         else { show(.information(isPreview ? "The design preview uses sample games. Launch without --preview to connect your account and set up your Mac." : "This setting is still being implemented.")) }

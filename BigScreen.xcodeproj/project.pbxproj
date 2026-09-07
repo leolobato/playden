@@ -10,6 +10,7 @@
 		02333F1C7B4832A61E57A245 /* ControllerTestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB83D00EB74FC4E628955BCE /* ControllerTestView.swift */; };
 		026CD25A5A7A4881AC6252AE /* LibraryEditing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ABB68A7CE89083ACCBE20BC /* LibraryEditing.swift */; };
 		027C05DE49D217FF36A11277 /* Domain in Frameworks */ = {isa = PBXBuildFile; productRef = DCB264D4EC935990E4A49C62 /* Domain */; };
+		0779CD1FCEE0B67901EBD95A /* DisplayModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B2BFD1CFF9C87356CDEE098 /* DisplayModel.swift */; };
 		0ADE2D8965DF0EB2970C1299 /* Barlow-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 6AF948AAF0BAAEF8084DC07F /* Barlow-SemiBold.ttf */; };
 		0B17236C1AE8462B76F1E113 /* SetupInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC29F464E7AA30FCF14E21D1 /* SetupInteractionTests.swift */; };
 		0B41C234F26FCC59D2D7FA28 /* LibraryPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A99C8A8DFE712FC7DD3CEF /* LibraryPersistence.swift */; };
@@ -35,6 +36,7 @@
 		759FD0040D3A15F11EB242BF /* SessionModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEE20F0279EE5686D8DDF808 /* SessionModel.swift */; };
 		764655582701C0B1C2F9BA54 /* SupportViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0ABE6CC32C22767FC77D4D03 /* SupportViews.swift */; };
 		7C334DEF7D550877108D36C6 /* SetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E9A8D8C39868D9CD1F07282 /* SetupView.swift */; };
+		8898C23653880E5196312E05 /* DisplayInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCEE46DE0C8F1B560E954F47 /* DisplayInteractionTests.swift */; };
 		8E48D457DC1378C5E8F680BF /* SetupModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B189A59421792AA442D72A7D /* SetupModel.swift */; };
 		8F22CB0C305DF070224934BA /* BarlowCondensed-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 675832B109B2E37BE237EB27 /* BarlowCondensed-SemiBold.ttf */; };
 		8F6786AF7BABC6BECC836D3F /* LibraryFilters.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD033BB2ED7ABC84DF20A75D /* LibraryFilters.swift */; };
@@ -82,6 +84,7 @@
 		4622DF2E186C3B6F638C30B1 /* Barlow-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Barlow-Regular.ttf"; sourceTree = "<group>"; };
 		4C9C86672EFCA75AD8158EA9 /* LibraryFilterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryFilterTests.swift; sourceTree = "<group>"; };
 		5036277590D70F7B4EDB65E7 /* BigScreenKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = BigScreenKit; path = Packages/BigScreenKit; sourceTree = SOURCE_ROOT; };
+		5B2BFD1CFF9C87356CDEE098 /* DisplayModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayModel.swift; sourceTree = "<group>"; };
 		675832B109B2E37BE237EB27 /* BarlowCondensed-SemiBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "BarlowCondensed-SemiBold.ttf"; sourceTree = "<group>"; };
 		6AF948AAF0BAAEF8084DC07F /* Barlow-SemiBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Barlow-SemiBold.ttf"; sourceTree = "<group>"; };
 		6C51BD54920288A7687D10E5 /* AmbientBackdrop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AmbientBackdrop.swift; sourceTree = "<group>"; };
@@ -98,6 +101,7 @@
 		B189A59421792AA442D72A7D /* SetupModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupModel.swift; sourceTree = "<group>"; };
 		BAA058B561808E36274C4A53 /* LibraryEditingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryEditingTests.swift; sourceTree = "<group>"; };
 		BBF8335C78563AB54988A674 /* BarlowCondensed-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "BarlowCondensed-Bold.ttf"; sourceTree = "<group>"; };
+		BCEE46DE0C8F1B560E954F47 /* DisplayInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayInteractionTests.swift; sourceTree = "<group>"; };
 		BD033BB2ED7ABC84DF20A75D /* LibraryFilters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryFilters.swift; sourceTree = "<group>"; };
 		C0A99C8A8DFE712FC7DD3CEF /* LibraryPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryPersistence.swift; sourceTree = "<group>"; };
 		C8DF7A3A43F7711BF2900808 /* barlow-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "barlow-OFL.txt"; sourceTree = "<group>"; };
@@ -141,6 +145,7 @@
 			children = (
 				281D1CCE073CC4C5E8961058 /* AccountInteractionTests.swift */,
 				E569123866C09B72649085F1 /* ControllerInteractionTests.swift */,
+				BCEE46DE0C8F1B560E954F47 /* DisplayInteractionTests.swift */,
 				766C5E1AA303977304DFD467 /* InstallInteractionTests.swift */,
 				BAA058B561808E36274C4A53 /* LibraryEditingTests.swift */,
 				4C9C86672EFCA75AD8158EA9 /* LibraryFilterTests.swift */,
@@ -171,6 +176,7 @@
 				DC34C0B6A3AA65EAACEB3DF6 /* BigScreenApp.swift */,
 				CB83D00EB74FC4E628955BCE /* ControllerTestView.swift */,
 				ACE543D0F8A5BF17507E08D4 /* DesignSystem.swift */,
+				5B2BFD1CFF9C87356CDEE098 /* DisplayModel.swift */,
 				F368FC58634A6CD38017484C /* DownloadPresentation.swift */,
 				4038C0219269A842D64FC94D /* EditingViews.swift */,
 				F51F9BB1C1297E755C6FB654 /* FocusViews.swift */,
@@ -377,6 +383,7 @@
 				14216B99792AA03166CC204A /* BigScreenApp.swift in Sources */,
 				02333F1C7B4832A61E57A245 /* ControllerTestView.swift in Sources */,
 				1CDD97632E3844CB38650231 /* DesignSystem.swift in Sources */,
+				0779CD1FCEE0B67901EBD95A /* DisplayModel.swift in Sources */,
 				1EFD31AE2D9D221A91B9222D /* DownloadPresentation.swift in Sources */,
 				B1A657D405AAD7C8B281677C /* EditingViews.swift in Sources */,
 				557F062A5951E40EC82A7F69 /* FocusViews.swift in Sources */,
@@ -405,6 +412,7 @@
 			files = (
 				B2A98FB795CC03E24E7989E6 /* AccountInteractionTests.swift in Sources */,
 				B1283F0A6BA67AEA7A9C5AE0 /* ControllerInteractionTests.swift in Sources */,
+				8898C23653880E5196312E05 /* DisplayInteractionTests.swift in Sources */,
 				A87C77D05E6DD17B5E85C9BD /* InstallInteractionTests.swift in Sources */,
 				F97B357CF2C84140B4D6FD9C /* LibraryEditingTests.swift in Sources */,
 				47D3331506D352A34D2918D0 /* LibraryFilterTests.swift in Sources */,

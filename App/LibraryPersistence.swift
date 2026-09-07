@@ -39,6 +39,8 @@ extension LibraryModel {
             sort = preferences.sort; refinements = preferences.refinements ?? LibraryRefinements()
             reducedMotion = preferences.reducedMotion; downloadWhilePlaying = preferences.downloadWhilePlaying
             gamesVolume = preferences.gamesVolume; selectedDisplayID = preferences.selectedDisplayID
+            selectedDisplayUUID = preferences.selectedDisplayUUID; selectedDisplayName = preferences.selectedDisplayName
+            startInFullscreen = preferences.startInFullscreen ?? true
             applyInstallStatuses()
             reconcileFocus()
         } catch { recordPersistenceError(error) }

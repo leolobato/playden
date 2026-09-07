@@ -53,6 +53,10 @@ public struct LibraryPreferences: Codable, Equatable, Sendable {
     public var reducedMotion = false
     public var downloadWhilePlaying = false
     public var selectedDisplayID: UInt32?
+    public var selectedDisplayUUID: String?
+    public var selectedDisplayName: String?
+    /// Nil preserves the fullscreen default for profiles created before this setting existed.
+    public var startInFullscreen: Bool?
     public var gamesVolume: GamesVolumeSelection?
     public var setupCompleted = false
     public init() {}

@@ -450,6 +450,16 @@ are still open. See `docs/validation/2026-09-07-session-ui.md`. User additionall
 preferred-monitor settings for launcher/game placement and a saved startup-fullscreen option;
 these are the next display work, beyond the existing first-run launcher display selector.
 
+Display follow-up: Settings now exposes the current fullscreen mode and a separately saved
+startup-fullscreen preference. The launcher display picker stores a stable UUID/name, preserves
+an unavailable preference, and follows the preferred display on reconnect when no game is active.
+Both fullscreen monitor-switch directions and saved windowed/fullscreen startup were exercised
+on the real LG and built-in displays. AppKit follow-up transitions must occur after the exit
+delegate callback returns; the live check caught and fixed a stranded fullscreen Space.
+See `docs/validation/2026-09-07-display-settings.md` for checks and remaining limits. Applying
+the monitor preference to CrossOver game launches is still outstanding; launcher placement
+alone does not satisfy that request.
+
 2026-09-07 permission follow-up: confirmed Big Screen is already unsandboxed. Removed emulator
 LAN discovery from offline preparation and updated existing generated configs after checking
 installation ownership and idle sessions. This reduces an unnecessary permission trigger;

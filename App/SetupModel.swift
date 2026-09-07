@@ -5,7 +5,12 @@ import Runner
 import AppKit
 
 enum SetupScreen { case controller, display, account, volume, runtime }
-struct DisplayChoice: Identifiable, Equatable { var id: UInt32; var name: String; var resolution: String }
+struct DisplayChoice: Identifiable, Equatable {
+    var id: UInt32
+    var name: String
+    var resolution: String
+    var uuid: String? = nil
+}
 
 extension LibraryModel {
     func openBluetoothSettings() {
@@ -97,8 +102,11 @@ extension LibraryModel {
                 return
             }
             do {
-                try updateSetupPreferences { $0.selectedDisplayID = display.id }
-                selectedDisplayID = display.id; onDisplaySelected?(display.id)
+                try updateSetupPreferences {
+                    $0.selectedDisplayID = display.id; $0.selectedDisplayUUID = display.uuid; $0.selectedDisplayName = display.name
+                }
+                selectedDisplayID = display.id; selectedDisplayUUID = display.uuid; selectedDisplayName = display.name
+                onDisplaySelected?(display.id)
                 if onboarding { advanceToAccount() } else { finishSetup() }
             } catch { setupFailure = setupProblem(error, stage: "Choose display") }
         case .volume:
@@ -143,7 +151,7 @@ extension LibraryModel {
             onboarding = false; setupScreen = nil; setupFailure = nil; setupIndex = 0
         } catch { setupFailure = setupProblem(error, stage: "Save setup") }
     }
-    private func updateSetupPreferences(_ update: (inout LibraryPreferences) -> Void) throws {
+    func updateSetupPreferences(_ update: (inout LibraryPreferences) -> Void) throws {
         guard let catalog else { if isPreview { return }; throw setupIssue("Save setup", "The library database is unavailable.") }
         var preferences = try catalog.preferences(); update(&preferences); try catalog.savePreferences(preferences)
     }

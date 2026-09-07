@@ -138,7 +138,7 @@ struct BottomBar: View {
     private var keyboard: Bool { model.controllerName == nil || model.keyboardNavigation }
     var body: some View {
         HStack(spacing: 30) {
-            LegendItem(glyph: keyboard ? "↵" : model.playStationGlyphs ? "✕" : "A", title: model.detailID != nil ? "Select" : model.tab == .downloads && !model.isPreview && model.focusedGame != nil ? "Manage" : model.tab == .downloads && model.focusedGame?.status == .downloading ? (model.downloadPaused ? "Resume" : "Pause") : "Open")
+            LegendItem(glyph: keyboard ? "↵" : model.playStationGlyphs ? "✕" : "A", title: model.detailID != nil || model.tab == .settings ? "Select" : model.tab == .downloads && !model.isPreview && model.focusedGame != nil ? "Manage" : model.tab == .downloads && model.focusedGame?.status == .downloading ? (model.downloadPaused ? "Resume" : "Pause") : "Open")
             if model.detailID != nil || model.tab == .library { LegendItem(glyph: keyboard ? "ESC" : model.playStationGlyphs ? "○" : "B", title: "Back") }
             if model.tab != .settings { LegendItem(glyph: keyboard ? "T" : model.playStationGlyphs ? "△" : "Y", title: "More") }
             if model.detailID == nil && model.tab == .home { LegendItem(glyph: keyboard ? "F" : model.playStationGlyphs ? "□" : "X", title: "Favorite") }

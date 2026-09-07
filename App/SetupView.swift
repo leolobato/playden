@@ -125,7 +125,7 @@ struct SetupView: View {
                                         if let display { Text(display.resolution).font(Design.body(23)).foregroundStyle(Design.secondary) }
                                     }
                                     Spacer()
-                                    if let display, display.id == model.selectedDisplayID { Image(systemName: "checkmark.circle.fill").foregroundStyle(Design.accent).font(.system(size: 32)) }
+                                    if let display, display.id == model.preferredDisplay?.id { Image(systemName: "checkmark.circle.fill").foregroundStyle(Design.accent).font(.system(size: 32)) }
                                 } }
                                 }.padding(28).frame(maxWidth: .infinity, minHeight: volume != nil ? 144 : display != nil ? 120 : 84)
                                     .background(action == "Continue" ? Design.accent.opacity(0.18) : Design.text.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))

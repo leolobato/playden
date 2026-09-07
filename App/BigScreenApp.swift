@@ -1,5 +1,6 @@
 import AppKit
 import CoreGraphics
+import ColorSync
 import SwiftUI
 import Input
 import Focus
@@ -48,6 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let exitShortcut = GameExitShortcut()
     private var cursorHidden = false
     private var pendingDisplayID: UInt32?
+    private var resumeFullscreenAfterMove = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Design.registerFonts()
@@ -80,8 +82,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             installMenus()
             window.center(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
             refreshDisplays()
-            if let display = model.selectedDisplayID { moveWindow(to: display) }
             model.onDisplaySelected = { [weak self] id in self?.moveWindow(to: id) }
+            model.onFullscreenRequested = { [weak self] enabled in self?.setFullscreen(enabled) }
             model.onGameStarted = { [weak self] in
                 guard let self else { return }
                 self.exitShortcut.action = { [weak self] in self?.model.keyboardNavigation = true; self?.model.perform(.holdHome) }
@@ -93,10 +95,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             model.onGameEnded = { [weak self] in
                 guard let self else { return }
                 self.exitShortcut.stop(); self.exitPanel?.orderOut(nil)
+                self.restorePreferredDisplay()
                 self.window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
             }
             model.onExitOverlayChanged = { [weak self] visible in self?.presentExitOverlay(visible) }
-            if args.contains("--fullscreen") || (!model.isPreview && !args.contains("--windowed")) { window.toggleFullScreen(nil) }
+            if model.shouldStartFullscreen(arguments: args) { setFullscreen(true) }
             model.startServices()
             model.startSetupServices()
             controller.onAction = { [weak self] action in
@@ -161,20 +164,71 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func refreshDisplays() {
         model.displays = NSScreen.screens.compactMap { screen in
             guard let id = (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value else { return nil }
-            return DisplayChoice(id: id, name: screen.localizedName, resolution: "\(CGDisplayPixelsWide(id)) × \(CGDisplayPixelsHigh(id))")
+            let uuid = CGDisplayCreateUUIDFromDisplayID(id).map { CFUUIDCreateString(nil, $0.takeRetainedValue()) as String }
+            return DisplayChoice(id: id, name: screen.localizedName, resolution: "\(CGDisplayPixelsWide(id)) × \(CGDisplayPixelsHigh(id))", uuid: uuid)
         }
         if model.setupScreen == .display { model.setupIndex = min(model.setupIndex, model.displays.count) }
+        model.currentDisplayName = window?.screen?.localizedName
+        restorePreferredDisplay()
+    }
+    private func restorePreferredDisplay() {
+        guard window != nil, !model.hasActiveSession else { return }
+        if let display = model.preferredDisplay { moveWindow(to: display.id) }
+        else if !NSScreen.screens.contains(where: { $0.frame.intersects(window.frame) }), let screen = NSScreen.screens.first,
+                let id = (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value {
+            // Keep the saved preference when unplugged; use an available screen for this session.
+            moveWindow(to: id)
+        }
     }
     private func moveWindow(to id: UInt32) {
         guard let screen = NSScreen.screens.first(where: { ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value == id }) else { return }
+        guard window.screen != screen else { return }
+        if model.fullscreenTransitioning { pendingDisplayID = id; return }
         if window.styleMask.contains(.fullScreen) {
-            pendingDisplayID = id; window.toggleFullScreen(nil); return
+            pendingDisplayID = id; resumeFullscreenAfterMove = true; setFullscreen(false); return
+        }
+        if window.frame.width > screen.visibleFrame.width || window.frame.height > screen.visibleFrame.height {
+            let scale = min(screen.visibleFrame.width / window.frame.width, screen.visibleFrame.height / window.frame.height)
+            window.setFrame(NSRect(origin: window.frame.origin, size: NSSize(width: window.frame.width * scale, height: window.frame.height * scale)), display: true)
         }
         window.setFrameOrigin(NSPoint(x: screen.visibleFrame.midX - window.frame.width / 2, y: screen.visibleFrame.midY - window.frame.height / 2))
+        model.currentDisplayName = screen.localizedName
+    }
+    private func setFullscreen(_ enabled: Bool) {
+        guard !model.fullscreenTransitioning, window.styleMask.contains(.fullScreen) != enabled else { return }
+        model.fullscreenTransitioning = true
+        window.toggleFullScreen(nil)
+    }
+    func windowDidChangeScreen(_ notification: Notification) { model.currentDisplayName = window?.screen?.localizedName }
+    func windowWillEnterFullScreen(_ notification: Notification) { model.fullscreenTransitioning = true }
+    func windowWillExitFullScreen(_ notification: Notification) { model.fullscreenTransitioning = true }
+    func windowDidEnterFullScreen(_ notification: Notification) {
+        model.isFullscreen = true; model.fullscreenTransitioning = false
+        if pendingDisplayID != nil {
+            DispatchQueue.main.async { [weak self] in
+                guard let self, let id = self.pendingDisplayID else { return }
+                self.pendingDisplayID = nil; self.moveWindow(to: id)
+            }
+        }
     }
     func windowDidExitFullScreen(_ notification: Notification) {
-        guard let id = pendingDisplayID else { return }
-        pendingDisplayID = nil; moveWindow(to: id); window.toggleFullScreen(nil)
+        model.isFullscreen = false; model.fullscreenTransitioning = false
+        // AppKit still owns the previous transition while delivering this delegate call.
+        // Moving/re-entering synchronously can strand the window in its old fullscreen Space.
+        if pendingDisplayID != nil || resumeFullscreenAfterMove {
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                if let id = self.pendingDisplayID { self.pendingDisplayID = nil; self.moveWindow(to: id) }
+                if self.resumeFullscreenAfterMove { self.resumeFullscreenAfterMove = false; self.setFullscreen(true) }
+            }
+        }
+    }
+    func windowDidFailToEnterFullScreen(_ window: NSWindow) { fullscreenFailed() }
+    func windowDidFailToExitFullScreen(_ window: NSWindow) { fullscreenFailed() }
+    private func fullscreenFailed() {
+        model.isFullscreen = window.styleMask.contains(.fullScreen); model.fullscreenTransitioning = false
+        pendingDisplayID = nil; resumeFullscreenAfterMove = false
+        model.show(.information("macOS could not switch the window mode. Try again from Settings → Display."))
     }
     private func restoreCursor() { if cursorHidden { NSCursor.unhide(); cursorHidden = false } }
     private func handle(_ event: NSEvent) -> NSEvent? {
@@ -289,7 +343,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let requestedScreens: Set<String>? = arguments.firstIndex(of: "--snapshot-screens").flatMap { index in
                 arguments.indices.contains(index + 1) ? Set(arguments[index + 1].split(separator: ",").map(String.init)) : nil
             }
-            for screen in ["home", "library", "library-paged", "library-return", "game", "downloads", "downloads-queued", "settings", "collections", "keyboard", "compatibility", "uninstall", "logs", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom", "library-download-glyph", "library-download-focused", "game-unknown-size", "game-favorite", "install-offer", "install-offer-space", "install-queue", "install-game-progress", "launching", "exit-overlay", "exit-overlay-quit"] {
+            for screen in ["home", "library", "library-paged", "library-return", "game", "downloads", "downloads-queued", "settings", "settings-display", "collections", "keyboard", "compatibility", "uninstall", "logs", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom", "library-download-glyph", "library-download-focused", "game-unknown-size", "game-favorite", "install-offer", "install-offer-space", "install-queue", "install-game-progress", "launching", "exit-overlay", "exit-overlay-quit"] {
                 if let requestedScreens, !requestedScreens.contains(screen) { continue }
                 model.panel = nil; model.detailID = nil; model.authScreen = nil; model.setupScreen = nil
                 model.session = .init(); model.exitOverlay = false; model.controllerName = nil
@@ -352,6 +406,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                             leftStick: .init(x: 0.62, y: 0.4), rightStick: .init(x: -0.2, y: -0.7))], at: ProcessInfo.processInfo.systemUptime)
                     }
                 case "settings": model.selectTab(.settings)
+                case "settings-display":
+                    model.selectTab(.settings); model.settingsSection = 2; model.settingsRailFocused = false; model.settingsIndex = 1
+                    model.displays = [DisplayChoice(id: 1, name: "Living room TV", resolution: "3840 × 2160", uuid: "fixture-tv")]
+                    model.selectedDisplayID = 1; model.selectedDisplayUUID = "fixture-tv"; model.isFullscreen = true
                 case "signin-qr", "signin-password", "signin-error":
                     model.authScreen = screen == "signin-password" ? .credentials : .qr
                     model.authIndex = 0
