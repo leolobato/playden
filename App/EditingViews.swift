@@ -58,11 +58,21 @@ struct ConfirmDialog: View {
 struct LogViewer: View {
     @Bindable var model: LibraryModel
     let gameID: GameID
+    private var session: PlaySessionRecord? {
+        if model.session.session?.gameID == gameID { return model.session.session }
+        return try? model.catalog?.latestSession(for: gameID)
+    }
     var body: some View {
         VStack(alignment: .leading, spacing: 28) {
-            HStack { Text(model.gameName(gameID)).font(Design.condensed(40)); Text("· Logs").font(Design.condensed(40)).foregroundStyle(Design.secondary); Spacer(); Text("No sessions yet").font(Design.body(22)).foregroundStyle(Design.muted) }
+            HStack { Text(model.gameName(gameID)).font(Design.condensed(40)); Text("· Logs").font(Design.condensed(40)).foregroundStyle(Design.secondary); Spacer(); Text(session == nil ? "No sessions yet" : "Latest session").font(Design.body(22)).foregroundStyle(Design.muted) }
             VStack(alignment: .leading, spacing: 20) {
-                if !model.isPreview, let job = model.liveJob(for: gameID) {
+                if let session, session.startedAt >= (model.liveJob(for: gameID)?.updatedAt ?? .distantPast) {
+                    Text((session.outcome?.rawValue ?? "Running") + " · " + session.startedAt.formatted()).foregroundStyle(Design.secondary)
+                    if let failure = session.failure ?? session.runtime?.failure {
+                        Text(failure.stage + " · " + failure.reason).foregroundStyle(Design.text)
+                    }
+                    ScrollView { Text(session.failure?.output ?? session.runtime?.output ?? "No runtime output captured.").textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }
+                } else if !model.isPreview, let job = model.liveJob(for: gameID) {
                     Text(job.statusTitle).foregroundStyle(Design.text)
                     if let failure = job.failure {
                         Text(failure.stage + " · " + failure.timestamp.formatted()).foregroundStyle(Design.secondary)

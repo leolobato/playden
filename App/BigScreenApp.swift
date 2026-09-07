@@ -44,6 +44,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     let controller = ControllerInput()
     var window: NSWindow!
     var keyboardMonitor: Any?
+    private var exitPanel: GameExitPanel?
+    private let exitShortcut = GameExitShortcut()
     private var cursorHidden = false
     private var pendingDisplayID: UInt32?
 
@@ -80,11 +82,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             refreshDisplays()
             if let display = model.selectedDisplayID { moveWindow(to: display) }
             model.onDisplaySelected = { [weak self] id in self?.moveWindow(to: id) }
+            model.onGameStarted = { [weak self] in
+                guard let self else { return }
+                self.exitShortcut.action = { [weak self] in self?.model.keyboardNavigation = true; self?.model.perform(.holdHome) }
+                if !self.exitShortcut.start() {
+                    self.model.sessionIssue = .init(stage: "Game controls", reason: "Shift–Home is already in use. Return to Big Screen to open the game controls.", output: "Could not register the game exit shortcut.")
+                }
+            }
+            model.onGameWindow = { [weak self] gameWindow in self?.activateGame(gameWindow) }
+            model.onGameEnded = { [weak self] in
+                guard let self else { return }
+                self.exitShortcut.stop(); self.exitPanel?.orderOut(nil)
+                self.window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
+            }
+            model.onExitOverlayChanged = { [weak self] visible in self?.presentExitOverlay(visible) }
             if args.contains("--fullscreen") || (!model.isPreview && !args.contains("--windowed")) { window.toggleFullScreen(nil) }
             model.startServices()
             model.startSetupServices()
             controller.onAction = { [weak self] action in
-                guard NSApp.isActive else { return }
+                if case .holdHome = action, self?.model.hasActiveSession == true { self?.model.performController(action); return }
+                guard NSApp.isActive || self?.model.exitOverlay == true else { return }
                 self?.model.performController(action)
             }
             controller.onSnapshot = { [weak self] values, time in
@@ -110,19 +127,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
     private var terminating = false
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard let queue = model.installQueue else { return .terminateNow }
+        guard model.installQueue != nil || model.sessions != nil else { return .terminateNow }
         guard !terminating else { return .terminateLater }
         terminating = true
-        model.stopServices()
         Task {
-            await queue.shutdown()
-            sender.reply(toApplicationShouldTerminate: true)
+            await model.sessionStartup?.value
+            await model.sessionCommand?.value
+            do {
+                if let sessions = model.sessions { try await sessions.shutdown() }
+                else { await model.installQueue?.shutdown() }
+                model.stopServices(); sender.reply(toApplicationShouldTerminate: true)
+            } catch {
+                terminating = false
+                model.sessionIssue = model.sessionFailure(error, stage: "Quit game")
+                sender.reply(toApplicationShouldTerminate: false)
+                if model.hasActiveSession { model.setExitOverlay(true) }
+            }
         }
         return .terminateLater
     }
     func applicationWillTerminate(_ notification: Notification) {
         model.stopServices()
         controller.stop()
+        exitShortcut.stop()
         if let keyboardMonitor { NSEvent.removeMonitor(keyboardMonitor) }
         restoreCursor()
     }
@@ -152,6 +179,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func restoreCursor() { if cursorHidden { NSCursor.unhide(); cursorHidden = false } }
     private func handle(_ event: NSEvent) -> NSEvent? {
         model.keyboardNavigation = true
+        if event.keyCode == 115, event.modifierFlags.contains(.shift), model.hasActiveSession { model.perform(.holdHome); return nil }
+        if (model.exitOverlay || model.isLaunchingGame) && event.modifierFlags.contains(.command) { return event }
         if event.modifierFlags.contains(.command) {
             if [36, 76].contains(event.keyCode), model.isEditingText { model.finishText(); return nil }
             if let digit = Int(event.charactersIgnoringModifiers ?? ""), (1...4).contains(digit) {
@@ -192,6 +221,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if let action { model.perform(action); return nil }
         return event
     }
+    private func activateGame(_ gameWindow: GameWindow) {
+        exitPanel?.orderOut(nil)
+        if let app = NSRunningApplication(processIdentifier: gameWindow.process.pid) {
+            // Hand over activation before lowering our window. macOS can otherwise activate
+            // an unrelated app as our fullscreen Space disappears and reject the game's request.
+            NSApp.yieldActivation(to: app)
+            if app.activate(options: [.activateAllWindows]) {
+                window.level = .normal; window.orderBack(nil)
+            } else {
+                model.sessionIssue = .init(stage: "Return to game", reason: "The game is open, but could not take keyboard focus. Use the Dock to return to it.", output: "Game activation was declined by macOS.")
+            }
+        } else {
+            model.sessionIssue = .init(stage: "Return to game", reason: "The game window could not be activated. Use the Dock to return to it.", output: "No application for the observed game window.")
+        }
+    }
+    private func presentExitOverlay(_ visible: Bool) {
+        guard visible else { exitPanel?.orderOut(nil); return }
+        var screen = window.screen ?? NSScreen.main
+        var gameLevel = NSWindow.Level.normal.rawValue
+        if let gameWindow = model.session.session?.runtime?.window,
+           let info = (CGWindowListCopyWindowInfo([.optionIncludingWindow], gameWindow.id) as? [[String: Any]])?.first,
+           let dictionary = info[kCGWindowBounds as String] as? [String: Any],
+           let bounds = CGRect(dictionaryRepresentation: dictionary as CFDictionary) {
+            gameLevel = info[kCGWindowLayer as String] as? Int ?? gameLevel
+            let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
+            let center = NSPoint(x: bounds.midX, y: primaryHeight - bounds.midY)
+            screen = NSScreen.screens.first { $0.frame.contains(center) } ?? screen
+        }
+        guard let screen else { return }
+        if exitPanel == nil {
+            let panel = GameExitPanel(contentRect: screen.frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+            panel.isOpaque = false; panel.backgroundColor = .clear; panel.hasShadow = false
+            panel.hidesOnDeactivate = false; panel.isReleasedWhenClosed = false
+            panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]; panel.level = .floating
+            panel.contentView = NSHostingView(rootView: ScaledGameExitOverlay(model: model))
+            exitPanel = panel
+        }
+        exitPanel?.setFrame(screen.frame, display: true)
+        // Wine's exclusive fullscreen window can sit above the normal floating-panel level.
+        exitPanel?.level = .init(rawValue: max(NSWindow.Level.floating.rawValue, gameLevel + 1))
+        exitPanel?.orderFrontRegardless(); exitPanel?.makeKey()
+    }
     private func installMenus() {
         let main = NSMenu()
         let appItem = NSMenuItem(); main.addItem(appItem)
@@ -218,11 +289,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let requestedScreens: Set<String>? = arguments.firstIndex(of: "--snapshot-screens").flatMap { index in
                 arguments.indices.contains(index + 1) ? Set(arguments[index + 1].split(separator: ",").map(String.init)) : nil
             }
-            for screen in ["home", "library", "library-paged", "library-return", "game", "downloads", "downloads-queued", "settings", "collections", "keyboard", "compatibility", "uninstall", "logs", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom", "library-download-glyph", "library-download-focused", "game-unknown-size", "game-favorite", "install-offer", "install-offer-space", "install-queue", "install-game-progress"] {
+            for screen in ["home", "library", "library-paged", "library-return", "game", "downloads", "downloads-queued", "settings", "collections", "keyboard", "compatibility", "uninstall", "logs", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom", "library-download-glyph", "library-download-focused", "game-unknown-size", "game-favorite", "install-offer", "install-offer-space", "install-queue", "install-game-progress", "launching", "exit-overlay", "exit-overlay-quit"] {
                 if let requestedScreens, !requestedScreens.contains(screen) { continue }
                 model.panel = nil; model.detailID = nil; model.authScreen = nil; model.setupScreen = nil
+                model.session = .init(); model.exitOverlay = false; model.controllerName = nil
                 model.setupBusy = false; model.setupFailure = nil; model.setupIndex = 0; model.onboarding = false
                 switch screen {
+                case "launching", "exit-overlay", "exit-overlay-quit": model.configureSessionSnapshot(screen)
                 case "library-download-glyph", "library-download-focused":
                     model.selectTab(.library); model.filter = .all
                     if let index = model.games.firstIndex(where: { $0.title == "Disco Elysium" }) { model.games[index].status = .notInstalled }
@@ -322,4 +395,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSApp.terminate(nil)
     }
     enum CaptureError: Error { case bitmap, screenPermission }
+}
+
+@MainActor
+private final class GameExitPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { false }
 }

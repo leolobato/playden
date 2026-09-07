@@ -211,6 +211,12 @@ public final class CatalogStore: Sendable {
             return sessions.filter { $0.endedAt == nil }
         }
     }
+    public func latestSession(for gameID: GameID) throws -> PlaySessionRecord? {
+        try database.read { db in
+            let sessions: [PlaySessionRecord] = try Self.values(db, table: "sessions", whereSQL: "source = ? AND game = ?", arguments: [gameID.source, gameID.value])
+            return sessions.max { $0.startedAt < $1.startedAt }
+        }
+    }
 
     private static func copyMetadata(from source: SourceGameRecord, to target: inout SourceGameRecord) {
         target.summary = source.summary; target.genres = source.genres; target.controllerSupport = source.controllerSupport

@@ -131,7 +131,7 @@ public actor CrossOverRunner: GameRunner {
                 if server == nil { server = processes.first(where: { $0.kind == .server })?.identity }
                 let serverGone = server.map { expected in !processes.contains { $0.identity == expected } } ?? false
                 snapshot.processes = processes; snapshot.output = DiagnosticRedactor.redact(poll.output)
-                snapshot.window = observation.windows.first(where: { $0 == snapshot.window }) ?? observation.windows.first
+                snapshot.window = observation.windows.first
                 if snapshot.window != nil { snapshot.hadWindow = true; if snapshot.phase != .stopping { snapshot.phase = .running } }
                 let empty = games.isEmpty && (sawGame || poll.exited)
                 if empty { if emptySince == nil { emptySince = .now } } else { emptySince = nil }

@@ -48,14 +48,27 @@ public struct RuntimeProcessInspector: RuntimeInspecting {
             guard self.identity(of: pid) == identity else { continue }
             processes.append(.init(identity: identity, kind: Self.kind(arguments.argv.first ?? executable), executable: arguments.argv.first ?? executable))
         }
+        // A game created while the launcher occupies a fullscreen Space can initially be in
+        // another Space. It still needs to trigger handoff, otherwise both windows wait forever.
+        let values = CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
+        return .init(processes: processes, windows: Self.windows(values, processes: processes), unreadablePIDs: unreadable)
+    }
+    static func windows(_ values: [[String: Any]], processes: [RuntimeProcess]) -> [GameWindow] {
         let games = Dictionary(uniqueKeysWithValues: processes.filter { $0.kind == .game }.map { ($0.identity.pid, $0.identity) })
-        let windows = (CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []).compactMap { value -> GameWindow? in
+        func area(_ value: [String: Any]) -> Double {
+            let bounds = value[kCGWindowBounds as String] as? [String: Double] ?? [:]
+            return bounds["Width", default: 0] * bounds["Height", default: 0]
+        }
+        return values.sorted {
+            let left = $0[kCGWindowIsOnscreen as String] as? Bool == true
+            let right = $1[kCGWindowIsOnscreen as String] as? Bool == true
+            return left == right ? area($0) > area($1) : left
+        }.compactMap { value -> GameWindow? in
             guard let pid = value[kCGWindowOwnerPID as String] as? Int32, let identity = games[pid],
-                  let id = value[kCGWindowNumber as String] as? UInt32, (value[kCGWindowLayer as String] as? Int) == 0,
-                  let bounds = value[kCGWindowBounds as String] as? [String: Double], bounds["Width", default: 0] > 32, bounds["Height", default: 0] > 32 else { return nil }
+                  let id = value[kCGWindowNumber as String] as? UInt32, (value[kCGWindowLayer as String] as? Int ?? -1) >= 0,
+                  let bounds = value[kCGWindowBounds as String] as? [String: Double], bounds["Width", default: 0] >= 64, bounds["Height", default: 0] >= 64 else { return nil }
             return .init(id: id, process: identity)
         }
-        return .init(processes: processes, windows: windows, unreadablePIDs: unreadable)
     }
     static func kind(_ argv0: String) -> RuntimeProcessKind {
         let path = argv0.replacingOccurrences(of: "\\", with: "/").lowercased()

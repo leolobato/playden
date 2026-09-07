@@ -65,10 +65,25 @@ struct CanvasView: View {
                     .font(Design.body(24)).foregroundStyle(Design.amber).padding(24)
                     .background(Design.panel, in: RoundedRectangle(cornerRadius: 12)).offset(x: 96, y: 880).zIndex(6)
             }
+            if let issue = model.sessionIssue, !model.hasActiveSession, model.panel == nil {
+                HStack(spacing: 24) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(issue.stage).font(Design.condensed(28))
+                        Text(issue.reason).font(Design.body(22)).foregroundStyle(Design.secondary).lineLimit(2)
+                    }
+                    if let id = model.session.session?.gameID {
+                        ActionButton(title: "View logs", reducedMotion: model.reducedMotion) { model.show(.logs(id)) }
+                    }
+                    Button { model.sessionIssue = nil } label: { Image(systemName: "xmark").font(.system(size: 22)) }.buttonStyle(.plain).accessibilityLabel("Dismiss")
+                }.padding(24).frame(width: 1100).background(Design.panel, in: RoundedRectangle(cornerRadius: 12)).offset(x: 96, y: 814).zIndex(6)
+            }
+            if model.isLaunchingGame { LaunchingGameView(model: model).transition(.opacity).zIndex(7) }
+            if model.exitOverlay && model.fixedClock { GameExitOverlay(model: model).zIndex(8) }
         }.frame(width: 1920, height: 1080).clipped().foregroundStyle(Design.text)
             .environment(\.colorScheme, .dark)
             .animation(model.reducedMotion ? nil : .easeInOut(duration: 0.28), value: model.detailID)
             .animation(model.reducedMotion ? nil : .easeOut(duration: 0.2), value: model.panel != nil)
+            .animation(model.reducedMotion ? nil : .easeInOut(duration: 0.28), value: model.isLaunchingGame)
             .task(id: model.focusedGame?.id) {
                 guard let game = model.focusedGame, model.tab != .settings else { return }
                 // Warm detail art after focus settles, so opening a tile can immediately animate it.

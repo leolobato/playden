@@ -7,7 +7,7 @@ extension LibraryModel {
         guard let installQueue else { return }
         installObserver = Task { [weak self] in
             do {
-                try await installQueue.start()
+                if self?.sessions == nil { try await installQueue.start() }
                 for await snapshot in await installQueue.updates() {
                     guard let self, !Task.isCancelled else { return }
                     let focusedDownload = self.downloadGames[safe: self.downloadIndex]?.id

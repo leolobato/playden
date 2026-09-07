@@ -105,7 +105,7 @@ extension LibraryModel {
         reconcileFocus()
     }
     func confirmationAction(_ intent: Confirmation) -> String {
-        switch intent { case .deleteCollection: "Delete collection"; case .uninstall: "Uninstall"; case .install: "Add to downloads"; case .cancelDownload: "Cancel download" }
+        switch intent { case .deleteCollection: "Delete collection"; case .uninstall: "Uninstall"; case .install: "Add to downloads"; case .cancelDownload: "Cancel download"; case .switchGame: "Quit and play" }
     }
     func confirmationTitle(_ intent: Confirmation) -> String {
         switch intent {
@@ -113,6 +113,7 @@ extension LibraryModel {
         case .uninstall(let id): "Uninstall \(gameName(id))?"
         case .install(let id): "Install \(gameName(id))?"
         case .cancelDownload(let id): "Cancel \(gameName(id)) download?"
+        case .switchGame(let id): "Play \(gameName(id))?"
         }
     }
     func confirmationMessage(_ intent: Confirmation) -> String {
@@ -121,10 +122,12 @@ extension LibraryModel {
         case .uninstall: "Remove this preview installation. Game files and saves on your Mac are untouched while the runtime is disconnected."
         case .install(let id): "\(games.first { $0.id == id }?.size ?? "Unknown size") required. This adds a preview queue entry; downloading will be available when Steam is connected."
         case .cancelDownload: isPreview ? "Remove this entry from the preview queue. No game files on your Mac are changed." : "Stop this installation and remove its downloaded files. You can install the game again from your library."
+        case .switchGame: "\(session.game?.title ?? "Another game") is still running. Quit it before starting this game. Unsaved progress may be lost."
         }
     }
     func confirm(_ intent: Confirmation) {
         switch intent {
+        case .switchGame(let id): switchToGame(id); return
         case .deleteCollection(let id):
             collections.removeAll { $0.id == id }
             if filter == .collection(id) { filter = .all }

@@ -147,3 +147,17 @@ final class CrossOverRunnerTests: XCTestCase {
         XCTAssertFalse(result.output.contains("fixture-secret"))
     }
 }
+
+extension CrossOverRunnerTests {
+    func testWindowAttributionIncludesExclusiveFullscreenButExcludesUnownedWindows() {
+        let identity = ProcessIdentity(pid: 100, startSeconds: 1, startMicroseconds: 0)
+        let service = ProcessIdentity(pid: 101, startSeconds: 1, startMicroseconds: 0)
+        let processes = [RuntimeProcess(identity: identity, kind: .game, executable: "game.exe"), RuntimeProcess(identity: service, kind: .service, executable: "explorer.exe")]
+        func window(_ id: UInt32, pid: Int32 = 100, layer: Int = 0, height: Double = 1080) -> [String: Any] {
+            ["kCGWindowOwnerPID": pid, "kCGWindowNumber": id, "kCGWindowLayer": layer, "kCGWindowBounds": ["Width": 1920.0, "Height": height]]
+        }
+        var fullscreen = window(2, layer: 26); fullscreen["kCGWindowIsOnscreen"] = true
+        let windows = RuntimeProcessInspector.windows([window(1), fullscreen, window(3, pid: 101), window(4, pid: 999), window(5, height: 33)], processes: processes)
+        XCTAssertEqual(windows, [.init(id: 2, process: identity), .init(id: 1, process: identity)])
+    }
+}

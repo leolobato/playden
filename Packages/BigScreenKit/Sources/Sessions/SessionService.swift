@@ -208,6 +208,7 @@ public actor SessionService: SessionManaging {
         if session.endedAt == nil {
             session.playedSeconds = elapsed(); session.lastCheckpointAt = max(clock.wallTime, session.lastCheckpointAt)
             session.endedAt = session.lastCheckpointAt; session.outcome = outcome
+            session.failure = failure
         }
         do { try catalog.saveSession(session) }
         catch {

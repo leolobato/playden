@@ -6,13 +6,14 @@ import Input
 import Catalog
 import Runner
 import Installs
+import Sessions
 
 enum AppTab: String, CaseIterable { case home = "Home", library = "Library", downloads = "Downloads", settings = "Settings"
     var symbol: String { switch self { case .home: "house"; case .library: "square.grid.2x2"; case .downloads: "arrow.down.to.line"; case .settings: "gearshape" } }
 }
 typealias LibraryFilter = LibraryScope
 enum TextPurpose: Equatable { case newCollection(GameID?), renameCollection(UUID), compatibilityNote(GameID), accountName, password, guardCode }
-enum Confirmation: Equatable { case deleteCollection(UUID), uninstall(GameID), install(GameID), cancelDownload(GameID) }
+enum Confirmation: Equatable { case deleteCollection(UUID), uninstall(GameID), install(GameID), cancelDownload(GameID), switchGame(GameID) }
 enum Panel: Equatable {
     case context, filters, search, compatibility, information(String), persistenceFailure, signOut, controllerTest
     case downloadActions(GameID)
@@ -28,6 +29,21 @@ final class LibraryModel {
     @ObservationIgnored let runtime: (any BottleManaging)?
     @ObservationIgnored let volumeStore: (any VolumeManaging)?
     @ObservationIgnored let installQueue: (any InstallQueuing)?
+    @ObservationIgnored let sessions: (any SessionManaging)?
+    @ObservationIgnored var sessionObserver: Task<Void, Never>?
+    @ObservationIgnored var sessionStartup: Task<Void, Never>?
+    @ObservationIgnored var sessionCommand: Task<Void, Never>?
+    @ObservationIgnored var onGameWindow: ((GameWindow) -> Void)?
+    @ObservationIgnored var onGameStarted: (() -> Void)?
+    @ObservationIgnored var onGameEnded: (() -> Void)?
+    @ObservationIgnored var onExitOverlayChanged: ((Bool) -> Void)?
+    var session = SessionSnapshot()
+    var sessionReady = false
+    var sessionIssue: OperationFailure?
+    var sessionOrigin: AppTab = .library
+    var exitOverlay = false
+    var exitIndex = 0
+    var sessionBusy = false
     @ObservationIgnored var installObserver: Task<Void, Never>?
     @ObservationIgnored var installOfferTask: Task<Void, Never>?
     var installOffer: InstallOffer?
@@ -79,7 +95,7 @@ final class LibraryModel {
     var keyboardError: String?
     var symbols = false
     var keepSaves = true
-    var downloadWhilePlaying = false { didSet { persistPreferences() } }
+    var downloadWhilePlaying = false { didSet { persistPreferences(); updateSessionDownloadPolicy() } }
     var tab: AppTab = .home
     var detailID: GameID?
     var panel: Panel? {
@@ -122,7 +138,7 @@ final class LibraryModel {
     var keyRow = 1
     var keyColumn = 0
     var uppercase = false
-    init(catalog: CatalogStore? = nil, preview: Bool = true, source: (any GameSource)? = nil, runtime: (any BottleManaging)? = nil, volumeStore: (any VolumeManaging)? = nil, installQueue: (any InstallQueuing)? = nil) {
+    init(catalog: CatalogStore? = nil, preview: Bool = true, source: (any GameSource)? = nil, runtime: (any BottleManaging)? = nil, volumeStore: (any VolumeManaging)? = nil, installQueue: (any InstallQueuing)? = nil, sessions: (any SessionManaging)? = nil) {
         self.catalog = catalog; self.isPreview = preview; self.source = source
         self.runtime = runtime; self.volumeStore = volumeStore
         self.syncCoordinator = catalog.map { LibrarySyncCoordinator(catalog: $0) }
@@ -131,6 +147,11 @@ final class LibraryModel {
             do { self.installQueue = try InstallQueue(catalog: catalog, sources: [source], storage: InstallStorage(volumes: volumeStore ?? GamesVolumeStore()), bottles: CrossOverGameBottles(runtime: runtime ?? CrossOverRuntime())) }
             catch { self.installQueue = nil; self.installPersistenceError = error.localizedDescription }
         } else { self.installQueue = nil }
+        if let sessions { self.sessions = sessions }
+        else if !preview, installQueue == nil, let catalog, let source, let queue = self.installQueue {
+            do { self.sessions = try SessionService(catalog: catalog, sources: [source], runner: CrossOverRunner(manager: CrossOverGameBottles(runtime: runtime ?? CrossOverRuntime())), queue: queue, storage: InstallStorage(volumes: volumeStore ?? GamesVolumeStore())) }
+            catch { self.sessions = nil; self.sessionIssue = error as? OperationFailure ?? .init(stage: "Start sessions", reason: error.localizedDescription, output: error.localizedDescription) }
+        } else { self.sessions = nil }
         if !preview { games = []; collections = []; queueOrder = []; completedDownloads = [] }
         restoreCatalog()
         restoringState = false
@@ -196,7 +217,8 @@ final class LibraryModel {
     var detailActions: [String] {
         guard let game = focusedGame else { return [] }
         let primary: String
-        if !isPreview, let job = liveJob(for: game.id), ![.completed, .cancelled].contains(job.state) { primary = "View download" }
+        if hasActiveSession, session.session?.gameID == game.id { primary = "Return to game" }
+        else if !isPreview, let job = liveJob(for: game.id), ![.completed, .cancelled].contains(job.state) { primary = "View download" }
         else { primary = switch game.status { case .installed: "Play"; case .downloading: downloadPaused ? "Resume download" : "Pause download"; case .queued: "View download"; case .driveDisconnected: "Drive disconnected"; case .notInstalled: "Install" } }
         return [primary, game.isFavorite ? "Favorited" : "Favorite", "Add to collection", game.isHidden ? "Unhide" : "Hide", "Set compatibility"] + (game.status == .installed ? ["Verify files", "Uninstall"] : []) + ["View logs"]
     }
@@ -267,6 +289,7 @@ final class LibraryModel {
         for (i, row) in rows.enumerated() { homeColumns[i] = min(homeColumns[i, default: 0], max(0, row.games.count - 1)) }
     }
     func perform(_ action: InputAction) {
+        if performSessionInput(action) { return }
         if panel == .controllerTest {
             if case .back = action { panel = nil }
             return
@@ -313,6 +336,7 @@ final class LibraryModel {
         }
         switch action {
         case .move(let direction): move(direction)
+        case .holdHome: break // Handled by the session focus scope above.
         case .confirm:
             if detailID != nil { activateDetail() }
             else if tab == .settings { activateSetting() }
@@ -378,6 +402,8 @@ final class LibraryModel {
     func activateDetail() {
         guard let label = detailActions[safe: detailAction] else { return }
         switch label {
+        case "Play": if let id = focusedGame?.id { beginPlay(id) }
+        case "Return to game": returnToGame()
         case "Favorite", "Favorited": toggleFavorite()
         case "Hide", "Unhide": hideFocused()
         case "Set compatibility": show(.compatibility)

@@ -439,3 +439,13 @@ queue cancellation-boundary test pass, along with the full package/app suite. Th
 launching screen, background hold-Home routing and exit panel still need integration and live
 validation with A Short Hike. Ambiguous launches without a saved process receipt deliberately
 hold recovery and downloads pending further recovery work.
+
+2026-09-07 session UI checkpoint: Play is connected, with mockup-based launching/exit screens,
+one-game confirmation, first-window handoff, Shift–Home, background controller hold detection,
+normal quit coordination and persisted session diagnostics. Fullscreen game-window attribution
+and overlay ordering were corrected using a real A Short Hike launch. The suite has 121 passing
+tests and three optional runtime skips. Title rendering, global keyboard overlay, forced quit and
+return to fullscreen were observed; continuous gameplay, physical DS4 handoff and save/relaunch
+are still open. See `docs/validation/2026-09-07-session-ui.md`. User additionally requested clear
+preferred-monitor settings for launcher/game placement and a saved startup-fullscreen option;
+these are the next display work, beyond the existing first-run launcher display selector.

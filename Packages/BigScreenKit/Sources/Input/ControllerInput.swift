@@ -3,11 +3,11 @@ import GameController
 import Focus
 
 public enum InputAction: Sendable {
-    case move(Direction), confirm, back, context, favorite, options, search, home
+    case move(Direction), confirm, back, context, favorite, options, search, home, holdHome
     case previousTab, nextTab, previousPage, nextPage
 }
 
-/// Foreground navigation only. Background game/overlay routing remains the M0 feasibility gate.
+/// The app routes background input only to the held Home action; normal navigation stays local.
 @MainActor
 public final class ControllerInput {
     public var onAction: ((InputAction) -> Void)?
@@ -18,16 +18,18 @@ public final class ControllerInput {
     private var lastController: GCController?
     private var pressed: Set<String> = []
     private var lastSnapshotTime = 0.0
+    private var homeHold = HomeHold()
     public init() {}
 
     public func start() {
         guard timer == nil else { return }
+        GCController.shouldMonitorBackgroundEvents = true
         timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 120, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.poll() }
         }
     }
 
-    public func stop() { timer?.invalidate(); timer = nil; pressed.removeAll(); repeater = .init() }
+    public func stop() { timer?.invalidate(); timer = nil; pressed.removeAll(); repeater = .init(); homeHold = .init(); GCController.shouldMonitorBackgroundEvents = false }
 
     private func poll() {
         let controllers = GCController.controllers()
@@ -38,10 +40,11 @@ public final class ControllerInput {
             onSnapshot?(controllers.compactMap(Self.snapshot), now)
         }
         if controller !== lastController {
-            lastController = controller; pressed.removeAll(); repeater = .init()
+            lastController = controller; pressed.removeAll(); repeater = .init(); homeHold = .init()
             onConnection?(controller?.vendorName, controller?.extendedGamepad is GCDualShockGamepad || controller?.extendedGamepad is GCDualSenseGamepad)
         }
         guard let pad = controller?.extendedGamepad else { return }
+        if homeHold.update(pressed: pad.buttonHome?.isPressed == true, at: now) { onAction?(.holdHome) }
         let dpad = DirectionRepeater.direction(x: pad.dpad.xAxis.value, y: pad.dpad.yAxis.value)
         let stick = DirectionRepeater.direction(x: pad.leftThumbstick.xAxis.value, y: pad.leftThumbstick.yAxis.value)
         if let direction = repeater.update(dpad ?? stick, at: ProcessInfo.processInfo.systemUptime) {
