@@ -1,8 +1,15 @@
 import Foundation
 import Security
+import OSLog
 import SteamCore
 
-struct KeychainFailure: Error { let status: OSStatus }
+struct KeychainFailure: Error {
+    let status: OSStatus
+    init(status: OSStatus) {
+        self.status = status
+        Logger(subsystem: "com.gamenative.bigscreen", category: "Keychain").error("Credential storage failed: OSStatus \(status, privacy: .public)")
+    }
+}
 /// One device-local account; service/account keys contain no player identity. Never falls back to a file.
 struct KeychainCredentials: AuthCredentialStore {
     let service: String

@@ -52,7 +52,7 @@ func sourceFailure(_ error: Error) -> SourceFailure {
     if let failure = error as? SourceFailure { return failure }
     if error is CancellationError { return .cancelled }
     if let network = error as? URLError { return network.code == .cancelled ? .cancelled : .network }
-    if error is KeychainFailure { return .storage("Keychain") }
+    if error is KeychainFailure { return credentialFailure(error) }
     if let steam = error as? SteamError {
         switch steam {
         case .authSessionExpired: return .expired
@@ -69,4 +69,8 @@ func sourceFailure(_ error: Error) -> SourceFailure {
         }
     }
     return .unavailable
+}
+func credentialFailure(_ error: Error) -> SourceFailure {
+    if let failure = error as? KeychainFailure { return .storage("macOS \(failure.status)") }
+    return .storage("Keychain")
 }

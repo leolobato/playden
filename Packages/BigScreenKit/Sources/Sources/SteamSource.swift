@@ -15,6 +15,10 @@ public struct SteamSource: GameSource {
         session = URLSession(configuration: configuration)
     }
     public func ownedGames() async throws -> [SourceGameRecord] { try await account.ownedGames() }
+    public func installer(for game: SourceGameRecord) throws -> any Installer {
+        guard game.id.source == id, UInt32(game.id.value) != nil else { throw SourceFailure.malformedResponse }
+        return SteamInstaller(game: game, account: account)
+    }
     public func metadata(for game: SourceGameRecord) async throws -> SourceGameRecord {
         guard game.id.source == id, UInt32(game.id.value) != nil else { throw SourceFailure.malformedResponse }
         var url = URLComponents(string: "https://store.steampowered.com/api/appdetails")!

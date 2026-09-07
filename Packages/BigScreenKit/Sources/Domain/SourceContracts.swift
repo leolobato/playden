@@ -24,7 +24,7 @@ public enum SourceFailure: Error, Equatable, Sendable, LocalizedError {
         case .cancelled: "Sign-in was cancelled."
         case .unavailable: "The store couldn’t complete the request. Try again shortly."
         case .malformedResponse: "The store returned an incomplete library. Your cached games have been kept."
-        case .storage: "The account could not be saved in Keychain. Unlock your Mac and retry."
+        case .storage(let detail): "Big Screen couldn’t access your saved sign-in. Unlock your Mac and retry. (\(detail))"
         }
     }
 }
@@ -43,4 +43,5 @@ public protocol GameSource: Sendable {
     var auth: any SourceAuth { get }
     func ownedGames() async throws -> [SourceGameRecord]
     func metadata(for game: SourceGameRecord) async throws -> SourceGameRecord
+    func installer(for game: SourceGameRecord) throws -> any Installer
 }

@@ -1,0 +1,72 @@
+import Foundation
+
+public struct InstallEstimate: Codable, Equatable, Sendable {
+    public let downloadBytes: Int64
+    public let installedBytes: Int64
+    /// Includes retained originals and temporary assembly space, not just final file sizes.
+    public let requiredBytes: Int64
+    public init(downloadBytes: Int64, installedBytes: Int64, requiredBytes: Int64) {
+        self.downloadBytes = downloadBytes; self.installedBytes = installedBytes; self.requiredBytes = requiredBytes
+    }
+}
+/// Immutable resolution shared by confirmation, job recovery and later repair.
+/// sourcePayload is versioned source metadata, never credentials, tickets or account identifiers.
+public struct InstallPlan: Codable, Equatable, Sendable, Identifiable {
+    public let id: UUID
+    public let game: SourceGameRecord
+    public let language: String
+    public let manifestIDs: [String: String]
+    public let estimate: InstallEstimate
+    public let launchSpec: LaunchSpec
+    public let sourcePayload: Data
+    public let recipeVersion: Int
+    public let resolvedAt: Date
+    public init(id: UUID = UUID(), game: SourceGameRecord, language: String = "english", manifestIDs: [String: String],
+                estimate: InstallEstimate, launchSpec: LaunchSpec, sourcePayload: Data, recipeVersion: Int = 1, resolvedAt: Date = .now) {
+        self.id = id; self.game = game; self.language = language; self.manifestIDs = manifestIDs
+        self.estimate = estimate; self.launchSpec = launchSpec; self.sourcePayload = sourcePayload
+        self.recipeVersion = recipeVersion; self.resolvedAt = resolvedAt
+    }
+}
+public struct InstallProgress: Equatable, Sendable {
+    public let bytesCompleted: Int64
+    public let bytesTotal: Int64
+    public let currentFile: String
+    public init(bytesCompleted: Int64, bytesTotal: Int64, currentFile: String) {
+        self.bytesCompleted = bytesCompleted; self.bytesTotal = bytesTotal; self.currentFile = currentFile
+    }
+}
+public struct FileMutation: Codable, Equatable, Sendable {
+    public let relativePath: String
+    public let originalRelativePath: String
+    public let stagedSHA256: Data
+    public init(relativePath: String, originalRelativePath: String, stagedSHA256: Data) {
+        self.relativePath = relativePath; self.originalRelativePath = originalRelativePath; self.stagedSHA256 = stagedSHA256
+    }
+}
+public struct InstallStaging: Codable, Equatable, Sendable {
+    public var mutations: [FileMutation]
+    public var dllOverrides: [String]
+    public var version: Int
+    public init(mutations: [FileMutation] = [], dllOverrides: [String] = [], version: Int = 1) {
+        self.mutations = mutations; self.dllOverrides = dllOverrides; self.version = version
+    }
+}
+public struct VerificationResult: Equatable, Sendable {
+    public let invalidFiles: [String]
+    public var isValid: Bool { invalidFiles.isEmpty }
+    public init(invalidFiles: [String] = []) { self.invalidFiles = invalidFiles }
+}
+/// Task cancellation pauses work at a durable boundary. The orchestrator owns queue state,
+/// filesystem reservation/deletion, bottles, save retention and the final Catalog transaction.
+public protocol Installer: Sendable {
+    var gameID: GameID { get }
+    func resolve() async throws -> InstallPlan
+    func download(_ plan: InstallPlan, to directory: URL,
+                  progress: @escaping @Sendable (InstallProgress) -> Void) async throws
+    func verifyOriginals(_ plan: InstallPlan, at directory: URL, staging: InstallStaging?) async throws -> VerificationResult
+    func postInstall(_ plan: InstallPlan, at directory: URL) async throws -> InstallStaging
+    func validate(_ plan: InstallPlan, at directory: URL, staging: InstallStaging) async throws -> LaunchSpec
+    /// Source-side cleanup only. Removing the owned game directory/bottle is the orchestrator's job.
+    func uninstall(_ plan: InstallPlan, at directory: URL) async throws
+}

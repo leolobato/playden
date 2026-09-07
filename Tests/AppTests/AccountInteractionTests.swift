@@ -16,12 +16,28 @@ private actor FixtureAuth: SourceAuth {
     func signOut() async throws {}
 }
 private struct AccountFixtureSource: GameSource {
+    func installer(for game: SourceGameRecord) throws -> any Installer { throw SourceFailure.unavailable }
     let id = "fixture", displayName = "Fixture"
     let auth: any SourceAuth = FixtureAuth()
-    func ownedGames() async throws -> [SourceGameRecord] { [] }
+    var games: [SourceGameRecord] = []
+    func ownedGames() async throws -> [SourceGameRecord] { games }
     func metadata(for game: SourceGameRecord) async throws -> SourceGameRecord { game }
 }
 final class AccountInteractionTests: XCTestCase {
+    @MainActor func testSuccessfulSignInImmediatelyLoadsOwnedGames() async throws {
+        let catalog = try CatalogStore()
+        let games = [SourceGameRecord(id: GameID(source: "fixture", value: "owned"), title: "Owned game")]
+        let model = LibraryModel(catalog: catalog, preview: false, source: AccountFixtureSource(games: games))
+        model.authScreen = .credentials; model.accountNameDraft = "Fixture"; model.passwordDraft = "fixture-only"
+        model.authIndex = 2; model.activateAuthentication()
+        let deadline = Date().addingTimeInterval(3)
+        while model.games.isEmpty && Date() < deadline { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertEqual(model.games.map(\.id), games.map(\.id))
+        XCTAssertNotNil(model.identity)
+        XCTAssertNil(model.authScreen)
+        XCTAssertNil(model.syncError)
+        model.stopServices()
+    }
     @MainActor func testSignInTrapsTabNavigationAndBackCancels() {
         let model = LibraryModel(preview: false, source: AccountFixtureSource())
         model.perform(.confirm)

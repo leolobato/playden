@@ -16,8 +16,8 @@ an isolated database; install/uninstall confirmations only change preview state.
 ## Build and run
 
 Requires Xcode 26.3 / Swift 6, XcodeGen, Homebrew xz/zstd (`brew install xcodegen xz zstd`), and an
-Apple Silicon Mac. Check out the sibling `../GameNative-macos` with commit `4d5a46e` or its descendant
-containing injected authentication/key storage, verified chunk resume, and bounded CM requests.
+Apple Silicon Mac. Check out the sibling `../GameNative-macos` with commit `0661a04` or its descendant
+containing injected authentication/key storage, verified chunk resume, bounded CM requests, and package entitlement resolution.
 The local Swift package uses that checkout.
 The deployment target is macOS 15 because of the bundled compression libraries; actual execution
 has currently been checked on macOS 26.6.2. The build embeds xz/zstd in the app, so running the built
@@ -30,6 +30,10 @@ app does not require Homebrew's library paths.
 ./scripts/run.sh --windowed
 ./scripts/run.sh --preview
 ```
+
+`run.sh` launches a verified copy in `.build/Run`, separate from Xcode's build output, and
+quits the previous instance before replacing that copy. This lets builds/tests run while you
+browse without replacing the signed bundle underneath the running app or disrupting Keychain access.
 
 Open `BigScreen.xcodeproj` to work in Xcode. `project.yml` is the project source of truth; regenerate
 with `xcodegen generate` after changing targets or resources. The preview does not require a Steam
@@ -112,6 +116,8 @@ mapping, masked credential entry and stable focus during refresh. See
 
 The next installation dependency slice is recorded in
 [Steam installation boundary validation](docs/validation/2026-09-07-steam-install-boundary.md).
+The subsequent [installer contract and live library recovery checkpoint](docs/validation/2026-09-07-install-plans-library-recovery.md)
+records pinned plans, verified staging fixtures, and the first successful 538-game account sync.
 
 Snapshots are actual native window captures in `.build/screenshots/`. They use a 1920×1080 logical
 canvas (pixel dimensions follow the display backing scale), a fixed clock, and the same artwork

@@ -21,6 +21,29 @@ final class CatalogStoreTests: XCTestCase {
             bottleID: "gn-steam-268910", manifestIDs: ["268911": "12345678901234567890"], templateVersion: "1",
             launchSpec: LaunchSpec(executableRelativePath: "Cuphead.exe"), installedAt: epoch, installedBytes: 4_000_000_000)
     }
+    func testPinnedInstallPlanAndStagingSurviveRestartAndOlderRecordsStillDecode() throws {
+        let path = try temporaryPath(), source = game(steam)
+        var installed = installation(source)
+        let plan = InstallPlan(game: source, manifestIDs: installed.manifestIDs,
+            estimate: InstallEstimate(downloadBytes: 100, installedBytes: 200, requiredBytes: 500),
+            launchSpec: installed.launchSpec, sourcePayload: Data("versioned fixture content".utf8))
+        let staging = InstallStaging(mutations: [FileMutation(relativePath: "steam_api.dll", originalRelativePath: "steam_api.dll.orig", stagedSHA256: Data(repeating: 1, count: 32))], dllOverrides: ["steam_api=n,b"])
+        var job = JobRecord(gameID: steam); job.plan = plan; job.manifestIDs = plan.manifestIDs
+        job.stage = .download; job.state = .paused; job.pauseReasons = [.user]
+        installed.plan = plan; installed.staging = staging
+        do {
+            let store = try CatalogStore(path: path)
+            try store.saveJob(job); try store.saveInstallation(installed)
+        }
+        let reopened = try CatalogStore(path: path)
+        XCTAssertEqual(try reopened.jobs().first, job)
+        XCTAssertEqual(try reopened.snapshot().entries.first?.installation, installed)
+        var old = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(installed)) as? [String: Any])
+        old.removeValue(forKey: "plan"); old.removeValue(forKey: "staging")
+        let decoded = try JSONDecoder().decode(InstallationRecord.self, from: JSONSerialization.data(withJSONObject: old))
+        XCTAssertNil(decoded.plan); XCTAssertNil(decoded.staging)
+        XCTAssertEqual(decoded.launchSpec, installed.launchSpec)
+    }
     func testMigrationsAndReopeningPersistLocalState() throws {
         let path = try temporaryPath()
         let collection = GameCollection(name: "Weekend 🎮", gameIDs: [steam, other], isPinned: true)

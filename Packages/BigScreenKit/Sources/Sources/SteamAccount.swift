@@ -10,7 +10,7 @@ public actor SteamAccount: SourceAuth {
     public init() { store = KeychainCredentials(); backend = LiveSteamBackend() }
     init(store: any AuthCredentialStore, backend: any SteamBackend) { self.store = store; self.backend = backend }
     public func identity() async throws -> SourceIdentity? {
-        do { return try store.load().map(Self.identity) } catch { throw SourceFailure.storage("Keychain") }
+        do { return try store.load().map(Self.identity) } catch { throw credentialFailure(error) }
     }
     private func invalidate() {
         generation += 1
@@ -20,7 +20,7 @@ public actor SteamAccount: SourceAuth {
     public func cancelSignIn() { invalidate() }
     public func signOut() throws {
         invalidate()
-        do { try store.clear() } catch { throw SourceFailure.storage("Keychain") }
+        do { try store.clear() } catch { throw credentialFailure(error) }
     }
     public func signInWithQR(onEvent: @escaping @Sendable (AuthenticationEvent) -> Void) async throws -> SourceIdentity {
         invalidate(); let attempt = generation
@@ -82,7 +82,8 @@ public actor SteamAccount: SourceAuth {
             let result = try await withTaskCancellationHandler { try await task.value } onCancel: { task.cancel() }
             try validate(attempt)
             return result
-        } catch { throw sourceFailure(error) }
+        } catch let failure as OperationFailure { throw failure }
+        catch { throw sourceFailure(error) }
     }
     func withCM<T: Sendable>(_ operation: @escaping @Sendable (CMClient) async throws -> T) async throws -> T {
         try await authenticatedOperation { credentials in
@@ -106,7 +107,7 @@ public actor SteamAccount: SourceAuth {
         guard generation == attempt else { throw SourceFailure.cancelled }
     }
     private func save(_ credentials: StoredAuth) throws {
-        do { try store.save(credentials) } catch { throw SourceFailure.storage("Keychain") }
+        do { try store.save(credentials) } catch { throw credentialFailure(error) }
     }
     private static func identity(_ credentials: StoredAuth) -> SourceIdentity {
         SourceIdentity(sourceID: "steam", displayName: credentials.accountName)

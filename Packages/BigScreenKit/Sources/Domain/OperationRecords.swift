@@ -38,6 +38,8 @@ public struct InstallationRecord: Codable, Equatable, Sendable, Identifiable {
     public var launchSpec: LaunchSpec
     public var installedAt: Date
     public var installedBytes: Int64
+    public var plan: InstallPlan?
+    public var staging: InstallStaging?
     public init(id: UUID = UUID(), game: SourceGameRecord, location: GameLocation, bottleID: String,
                 ownershipToken: UUID = UUID(), manifestIDs: [String: String], language: String = "english",
                 templateVersion: String, recipeVersion: Int = 1, stagingVersion: Int = 1,
@@ -71,6 +73,7 @@ public struct JobRecord: Codable, Equatable, Sendable, Identifiable {
     public var createdAt: Date
     public var updatedAt: Date
     public var failure: OperationFailure?
+    public var plan: InstallPlan?
     public init(id: UUID = UUID(), gameID: GameID, kind: JobKind = .install, queuePosition: Int = 0, createdAt: Date = .now) {
         self.id = id; self.gameID = gameID; self.kind = kind; self.stage = .resolve; self.state = .queued
         self.completedStages = []; self.pauseReasons = []; self.queuePosition = queuePosition; self.manifestIDs = [:]

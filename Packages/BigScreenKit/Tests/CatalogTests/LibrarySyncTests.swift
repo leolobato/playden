@@ -11,6 +11,7 @@ private struct NoAccount: SourceAuth {
     func signOut() async throws {}
 }
 private struct FixtureSource: GameSource {
+    func installer(for game: SourceGameRecord) throws -> any Installer { throw SourceFailure.unavailable }
     let id = "fixture", displayName = "Fixture store"
     var auth: any SourceAuth { NoAccount() }
     var records: [SourceGameRecord]
