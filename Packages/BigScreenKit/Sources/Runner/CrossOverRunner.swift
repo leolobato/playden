@@ -10,6 +10,8 @@ public actor CrossOverRunner: GameRunner {
     private let inspector: any RuntimeInspecting
     private let launcher: any GameProcessLaunching
     private let commands: any CommandExecuting
+    private let displayHelper: URL?
+    private let displayTarget: @Sendable () async throws -> GameDisplayTarget?
     private var starting = false
     private var active: RunningGame?
     private var child: (any GameProcess)?
@@ -19,9 +21,11 @@ public actor CrossOverRunner: GameRunner {
     public init(application: URL = URL(fileURLWithPath: "/Applications/CrossOver.app"),
                 bottles: URL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/CrossOver/Bottles"),
                 manager: any GameBottleManaging = CrossOverGameBottles(), inspector: any RuntimeInspecting = RuntimeProcessInspector(),
-                launcher: any GameProcessLaunching = GameProcessLauncher(), commands: any CommandExecuting = CommandExecutor()) {
+                launcher: any GameProcessLaunching = GameProcessLauncher(), commands: any CommandExecuting = CommandExecutor(),
+                displayHelper: URL? = nil, displayTarget: @escaping @Sendable () async throws -> GameDisplayTarget? = { nil }) {
         self.application = application; self.bottles = bottles; self.manager = manager; self.inspector = inspector
         self.launcher = launcher; self.commands = commands
+        self.displayHelper = displayHelper; self.displayTarget = displayTarget
     }
     @discardableResult public func prepare(_ bottle: GameBottle) async throws -> Bool {
         guard !starting, active == nil else { throw failure("Prepare game", "Quit the current game before preparing another game.") }
@@ -39,9 +43,12 @@ public actor CrossOverRunner: GameRunner {
         let prefix = try prefix(bottle)
         let baseline = try inspector.inspect(bottle: prefix)
         guard !baseline.processes.contains(where: { $0.kind == .game }) else { throw failure("Launch game", "This game's bottle already has an application running.") }
-        let arguments = try Self.arguments(spec, bottle: prefix, directory: directory)
+        let target = try await displayTarget()
+        let plainArguments = try Self.arguments(spec, bottle: prefix, directory: directory)
+        let input = try target?.launchInput(executable: plainArguments[plainArguments.count - spec.arguments.count - 1], arguments: spec.arguments)
+        let arguments = try Self.arguments(spec, bottle: prefix, directory: directory, display: target, helper: displayHelper)
         try Task.checkCancellation()
-        let process = try launcher.start(executable: tool("cxstart"), arguments: arguments, environment: spec.environment)
+        let process = try launcher.start(executable: tool("cxstart"), arguments: arguments, environment: spec.environment, input: input)
         let run = RunningGame(bottle: bottle, launcher: process.identity)
         active = run; child = process; latest[run.id] = .init(run: run, processes: baseline.processes)
         worker = Task { await self.watch(run, process: process) }
@@ -112,8 +119,9 @@ public actor CrossOverRunner: GameRunner {
         }
     }
     private func watch(_ run: RunningGame, process: any GameProcess) async {
-        var sawGame = latest[run.id]?.processes.contains(where: { $0.kind == .game }) == true
-        var server = latest[run.id]?.processes.first(where: { $0.kind == .server })?.identity
+        // An idle wineserver in the pre-launch baseline may expire while Wine starts a new
+        // one. Bind server lifetime only after the game has opened a window.
+        var server = latest[run.id]?.hadWindow == true ? latest[run.id]?.processes.first(where: { $0.kind == .server })?.identity : nil
         var emptySince: ContinuousClock.Instant?
         while active == run {
             let poll = process.poll()
@@ -122,22 +130,27 @@ public actor CrossOverRunner: GameRunner {
                 guard var snapshot = latest[run.id] else { return }
                 if snapshot.failure?.stage == "Observe game" { snapshot.failure = nil }
                 var processes = observation.processes
-                for previous in snapshot.processes where observation.unreadablePIDs.contains(previous.identity.pid) {
-                    // Inaccessible inspection is neither exit evidence nor permission to signal.
-                    if !processes.contains(where: { $0.identity.pid == previous.identity.pid }) { processes.append(previous) }
+                for previous in snapshot.processes where !processes.contains(where: { $0.identity.pid == previous.identity.pid }) {
+                    // A kernel prefix scan can briefly omit a live Wine process.
+                    // Keep an already attributed process while its birth identity still matches;
+                    // a missing prefix is not exit evidence and must not abort a live launch.
+                    if observation.unreadablePIDs.contains(previous.identity.pid) || inspector.identity(of: previous.identity.pid) == previous.identity {
+                        processes.append(previous)
+                    }
                 }
                 let games = processes.filter { $0.kind == .game }
-                if !games.isEmpty { sawGame = true }
-                if server == nil { server = processes.first(where: { $0.kind == .server })?.identity }
+                if (snapshot.hadWindow || !observation.windows.isEmpty) && server == nil { server = processes.first(where: { $0.kind == .server })?.identity }
                 let serverGone = server.map { expected in !processes.contains { $0.identity == expected } } ?? false
                 snapshot.processes = processes; snapshot.output = DiagnosticRedactor.redact(poll.output)
                 snapshot.window = observation.windows.first
                 if snapshot.window != nil { snapshot.hadWindow = true; if snapshot.phase != .stopping { snapshot.phase = .running } }
-                let empty = games.isEmpty && (sawGame || poll.exited)
+                // Before the first window, Wine bootstrap processes can look like applications
+                // and disappear again. The live launcher still owns startup in that interval.
+                let empty = games.isEmpty && (snapshot.hadWindow || poll.exited)
                 if empty { if emptySince == nil { emptySince = .now } } else { emptySince = nil }
                 // A launcher may hand off to a child. A short empty transition must not end it;
                 // lingering system services must not keep a finished game alive indefinitely.
-                if serverGone || emptySince.map({ $0.duration(to: .now) >= .milliseconds(600) }) == true {
+                if (serverGone && snapshot.hadWindow) || emptySince.map({ $0.duration(to: .now) >= .milliseconds(600) }) == true {
                     snapshot.phase = .exited; snapshot.exitCode = poll.exitCode
                     if !snapshot.hadWindow && !snapshot.forced {
                         snapshot.failure = failure("Launch game", "The game exited before opening a window.", output: poll.output)
@@ -189,7 +202,7 @@ public actor CrossOverRunner: GameRunner {
               lstat(marker.path, &info) == 0, info.st_mode & S_IFMT == S_IFREG, info.st_nlink == 1,
               try JSONDecoder().decode(Receipt.self, from: Data(contentsOf: marker)).bottle == bottle else { throw failure("Game runtime", "The game's runtime ownership could not be verified.") }
     }
-    static func arguments(_ spec: LaunchSpec, bottle: URL, directory: URL) throws -> [String] {
+    static func arguments(_ spec: LaunchSpec, bottle: URL, directory: URL, display: GameDisplayTarget? = nil, helper: URL? = nil) throws -> [String] {
         func path(_ value: String, folder: Bool) throws -> URL {
             let normalized = value.replacingOccurrences(of: "\\", with: "/")
             let components = normalized.split(separator: "/", omittingEmptySubsequences: false)
@@ -210,6 +223,14 @@ public actor CrossOverRunner: GameRunner {
         func windows(_ path: URL) -> String { "Z:" + path.path.replacingOccurrences(of: "/", with: "\\") }
         var result = ["--bottle", bottle.path, "--no-gui", "--no-convert", "--wait-children", "--workdir", windows(working)]
         for value in spec.dllOverrides { result += ["--dll", value] }
+        if let display {
+            guard let helper, helper.isFileURL, !helper.path.utf8.contains(0),
+                  try helper.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile == true else {
+                throw OperationFailure(stage: "Launch game", reason: "The display helper is missing. Rebuild or reinstall Big Screen.", output: "")
+            }
+            _ = try display.arguments()
+            return result + [windows(helper)]
+        }
         return result + [windows(executable)] + spec.arguments
     }
     private func failure(_ stage: String, _ reason: String, output: String = "") -> OperationFailure { .init(stage: stage, reason: reason, output: output) }

@@ -14,12 +14,12 @@ public protocol GameProcess: Sendable {
     func signalGroup(_ signal: Int32)
 }
 public protocol GameProcessLaunching: Sendable {
-    func start(executable: URL, arguments: [String], environment: [String: String]) throws -> any GameProcess
+    func start(executable: URL, arguments: [String], environment: [String: String], input: Data?) throws -> any GameProcess
 }
 public struct GameProcessLauncher: GameProcessLaunching {
     public init() {}
-    public func start(executable: URL, arguments: [String], environment: [String: String]) throws -> any GameProcess {
-        try ChildProcess(executable: executable, arguments: arguments, environment: environment)
+    public func start(executable: URL, arguments: [String], environment: [String: String], input: Data? = nil) throws -> any GameProcess {
+        try ChildProcess(executable: executable, arguments: arguments, environment: environment, input: input)
     }
 }
 /// Reattaches observation after launcher restart. A non-child's exit status is unknown, not zero.
@@ -45,7 +45,7 @@ private final class ChildProcess: GameProcess, @unchecked Sendable {
     private let lock = NSLock()
     private var status: Int32?
     private var output = Data()
-    init(executable: URL, arguments: [String], environment: [String: String]) throws {
+    init(executable: URL, arguments: [String], environment: [String: String], input: Data?) throws {
         guard executable.isFileURL, !executable.path.utf8.contains(0), arguments.allSatisfy({ !$0.utf8.contains(0) }),
               environment.allSatisfy({ !$0.key.isEmpty && !$0.key.contains("=") && !$0.key.utf8.contains(0) && !$0.value.utf8.contains(0) }) else { throw CocoaError(.fileReadInvalidFileName) }
         var pipes: [Int32] = [0, 0]
@@ -59,13 +59,20 @@ private final class ChildProcess: GameProcess, @unchecked Sendable {
         defer { posix_spawn_file_actions_destroy(&actions); posix_spawnattr_destroy(&attributes) }
         posix_spawn_file_actions_adddup2(&actions, pipes[1], STDOUT_FILENO)
         posix_spawn_file_actions_adddup2(&actions, pipes[1], STDERR_FILENO)
-        posix_spawn_file_actions_addopen(&actions, STDIN_FILENO, "/dev/null", O_RDONLY, 0)
+        let inputDescriptor = try input.map(Self.inputFile)
+        defer { if let inputDescriptor { close(inputDescriptor) } }
+        if let inputDescriptor {
+            posix_spawn_file_actions_adddup2(&actions, inputDescriptor, STDIN_FILENO)
+            posix_spawn_file_actions_addclose(&actions, inputDescriptor)
+        } else { posix_spawn_file_actions_addopen(&actions, STDIN_FILENO, "/dev/null", O_RDONLY, 0) }
         posix_spawn_file_actions_addclose(&actions, pipes[0]); posix_spawn_file_actions_addclose(&actions, pipes[1])
         var empty = sigset_t(), defaults = sigset_t()
         sigemptyset(&empty); sigemptyset(&defaults)
         for signal in [SIGTERM, SIGINT, SIGHUP, SIGPIPE] { sigaddset(&defaults, signal) }
         posix_spawnattr_setsigmask(&attributes, &empty); posix_spawnattr_setsigdefault(&attributes, &defaults)
-        posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_SETPGROUP | POSIX_SPAWN_SETSIGMASK | POSIX_SPAWN_SETSIGDEF))
+        // The GUI owns Metal cache files, sockets and database handles. Only the explicit
+        // stdin/stdout/stderr actions above belong in Wine's inherited descriptor table.
+        posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_SETPGROUP | POSIX_SPAWN_SETSIGMASK | POSIX_SPAWN_SETSIGDEF | POSIX_SPAWN_CLOEXEC_DEFAULT))
         posix_spawnattr_setpgroup(&attributes, 0)
         let argv = ([executable.path] + arguments).map { strdup($0) } + [nil]
         let inherited = ProcessInfo.processInfo.environment.filter { ["HOME", "USER", "LOGNAME", "TMPDIR", "LANG", "LC_ALL", "LC_CTYPE"].contains($0.key) }
@@ -82,6 +89,29 @@ private final class ChildProcess: GameProcess, @unchecked Sendable {
         self.identity = identity; descriptor = pipes[0]; keepReader = true
     }
     deinit { close(descriptor) }
+    /// An unlinked, owner-only file avoids pipe backpressure before Wine has started reading.
+    /// No request path or launch arguments remain on disk after this descriptor is closed.
+    private static func inputFile(_ data: Data) throws -> Int32 {
+        guard data.count <= 256 * 1024 else { throw CocoaError(.fileWriteOutOfSpace) }
+        var path = Array((NSTemporaryDirectory() + "BigScreen-launch-XXXXXX").utf8CString)
+        let fd = mkstemp(&path)
+        guard fd >= 0 else { throw POSIXError(.EIO) }
+        guard unlink(path) == 0 else { close(fd); throw POSIXError(.EIO) }
+        _ = fcntl(fd, F_SETFD, FD_CLOEXEC)
+        var succeeded = false
+        defer { if !succeeded { close(fd) } }
+        try data.withUnsafeBytes { bytes in
+            var offset = 0
+            while offset < bytes.count {
+                let count = write(fd, bytes.baseAddress!.advanced(by: offset), bytes.count - offset)
+                if count < 0 && errno == EINTR { continue }
+                guard count > 0 else { throw POSIXError(.EIO) }
+                offset += count
+            }
+        }
+        guard lseek(fd, 0, SEEK_SET) == 0 else { throw POSIXError(.EIO) }
+        succeeded = true; return fd
+    }
     func poll() -> GameProcessPoll {
         lock.withLock {
             var bytes = [UInt8](repeating: 0, count: 8192)

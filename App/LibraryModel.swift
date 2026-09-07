@@ -156,7 +156,13 @@ final class LibraryModel {
         } else { self.installQueue = nil }
         if let sessions { self.sessions = sessions }
         else if !preview, installQueue == nil, let catalog, let source, let queue = self.installQueue {
-            do { self.sessions = try SessionService(catalog: catalog, sources: [source], runner: CrossOverRunner(manager: CrossOverGameBottles(runtime: runtime ?? CrossOverRuntime())), queue: queue, storage: InstallStorage(volumes: volumeStore ?? GamesVolumeStore())) }
+            do {
+                let runner = CrossOverRunner(manager: CrossOverGameBottles(runtime: runtime ?? CrossOverRuntime()),
+                    displayHelper: Bundle.main.url(forResource: "BigScreenDisplay", withExtension: "exe"),
+                    displayTarget: { @MainActor in GameDisplay.target(preferences: try catalog.preferences()) })
+                self.sessions = try SessionService(catalog: catalog, sources: [source], runner: runner, queue: queue,
+                    storage: InstallStorage(volumes: volumeStore ?? GamesVolumeStore()))
+            }
             catch { self.sessions = nil; self.sessionIssue = error as? OperationFailure ?? .init(stage: "Start sessions", reason: error.localizedDescription, output: error.localizedDescription) }
         } else { self.sessions = nil }
         if !preview { games = []; collections = []; queueOrder = []; completedDownloads = [] }

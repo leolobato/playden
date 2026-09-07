@@ -74,7 +74,7 @@ public struct RuntimeProcessInspector: RuntimeInspecting {
         let path = argv0.replacingOccurrences(of: "\\", with: "/").lowercased()
         let name = path.split(separator: "/").last.map(String.init) ?? path
         if name == "wineserver" { return .server }
-        if name == "winewrapper.exe" || name == "wine" || name == "wine64" { return .wrapper }
+        if ["winewrapper.exe", "wine", "wine64", "wineloader"].contains(name) { return .wrapper }
         let services: Set<String> = ["services.exe", "winedevice.exe", "svchost.exe", "plugplay.exe", "rpcss.exe", "explorer.exe", "conhost.exe", "winemenubuilder.exe", "wineboot.exe", "rundll32.exe"]
         if path.hasPrefix("c:/windows/"), services.contains(name) { return .service }
         return .game

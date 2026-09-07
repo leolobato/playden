@@ -15,7 +15,7 @@ an isolated database; install/uninstall confirmations only change preview state.
 
 ## Build and run
 
-Requires Xcode 26.3 / Swift 6, XcodeGen, Homebrew xz/zstd (`brew install xcodegen xz zstd`), and an
+Requires Xcode 26.3 / Swift 6, XcodeGen, Homebrew xz/zstd/LLVM/LLD (`brew install xcodegen xz zstd llvm lld`), and an
 Apple Silicon Mac. Check out the sibling `../GameNative-macos` with commit `0661a04` or its descendant
 containing injected authentication/key storage, verified chunk resume, bounded CM requests, and package entitlement resolution.
 The local Swift package uses that checkout.
@@ -31,7 +31,7 @@ app does not require Homebrew's library paths.
 ./scripts/run.sh --preview
 ```
 
-`run.sh` launches a verified copy in `.build/Run`, separate from Xcode's build output, and
+`run.sh` launches a verified copy in `~/Library/Application Support/Big Screen/Run`, separate from Xcode's build output and macOS-protected Documents/Desktop folders, and
 quits the previous instance before replacing that copy. This lets builds/tests run while you
 browse without replacing the signed bundle underneath the running app or disrupting Keychain access.
 Build/test scripts reuse an available Apple Development certificate, caching the local selection in

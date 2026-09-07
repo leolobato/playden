@@ -1,0 +1,11 @@
+LIBRARY USER32.dll
+EXPORTS
+EnumDisplayMonitors
+GetMonitorInfoW
+EnumWindows
+IsWindowVisible
+GetWindowRect
+GetWindowThreadProcessId
+GetWindowLongPtrW
+SetWindowPos
+MonitorFromWindow

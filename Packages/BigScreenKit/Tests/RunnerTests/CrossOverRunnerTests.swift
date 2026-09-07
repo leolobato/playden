@@ -12,7 +12,7 @@ private final class ProcessFixture: GameProcess, GameProcessLaunching, @unchecke
     let lock = NSLock()
     var status: Int32? = nil
     var signals: [Int32] = []
-    func start(executable: URL, arguments: [String], environment: [String: String]) throws -> any GameProcess { self }
+    func start(executable: URL, arguments: [String], environment: [String: String], input: Data?) throws -> any GameProcess { self }
     func poll() -> GameProcessPoll { lock.withLock { .init(exitCode: status, output: "access_token=fixture-secret") } }
     func signalGroup(_ signal: Int32) { lock.withLock { signals.append(signal); status = 0 } }
     func exit(_ code: Int32) { lock.withLock { status = code } }
@@ -21,8 +21,10 @@ private final class InspectionFixture: RuntimeInspecting, @unchecked Sendable {
     let lock = NSLock()
     var value = RuntimeObservation(processes: [])
     var unavailable = false
+    var omittedButAlive: [ProcessIdentity] = []
     func inspect(bottle: URL) throws -> RuntimeObservation { try lock.withLock { if unavailable { throw CocoaError(.fileReadUnknown) }; return value } }
-    func identity(of pid: Int32) -> ProcessIdentity? { lock.withLock { value.processes.first { $0.identity.pid == pid }?.identity } }
+    func identity(of pid: Int32) -> ProcessIdentity? { lock.withLock { value.processes.first { $0.identity.pid == pid }?.identity ?? omittedButAlive.first { $0.pid == pid } } }
+    func omitLive(_ identities: [ProcessIdentity]) { lock.withLock { omittedButAlive = identities; value = .init(processes: []) } }
     func set(_ value: RuntimeObservation, unavailable: Bool = false) { lock.withLock { self.value = value; self.unavailable = unavailable } }
 }
 private actor StopCommands: CommandExecuting {
@@ -95,6 +97,52 @@ final class CrossOverRunnerTests: XCTestCase {
         XCTAssertEqual(exited.failure?.stage, "Launch game")
         XCTAssertFalse(exited.output.contains("fixture-secret"))
     }
+    func testMissingPrefixObservationDoesNotEndProcessesWithMatchingBirthIdentity() async throws {
+        let (root, bottle) = try fixture(), inspector = InspectionFixture(), child = ProcessFixture()
+        let runner = CrossOverRunner(bottles: root, manager: ReadyGame(), inspector: inspector, launcher: child)
+        let run = try await runner.launch(.init(executableRelativePath: "game.exe"), in: bottle, directory: root)
+        let game = process(101, .game), server = process(102, .server)
+        inspector.set(.init(processes: [game, server], windows: [.init(id: 1, process: game.identity)]))
+        _ = try await wait(runner, run, phase: .running)
+        inspector.omitLive([game.identity, server.identity])
+        try await Task.sleep(for: .milliseconds(800))
+        let running = try await wait(runner, run, phase: .running)
+        XCTAssertEqual(Set(running.processes.map(\.identity)), Set([game.identity, server.identity]))
+        inspector.omitLive([]); child.exit(0)
+        _ = try await wait(runner, run, phase: .exited)
+    }
+    func testBootstrapApplicationExitDoesNotAbortALiveLauncherBeforeItsFirstWindow() async throws {
+        let (root, bottle) = try fixture(), inspector = InspectionFixture(), child = ProcessFixture()
+        let runner = CrossOverRunner(bottles: root, manager: ReadyGame(), inspector: inspector, launcher: child)
+        let run = try await runner.launch(.init(executableRelativePath: "game.exe"), in: bottle, directory: root)
+        inspector.set(.init(processes: [process(103, .game), process(102, .server)]))
+        try await Task.sleep(for: .milliseconds(200))
+        inspector.set(.init(processes: [process(104, .wrapper)]))
+        try await Task.sleep(for: .milliseconds(800))
+        _ = try await wait(runner, run, phase: .launching)
+        child.exit(9)
+        let exited = try await wait(runner, run, phase: .exited)
+        XCTAssertEqual(exited.exitCode, 9)
+        XCTAssertEqual(exited.failure?.stage, "Launch game")
+    }
+    func testAnIdleBaselineServerCanExpireBeforeTheNewGameStarts() async throws {
+        let (root, bottle) = try fixture(), inspector = InspectionFixture(), child = ProcessFixture()
+        inspector.set(.init(processes: [process(102, .server)]))
+        let runner = CrossOverRunner(bottles: root, manager: ReadyGame(), inspector: inspector, launcher: child)
+        let run = try await runner.launch(.init(executableRelativePath: "game.exe"), in: bottle, directory: root)
+        inspector.set(.init(processes: [process(104, .wrapper), process(102, .server)]))
+        try await Task.sleep(for: .milliseconds(200))
+        inspector.set(.init(processes: [process(104, .wrapper)]))
+        try await Task.sleep(for: .milliseconds(800))
+        _ = try await wait(runner, run, phase: .launching)
+        let game = process(101, .game), newServer = process(102, .server, birth: 2)
+        inspector.set(.init(processes: [game, newServer], windows: [.init(id: 10, process: game.identity)]))
+        _ = try await wait(runner, run, phase: .running)
+        child.exit(0); inspector.set(.init(processes: [newServer]))
+        let exited = try await wait(runner, run, phase: .exited)
+        XCTAssertTrue(exited.hadWindow)
+        XCTAssertEqual(exited.exitCode, 0)
+    }
     func testRecoveryUsesBirthIdentityAndDoesNotInventAnExitStatus() async throws {
         let (root, bottle) = try fixture(), inspector = InspectionFixture()
         let game = process(101, .game), server = process(102, .server)
@@ -135,6 +183,8 @@ final class CrossOverRunnerTests: XCTestCase {
         XCTAssertNil(RuntimeProcessInspector.decodeArguments(Array(bytes.prefix(9))))
         XCTAssertEqual(RuntimeProcessInspector.kind("C:\\windows\\system32\\services.exe"), .service)
         XCTAssertEqual(RuntimeProcessInspector.kind("Z:\\games\\services.exe"), .game)
+        XCTAssertEqual(RuntimeProcessInspector.kind("wineloader"), .wrapper)
+        XCTAssertEqual(RuntimeProcessInspector.kind("/Applications/CrossOver.app/Contents/SharedSupport/CrossOver/bin/wineloader"), .wrapper)
     }
     func testRealChildExitCodeAndBoundedRedactedOutput() async throws {
         let child = try GameProcessLauncher().start(executable: URL(fileURLWithPath: "/bin/sh"), arguments: ["-c", "/usr/bin/head -c 400000 /dev/zero | /usr/bin/tr '\\000' x; printf '\\naccess_token=fixture-secret\\n'; exit 7"], environment: [:])

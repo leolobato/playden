@@ -52,6 +52,7 @@
 		B2A98FB795CC03E24E7989E6 /* AccountInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 281D1CCE073CC4C5E8961058 /* AccountInteractionTests.swift */; };
 		B9C9F1D5CF194B3D92E7705B /* Sessions in Frameworks */ = {isa = PBXBuildFile; productRef = F113430A9DD2F5547F593DAD /* Sessions */; };
 		C1FB15B5D9027944888D38FA /* BarlowCondensed-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 8DF603146150E3A8F502D3AF /* BarlowCondensed-Medium.ttf */; };
+		C617DC97E2339CC012966C7D /* GameDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F8702FA8C0998A1511EBD2C /* GameDisplay.swift */; };
 		CA15BEFA39C7E33110214117 /* Runner in Frameworks */ = {isa = PBXBuildFile; productRef = 6310A68293BC5942095233F5 /* Runner */; };
 		CA2CD29BB2A361B7CCF5F01C /* PreviewCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB21DA9AE3F1CFE573775A04 /* PreviewCatalog.swift */; };
 		CAF7A51F716DA804FB81BE04 /* Barlow-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 4622DF2E186C3B6F638C30B1 /* Barlow-Regular.ttf */; };
@@ -80,6 +81,7 @@
 		281D1CCE073CC4C5E8961058 /* AccountInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountInteractionTests.swift; sourceTree = "<group>"; };
 		290BD195A4CE920AC4FD05D0 /* InstallModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallModel.swift; sourceTree = "<group>"; };
 		2ABB68A7CE89083ACCBE20BC /* LibraryEditing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryEditing.swift; sourceTree = "<group>"; };
+		3F8702FA8C0998A1511EBD2C /* GameDisplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameDisplay.swift; sourceTree = "<group>"; };
 		4038C0219269A842D64FC94D /* EditingViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditingViews.swift; sourceTree = "<group>"; };
 		4622DF2E186C3B6F638C30B1 /* Barlow-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Barlow-Regular.ttf"; sourceTree = "<group>"; };
 		4C9C86672EFCA75AD8158EA9 /* LibraryFilterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryFilterTests.swift; sourceTree = "<group>"; };
@@ -180,6 +182,7 @@
 				F368FC58634A6CD38017484C /* DownloadPresentation.swift */,
 				4038C0219269A842D64FC94D /* EditingViews.swift */,
 				F51F9BB1C1297E755C6FB654 /* FocusViews.swift */,
+				3F8702FA8C0998A1511EBD2C /* GameDisplay.swift */,
 				DAC0CDDDECE591309D86C1B6 /* GameExitShortcut.swift */,
 				290BD195A4CE920AC4FD05D0 /* InstallModel.swift */,
 				2282843F7F4162EBF4E8583C /* InstallSnapshots.swift */,
@@ -252,6 +255,7 @@
 				0273FE39B0C558DA91D9242A /* Sources */,
 				397BB1D4372EEF9806B4500A /* Resources */,
 				1137D235C0FC0264B46D014E /* Frameworks */,
+				2E58316EFAD5370B2C63AC4C /* Build Windows display helper */,
 				1F48B9CCD15FB773B134BC54 /* Embed Steam runtime libraries */,
 			);
 			buildRules = (
@@ -370,6 +374,26 @@
 			shellPath = /bin/sh;
 			shellScript = "#!/bin/sh\nset -eu\n# SteamCore's system-library dependencies must ship with the app rather than resolve via Homebrew.\nframeworks=\"$TARGET_BUILD_DIR/$FRAMEWORKS_FOLDER_PATH\"\nmkdir -p \"$frameworks\"\nfor entry in xz:liblzma.5.dylib zstd:libzstd.1.dylib; do\n    formula=${entry%%:*}\n    library=${entry#*:}\n    source_path=\"/opt/homebrew/opt/$formula/lib/$library\"\n    test -f \"$source_path\"\n    cp -f \"$source_path\" \"$frameworks/$library\"\n    chmod u+w \"$frameworks/$library\"\n    /usr/bin/install_name_tool -id \"@rpath/$library\" \"$frameworks/$library\"\n    /usr/bin/codesign --force --sign - \"$frameworks/$library\"\n    for binary in \"$TARGET_BUILD_DIR/$EXECUTABLE_PATH\" \"$TARGET_BUILD_DIR/$EXECUTABLE_FOLDER_PATH/$PRODUCT_NAME.debug.dylib\"; do\n        if test -f \"$binary\"; then\n            /usr/bin/install_name_tool -change \"$source_path\" \"@rpath/$library\" \"$binary\"\n        fi\n    done\ndone\nlicenses=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/Licenses\"\nmkdir -p \"$licenses\"\ncp /opt/homebrew/opt/xz/share/doc/xz/COPYING.0BSD \"$licenses/liblzma.txt\"\ncp /opt/homebrew/opt/zstd/LICENSE \"$licenses/zstd.txt\"\n";
 		};
+		2E58316EFAD5370B2C63AC4C /* Build Windows display helper */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Build Windows display helper";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/BigScreenDisplay.exe",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "#!/bin/sh\nset -eu\ncd \"$SRCROOT\"\n# Build a tiny Windows executable using the existing LLVM cross compiler and linker.\n# No downloaded runtime, Windows SDK, .NET, or additional user permissions are required.\ncompiler_root=\"${BIGSCREEN_LLVM_ROOT:-/opt/homebrew/opt/llvm}\"\nlinker_root=\"${BIGSCREEN_LLD_ROOT:-/opt/homebrew/opt/lld}\"\nhelper_build=\"$DERIVED_FILE_DIR/DisplayHelper\"\nhelper_resources=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH\"\nmkdir -p \"$helper_build\" \"$helper_resources\"\n\"$compiler_root/bin/clang\" --target=x86_64-pc-windows-msvc -std=c11 -Os -Wall -Wextra -Werror \\\n    -ffreestanding -fno-builtin -fno-stack-protector -c Native/DisplayHelper/main.c -o \"$helper_build/main.obj\"\nfor library in kernel32 user32 shell32; do\n    \"$compiler_root/bin/llvm-dlltool\" -m i386:x86-64 -d \"Native/DisplayHelper/$library.def\" -l \"$helper_build/$library.lib\"\ndone\n\"$linker_root/bin/lld-link\" /nodefaultlib /entry:mainCRTStartup /subsystem:console /machine:x64 /timestamp:0 \\\n    \"/out:$helper_resources/BigScreenDisplay.exe\" \"$helper_build/main.obj\" \\\n    \"$helper_build/kernel32.lib\" \"$helper_build/user32.lib\" \"$helper_build/shell32.lib\"\n";
+		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -387,6 +411,7 @@
 				1EFD31AE2D9D221A91B9222D /* DownloadPresentation.swift in Sources */,
 				B1A657D405AAD7C8B281677C /* EditingViews.swift in Sources */,
 				557F062A5951E40EC82A7F69 /* FocusViews.swift in Sources */,
+				C617DC97E2339CC012966C7D /* GameDisplay.swift in Sources */,
 				22C6ADE3CF2AAE902950F889 /* GameExitShortcut.swift in Sources */,
 				38E2837AB3519707459E65EF /* InstallModel.swift in Sources */,
 				3D06C7DD0B318C2EDB32000C /* InstallSnapshots.swift in Sources */,

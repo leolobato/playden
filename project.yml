@@ -17,6 +17,11 @@ targets:
     sources:
       - path: App
     postBuildScripts:
+      - path: scripts/embed-display-helper.sh
+        name: Build Windows display helper
+        basedOnDependencyAnalysis: false
+        outputFiles:
+          - '$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/BigScreenDisplay.exe'
       - path: scripts/embed-runtime.sh
         name: Embed Steam runtime libraries
         basedOnDependencyAnalysis: false
