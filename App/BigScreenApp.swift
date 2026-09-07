@@ -27,7 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let args = ProcessInfo.processInfo.arguments
         let isTest = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil || args.contains("-XCTest") || args.contains("-NSTreatUnknownArgumentsAsOpen")
         // Keep tests and visual fixtures deterministic and separate from the interactive profile.
-        if args.contains("--snapshot") || isTest { model = LibraryModel() }
+        if args.contains("--snapshot") || args.contains("--cloud-read-check") || isTest { model = LibraryModel() }
         else {
             let preview = args.contains("--preview")
             do {
@@ -52,8 +52,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var resumeFullscreenAfterMove = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        Design.registerFonts()
         let args = ProcessInfo.processInfo.arguments
+        #if DEBUG
+        if let index = args.firstIndex(of: "--cloud-read-check"), args.indices.contains(index + 1) {
+            NSApp.setActivationPolicy(.accessory)
+            Task { await CloudReadCheck.run(game: args[index + 1]); NSApp.terminate(nil) }
+            return
+        }
+        #endif
+        Design.registerFonts()
         let snapshotIndex = args.firstIndex(of: "--snapshot")
         let isSnapshot = snapshotIndex != nil
         model.fixedClock = isSnapshot

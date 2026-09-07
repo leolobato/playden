@@ -16,6 +16,7 @@ let package = Package(
     ],
     dependencies: [
         .package(path: "../../../GameNative-macos/swift"),
+        .package(url: "https://github.com/apple/swift-protobuf.git", from: "1.28.0"),
         .package(url: "https://github.com/groue/GRDB.swift.git", exact: "7.11.1"),
     ],
     targets: [
@@ -26,8 +27,9 @@ let package = Package(
         .target(name: "Installs", dependencies: ["Domain", "Catalog", "Runner"]),
         .testTarget(name: "InstallsTests", dependencies: ["Installs", "Domain"]),
         .testTarget(name: "RunnerTests", dependencies: ["Runner", "Domain"]),
-        .target(name: "Sources", dependencies: ["Domain", .product(name: "SteamCore", package: "swift")]),
-        .testTarget(name: "SourcesTests", dependencies: ["Sources", "Domain"]),
+        .target(name: "SteamCloudProto", dependencies: [.product(name: "SwiftProtobuf", package: "swift-protobuf")]),
+        .target(name: "Sources", dependencies: ["Domain", "SteamCloudProto", .product(name: "SteamCore", package: "swift")]),
+        .testTarget(name: "SourcesTests", dependencies: ["Sources", "Domain", "SteamCloudProto"]),
         .target(name: "Catalog", dependencies: ["Domain", .product(name: "GRDB", package: "GRDB.swift")]),
         .testTarget(name: "CatalogTests", dependencies: ["Catalog", "Domain"]),
         .target(name: "Focus"),

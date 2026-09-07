@@ -52,6 +52,7 @@
 		B2A98FB795CC03E24E7989E6 /* AccountInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 281D1CCE073CC4C5E8961058 /* AccountInteractionTests.swift */; };
 		B9C9F1D5CF194B3D92E7705B /* Sessions in Frameworks */ = {isa = PBXBuildFile; productRef = F113430A9DD2F5547F593DAD /* Sessions */; };
 		C1FB15B5D9027944888D38FA /* BarlowCondensed-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 8DF603146150E3A8F502D3AF /* BarlowCondensed-Medium.ttf */; };
+		C4EDBB9348B8E1E02A0161D8 /* CloudReadCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F124DDCA81FCCB25F42B2E6 /* CloudReadCheck.swift */; };
 		C617DC97E2339CC012966C7D /* GameDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F8702FA8C0998A1511EBD2C /* GameDisplay.swift */; };
 		CA15BEFA39C7E33110214117 /* Runner in Frameworks */ = {isa = PBXBuildFile; productRef = 6310A68293BC5942095233F5 /* Runner */; };
 		CA2CD29BB2A361B7CCF5F01C /* PreviewCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB21DA9AE3F1CFE573775A04 /* PreviewCatalog.swift */; };
@@ -88,6 +89,7 @@
 		4C9C86672EFCA75AD8158EA9 /* LibraryFilterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryFilterTests.swift; sourceTree = "<group>"; };
 		5036277590D70F7B4EDB65E7 /* BigScreenKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = BigScreenKit; path = Packages/BigScreenKit; sourceTree = SOURCE_ROOT; };
 		5B2BFD1CFF9C87356CDEE098 /* DisplayModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayModel.swift; sourceTree = "<group>"; };
+		5F124DDCA81FCCB25F42B2E6 /* CloudReadCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudReadCheck.swift; sourceTree = "<group>"; };
 		675832B109B2E37BE237EB27 /* BarlowCondensed-SemiBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "BarlowCondensed-SemiBold.ttf"; sourceTree = "<group>"; };
 		6AF948AAF0BAAEF8084DC07F /* Barlow-SemiBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Barlow-SemiBold.ttf"; sourceTree = "<group>"; };
 		6C51BD54920288A7687D10E5 /* AmbientBackdrop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AmbientBackdrop.swift; sourceTree = "<group>"; };
@@ -178,6 +180,7 @@
 				6C51BD54920288A7687D10E5 /* AmbientBackdrop.swift */,
 				8D6705B879274E7AFECA275A /* AuthenticationView.swift */,
 				DC34C0B6A3AA65EAACEB3DF6 /* BigScreenApp.swift */,
+				5F124DDCA81FCCB25F42B2E6 /* CloudReadCheck.swift */,
 				CB83D00EB74FC4E628955BCE /* ControllerTestView.swift */,
 				ACE543D0F8A5BF17507E08D4 /* DesignSystem.swift */,
 				5B2BFD1CFF9C87356CDEE098 /* DisplayModel.swift */,
@@ -408,6 +411,7 @@
 				2CBF1B157A95E516A68766C2 /* AmbientBackdrop.swift in Sources */,
 				184DCD9AB341114AFCCFE804 /* AuthenticationView.swift in Sources */,
 				14216B99792AA03166CC204A /* BigScreenApp.swift in Sources */,
+				C4EDBB9348B8E1E02A0161D8 /* CloudReadCheck.swift in Sources */,
 				02333F1C7B4832A61E57A245 /* ControllerTestView.swift in Sources */,
 				1CDD97632E3844CB38650231 /* DesignSystem.swift in Sources */,
 				0779CD1FCEE0B67901EBD95A /* DisplayModel.swift in Sources */,
