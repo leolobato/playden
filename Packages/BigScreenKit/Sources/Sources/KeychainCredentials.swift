@@ -1,0 +1,47 @@
+import Foundation
+import Security
+import SteamCore
+
+struct KeychainFailure: Error { let status: OSStatus }
+/// One device-local account; service/account keys contain no player identity. Never falls back to a file.
+struct KeychainCredentials: AuthCredentialStore {
+    let service: String
+    init(service: String = "com.gamenative.bigscreen.steam") { self.service = service }
+    private var query: [String: Any] {
+        [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
+         kSecAttrAccount as String: "current", kSecAttrSynchronizable as String: false]
+    }
+    func load() throws -> StoredAuth? {
+        var query = query
+        query[kSecReturnData as String] = true; query[kSecMatchLimit as String] = kSecMatchLimitOne
+        var result: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        if status == errSecItemNotFound { return nil }
+        guard status == errSecSuccess else { throw KeychainFailure(status: status) }
+        guard let data = result as? Data else { throw KeychainFailure(status: errSecDecode) }
+        return try JSONDecoder().decode(StoredAuth.self, from: data)
+    }
+    func save(_ auth: StoredAuth) throws {
+        let data = try JSONEncoder().encode(auth)
+        let attributes = [kSecValueData as String: data]
+        var status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        if status == errSecItemNotFound {
+            var item = query
+            item[kSecValueData as String] = data
+            item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+            status = SecItemAdd(item as CFDictionary, nil)
+        }
+        guard status == errSecSuccess else { throw KeychainFailure(status: status) }
+    }
+    func clear() throws {
+        let status = SecItemDelete(query as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else { throw KeychainFailure(status: status) }
+    }
+}
+final class MemoryCredentials: AuthCredentialStore, @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: StoredAuth?
+    func load() throws -> StoredAuth? { lock.withLock { value } }
+    func save(_ auth: StoredAuth) throws { lock.withLock { value = auth } }
+    func clear() throws { lock.withLock { value = nil } }
+}
