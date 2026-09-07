@@ -23,6 +23,8 @@ targets:
         product: Focus
       - package: BigScreenKit
         product: Input
+      - package: BigScreenKit
+        product: Catalog
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.gamenative.bigscreen

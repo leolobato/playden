@@ -10,6 +10,7 @@
 		026CD25A5A7A4881AC6252AE /* LibraryEditing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ABB68A7CE89083ACCBE20BC /* LibraryEditing.swift */; };
 		027C05DE49D217FF36A11277 /* Domain in Frameworks */ = {isa = PBXBuildFile; productRef = DCB264D4EC935990E4A49C62 /* Domain */; };
 		0ADE2D8965DF0EB2970C1299 /* Barlow-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 6AF948AAF0BAAEF8084DC07F /* Barlow-SemiBold.ttf */; };
+		0B41C234F26FCC59D2D7FA28 /* LibraryPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A99C8A8DFE712FC7DD3CEF /* LibraryPersistence.swift */; };
 		0D2E79FBE3049ECE01746076 /* barlowcondensed-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = 99CC90B68B12DC034A62B4A8 /* barlowcondensed-OFL.txt */; };
 		14216B99792AA03166CC204A /* BigScreenApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC34C0B6A3AA65EAACEB3DF6 /* BigScreenApp.swift */; };
 		1893A3DCB6C8FDCE2B5C32E1 /* barlow-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = C8DF7A3A43F7711BF2900808 /* barlow-OFL.txt */; };
@@ -18,7 +19,9 @@
 		1EFD31AE2D9D221A91B9222D /* DownloadPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = F368FC58634A6CD38017484C /* DownloadPresentation.swift */; };
 		289C912D18322B71016A270B /* LibraryViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = E59AD64ED47C06CB9847E69F /* LibraryViews.swift */; };
 		2CBF1B157A95E516A68766C2 /* AmbientBackdrop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C51BD54920288A7687D10E5 /* AmbientBackdrop.swift */; };
+		30306F64D650CE41AADD0B44 /* LibraryPersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EB9DBF77AE790F10C180E46 /* LibraryPersistenceTests.swift */; };
 		339B25E5D038DDAF8B50576E /* LibraryInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99B69173E3CBF5EC838826D5 /* LibraryInteractionTests.swift */; };
+		39CC303E3BA3D56385AAECF9 /* Catalog in Frameworks */ = {isa = PBXBuildFile; productRef = 28715DC80ABF712BDFAB9025 /* Catalog */; };
 		557F062A5951E40EC82A7F69 /* FocusViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = F51F9BB1C1297E755C6FB654 /* FocusViews.swift */; };
 		764655582701C0B1C2F9BA54 /* SupportViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0ABE6CC32C22767FC77D4D03 /* SupportViews.swift */; };
 		8F22CB0C305DF070224934BA /* BarlowCondensed-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 675832B109B2E37BE237EB27 /* BarlowCondensed-SemiBold.ttf */; };
@@ -46,6 +49,7 @@
 /* Begin PBXFileReference section */
 		08513EE3EB4D3FF23A5EC440 /* Barlow-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Barlow-Medium.ttf"; sourceTree = "<group>"; };
 		0ABE6CC32C22767FC77D4D03 /* SupportViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupportViews.swift; sourceTree = "<group>"; };
+		0EB9DBF77AE790F10C180E46 /* LibraryPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryPersistenceTests.swift; sourceTree = "<group>"; };
 		2ABB68A7CE89083ACCBE20BC /* LibraryEditing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryEditing.swift; sourceTree = "<group>"; };
 		4038C0219269A842D64FC94D /* EditingViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditingViews.swift; sourceTree = "<group>"; };
 		4622DF2E186C3B6F638C30B1 /* Barlow-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Barlow-Regular.ttf"; sourceTree = "<group>"; };
@@ -60,6 +64,7 @@
 		ACE543D0F8A5BF17507E08D4 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
 		BAA058B561808E36274C4A53 /* LibraryEditingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryEditingTests.swift; sourceTree = "<group>"; };
 		BBF8335C78563AB54988A674 /* BarlowCondensed-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "BarlowCondensed-Bold.ttf"; sourceTree = "<group>"; };
+		C0A99C8A8DFE712FC7DD3CEF /* LibraryPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryPersistence.swift; sourceTree = "<group>"; };
 		C8DF7A3A43F7711BF2900808 /* barlow-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "barlow-OFL.txt"; sourceTree = "<group>"; };
 		DB21DA9AE3F1CFE573775A04 /* PreviewCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewCatalog.swift; sourceTree = "<group>"; };
 		DC34C0B6A3AA65EAACEB3DF6 /* BigScreenApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BigScreenApp.swift; sourceTree = "<group>"; };
@@ -78,6 +83,7 @@
 				027C05DE49D217FF36A11277 /* Domain in Frameworks */,
 				A5BB015D1145708E9D242027 /* Focus in Frameworks */,
 				FCB403FE4A0246DD90667FE7 /* Input in Frameworks */,
+				39CC303E3BA3D56385AAECF9 /* Catalog in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -89,6 +95,7 @@
 			children = (
 				BAA058B561808E36274C4A53 /* LibraryEditingTests.swift */,
 				99B69173E3CBF5EC838826D5 /* LibraryInteractionTests.swift */,
+				0EB9DBF77AE790F10C180E46 /* LibraryPersistenceTests.swift */,
 			);
 			name = AppTests;
 			path = Tests/AppTests;
@@ -114,6 +121,7 @@
 				F51F9BB1C1297E755C6FB654 /* FocusViews.swift */,
 				2ABB68A7CE89083ACCBE20BC /* LibraryEditing.swift */,
 				A7E1299E802C11E73F8A1EDA /* LibraryModel.swift */,
+				C0A99C8A8DFE712FC7DD3CEF /* LibraryPersistence.swift */,
 				E59AD64ED47C06CB9847E69F /* LibraryViews.swift */,
 				DB21DA9AE3F1CFE573775A04 /* PreviewCatalog.swift */,
 				0ABE6CC32C22767FC77D4D03 /* SupportViews.swift */,
@@ -183,6 +191,7 @@
 				DCB264D4EC935990E4A49C62 /* Domain */,
 				7DAA6C5CD5D24A18E0472A09 /* Focus */,
 				8A0E4D1D02D0A2AB2C0FF44A /* Input */,
+				28715DC80ABF712BDFAB9025 /* Catalog */,
 			);
 			productName = BigScreen;
 			productReference = F549D7F628B1DA7071BA2F75 /* BigScreen.app */;
@@ -274,6 +283,7 @@
 				557F062A5951E40EC82A7F69 /* FocusViews.swift in Sources */,
 				026CD25A5A7A4881AC6252AE /* LibraryEditing.swift in Sources */,
 				B25B1F80C0B90AEC6CA8BC60 /* LibraryModel.swift in Sources */,
+				0B41C234F26FCC59D2D7FA28 /* LibraryPersistence.swift in Sources */,
 				289C912D18322B71016A270B /* LibraryViews.swift in Sources */,
 				CA2CD29BB2A361B7CCF5F01C /* PreviewCatalog.swift in Sources */,
 				764655582701C0B1C2F9BA54 /* SupportViews.swift in Sources */,
@@ -286,6 +296,7 @@
 			files = (
 				F97B357CF2C84140B4D6FD9C /* LibraryEditingTests.swift in Sources */,
 				339B25E5D038DDAF8B50576E /* LibraryInteractionTests.swift in Sources */,
+				30306F64D650CE41AADD0B44 /* LibraryPersistenceTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -539,6 +550,10 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		28715DC80ABF712BDFAB9025 /* Catalog */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Catalog;
+		};
 		7DAA6C5CD5D24A18E0472A09 /* Focus */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = Focus;

@@ -1,0 +1,95 @@
+import Foundation
+import Domain
+import Catalog
+
+extension LibraryModel {
+    /// Preview fixtures seed their own database once. Production callers pass preview: false and
+    /// populate this same catalog through GameSource; no fixture can become a real installation.
+    func restoreCatalog() {
+        guard let catalog else { return }
+        do {
+            if isPreview, try catalog.lastSync(for: "steam") == nil {
+                let records = PreviewCatalog.games.map { game in
+                    SourceGameRecord(id: game.id, title: game.title, summary: game.summary, genres: game.genres,
+                        controllerSupport: .full, coverURL: game.coverURL, heroURL: game.heroURL, logoURL: game.logoURL,
+                        importedPlaytimeSeconds: Int64(game.hoursPlayed) * 3600, metadataUpdatedAt: .now)
+                }
+                try catalog.replaceSourceCatalog(source: "steam", games: records)
+                try catalog.saveLibraryState(edits: Dictionary(uniqueKeysWithValues: games.map { ($0.id, edits(for: $0)) }),
+                    collections: collections, preferences: LibraryPreferences())
+            }
+            let snapshot = try catalog.snapshot()
+            let fixtures = Dictionary(uniqueKeysWithValues: PreviewCatalog.games.map { ($0.id, $0) })
+            games = snapshot.entries.map { entry in
+                let record = entry.source
+                return Game(id: record.id, title: record.title,
+                    status: isPreview ? fixtures[record.id]?.status ?? .notInstalled : entry.installation == nil ? .notInstalled : .installed,
+                    compatibility: entry.edits.compatibility, hoursPlayed: Int(entry.totalPlaytimeSeconds / 3600),
+                    size: isPreview ? fixtures[record.id]?.size ?? "—" : entry.installation.map { ByteCountFormatter.string(fromByteCount: $0.installedBytes, countStyle: .file) } ?? record.downloadBytes.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "—",
+                    summary: record.summary, genres: record.genres, coverURL: record.coverURL, heroURL: record.heroURL,
+                    logoURL: record.logoURL, isFavorite: entry.edits.isFavorite, isHidden: entry.edits.isHidden)
+            }
+            collections = snapshot.collections
+            compatibilityNotes = Dictionary(uniqueKeysWithValues: snapshot.entries.map { ($0.id, $0.edits.note) })
+            let preferences = snapshot.preferences
+            filter = preferences.scope
+            if !libraryFilters.contains(filter) { filter = .all }
+            sortByPlaytime = preferences.sort == .playtime
+            reducedMotion = preferences.reducedMotion; downloadWhilePlaying = preferences.downloadWhilePlaying
+            reconcileFocus()
+        } catch { recordPersistenceError(error) }
+    }
+    private func edits(for game: Game) -> GameEdits {
+        GameEdits(isFavorite: game.isFavorite, isHidden: game.isHidden, compatibility: game.compatibility, note: compatibilityNotes[game.id] ?? "")
+    }
+    private var preferences: LibraryPreferences {
+        var value = LibraryPreferences()
+        value.scope = filter; value.sort = sortByPlaytime ? .playtime : .name
+        value.reducedMotion = reducedMotion; value.downloadWhilePlaying = downloadWhilePlaying
+        return value
+    }
+    func persistGameEdits(previous: [Game]) {
+        guard !restoringState, let catalog else { return }
+        let old = Dictionary(uniqueKeysWithValues: previous.map { ($0.id, $0) })
+        do {
+            for game in games {
+                let value = edits(for: game)
+                if old[game.id].map({ edits(for: $0) }) != value { try catalog.saveEdits(value, for: game.id) }
+            }
+        } catch { recordPersistenceError(error) }
+    }
+    func persistNotes(previous: [GameID: String]) {
+        guard !restoringState, let catalog else { return }
+        do {
+            for game in games where previous[game.id] != compatibilityNotes[game.id] { try catalog.saveEdits(edits(for: game), for: game.id) }
+        } catch { recordPersistenceError(error) }
+    }
+    func persistCollections() {
+        guard !restoringState, let catalog else { return }
+        do { try catalog.saveCollections(collections) } catch { recordPersistenceError(error) }
+    }
+    func persistPreferences() {
+        guard !restoringState, let catalog else { return }
+        do {
+            // Preserve setup/display fields owned by their corresponding settings flows.
+            var saved = try catalog.preferences()
+            saved.scope = filter; saved.sort = preferences.sort
+            saved.reducedMotion = reducedMotion; saved.downloadWhilePlaying = downloadWhilePlaying
+            try catalog.savePreferences(saved)
+        } catch { recordPersistenceError(error) }
+    }
+    func retryPersistence() {
+        guard let catalog else { return }
+        do {
+            var saved = try catalog.preferences()
+            saved.scope = filter; saved.sort = preferences.sort
+            saved.reducedMotion = reducedMotion; saved.downloadWhilePlaying = downloadWhilePlaying
+            try catalog.saveLibraryState(edits: Dictionary(uniqueKeysWithValues: games.map { ($0.id, edits(for: $0)) }), collections: collections, preferences: saved)
+            persistenceError = nil; panel = nil
+        } catch { recordPersistenceError(error) }
+    }
+    private func recordPersistenceError(_ error: Error) {
+        persistenceError = error.localizedDescription
+        show(.persistenceFailure)
+    }
+}

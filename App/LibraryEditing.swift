@@ -136,6 +136,7 @@ extension LibraryModel {
     var panelTitle: String {
         switch panel {
         case .filters: "Sort & filter"
+        case .persistenceFailure: "Changes weren’t saved"
         case .compatibility: "Compatibility"
         case .collections: "Add to collection"
         case .collectionOptions(let id): collections.first { $0.id == id }?.name ?? "Collection"

@@ -170,5 +170,7 @@ final class CatalogStoreTests: XCTestCase {
         let output = try XCTUnwrap(store.jobs().first?.failure?.output)
         for secret in ["secret-a", "secret-b", "secret-c", "76561198000000000"] { XCTAssertFalse(output.contains(secret)) }
         XCTAssertTrue(output.contains("[REDACTED]"))
+        let spaced = DiagnosticRedactor.redact(#"{"password":"words with spaces", "account_name":"private user", "guardCode":"12345"}"#)
+        for secret in ["words", "spaces", "private", "user\"", "12345"] { XCTAssertFalse(spaced.contains(secret)) }
     }
 }

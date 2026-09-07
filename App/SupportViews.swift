@@ -91,7 +91,8 @@ struct ModalLayer: View {
                 VStack(alignment: .leading, spacing: 30) {
                     Text(model.panelTitle)
                         .font(Design.condensed(48))
-                    if model.panel == .compatibility { Text("Your rating · preview only").font(Design.body(22)).foregroundStyle(Design.secondary) }
+                    if model.panel == .persistenceFailure { Text(model.persistenceError ?? "The library database is unavailable.").font(Design.body(24)).foregroundStyle(Design.secondary) }
+                    if model.panel == .compatibility { Text(model.isPreview ? "Your rating · preview library" : "Your rating").font(Design.body(22)).foregroundStyle(Design.secondary) }
                     PanelActionList(model: model)
                     if model.panel == .compatibility, let id = model.focusedGame?.id {
                         Text(model.compatibilityNotes[id].flatMap { $0.isEmpty ? nil : $0 } ?? "Add a note about settings, controls or anything that needs a workaround.")

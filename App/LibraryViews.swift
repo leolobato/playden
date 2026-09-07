@@ -43,6 +43,15 @@ struct CanvasView: View {
             LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: Design.background, location: 0.6)], startPoint: .top, endPoint: .bottom)
                 .frame(height: 150).offset(y: 930).allowsHitTesting(false).zIndex(2)
             BottomBar(model: model).frame(width: 1728, height: 40).offset(x: 96, y: 986).zIndex(3)
+            if model.persistenceError != nil && model.panel == nil {
+                Button { model.retryPersistence() } label: {
+                    HStack(spacing: 16) {
+                        Image(systemName: "exclamationmark.circle").foregroundStyle(Design.amber)
+                        Text("Changes aren’t saved").font(Design.body(24, weight: "Medium"))
+                        LegendItem(glyph: model.controllerName == nil ? "O" : model.playStationGlyphs ? "OPTIONS" : "MENU", title: "Retry")
+                    }.padding(22).background(Design.panel, in: RoundedRectangle(cornerRadius: 12))
+                }.buttonStyle(.plain).offset(x: 1150, y: 880).zIndex(3)
+            }
             if model.panel != nil { ModalLayer(model: model).transition(.opacity).zIndex(4) }
         }.frame(width: 1920, height: 1080).clipped().foregroundStyle(Design.text)
             .environment(\.colorScheme, .dark)

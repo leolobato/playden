@@ -3,6 +3,7 @@ import CoreGraphics
 import SwiftUI
 import Input
 import Focus
+import Catalog
 
 @main
 struct BigScreenApp {
@@ -16,7 +17,25 @@ struct BigScreenApp {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
-    let model = LibraryModel()
+    let model: LibraryModel
+    override init() {
+        let args = ProcessInfo.processInfo.arguments
+        let isTest = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil || args.contains("-XCTest") || args.contains("-NSTreatUnknownArgumentsAsOpen")
+        // Keep tests and visual fixtures deterministic and separate from the interactive profile.
+        if args.contains("--snapshot") || isTest { model = LibraryModel() }
+        else {
+            do {
+                let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+                    .appendingPathComponent("Big Screen/Preview", isDirectory: true)
+                model = LibraryModel(catalog: try CatalogStore(path: root.appendingPathComponent("catalog.sqlite").path))
+            } catch {
+                model = LibraryModel()
+                model.persistenceError = error.localizedDescription
+                model.show(.information("The library database could not be opened. This session will not save changes. Your existing database has been left in place.\n\n\(error.localizedDescription)"))
+            }
+        }
+        super.init()
+    }
     let controller = ControllerInput()
     var window: NSWindow!
     var keyboardMonitor: Any?

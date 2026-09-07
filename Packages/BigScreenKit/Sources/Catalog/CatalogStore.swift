@@ -110,6 +110,12 @@ public final class CatalogStore: Sendable {
     public func saveEdits(_ edits: GameEdits, for id: GameID) throws {
         try database.write { try Self.putGame($0, table: "game_edits", id: id, value: edits) }
     }
+    public func preferences() throws -> LibraryPreferences {
+        try database.read { db in
+            try Data.fetchOne(db, sql: "SELECT payload FROM preferences WHERE id = 1")
+                .map { try Self.decode(LibraryPreferences.self, $0) } ?? LibraryPreferences()
+        }
+    }
     public func savePreferences(_ preferences: LibraryPreferences) throws {
         try database.write { try Self.putPreferences($0, preferences) }
     }

@@ -3,30 +3,35 @@ import Observation
 import Domain
 import Focus
 import Input
+import Catalog
 
 enum AppTab: String, CaseIterable { case home = "Home", library = "Library", downloads = "Downloads", settings = "Settings"
     var symbol: String { switch self { case .home: "house"; case .library: "square.grid.2x2"; case .downloads: "arrow.down.to.line"; case .settings: "gearshape" } }
 }
-enum LibraryFilter: Hashable { case installed, all, favorites, hidden, collection(UUID) }
+typealias LibraryFilter = LibraryScope
 enum TextPurpose: Equatable { case newCollection(GameID?), renameCollection(UUID), compatibilityNote(GameID) }
 enum Confirmation: Equatable { case deleteCollection(UUID), uninstall(GameID), install(GameID), cancelDownload(GameID) }
 enum Panel: Equatable {
-    case context, filters, search, compatibility, information(String)
+    case context, filters, search, compatibility, information(String), persistenceFailure
     case downloadActions(GameID)
     case textEditor(TextPurpose), collections(GameID), collectionOptions(UUID), confirmation(Confirmation), logs(GameID)
 }
 
 @MainActor @Observable
 final class LibraryModel {
-    var games = PreviewCatalog.games
-    var collections = PreviewCatalog.collections
-    var compatibilityNotes: [GameID: String] = [:]
+    @ObservationIgnored let catalog: CatalogStore?
+    @ObservationIgnored var restoringState = true
+    let isPreview: Bool
+    var persistenceError: String?
+    var games = PreviewCatalog.games { didSet { persistGameEdits(previous: oldValue) } }
+    var collections = PreviewCatalog.collections { didSet { persistCollections() } }
+    var compatibilityNotes: [GameID: String] = [:] { didSet { persistNotes(previous: oldValue) } }
     var libraryRailIndex = 1
     var textEditor = TextEditorState()
     var keyboardError: String?
     var symbols = false
     var keepSaves = true
-    var downloadWhilePlaying = false
+    var downloadWhilePlaying = false { didSet { persistPreferences() } }
     var tab: AppTab = .home
     var detailID: GameID?
     var panel: Panel?
@@ -38,11 +43,11 @@ final class LibraryModel {
     var libraryScrollOffset = 0.0
     var libraryCursor = GridCursor() { didSet { revealLibraryFocus() } }
     var railFocused = false
-    var filter: LibraryFilter = .all { didSet { libraryCursor = .init(); libraryScrollOffset = 0; libraryRailIndex = libraryFilters.firstIndex(of: filter) ?? 1 } }
+    var filter: LibraryFilter = .all { didSet { libraryCursor = .init(); libraryScrollOffset = 0; libraryRailIndex = libraryFilters.firstIndex(of: filter) ?? 1; persistPreferences() } }
     var query = ""
-    var sortByPlaytime = false
+    var sortByPlaytime = false { didSet { persistPreferences() } }
     var detailAction = 0
-    var reducedMotion = false
+    var reducedMotion = false { didSet { persistPreferences() } }
     var controllerName: String?
     var playStationGlyphs = true
     var downloadPaused = false
@@ -58,6 +63,12 @@ final class LibraryModel {
     var keyRow = 1
     var keyColumn = 0
     var uppercase = false
+    init(catalog: CatalogStore? = nil, preview: Bool = true) {
+        self.catalog = catalog; self.isPreview = preview
+        if !preview { games = []; collections = []; queueOrder = []; completedDownloads = [] }
+        restoreCatalog()
+        restoringState = false
+    }
     var searchKeys: [[String]] {
         func keys(_ string: String) -> [String] { string.map { String($0) } }
         if symbols { return [keys("!@#$%&*()?"), keys("-_=+[]{}<>"), keys(".,:;/\\'\"~"), ["ABC", "⌫"], ["Space", "Done"]] }
@@ -123,6 +134,7 @@ final class LibraryModel {
         case .collectionOptions(let id): ["Rename", collections.first { $0.id == id }?.isPinned == true ? "Unpin from Home" : "Pin to Home", "Delete collection…"]
         case .confirmation(let intent): ["Cancel", confirmationAction(intent)]
         case .information: ["Got it"]
+        case .persistenceFailure: ["Retry saving", "Continue without saving"]
         default: []
         }
     }
@@ -173,6 +185,7 @@ final class LibraryModel {
         for (i, row) in rows.enumerated() { homeColumns[i] = min(homeColumns[i, default: 0], max(0, row.games.count - 1)) }
     }
     func perform(_ action: InputAction) {
+        if case .options = action, panel == nil, persistenceError != nil { retryPersistence(); return }
         if isEditingText {
             switch action {
             case .back: cancelText()
@@ -291,6 +304,8 @@ final class LibraryModel {
     func activatePanel() {
         guard let label = panelActions[safe: panelIndex] else { return }
         switch panel {
+        case .persistenceFailure:
+            if panelIndex == 0 { retryPersistence() } else { panel = nil }
         case .context:
             if label == "Open game", let game = focusedGame { openGame(game) }
             else if label == "Favorite" || label == "Unfavorite" { toggleFavorite(); panel = nil }
