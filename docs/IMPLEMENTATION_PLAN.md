@@ -1,4 +1,4 @@
-# GameNative Big Screen — v1 implementation plan
+# Big Screen — v1 implementation plan
 
 Written 2026-09-07 following review of [the PRD](prd/README.md), the sibling Swift implementation,
 and the installed CrossOver command-line help. This is an implementation proposal, not evidence
@@ -18,8 +18,7 @@ focus and foreground controller input are separate package targets. Native scree
 captured for visual review. This is partial M1/M5 work, not completion of either milestone.
 
 M0 real-game/controller handoff, persistence, first-run auth, install/session services and remaining
-v1 actions are still outstanding. Physical DS4 availability was asked about and has not yet been
-confirmed. Validation so far: Xcode build, four package tests, eight app interaction tests, and
+v1 actions are still outstanding. The user confirmed DS4 foreground input works on 2026-09-07; background game handoff is still unverified. Validation so far: Xcode build, four package tests, eight app interaction tests, and
 native window captures of Home, Library, game page, Downloads and Settings at 1920×1080 and
 1280×720 logical window sizes (Retina pixel output). A real keyboard-event smoke check caught and
 fixed a smaller-window scaling alignment bug. See the root README

@@ -1,4 +1,4 @@
-# GameNative Big Screen
+# Big Screen
 
 A living-room launcher for Windows games on a Mac: a TV-sized native SwiftUI/AppKit interface,
 controlled with a gamepad, with Steam and CrossOver integration planned.
@@ -34,7 +34,7 @@ shows a title placeholder. No login credentials or game files are accessed by th
 |---|---|---|
 | Arrows | D-pad / left stick | Move focus |
 | Return / Escape | Cross / Circle | Open or select / back |
-| `[` / `]` | L1 / R1 | Change tabs |
+| Tab / Shift-Tab, `[` / `]`, Command-1…4 | L1 / R1 | Change tabs |
 | F / T | Square / Triangle | Favorite / context menu |
 | O | Options | Library sort/filter sheet |
 | `/` | Touchpad click | Search keyboard |

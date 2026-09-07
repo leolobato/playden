@@ -26,9 +26,10 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.gamenative.bigscreen
-        PRODUCT_NAME: GameNative Big Screen
+        PRODUCT_NAME: Big Screen
+        PRODUCT_MODULE_NAME: BigScreen
         GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: GameNative Big Screen
+        INFOPLIST_KEY_CFBundleDisplayName: Big Screen
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.games
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: '-'
@@ -43,7 +44,7 @@ targets:
       base:
         GENERATE_INFOPLIST_FILE: YES
         CODE_SIGN_IDENTITY: '-'
-        TEST_HOST: '$(BUILT_PRODUCTS_DIR)/GameNative Big Screen.app/Contents/MacOS/GameNative Big Screen'
+        TEST_HOST: '$(BUILT_PRODUCTS_DIR)/Big Screen.app/Contents/MacOS/Big Screen'
 schemes:
   BigScreen:
     build:

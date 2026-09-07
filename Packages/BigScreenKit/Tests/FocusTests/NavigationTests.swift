@@ -35,3 +35,15 @@ import Testing
     #expect(DirectionRepeater.direction(x: 0.8, y: 0.4) == .right)
     #expect(DirectionRepeater.direction(x: -0.2, y: -0.9) == .down)
 }
+
+@Test func viewportRevealsFocusInBothDirectionsOver600Games() {
+    var offset = 0.0
+    let viewport = 840.0, content = 48.0 + 100 * 339
+    for index in Array(0..<600) + Array((0..<600).reversed()) {
+        let top = 24 + Double(index / 6) * 339
+        offset = FocusViewport.reveal(offset: offset, itemMin: top, itemMax: top + 315, viewport: viewport, content: content)
+        #expect(top - offset >= 24)
+        #expect(top + 315 - offset <= viewport - 24)
+    }
+    #expect(offset == 0)
+}

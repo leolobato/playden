@@ -84,11 +84,12 @@ struct BottomBar: View {
     @Bindable var model: LibraryModel
     var body: some View {
         HStack(spacing: 30) {
-            LegendItem(glyph: model.playStationGlyphs ? "✕" : "A", title: model.detailID != nil ? "Select" : model.tab == .downloads ? (model.downloadPaused ? "Resume" : "Pause") : "Open")
+            LegendItem(glyph: model.playStationGlyphs ? "✕" : "A", title: model.detailID != nil ? "Select" : model.tab == .downloads && model.focusedGame?.status == .downloading ? (model.downloadPaused ? "Resume" : "Pause") : "Open")
             if model.detailID != nil || model.tab == .library { LegendItem(glyph: model.playStationGlyphs ? "○" : "B", title: "Back") }
             if model.tab != .settings { LegendItem(glyph: model.playStationGlyphs ? "△" : "Y", title: "More") }
             if model.detailID == nil && model.tab == .home { LegendItem(glyph: model.playStationGlyphs ? "□" : "X", title: "Favorite") }
             if model.detailID == nil {
+                if model.controllerName == nil { LegendItem(glyph: "TAB", title: "Tabs") }
                 if model.tab == .library { LegendItem(glyph: model.playStationGlyphs ? "OPTIONS" : "MENU", title: "Sort & filter") }
                 else { HStack(spacing: 10) { Glyph(text: model.playStationGlyphs ? "L1" : "LB"); Glyph(text: model.playStationGlyphs ? "R1" : "RB"); Text("Tabs").font(Design.body(22, weight: "Medium")) } }
                 if model.tab == .home || model.tab == .library { LegendItem(glyph: model.playStationGlyphs ? "PAD" : "VIEW", title: "Search") }
@@ -120,33 +121,7 @@ struct HomeScreen: View {
                     ActionButton(title: "Browse library", primary: true, focused: true, reducedMotion: model.reducedMotion) { model.browseAvailableGames() }
                 }.frame(width: 1920, height: 1080)
             }
-            ScrollViewReader { vertical in
-                ScrollView(.vertical) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        ForEach(Array(model.rows.enumerated()), id: \.offset) { index, row in
-                            VStack(alignment: .leading, spacing: 14) {
-                                SectionLabel(text: row.name).padding(.leading, 24)
-                                ScrollViewReader { horizontal in
-                                    ScrollView(.horizontal) {
-                                        HStack(alignment: .top, spacing: 20) {
-                                            ForEach(Array(row.games.enumerated()), id: \.element.id) { column, game in
-                                                GameTile(game: game, focused: model.homeRow == index && model.homeColumns[index, default: 0] == column,
-                                                         home: true, reducedMotion: model.reducedMotion,
-                                                         subtitle: index == 0 && column == 0 ? "31 h played · yesterday" : nil, paused: model.downloadPaused)
-                                                    .id(column).onTapGesture { model.homeRow = index; model.homeColumns[index] = column; model.openGame(game) }
-                                            }
-                                        }.padding(.horizontal, 24)
-                                    }.scrollIndicators(.hidden).scrollClipDisabled().frame(height: 400)
-                                        .onChange(of: model.homeColumns[index, default: 0]) { _, column in
-                                            withAnimation(model.reducedMotion ? nil : .easeOut(duration: 0.18)) { horizontal.scrollTo(column) }
-                                        }
-                                }
-                            }.id(index)
-                        }
-                    }.padding(.top, 24).padding(.bottom, 140)
-                }.scrollIndicators(.hidden).scrollClipDisabled()
-                    .onChange(of: model.homeRow) { _, row in withAnimation(model.reducedMotion ? nil : .easeOut(duration: 0.18)) { vertical.scrollTo(row, anchor: .top) } }
-            }.frame(width: 1848, height: 860).offset(x: 72, y: 126)
+            FocusedHomeRows(model: model).frame(width: 1848, height: 894).offset(x: 72, y: 126)
         }.task(id: model.focusedGame?.heroURL) {
             let url = model.focusedGame?.heroURL
             if ambientURL != nil && !model.reducedMotion { try? await Task.sleep(for: .milliseconds(400)) }
@@ -183,21 +158,9 @@ struct LibraryScreen: View {
                     Text("\(model.filteredGames.count) results").font(Design.body(24)).foregroundStyle(Design.secondary)
                 }.padding(.horizontal, 22).frame(width: 1380, height: 64).background(Design.text.opacity(0.08), in: RoundedRectangle(cornerRadius: 8)).offset(x: 444, y: 150)
             }
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVGrid(columns: Array(repeating: GridItem(.fixed(210), spacing: 24, alignment: .top), count: 6), spacing: 24) {
-                        ForEach(Array(model.filteredGames.enumerated()), id: \.element.id) { index, game in
-                            GameTile(game: game, focused: model.libraryCursor.index == index && !model.railFocused, reducedMotion: model.reducedMotion, paused: model.downloadPaused)
-                                .id(index).zIndex(model.libraryCursor.index == index ? 1 : 0)
-                                .onTapGesture { model.libraryCursor = GridCursor(index: index); model.openGame(game) }
-                        }
-                    }.padding(24).padding(.bottom, 100)
-                }.scrollIndicators(.hidden).scrollClipDisabled()
-                    .onChange(of: model.libraryCursor.index) { _, index in
-                        withAnimation(model.reducedMotion ? nil : .easeOut(duration: 0.18)) { proxy.scrollTo(index) }
-                    }
-                    .onChange(of: model.filter) { _, _ in proxy.scrollTo(0, anchor: .top) }
-            }.frame(width: 1428, height: model.query.isEmpty ? 870 : 780).offset(x: 420, y: model.query.isEmpty ? 126 : 216)
+            FocusedLibraryGrid(model: model)
+                .frame(width: 1428, height: model.libraryViewportHeight + 54)
+                .offset(x: 420, y: model.query.isEmpty ? 126 : 216)
             if model.filteredGames.isEmpty {
                 VStack(spacing: 24) {
                     Text(model.query.isEmpty ? "Nothing here yet" : "No games match ‘\(model.query)’").font(Design.condensed(56))

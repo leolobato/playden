@@ -17,11 +17,14 @@ final class LibraryModel {
     var detailID: GameID?
     var panel: Panel?
     var panelIndex = 0
-    var homeRow = 0
-    var homeColumns: [Int: Int] = [:]
-    var libraryCursor = GridCursor()
+    var homeRow = 0 { didSet { revealHomeFocus() } }
+    var homeColumns: [Int: Int] = [:] { didSet { revealHomeFocus() } }
+    var homeScrollOffset = 0.0
+    var homeRowOffsets: [Int: Double] = [:]
+    var libraryScrollOffset = 0.0
+    var libraryCursor = GridCursor() { didSet { revealLibraryFocus() } }
     var railFocused = false
-    var filter: LibraryFilter = .all
+    var filter: LibraryFilter = .all { didSet { libraryCursor = .init(); libraryScrollOffset = 0 } }
     var query = ""
     var sortByPlaytime = false
     var detailAction = 0
@@ -29,6 +32,10 @@ final class LibraryModel {
     var controllerName: String?
     var playStationGlyphs = true
     var downloadPaused = false
+    var downloadIndex = 0
+    var downloadGames: [Game] {
+        ["TUNIC", "Celeste", "Cuphead"].compactMap { title in games.first { $0.title == title } }
+    }
     var toast: String?
     var settingsIndex = 0
     var settingsSection = 1
@@ -78,7 +85,7 @@ final class LibraryModel {
     var focusedGame: Game? {
         if let detailID { return games.first { $0.id == detailID } }
         if tab == .library { return filteredGames[safe: libraryCursor.index] }
-        if tab == .downloads { return games.first { $0.status == .downloading } }
+        if tab == .downloads { return downloadGames[safe: downloadIndex] }
         return rows[safe: homeRow]?.games[safe: homeColumns[homeRow, default: 0]]
     }
     var detailActions: [String] {
@@ -95,6 +102,29 @@ final class LibraryModel {
         case .information: ["Got it"]
         default: []
         }
+    }
+    var libraryViewportHeight: Double { query.isEmpty ? 840 : 750 }
+    var libraryVisibleIndices: Range<Int> {
+        let firstRow = max(0, Int(libraryScrollOffset / 339) - 2)
+        let lastRow = Int((libraryScrollOffset + libraryViewportHeight) / 339) + 3
+        let count = filteredGames.count
+        return min(count, firstRow * 6)..<min(count, lastRow * 6)
+    }
+    func revealLibraryFocus() {
+        let count = filteredGames.count
+        let top = 24.0 + Double(libraryCursor.index / 6) * 339
+        let content = 48.0 + Double((count + 5) / 6) * 339
+        libraryScrollOffset = FocusViewport.reveal(offset: libraryScrollOffset, itemMin: top,
+            itemMax: top + 315, viewport: libraryViewportHeight, content: content)
+    }
+    func revealHomeFocus() {
+        let top = 24.0 + Double(homeRow) * 442
+        homeScrollOffset = FocusViewport.reveal(offset: homeScrollOffset, itemMin: top,
+            itemMax: top + 420, viewport: 840, content: 48 + Double(rows.count) * 442)
+        let column = homeColumns[homeRow, default: 0]
+        let left = 24.0 + Double(column) * 233
+        homeRowOffsets[homeRow] = FocusViewport.reveal(offset: homeRowOffsets[homeRow, default: 0], itemMin: left,
+            itemMax: left + 213, viewport: 1848, content: 48 + Double(rows[safe: homeRow]?.games.count ?? 0) * 233)
     }
     func browseAvailableGames() {
         selectTab(.library)
@@ -144,7 +174,10 @@ final class LibraryModel {
         case .confirm:
             if detailID != nil { activateDetail() }
             else if tab == .settings { activateSetting() }
-            else if tab == .downloads { downloadPaused.toggle() }
+            else if tab == .downloads {
+                if focusedGame?.status == .downloading { downloadPaused.toggle() }
+                else if let game = focusedGame { openGame(game) }
+            }
             else if tab == .library && railFocused { railFocused = false }
             else if let game = focusedGame { openGame(game) }
             else if tab == .home || tab == .library { browseAvailableGames() }
@@ -179,6 +212,10 @@ final class LibraryModel {
                     libraryCursor = .init()
                 }
             } else if !libraryCursor.move(direction, count: filteredGames.count, columns: 6), direction == .left { railFocused = true }
+        } else if tab == .downloads {
+            if direction == .up || direction == .down {
+                downloadIndex = min(max(0, downloadIndex + (direction == .up ? -1 : 1)), max(0, downloadGames.count - 1))
+            }
         } else if tab == .settings {
             if direction == .left { settingsRailFocused = true }
             else if direction == .right { settingsRailFocused = false }

@@ -1,7 +1,7 @@
 import XCTest
 import Domain
 import Focus
-@testable import GameNative_Big_Screen
+@testable import BigScreen
 
 final class LibraryInteractionTests: XCTestCase {
     @MainActor func testModalTrapsNavigationAndRestoresGridFocus() {
@@ -91,4 +91,29 @@ final class LibraryInteractionTests: XCTestCase {
         model.perform(.nextTab); model.perform(.previousTab)
         XCTAssertEqual(model.focusedGame?.id, game)
     }
+    @MainActor func testTriggerPagingReturnsFirstTileBelowHeader() {
+        let model = LibraryModel(); model.selectTab(.library)
+        for _ in 0..<5 { model.perform(.nextPage) }
+        XCTAssertGreaterThan(model.libraryScrollOffset, 0)
+        for _ in 0..<5 { model.perform(.previousPage) }
+        XCTAssertEqual(model.libraryCursor.index, 0)
+        XCTAssertEqual(model.libraryScrollOffset, 0)
+        model.perform(.nextPage)
+        model.filter = .installed
+        XCTAssertEqual(model.libraryScrollOffset, 0)
+        XCTAssertEqual(model.libraryCursor.index, 0)
+    }
+    @MainActor func testDownloadsNavigateAndConfirmSelectedRow() {
+        let model = LibraryModel(); model.selectTab(.downloads)
+        model.perform(.move(.down))
+        XCTAssertEqual(model.focusedGame?.title, "Celeste")
+        model.perform(.confirm)
+        XCTAssertEqual(model.focusedGame?.title, "Celeste")
+        XCTAssertNotNil(model.detailID)
+        model.perform(.back); model.perform(.move(.up))
+        XCTAssertEqual(model.focusedGame?.title, "TUNIC")
+        model.perform(.confirm)
+        XCTAssertTrue(model.downloadPaused)
+    }
+
 }

@@ -16,6 +16,7 @@
 		1CDD97632E3844CB38650231 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACE543D0F8A5BF17507E08D4 /* DesignSystem.swift */; };
 		289C912D18322B71016A270B /* LibraryViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = E59AD64ED47C06CB9847E69F /* LibraryViews.swift */; };
 		339B25E5D038DDAF8B50576E /* LibraryInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99B69173E3CBF5EC838826D5 /* LibraryInteractionTests.swift */; };
+		557F062A5951E40EC82A7F69 /* FocusViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = F51F9BB1C1297E755C6FB654 /* FocusViews.swift */; };
 		764655582701C0B1C2F9BA54 /* SupportViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0ABE6CC32C22767FC77D4D03 /* SupportViews.swift */; };
 		8F22CB0C305DF070224934BA /* BarlowCondensed-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 675832B109B2E37BE237EB27 /* BarlowCondensed-SemiBold.ttf */; };
 		9056FBDE7AA54810D6A27738 /* BarlowCondensed-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = BBF8335C78563AB54988A674 /* BarlowCondensed-Bold.ttf */; };
@@ -54,6 +55,7 @@
 		DB21DA9AE3F1CFE573775A04 /* PreviewCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewCatalog.swift; sourceTree = "<group>"; };
 		DC34C0B6A3AA65EAACEB3DF6 /* BigScreenApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BigScreenApp.swift; sourceTree = "<group>"; };
 		E59AD64ED47C06CB9847E69F /* LibraryViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryViews.swift; sourceTree = "<group>"; };
+		F51F9BB1C1297E755C6FB654 /* FocusViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusViews.swift; sourceTree = "<group>"; };
 		F549D7F628B1DA7071BA2F75 /* BigScreen.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BigScreen.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F6F47B22803F522559017DA0 /* BigScreenTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BigScreenTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -95,6 +97,7 @@
 			children = (
 				DC34C0B6A3AA65EAACEB3DF6 /* BigScreenApp.swift */,
 				ACE543D0F8A5BF17507E08D4 /* DesignSystem.swift */,
+				F51F9BB1C1297E755C6FB654 /* FocusViews.swift */,
 				A7E1299E802C11E73F8A1EDA /* LibraryModel.swift */,
 				E59AD64ED47C06CB9847E69F /* LibraryViews.swift */,
 				DB21DA9AE3F1CFE573775A04 /* PreviewCatalog.swift */,
@@ -250,6 +253,7 @@
 			files = (
 				14216B99792AA03166CC204A /* BigScreenApp.swift in Sources */,
 				1CDD97632E3844CB38650231 /* DesignSystem.swift in Sources */,
+				557F062A5951E40EC82A7F69 /* FocusViews.swift in Sources */,
 				B25B1F80C0B90AEC6CA8BC60 /* LibraryModel.swift in Sources */,
 				289C912D18322B71016A270B /* LibraryViews.swift in Sources */,
 				CA2CD29BB2A361B7CCF5F01C /* PreviewCatalog.swift in Sources */,
@@ -290,7 +294,7 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.gamenative.BigScreenTests;
 				SDKROOT = macosx;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/GameNative Big Screen.app/Contents/MacOS/GameNative Big Screen";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Big Screen.app/Contents/MacOS/Big Screen";
 			};
 			name = Debug;
 		};
@@ -303,14 +307,15 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				ENABLE_APP_SANDBOX = NO;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "GameNative Big Screen";
+				INFOPLIST_KEY_CFBundleDisplayName = "Big Screen";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.games";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.gamenative.bigscreen;
-				PRODUCT_NAME = "GameNative Big Screen";
+				PRODUCT_MODULE_NAME = BigScreen;
+				PRODUCT_NAME = "Big Screen";
 				SDKROOT = macosx;
 			};
 			name = Release;
@@ -385,7 +390,7 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.gamenative.BigScreenTests;
 				SDKROOT = macosx;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/GameNative Big Screen.app/Contents/MacOS/GameNative Big Screen";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Big Screen.app/Contents/MacOS/Big Screen";
 			};
 			name = Release;
 		};
@@ -398,14 +403,15 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				ENABLE_APP_SANDBOX = NO;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "GameNative Big Screen";
+				INFOPLIST_KEY_CFBundleDisplayName = "Big Screen";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.games";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.gamenative.bigscreen;
-				PRODUCT_NAME = "GameNative Big Screen";
+				PRODUCT_MODULE_NAME = BigScreen;
+				PRODUCT_NAME = "Big Screen";
 				SDKROOT = macosx;
 			};
 			name = Debug;

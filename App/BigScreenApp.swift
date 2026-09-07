@@ -38,7 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: width, height: height),
                           styleMask: isSnapshot ? [.borderless] : [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                           backing: .buffered, defer: false)
-        window.title = "GameNative Big Screen — Design Preview"
+        window.title = "Big Screen — Design Preview"
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.backgroundColor = NSColor(red: 14 / 255, green: 13 / 255, blue: 12 / 255, alpha: 1)
@@ -80,10 +80,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationDidResignActive(_ notification: Notification) { restoreCursor() }
     private func restoreCursor() { if cursorHidden { NSCursor.unhide(); cursorHidden = false } }
     private func handle(_ event: NSEvent) -> NSEvent? {
-        if event.modifierFlags.contains(.command) { return event }
+        if event.modifierFlags.contains(.command) {
+            if let digit = Int(event.charactersIgnoringModifiers ?? ""), (1...4).contains(digit) {
+                if model.panel == nil { model.selectTab(AppTab.allCases[digit - 1]) }
+                return nil
+            }
+            return event
+        }
         if !cursorHidden { NSCursor.hide(); cursorHidden = true }
         let action: InputAction?
         switch event.keyCode {
+        case 48: action = event.modifierFlags.contains(.shift) ? .previousTab : .nextTab
         case 123: action = .move(.left)
         case 124: action = .move(.right)
         case 125: action = .move(.down)
@@ -116,7 +123,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let main = NSMenu()
         let appItem = NSMenuItem(); main.addItem(appItem)
         let appMenu = NSMenu(); appItem.submenu = appMenu
-        appMenu.addItem(withTitle: "Quit GameNative Big Screen", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appMenu.addItem(withTitle: "Quit Big Screen", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         let viewItem = NSMenuItem(); main.addItem(viewItem)
         let viewMenu = NSMenu(title: "View"); viewItem.submenu = viewMenu
         let fullscreen = viewMenu.addItem(withTitle: "Toggle Full Screen", action: #selector(NSWindow.toggleFullScreen(_:)), keyEquivalent: "f")
@@ -134,10 +141,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 }
             }
             model.reducedMotion = false
-            for screen in ["home", "library", "game", "downloads", "settings"] {
+            for screen in ["home", "library", "library-paged", "library-return", "game", "downloads", "downloads-queued", "settings"] {
                 model.panel = nil; model.detailID = nil
                 switch screen {
                 case "library": model.selectTab(.library)
+                case "library-paged":
+                    model.selectTab(.library); model.perform(.nextPage); model.perform(.nextPage)
+                case "library-return":
+                    model.selectTab(.library)
+                    for _ in 0..<5 { model.perform(.previousPage) }
+                case "downloads-queued":
+                    model.selectTab(.downloads); model.perform(.move(.down))
                 case "game":
                     model.selectTab(.library)
                     if let index = model.games.firstIndex(where: { $0.title == "TUNIC" }) {

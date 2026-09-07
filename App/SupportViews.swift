@@ -17,8 +17,8 @@ struct DownloadsScreen: View {
                             Text(model.downloadPaused ? "3.8 of 8.9 GB · ready to resume" : "3.8 of 8.9 GB · 38 MB/s · 2 min 14 s left").font(Design.body(22)).foregroundStyle(Design.secondary)
                             Text("Estimate › Reserve space › Download › Verify › Prepare › Ready").font(Design.body(18)).foregroundStyle(Design.muted)
                         }
-                    }.padding(20).background(Design.text.opacity(0.06), in: RoundedRectangle(cornerRadius: 8)).focusRing(true)
-                        .onTapGesture { model.downloadPaused.toggle() }
+                    }.padding(20).background(Design.text.opacity(0.06), in: RoundedRectangle(cornerRadius: 8)).focusRing(model.downloadIndex == 0)
+                        .onTapGesture { model.downloadIndex = 0; model.perform(.confirm) }
                 }
                 SectionLabel(text: "Queued · 1")
                 if let game = model.games.first(where: { $0.title == "Celeste" }) {
@@ -27,6 +27,8 @@ struct DownloadsScreen: View {
                         VStack(alignment: .leading, spacing: 8) { Text(game.title).font(Design.condensed(30)); Text("Queued · 1.2 GB").font(Design.body(22)).foregroundStyle(Design.secondary) }
                         Spacer(); Text("1").font(Design.condensed(30)).foregroundStyle(Design.muted)
                     }.padding(.horizontal, 20).padding(.vertical, 14).background(Design.text.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
+                        .focusRing(model.focusedGame?.id == game.id)
+                        .onTapGesture { model.downloadIndex = model.downloadGames.firstIndex(where: { $0.id == game.id }) ?? 0; model.perform(.confirm) }
                 }
                 SectionLabel(text: "Recently finished")
                 if let game = model.games.first(where: { $0.title == "Cuphead" }) {
@@ -35,6 +37,8 @@ struct DownloadsScreen: View {
                         VStack(alignment: .leading, spacing: 8) { Text(game.title).font(Design.condensed(30)); HStack(spacing: 8) { Circle().fill(Design.green).frame(width: 8, height: 8); Text("Installed").font(Design.body(22)).foregroundStyle(Design.secondary) } }
                         Spacer(); Text("Today").font(Design.body(22)).foregroundStyle(Design.muted)
                     }.padding(.horizontal, 20).padding(.vertical, 14).background(Design.text.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
+                        .focusRing(model.focusedGame?.id == game.id)
+                        .onTapGesture { model.downloadIndex = model.downloadGames.firstIndex(where: { $0.id == game.id }) ?? 0; model.perform(.confirm) }
                 }
             }.frame(width: 1140)
             VStack(alignment: .leading, spacing: 28) {
@@ -67,7 +71,7 @@ struct SettingsScreen: View {
         case 1: [("Refresh library", "Your games and artwork, up to date", "Refresh"), ("Games volume", "/Volumes/VM/GameNative/games", "Change ›"), ("Download while playing", "Downloads pause automatically when a game starts", "Off"), ("Runtime", "CrossOver integration is a later milestone", "Not connected")]
         case 2: [("Display", "A 1920 × 1080 canvas, scaled to your window", "Change ›"), ("Reduced motion", "Keep the focus ring; turn off scaling and transitions", model.reducedMotion ? "On" : "Off")]
         case 3: [("Controller", model.controllerName ?? "No controller connected · keyboard navigation available", "Button test")]
-        default: [("GameNative Big Screen", "Native UI preview · Barlow / Barlow Condensed", "v0.1")]
+        default: [("Big Screen", "Native UI preview · Barlow / Barlow Condensed", "v0.1")]
         }
     }
     var body: some View {
