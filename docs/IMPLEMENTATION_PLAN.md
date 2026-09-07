@@ -334,7 +334,11 @@ Dependencies: M3; M0 process/input validation.
   normal app quit, launcher-crash reconciliation and prevention of duplicate sessions after restart.
 - [ ] Implement backup/restore, controller uninstall confirmation, partial-removal recovery and retained-space reporting.
 - [ ] Ensure missing-bottle recreation reapplies the recorded recipe and restores retained saves where possible.
-- [ ] Evaluate all three candidate titles and document which are verified, unsupported or still unknown.
+- [ ] Implement Steam Cloud metadata/transfer adapters, verified save-path mapping, account-scoped
+  sync journals, pre-launch pull, post-exit push, offline retry and controller conflict resolution.
+- [ ] Verify cloud roundtrip, concurrent edits, interrupted transfer/restart, account switching and
+  preservation of pending uploads during uninstall/reinstall.
+- [ ] Evaluate candidate titles and document which are verified, unsupported or still unknown.
 
 Gate: from fresh game state, install → player-controlled gameplay → save → quit → offline relaunch →
 uninstall with Keep saves → reinstall → load the same save succeeds using only the controller after
@@ -369,7 +373,7 @@ Dependencies: M0–M5 gates passed.
 - [ ] Check every v1 requirement against its implementation and evidence; unresolved items are recorded failures or
   explicit scope decisions, not silently marked complete.
 - [ ] Document build/run instructions, required sibling commit, CrossOver/system setup, supported-title results,
-  known limitations and recovery steps. Do not claim cloud saves, updates or general game compatibility.
+  known limitations and recovery steps. Prove the v1 cloud-save gates separately; do not claim updates or general game compatibility.
 
 Gate: README's corrected MVP bar and all retained v1 requirements pass. A skipped CrossOver integration
 test on a machine without CrossOver cannot satisfy the real-platform release gate.
@@ -395,7 +399,8 @@ testing when an integration change creates a new concern, then run the full matr
 ## 6. Deferred work and scheduling boundary
 
 Keep these out of the v1 critical path: background helper/XPC implementation, a second real store,
-user-editable per-game properties, updates, cloud saves, achievements UI, Quick Access features,
+user-editable per-game properties, updates, achievements UI, optional native macOS games and official
+Steam macOS installation integration, Quick Access features,
 controller remapping, kiosk/power management, community compatibility, and distribution/notarization polish.
 
 The main scheduling uncertainties are M0 background input/window behavior, upstream chunk resume,
@@ -464,3 +469,23 @@ alone does not satisfy that request.
 LAN discovery from offline preparation and updated existing generated configs after checking
 installation ownership and idle sessions. This reduces an unnecessary permission trigger;
 macOS privacy grants remain separate from App Sandbox and are not bypassed.
+
+
+### 7 September — user scope update and current delivery priorities
+
+Cloud save sync moved into **v1** by explicit user request. This supersedes earlier references to
+cloud saves as deferred. FR-CLOUD-1–6 in PRD 05 define the sync, conflict, offline, account and
+save-path requirements. Local save retention alone does not satisfy this addition. The existing
+single local profile remains usable offline, but cloud journals and pending writes must be account
+scoped, and an account switch cannot silently upload the previous account’s local progress.
+
+For **v2 only**, provide optional native macOS game versions alongside Windows/CrossOver, plus
+installed-game discovery and launch integration with the official Steam macOS client. A native
+build must never be enforced. Installation choices and ownership stay distinct even when the
+library merges them under one Steam app ID. See FR-MAC-1–4.
+
+Current priorities: finish installed-file repair; complete save mapping, local retention and
+uninstall/reinstall; implement and validate Steam Cloud sync; complete remaining runtime recipes,
+download/storage and diagnostic UI; run the full v1 controller/TV acceptance matrix. Monitor
+selection and fullscreen startup are implemented and verified; the session notification actions
+now have explicit keyboard/controller hints and focus. These checkpoints do not complete v1.

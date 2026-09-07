@@ -80,6 +80,9 @@ v1 ships when, with the Mac connected to a TV and only a PS4 controller in hand:
 - Every install or launch failure lands in a visible state with the failing stage named. No silent
   hangs.
 - A launcher restart in the middle of a download resumes it.
+- A verified Steam Cloud title downloads an existing cloud save before launch and uploads changed
+  saves after exit. Offline play, failed-sync retry and conflicting local/remote changes preserve
+  the user’s progress and expose a controller-accessible recovery path. See 05 §6.
 
 ## v1 non-goals
 
@@ -89,7 +92,8 @@ v1 ships when, with the Mac connected to a TV and only a PS4 controller in hand:
 - Kiosk behaviors: auto-launch at login, owning the display, sleep/wake from the controller (later).
 - Controllers other than a DualShock 4 for the tested path. Other GameController-supported pads work
   with generic glyphs; remapping UI is later.
-- Cloud saves, achievements UI, DLC management, multiplayer or anti-cheat titles, real Steam client.
+- Achievements UI, DLC management, multiplayer or anti-cheat titles.
+- Native macOS game versions and integration with the official Steam macOS installation (v2).
 - Intel Macs. Distribution and notarization polish.
 
 ## Dependencies

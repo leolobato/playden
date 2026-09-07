@@ -59,7 +59,8 @@ Installed.**
   them. v1 offers "Keep saves" (default on), which moves the bottle's save directories into
   `Application Support/GameNative BigScreen/saves/<source>-<id>/` and restores them on reinstall.
 - **FR-UN-3 (v1):** Uninstall never touches a bottle not named `gn-<source>-<id>` for that game.
-- **FR-UN-4 (later):** Cloud saves through the source.
+- **FR-UN-4 (v1):** Cloud saves through the source; see §6. Uninstall does not delete remote saves
+  and cannot silently discard pending local uploads.
 
 ## 5. Storage
 
@@ -68,3 +69,44 @@ Installed.**
 - **FR-STOR-2 (v1):** An unmounted games volume shows its games as "Drive disconnected", not "Not
   installed"; Play is disabled with that reason.
 - **FR-STOR-3 (v2):** Move an installed game to another volume; multiple game volumes.
+
+## 6. Steam Cloud saves (v1)
+
+Scope changed by the user on 7 September 2026: cloud save sync is required for v1.
+
+- **FR-CLOUD-1 (v1):** For Steam Cloud-enabled games with a verified save mapping, synchronize
+  remote saves into the owned game/bottle save locations before launch and changed local saves
+  back to Steam Cloud after exit. Support the required UFS/remote-file behavior of the verified
+  acceptance title; a metadata flag alone is not proof that its save sync works.
+- **FR-CLOUD-2 (v1):** Show Up to date, Syncing, Pending upload, Conflict, Unavailable or Failed on
+  the game page, with actionable errors and retry. Offer Play offline when authentication or
+  connectivity prevents sync; preserve a durable pending upload for later retry.
+- **FR-CLOUD-3 (v1):** Track local and remote revisions/checksums against the last successful sync.
+  When both changed, ask which copy to use in a controller-accessible conflict screen showing
+  timestamps and direction. Back up both copies before replacement. Never silently choose based
+  only on the newest timestamp, overwrite an unresolved conflict, or upload while the game writes.
+- **FR-CLOUD-4 (v1):** Transfers and sync state survive launcher restart. Remote writes are committed
+  only after successful transfer and validation. Failed or interrupted transfers retain local
+  saves and the last known remote revision. Crash/forced-exit saves require validation before upload.
+- **FR-CLOUD-5 (v1):** Cloud identity, sync history and pending uploads are account scoped. Logging
+  out does not delete local saves. Changing accounts must never silently upload another account’s
+  local progress; require explicit resolution before attaching existing local saves to a new account.
+- **FR-CLOUD-6 (v1):** Resolve save paths within verified owned locations; do not follow arbitrary
+  remote paths or Wine links into unrelated files. Unknown mappings show an honest unsupported
+  status, retain local data and do not claim synchronization. Keep saves/uninstall/reinstall uses
+  the same mapping and accounts for pending uploads before deleting anything.
+
+## 7. Native macOS games and official Steam integration (v2)
+
+- **FR-MAC-1 (v2):** When a game offers a macOS build, expose it as an optional install/launch
+  choice alongside Windows/CrossOver. Never force the macOS version or silently replace an existing
+  Windows installation. Remember the player’s choice and allow it to change.
+- **FR-MAC-2 (v2):** Discover installed games in the official Steam macOS client’s configured library
+  folders, including libraries on other volumes. Merge by Steam app ID without duplicate library
+  tiles, show their installed state and launch through the appropriate Steam/native path.
+- **FR-MAC-3 (v2):** Distinguish Big Screen-managed installs from Steam-managed installs. Do not
+  adopt, rewrite or remove the official client’s files as owned Big Screen storage. Disconnected
+  Steam library volumes retain their installed identity and show their unavailable status.
+- **FR-MAC-4 (v2):** Allow multiple installation/runtime choices per game in Catalog and the game
+  page. Add a native/Steam runner behind the runner boundary; all native installation, discovery
+  and launch UI remains outside v1.

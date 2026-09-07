@@ -6,7 +6,7 @@ Journey: **play**. From Play to player control, to clean exit back to Home.
 
 - **FR-LAUNCH-1 (v1):** Play runs: installed-state check (files present, drive mounted, bottle
   exists; otherwise offer Verify or Reinstall) → `GameRunner.prepare` (recreate a missing bottle from
-  the template and rerun post-install) → `cxstart --bottle gn-<source>-<id> --workdir … --dll …
+  the template and rerun post-install) → pre-launch cloud sync/conflict resolution (05 §6) → `cxstart --bottle gn-<source>-<id> --workdir … --dll …
   <exe> <args>` with the `LaunchSpec` environment.
 - **FR-LAUNCH-2 (v1):** A "Launching <title>" state is shown until the game's first window is
   observed; the launcher then lowers its window level and hides its cursor so the game is frontmost.
@@ -40,3 +40,7 @@ Journey: **play**. From Play to player control, to clean exit back to Home.
   (clean, crash = non-zero status or under 30 s, forced) is recorded (04 FR-COMP-2).
 - **FR-EXIT-3 (v1):** A crash shows a toast with "View logs" (07 §3).
 - **FR-EXIT-4 (v1):** Paused downloads resume after exit (05 FR-INST-5).
+
+- **FR-EXIT-5 (v1):** After a game stops writing, synchronize changed saves through the source and
+  persist any pending upload or conflict (05 §6). Returning to the launcher must show sync state
+  and must not report Up to date before the remote commit succeeds.

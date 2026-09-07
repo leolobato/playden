@@ -69,6 +69,8 @@ protocol GameRunner {                       // where a game runs
 
 - **AR-PROTO-1 (v1):** `SteamSource`/`SteamInstaller` and `CrossOverRunner` are the only implementations.
 - **AR-PROTO-2 (v2):** Second source (GOG or itch.io). **(later):** Epic, `ManualSource` (point at an exe).
+- **AR-PROTO-4 (v2):** Add optional native macOS launch and official Steam macOS installation
+  discovery, preserving separate ownership and runtime choices per game (05 §7).
 - **AR-PROTO-3 (later):** A second runner (the `GameNative-macos` VM runtime) is possible because
   `LaunchSpec` carries no CrossOver-specific fields.
 
