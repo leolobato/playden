@@ -83,3 +83,48 @@ final class SetupInteractionTests: XCTestCase {
         XCTAssertEqual(model.tab, .library)
     }
 }
+
+private actor RuntimeStatusFixture: BottleManaging {
+    var current = RuntimeInfo(version: "26.2", templateVersion: "1", templateReady: true)
+    var preparations = 0
+    var inspections = 0
+    func inspect() async -> RuntimeInfo { inspections += 1; return current }
+    func setMissing() { current = RuntimeInfo(version: nil, templateVersion: "1", templateReady: false,
+        failure: OperationFailure(stage: "Check runtime", reason: "Install CrossOver in Applications, then try again.", output: "fixture")) }
+    func prepareTemplate(onProgress: @escaping @Sendable (TemplateStage) -> Void) async throws -> RuntimeInfo {
+        preparations += 1; onProgress(.ready); return current
+    }
+}
+
+extension SetupInteractionTests {
+    @MainActor func testRuntimeSettingsRefreshesRealStateWithoutStartingOnboardingOrPreparation() async throws {
+        let runtime = RuntimeStatusFixture(), catalog = try CatalogStore()
+        var preferences = LibraryPreferences(); preferences.setupCompleted = true
+        try catalog.savePreferences(preferences)
+        let model = LibraryModel(catalog: catalog, preview: false, runtime: runtime)
+        model.selectTab(.settings); model.settingsSection = 1; model.settingsIndex = 3; model.settingsRailFocused = false
+        model.runtimeInfo = RuntimeInfo(version: nil, templateVersion: "1", templateReady: false)
+        model.templateStage = .creating
+        model.activateSetting()
+        XCTAssertFalse(model.onboarding)
+        XCTAssertTrue(model.runtimeChecking)
+        XCTAssertEqual(model.setupActions, ["Back"])
+        await model.setupTask?.value
+        XCTAssertEqual(model.runtimeInfo?.version, "26.2")
+        XCTAssertEqual(model.templateStage, .ready)
+        XCTAssertFalse(model.setupBusy)
+        XCTAssertEqual(model.setupActions, ["Check again", "Back"])
+        let preparations = await runtime.preparations
+        XCTAssertEqual(preparations, 0, "Opening a settings row must not run template setup")
+        await runtime.setMissing()
+        model.perform(.confirm)
+        await model.setupTask?.value
+        XCTAssertNotNil(model.setupFailure)
+        XCTAssertEqual(model.setupActions, ["Retry setup", "Check again", "Back"])
+        model.perform(.move(.down)); model.perform(.move(.down)); model.perform(.confirm)
+        XCTAssertNil(model.setupScreen)
+        XCTAssertEqual(model.tab, .settings)
+        XCTAssertEqual(model.settingsIndex, 3)
+        XCTAssertTrue(try catalog.preferences().setupCompleted)
+    }
+}

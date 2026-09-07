@@ -58,6 +58,7 @@
 		CAF7A51F716DA804FB81BE04 /* Barlow-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 4622DF2E186C3B6F638C30B1 /* Barlow-Regular.ttf */; };
 		CC095A8EDAF0E84A70F765E7 /* PairingControllerArt.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB83A4AB9B30E5196BC6109C /* PairingControllerArt.swift */; };
 		F1B4A1FB95046FCBED1C109D /* SessionInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAD5F2E37317C6DA181E77C1 /* SessionInteractionTests.swift */; };
+		F620DFB1233765EA67216E53 /* RuntimeSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5CAAE0C8897E979FA0DE729 /* RuntimeSettingsView.swift */; };
 		F97B357CF2C84140B4D6FD9C /* LibraryEditingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAA058B561808E36274C4A53 /* LibraryEditingTests.swift */; };
 		FCB403FE4A0246DD90667FE7 /* Input in Frameworks */ = {isa = PBXBuildFile; productRef = 8A0E4D1D02D0A2AB2C0FF44A /* Input */; };
 /* End PBXBuildFile section */
@@ -109,6 +110,7 @@
 		C8DF7A3A43F7711BF2900808 /* barlow-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "barlow-OFL.txt"; sourceTree = "<group>"; };
 		CB83A4AB9B30E5196BC6109C /* PairingControllerArt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingControllerArt.swift; sourceTree = "<group>"; };
 		CB83D00EB74FC4E628955BCE /* ControllerTestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControllerTestView.swift; sourceTree = "<group>"; };
+		D5CAAE0C8897E979FA0DE729 /* RuntimeSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeSettingsView.swift; sourceTree = "<group>"; };
 		DAC0CDDDECE591309D86C1B6 /* GameExitShortcut.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameExitShortcut.swift; sourceTree = "<group>"; };
 		DB21DA9AE3F1CFE573775A04 /* PreviewCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewCatalog.swift; sourceTree = "<group>"; };
 		DC34C0B6A3AA65EAACEB3DF6 /* BigScreenApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BigScreenApp.swift; sourceTree = "<group>"; };
@@ -193,6 +195,7 @@
 				E59AD64ED47C06CB9847E69F /* LibraryViews.swift */,
 				CB83A4AB9B30E5196BC6109C /* PairingControllerArt.swift */,
 				DB21DA9AE3F1CFE573775A04 /* PreviewCatalog.swift */,
+				D5CAAE0C8897E979FA0DE729 /* RuntimeSettingsView.swift */,
 				FEE20F0279EE5686D8DDF808 /* SessionModel.swift */,
 				7FE7F5B0C3083DECAE1DC187 /* SessionSnapshots.swift */,
 				067070582F28748F251928CB /* SessionViews.swift */,
@@ -422,6 +425,7 @@
 				289C912D18322B71016A270B /* LibraryViews.swift in Sources */,
 				CC095A8EDAF0E84A70F765E7 /* PairingControllerArt.swift in Sources */,
 				CA2CD29BB2A361B7CCF5F01C /* PreviewCatalog.swift in Sources */,
+				F620DFB1233765EA67216E53 /* RuntimeSettingsView.swift in Sources */,
 				759FD0040D3A15F11EB242BF /* SessionModel.swift in Sources */,
 				9D03D7A93EB51D6CC74F7872 /* SessionSnapshots.swift in Sources */,
 				A1F98340767C799A2B3CD174 /* SessionViews.swift in Sources */,

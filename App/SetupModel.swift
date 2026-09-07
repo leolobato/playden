@@ -48,10 +48,25 @@ extension LibraryModel {
         onboarding = firstRun; setupScreen = .runtime; setupIndex = 0; setupFailure = runtimeInfo?.failure
         setupBusy = false
         if firstRun { prepareRuntime() }
+        else { checkRuntime() }
+    }
+    func checkRuntime() {
+        guard !setupBusy else { return }
+        setupTask?.cancel(); runtimeChecking = true; setupFailure = nil; setupIndex = 0
+        setupTask = Task { [weak self] in
+            guard let self else { return }
+            let info = await runtime?.inspect()
+            guard !Task.isCancelled else { return }
+            runtimeInfo = info
+            setupFailure = info?.failure
+            runtimeChecking = false
+            templateStage = info?.templateReady == true ? .ready : .checking
+            setupIndex = 0
+        }
     }
     func prepareRuntime() {
         guard !setupBusy else { return }
-        setupTask?.cancel(); setupBusy = true; setupFailure = nil; setupIndex = 0; templateStage = .checking
+        setupTask?.cancel(); runtimeChecking = false; setupBusy = true; setupFailure = nil; setupIndex = 0; templateStage = .checking
         setupTask = Task { [weak self] in
             guard let self else { return }
             do {
@@ -73,6 +88,11 @@ extension LibraryModel {
             else { availableVolumes.map(\.name) + [onboarding ? "Set up later" : "Back"] }
         case .runtime:
             if setupBusy { ["Stop setup"] }
+            else if runtimeChecking { ["Back"] }
+            else if !onboarding {
+                runtimeInfo?.templateReady == true && setupFailure == nil ? ["Check again", "Back"]
+                    : [setupFailure == nil ? "Prepare games" : "Retry setup", "Check again", "Back"]
+            }
             else if runtimeInfo?.templateReady == true && setupFailure == nil { [onboarding ? "Let’s play" : "Back"] }
             else { [setupFailure == nil ? "Prepare games" : "Retry", onboarding ? "Browse library" : "Back"] }
         default: []
@@ -117,7 +137,8 @@ extension LibraryModel {
             else { finishSetup() }
         case .runtime:
             if action == "Stop setup" { setupTask?.cancel() }
-            else if action == "Retry" || action == "Prepare games" { prepareRuntime() }
+            else if action == "Check again" { checkRuntime() }
+            else if action == "Retry" || action == "Retry setup" || action == "Prepare games" { prepareRuntime() }
             else { finishSetup() }
         default: break
         }
@@ -148,6 +169,7 @@ extension LibraryModel {
     func finishSetup() {
         do {
             if onboarding { try updateSetupPreferences { $0.setupCompleted = true } }
+            setupTask?.cancel(); runtimeChecking = false
             onboarding = false; setupScreen = nil; setupFailure = nil; setupIndex = 0
         } catch { setupFailure = setupProblem(error, stage: "Save setup") }
     }

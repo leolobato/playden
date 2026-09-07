@@ -14,6 +14,13 @@ struct SetupView: View {
     }
     var step: Int { switch model.setupScreen { case .controller, .display: 1; case .account: 2; case .volume: 3; default: 4 } }
     var body: some View {
+        if model.setupScreen == .runtime && !model.onboarding {
+            RuntimeSettingsView(model: model)
+        } else {
+            setupBody
+        }
+    }
+    private var setupBody: some View {
         ZStack(alignment: .topLeading) {
             Design.background
             LinearGradient(colors: [Design.accent.opacity(0.05), .clear], startPoint: .topTrailing, endPoint: .bottomLeading)
@@ -80,7 +87,7 @@ struct SetupView: View {
             HStack {
                 Text("Setting up game runtime").font(Design.condensed(32))
                 Spacer()
-                Text(model.templateStage == .ready ? "Ready" : model.templateStage == .checking ? "1 of 4" : model.templateStage == .creating ? "2 of 4" : model.templateStage == .configuring ? "3 of 4" : "4 of 4")
+                Text(model.runtimeInfo?.templateReady == true && !model.setupBusy && model.setupFailure == nil ? "Ready" : model.templateStage == .checking ? "1 of 4" : model.templateStage == .creating ? "2 of 4" : model.templateStage == .configuring ? "3 of 4" : "4 of 4")
                     .font(Design.body(24, weight: "Medium")).foregroundStyle(Design.accent)
             }
             GeometryReader { geometry in

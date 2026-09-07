@@ -344,11 +344,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let requestedScreens: Set<String>? = arguments.firstIndex(of: "--snapshot-screens").flatMap { index in
                 arguments.indices.contains(index + 1) ? Set(arguments[index + 1].split(separator: ",").map(String.init)) : nil
             }
-            for screen in ["home", "library", "library-paged", "library-return", "game", "downloads", "downloads-queued", "settings", "settings-display", "collections", "keyboard", "compatibility", "uninstall", "logs", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom", "library-download-glyph", "library-download-focused", "game-unknown-size", "game-favorite", "install-offer", "install-offer-space", "install-queue", "install-game-progress", "launching", "exit-overlay", "exit-overlay-quit", "notification", "notification-focused"] {
+            for screen in ["home", "library", "library-paged", "library-return", "game", "downloads", "downloads-queued", "settings", "settings-display", "settings-runtime", "settings-runtime-missing", "settings-runtime-busy", "collections", "keyboard", "compatibility", "uninstall", "logs", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom", "library-download-glyph", "library-download-focused", "game-unknown-size", "game-favorite", "install-offer", "install-offer-space", "install-queue", "install-game-progress", "launching", "exit-overlay", "exit-overlay-quit", "notification", "notification-focused"] {
                 if let requestedScreens, !requestedScreens.contains(screen) { continue }
                 model.panel = nil; model.detailID = nil; model.authScreen = nil; model.setupScreen = nil
                 model.session = .init(); model.exitOverlay = false; model.controllerName = nil
-                model.setupBusy = false; model.setupFailure = nil; model.setupIndex = 0; model.onboarding = false
+                model.setupBusy = false; model.runtimeChecking = false; model.setupFailure = nil; model.setupIndex = 0; model.onboarding = false
                 switch screen {
                 case "launching", "exit-overlay", "exit-overlay-quit", "notification", "notification-focused": model.configureSessionSnapshot(screen)
                 case "library-download-glyph", "library-download-focused":
@@ -363,6 +363,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                         model.games[index].isFavorite = screen == "game-favorite"
                         model.openGame(model.games[index]); model.detailAction = 1
                     }
+                case "settings-runtime", "settings-runtime-missing", "settings-runtime-busy":
+                    model.selectTab(.settings); model.settingsSection = 1; model.settingsIndex = 3
+                    model.setupScreen = .runtime
+                    model.runtimeInfo = RuntimeInfo(version: screen == "settings-runtime-missing" ? nil : "26.2", templateVersion: "1", templateReady: screen == "settings-runtime")
+                    model.setupBusy = screen == "settings-runtime-busy"
+                    model.templateStage = model.setupBusy ? .creating : .checking
+                    if screen == "settings-runtime-missing" { model.setupFailure = OperationFailure(stage: "Check runtime", reason: "Install CrossOver in Applications, then try again.", output: "Snapshot fixture") }
                 case "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready":
                     model.onboarding = true
                     model.setupScreen = screen == "setup-controller" ? .controller : screen == "setup-display" ? .display : screen == "setup-volume" ? .volume : .runtime

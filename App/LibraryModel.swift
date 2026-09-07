@@ -65,6 +65,7 @@ final class LibraryModel {
     var setupFailure: OperationFailure?
     var templateStage: TemplateStage = .checking
     var runtimeInfo: RuntimeInfo?
+    var runtimeChecking = false
     var availableVolumes: [GamesVolume] = []
     var selectedVolumeID: String?
     var gamesVolume: GamesVolumeSelection?
