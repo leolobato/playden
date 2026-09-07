@@ -23,7 +23,7 @@ ambient artwork waits 400 ms before crossfading. Reduced motion skips transition
 create/rename/delete/membership/pinning, compatibility notes, controller text cursor/symbol entry,
 and preview queue reorder/cancel/install confirmations are implemented with session-local state.
 
-M0 real-game/controller handoff, persistence, first-run auth, install/session services and remaining
+M0 real-game/controller handoff, first-run auth, install/session services and remaining
 v1 actions are still outstanding. The user confirmed DS4 foreground input works on 2026-09-07;
 background game handoff is still unverified. Validation: Xcode build, five package tests and sixteen
 app tests, plus native window captures at 1920×1080 and 1280×720 logical sizes (Retina pixel output).
@@ -32,6 +32,18 @@ compatibility notes, uninstall confirmation and the empty log viewer. A native k
 check exercised Tab/Shift-Tab, Command-2/3, Downloads up/down and Library paging back, and captured
 detail/ambient transitions during and after animation. Focus-settled artwork prefetch and late-art
 fades avoid a hard image pop on opening details. See the root README for reproducible commands.
+
+A subsequent foundation pass adds the GRDB/SQLite Catalog with transactional source/local separation,
+collections, preferences, installations, durable job records and exact-once session checkpoints.
+Interactive preview edits now survive restart in an isolated preview database. Nine Catalog tests,
+four app persistence tests, and the previous twenty-one tests pass (34 total). A native keyboard/
+process restart check verified persisted favorites and restored the original value.
+
+The CrossOver probe created/cloned/deleted owned Windows 10 bottles, verified MSync/D3DMetal settings,
+and ran a Windows command. Missing-executable invocation hung even with `--no-gui`; Runner must
+preflight paths and provide recoverable delayed launch. This is a recorded failure, not a passed M0
+gate. See [foundation/platform evidence](validation/2026-09-07-foundation.md). Real Steam wiring,
+chunk-resumable jobs, actual game sessions, background exit input, and release acceptance remain open.
 
 ## 1. Planning defaults and PRD corrections
 

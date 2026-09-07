@@ -6,8 +6,8 @@ controlled with a gamepad, with Steam and CrossOver integration planned.
 The first implementation is a **design preview**, matching the [designer handoff](docs/design/README.md).
 Home, Library, the split game page, Downloads, Settings, search keyboard, filters and context panels
 use isolated sample data. Collections (create, rename, pin and membership), compatibility ratings/notes,
-favorites, hiding, and download queue edits last for the preview session. Install/uninstall and cancel
-confirmations update preview state only.
+favorites and hiding are saved in the preview's own SQLite database. Download queue edits remain
+session-local fixtures. Install/uninstall and cancel confirmations update preview state only.
 **Steam authentication, installation and game launching are not connected yet.**
 
 ## Build and run
@@ -28,7 +28,9 @@ CrossOver or the sibling checkout. Its eventual Steam integration will use the s
 
 The Barlow/Barlow Condensed fonts and their OFL licenses are bundled. Steam artwork loads over the
 network on first use and is cached in `~/Library/Caches/GameNative BigScreen/artwork/`. Missing art
-shows a title placeholder. No login credentials or game files are accessed by the preview.
+shows a title placeholder. Local edits and preferences are stored separately in
+`~/Library/Application Support/Big Screen/Preview/catalog.sqlite`. Tests and snapshots use isolated
+in-memory catalogs. No login credentials or game files are accessed by the preview.
 
 ## Navigation
 
@@ -67,7 +69,9 @@ BIGSCREEN_SNAPSHOT_DIR="$PWD/.build/screenshots-720p" ./scripts/snapshot.sh --sn
 
 The test suite covers logical grid movement/repeat and native presentation-state interactions
 (modal focus, navigation memory, search, collection/note editing, Unicode text cursors,
-queue reordering, cancellation and focus-driven scrolling/empty-state recovery).
+queue reordering, cancellation and focus-driven scrolling/empty-state recovery). Catalog tests cover
+SQLite reopen/rollback, source refresh/logout retention, job reconstruction, exact session accounting,
+and credential redaction. See [recorded foundation/platform evidence](docs/validation/2026-09-07-foundation.md).
 
 Snapshots are actual native window captures in `.build/screenshots/`. They use a 1920×1080 logical
 canvas (pixel dimensions follow the display backing scale), a fixed clock, and the same artwork
