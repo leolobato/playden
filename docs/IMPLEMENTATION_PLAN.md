@@ -520,3 +520,11 @@ tests, with a mandatory durable-checkpoint callback and final remote verificatio
 connected to launch/exit or a completed Cloud sync feature. Next: persistent journal, owned local
 file application, session integration, controller conflict UI and real upload/restore acceptance.
 See `docs/validation/2026-09-08-cloud-planning-upload.md` for exact evidence and remaining limits.
+
+The durable Cloud journal now stores account-scoped baselines, installation attachment, staged
+copy references and upload receipts. Versioned claims share the session/maintenance database
+boundary, survive restart, and reject stale callbacks. Pending network work can release its claim
+for offline play; partial local application keeps play blocked until verified recovery. These are
+database guarantees, not completed sync: the coordinator, actual staging/replacement, launch/exit
+integration, conflict UI and real Cloud roundtrip remain. Validation and limits are recorded in
+`docs/validation/2026-09-08-cloud-journal.md`.

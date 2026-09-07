@@ -9,7 +9,7 @@ public enum CatalogError: Error, Equatable {
 /// The sole writer of durable application state. GRDB serializes writes and commits each operation
 /// atomically; callers never maintain a second writable JSON copy beside the database.
 public final class CatalogStore: Sendable {
-    private let database: DatabaseQueue
+    let database: DatabaseQueue
     public init(path: String = ":memory:") throws {
         if path != ":memory:" {
             try FileManager.default.createDirectory(at: URL(fileURLWithPath: path).deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -62,6 +62,28 @@ public final class CatalogStore: Sendable {
                     if table == "installations" { t.uniqueKey(["source", "game"]) }
                 }
                 try db.create(index: "\(table)_game", on: table, columns: ["source", "game"])
+            }
+        }
+        migrator.registerMigration("v3_cloud_sync") { db in
+            try db.create(table: "cloud_operations") { t in
+                t.primaryKey("id", .text)
+                t.column("source", .text).notNull()
+                t.column("game", .text).notNull()
+                t.column("payload", .blob).notNull()
+            }
+            try db.create(index: "cloud_operations_game", on: "cloud_operations", columns: ["source", "game"])
+            try db.create(table: "cloud_baselines") { t in
+                t.column("source", .text).notNull()
+                t.column("game", .text).notNull()
+                t.column("account", .text).notNull()
+                t.column("payload", .blob).notNull()
+                t.primaryKey(["source", "game", "account"])
+            }
+            try db.create(table: "cloud_attachments") { t in
+                t.column("source", .text).notNull()
+                t.column("game", .text).notNull()
+                t.column("payload", .blob).notNull()
+                t.primaryKey(["source", "game"])
             }
         }
         try migrator.migrate(database)
@@ -161,18 +183,36 @@ public final class CatalogStore: Sendable {
     }
     public func saveInstallation(_ installation: InstallationRecord) throws {
         guard installation.gameID == installation.game.id else { throw CatalogError.identityMismatch }
-        try database.write { try Self.putOperation($0, table: "installations", id: installation.id, gameID: installation.gameID, value: installation) }
+        try database.write { db in
+            try Self.requireCloudIdle(db, gameID: installation.gameID)
+            try Self.putOperation(db, table: "installations", id: installation.id, gameID: installation.gameID, value: installation)
+        }
     }
     /// Database bookkeeping only. The install service must verify filesystem removal before calling.
     public func removeInstallation(id: UUID) throws {
-        try database.write { try $0.execute(sql: "DELETE FROM installations WHERE id = ?", arguments: [id.uuidString]) }
+        try database.write { db in
+            let installs: [InstallationRecord] = try Self.values(db, table: "installations", whereSQL: "id = ?", arguments: [id.uuidString])
+            if let installed = installs.first {
+                try Self.requireCloudIdle(db, gameID: installed.gameID)
+                let cloud: [CloudSyncOperation] = try Self.values(db, table: "cloud_operations",
+                    whereSQL: "source = ? AND game = ?", arguments: [installed.gameID.source, installed.gameID.value])
+                guard cloud.allSatisfy({ $0.phase.isTerminal }) else { throw CloudJournalError.unresolvedAttempt }
+            }
+            try db.execute(sql: "DELETE FROM installations WHERE id = ?", arguments: [id.uuidString])
+        }
     }
     public func saveJob(_ job: JobRecord) throws {
-        try database.write { try Self.putOperation($0, table: "jobs", id: job.id, gameID: job.gameID, value: job) }
+        try database.write { db in
+            if ![.completed, .cancelled].contains(job.state) { try Self.requireCloudIdle(db, gameID: job.gameID) }
+            try Self.putOperation(db, table: "jobs", id: job.id, gameID: job.gameID, value: job)
+        }
     }
     public func saveJobs(_ jobs: [JobRecord]) throws {
         try database.write { db in
-            for job in jobs { try Self.putOperation(db, table: "jobs", id: job.id, gameID: job.gameID, value: job) }
+            for job in jobs {
+                if ![.completed, .cancelled].contains(job.state) { try Self.requireCloudIdle(db, gameID: job.gameID) }
+                try Self.putOperation(db, table: "jobs", id: job.id, gameID: job.gameID, value: job)
+            }
         }
     }
     /// Claim maintenance and block new play sessions in the same transaction. Session creation
@@ -180,6 +220,7 @@ public final class CatalogStore: Sendable {
     public func enqueueRepair(_ job: JobRecord) throws {
         guard job.kind == .repair, let original = job.originalInstallation else { throw CatalogError.identityMismatch }
         try database.write { db in
+            try Self.requireCloudIdle(db, gameID: job.gameID)
             let installs: [InstallationRecord] = try Self.values(db, table: "installations")
             guard var installed = installs.first(where: { $0.id == original.id }), installed == original,
                   installed.gameID == job.gameID, installed.ownershipToken == job.ownershipToken else { throw CatalogError.identityMismatch }
@@ -207,6 +248,7 @@ public final class CatalogStore: Sendable {
         guard installation.gameID == job.gameID, installation.gameID == installation.game.id,
               job.state == .completed, job.stage == .finished else { throw CatalogError.identityMismatch }
         try database.write { db in
+            try Self.requireCloudIdle(db, gameID: job.gameID)
             try Self.putOperation(db, table: "installations", id: installation.id, gameID: installation.gameID, value: installation)
             try Self.putOperation(db, table: "jobs", id: job.id, gameID: job.gameID, value: job)
         }
@@ -222,7 +264,9 @@ public final class CatalogStore: Sendable {
                 guard old.gameID == session.gameID, old.startedAt == session.startedAt, old.bottleID == session.bottleID else { throw CatalogError.identityMismatch }
                 // A late checkpoint must not overwrite a newer/final session.
                 if old.endedAt != nil || old.lastCheckpointAt > session.lastCheckpointAt || old.playedSeconds > session.playedSeconds { return }
+                if old.runtime == nil, session.runtime != nil { try Self.requireCloudIdle(db, gameID: session.gameID) }
             } else if session.endedAt == nil {
+                try Self.requireCloudIdle(db, gameID: session.gameID)
                 let installs: [InstallationRecord] = try Self.values(db, table: "installations")
                 if installs.contains(where: { $0.gameID == session.gameID && $0.needsRepair == true }) {
                     throw OperationFailure(stage: "Launch game", reason: "Verify this game's files before playing. Resume or retry verification in Downloads.", output: "")
@@ -266,15 +310,15 @@ public final class CatalogStore: Sendable {
             }
         }
     }
-    private static func encode<T: Encodable>(_ value: T) throws -> Data { try JSONEncoder().encode(value) }
-    private static func decode<T: Decodable>(_ type: T.Type, _ data: Data) throws -> T { try JSONDecoder().decode(type, from: data) }
-    private static func values<T: Decodable>(_ db: Database, table: String, whereSQL: String = "1", arguments: StatementArguments = []) throws -> [T] {
+    static func encode<T: Encodable>(_ value: T) throws -> Data { try JSONEncoder().encode(value) }
+    static func decode<T: Decodable>(_ type: T.Type, _ data: Data) throws -> T { try JSONDecoder().decode(type, from: data) }
+    static func values<T: Decodable>(_ db: Database, table: String, whereSQL: String = "1", arguments: StatementArguments = []) throws -> [T] {
         try Data.fetchAll(db, sql: "SELECT payload FROM \(table) WHERE \(whereSQL)", arguments: arguments).map { try decode(T.self, $0) }
     }
-    private static func putGame<T: Encodable>(_ db: Database, table: String, id: GameID, value: T) throws {
+    static func putGame<T: Encodable>(_ db: Database, table: String, id: GameID, value: T) throws {
         try db.execute(sql: "INSERT INTO \(table) (source, game, payload) VALUES (?, ?, ?) ON CONFLICT(source, game) DO UPDATE SET payload = excluded.payload", arguments: [id.source, id.value, try encode(value)])
     }
-    private static func putOperation<T: Encodable>(_ db: Database, table: String, id: UUID, gameID: GameID, value: T) throws {
+    static func putOperation<T: Encodable>(_ db: Database, table: String, id: UUID, gameID: GameID, value: T) throws {
         if let row = try Row.fetchOne(db, sql: "SELECT source, game FROM \(table) WHERE id = ?", arguments: [id.uuidString]) {
             guard (row["source"] as String) == gameID.source, (row["game"] as String) == gameID.value else { throw CatalogError.identityMismatch }
         }
