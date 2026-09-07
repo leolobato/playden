@@ -10,6 +10,8 @@ let package = Package(
         .library(name: "Input", targets: ["Input"]),
         .library(name: "Catalog", targets: ["Catalog"]),
         .library(name: "Sources", targets: ["Sources"]),
+        .library(name: "Runner", targets: ["Runner"]),
+        .library(name: "Installs", targets: ["Installs"]),
     ],
     dependencies: [
         .package(path: "../../../GameNative-macos/swift"),
@@ -17,6 +19,10 @@ let package = Package(
     ],
     targets: [
         .target(name: "Domain"),
+        .target(name: "Runner", dependencies: ["Domain"]),
+        .target(name: "Installs", dependencies: ["Domain", "Catalog", "Runner"]),
+        .testTarget(name: "InstallsTests", dependencies: ["Installs", "Domain"]),
+        .testTarget(name: "RunnerTests", dependencies: ["Runner", "Domain"]),
         .target(name: "Sources", dependencies: ["Domain", .product(name: "SteamCore", package: "swift")]),
         .testTarget(name: "SourcesTests", dependencies: ["Sources", "Domain"]),
         .target(name: "Catalog", dependencies: ["Domain", .product(name: "GRDB", package: "GRDB.swift")]),

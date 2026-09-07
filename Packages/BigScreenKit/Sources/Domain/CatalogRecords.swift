@@ -52,6 +52,7 @@ public struct LibraryPreferences: Codable, Equatable, Sendable {
     public var reducedMotion = false
     public var downloadWhilePlaying = false
     public var selectedDisplayID: UInt32?
+    public var gamesVolume: GamesVolumeSelection?
     public var setupCompleted = false
     public init() {}
 }
