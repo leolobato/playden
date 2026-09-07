@@ -364,9 +364,9 @@ Dependencies: M2–M4 services.
 
 - [ ] Finish first run: pairing guidance, display/volume choice, sign-in/skip, CrossOver retry and template progress.
 - [ ] Finish Home rows, empty fallback, persistent tabs/legend/download indicator and exit focus behavior.
-- [ ] Home: navigating Up from the games focuses the top tabs; Left/Right then switches tabs.
+- [x] Home: navigating Up from the games focuses the top tabs; Left/Right then switches tabs.
   Requested by the user on 7 September 2026.
-- [ ] Limit Continue playing to 15 game cards, followed by a Library card that opens the full
+- [x] Limit Continue playing to 15 game cards, followed by a Library card that opens the full
   Library. The Home row must end there rather than scroll indefinitely. Requested 7 September 2026.
 - [ ] Finish Library rail/grid, sorting, filters, live search, hidden-only visibility and collection management.
 - [ ] Finish game page metadata/actions, all install/run states, compatibility editor and Verify files entry point.

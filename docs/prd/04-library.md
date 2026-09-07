@@ -7,7 +7,8 @@ local edits. Nothing here names Steam except the artwork endpoint.
 
 - **FR-HOME-1 (v1):** Home is the landing screen after first run and after a game exits. Rows, top
   to bottom, each hidden when empty: Continue Playing (by last played), Downloading Now, Recently
-  Installed, Favorites, then one row per pinned collection.
+  Installed, Favorites, then one row per pinned collection. Continue Playing contains at most 15
+  games, followed by a Library card that opens the full, unfiltered Library; it ends at that card.
 - **FR-HOME-2 (v1):** The first row's first item is focused on arrival; `home` action returns focus
   there.
 - **FR-HOME-3 (v2):** "Play next" row driven by playtime patterns; "New in your library" row from

@@ -30,6 +30,8 @@ struct CanvasView: View {
                     case .settings: SettingsScreen(model: model)
                     }
                 }
+                .environment(\.showsFocusRing, !model.tabsFocused && !model.sessionIssueFocused)
+                .simultaneousGesture(TapGesture().onEnded { model.tabsFocused = false })
                 TopBar(model: model).frame(width: 1728, height: 56).offset(x: 96, y: 54)
             }.frame(width: 1920, height: 1080, alignment: .topLeading)
                 .environment(\.showsFocusRing, !model.sessionIssueFocused)
@@ -117,6 +119,7 @@ struct TopBar: View {
                             .foregroundStyle(model.tab == tab ? Design.text : Design.secondary)
                             .background(model.tab == tab ? Design.text.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 8))
                             .overlay(RoundedRectangle(cornerRadius: 8).stroke(model.tab == tab ? Design.text.opacity(0.35) : .clear, lineWidth: 2))
+                            .focusRing(model.tabsFocused && model.tab == tab, compact: true)
                     }.buttonStyle(.plain)
                 }
             }
@@ -149,11 +152,15 @@ struct BottomBar: View {
                 LegendItem(glyph: keyboard ? "↵" : model.playStationGlyphs ? "✕" : "A", title: "Select")
                 LegendItem(glyph: keyboard ? "ESC" : model.playStationGlyphs ? "○" : "B", title: "Back")
                 LegendItem(glyph: "← →", title: "Choose action")
+            } else if model.tabsFocused && model.detailID == nil {
+                LegendItem(glyph: "← →", title: "Switch tabs")
+                LegendItem(glyph: keyboard ? "↵" : model.playStationGlyphs ? "✕" : "A", title: "Browse")
+                LegendItem(glyph: keyboard ? "ESC" : model.playStationGlyphs ? "○" : "B", title: "Back")
             } else {
             LegendItem(glyph: keyboard ? "↵" : model.playStationGlyphs ? "✕" : "A", title: model.detailID != nil || model.tab == .settings ? "Select" : model.tab == .downloads && !model.isPreview && model.focusedGame != nil ? "Manage" : model.tab == .downloads && model.focusedGame?.status == .downloading ? (model.downloadPaused ? "Resume" : "Pause") : "Open")
             if model.detailID != nil || model.tab == .library { LegendItem(glyph: keyboard ? "ESC" : model.playStationGlyphs ? "○" : "B", title: "Back") }
-            if model.tab != .settings || model.showsSessionIssue { LegendItem(glyph: keyboard ? "T" : model.playStationGlyphs ? "△" : "Y", title: model.showsSessionIssue ? "Notification" : "More") }
-            if model.detailID == nil && model.tab == .home { LegendItem(glyph: keyboard ? "F" : model.playStationGlyphs ? "□" : "X", title: "Favorite") }
+            if (model.tab != .settings && model.focusedGame != nil) || model.showsSessionIssue { LegendItem(glyph: keyboard ? "T" : model.playStationGlyphs ? "△" : "Y", title: model.showsSessionIssue ? "Notification" : "More") }
+            if model.detailID == nil && model.tab == .home && model.focusedGame != nil { LegendItem(glyph: keyboard ? "F" : model.playStationGlyphs ? "□" : "X", title: "Favorite") }
             if model.detailID == nil {
                 if keyboard { LegendItem(glyph: "TAB", title: "Tabs") }
                 if model.tab == .library { LegendItem(glyph: keyboard ? "O" : model.playStationGlyphs ? "OPTIONS" : "MENU", title: "Sort & filter") }

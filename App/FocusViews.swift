@@ -34,10 +34,17 @@ struct FocusedHomeRows: View {
                     SectionLabel(text: row.name).padding(.leading, 24)
                     HStack(alignment: .top, spacing: 20) {
                         ForEach(Array(row.games.enumerated()), id: \.element.id) { column, game in
-                            GameTile(game: game, focused: model.homeRow == index && model.homeColumns[index, default: 0] == column,
+                            GameTile(game: game, focused: !model.tabsFocused && model.homeRow == index && model.homeColumns[index, default: 0] == column,
                                      home: true, reducedMotion: model.reducedMotion,
                                      subtitle: model.isPreview && index == 0 && column == 0 ? "31 h played · yesterday" : nil, paused: model.downloadPaused, job: model.isPreview ? nil : model.liveJob(for: game.id))
                                 .onTapGesture { model.homeRow = index; model.homeColumns[index] = column; model.openGame(game) }
+                        }
+                        if row.showsLibraryCard {
+                            HomeLibraryCard(focused: !model.tabsFocused && model.homeRow == index && model.homeColumns[index, default: 0] == row.games.count,
+                                            reducedMotion: model.reducedMotion) {
+                                model.homeRow = index; model.homeColumns[index] = row.games.count
+                                model.browseAvailableGames()
+                            }
                         }
                     }.padding(.horizontal, 24).offset(x: -model.homeRowOffsets[index, default: 0])
                         .animation(model.reducedMotion ? nil : .easeOut(duration: 0.18), value: model.homeRowOffsets[index])
@@ -74,5 +81,31 @@ struct LibraryRail: View {
             }
         }.frame(width: 348, height: 840, alignment: .topLeading).clipped()
             .animation(model.reducedMotion ? nil : .easeOut(duration: 0.18), value: offset)
+    }
+}
+
+struct HomeLibraryCard: View {
+    let focused: Bool
+    let reducedMotion: Bool
+    let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 22) {
+                VStack(spacing: 24) {
+                    Image(systemName: "square.grid.2x2").font(.system(size: 58, weight: .light))
+                        .foregroundStyle(focused ? Design.accent : Design.secondary)
+                    VStack(spacing: 8) {
+                        Text("Library").font(Design.condensed(32))
+                        Text("All your games").font(Design.body(18)).foregroundStyle(Design.secondary)
+                    }
+                    Image(systemName: "arrow.right").font(.system(size: 24, weight: .medium)).foregroundStyle(Design.secondary)
+                }.frame(width: 213, height: 320)
+                    .background(LinearGradient(colors: [Design.panel, Design.background], startPoint: .topLeading, endPoint: .bottomTrailing), in: RoundedRectangle(cornerRadius: 8))
+                    .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Design.text.opacity(0.15), lineWidth: 1))
+                    .focusRing(focused).scaleEffect(focused && !reducedMotion ? 1.08 : 1)
+                if focused { Text("Browse library").font(Design.condensed(24)).frame(maxWidth: .infinity, alignment: .leading) }
+            }.frame(width: 213, height: 400, alignment: .top)
+        }.buttonStyle(.plain).accessibilityLabel("Browse library")
+            .animation(reducedMotion ? nil : .easeOut(duration: 0.18), value: focused)
     }
 }

@@ -368,7 +368,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let requestedScreens: Set<String>? = arguments.firstIndex(of: "--snapshot-screens").flatMap { index in
                 arguments.indices.contains(index + 1) ? Set(arguments[index + 1].split(separator: ",").map(String.init)) : nil
             }
-            for screen in ["home", "home-playstation", "library", "library-playstation", "library-paged", "library-return", "game", "downloads", "downloads-queued", "settings", "settings-display", "settings-runtime", "settings-runtime-missing", "settings-runtime-busy", "collections", "keyboard", "compatibility", "uninstall", "logs", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom", "library-download-glyph", "library-download-focused", "game-unknown-size", "game-favorite", "install-offer", "install-offer-space", "install-queue", "install-game-progress", "launching", "exit-overlay", "exit-overlay-quit", "notification", "notification-focused"] {
+            for screen in ["home", "home-tabs", "home-library-card", "home-playstation", "library", "library-playstation", "library-paged", "library-return", "game", "downloads", "downloads-queued", "settings", "settings-display", "settings-runtime", "settings-runtime-missing", "settings-runtime-busy", "collections", "keyboard", "compatibility", "uninstall", "logs", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom", "library-download-glyph", "library-download-focused", "game-unknown-size", "game-favorite", "install-offer", "install-offer-space", "install-queue", "install-game-progress", "launching", "exit-overlay", "exit-overlay-quit", "notification", "notification-focused"] {
                 if let requestedScreens, !requestedScreens.contains(screen) { continue }
                 model.panel = nil; model.detailID = nil; model.authScreen = nil; model.setupScreen = nil
                 model.session = .init(); model.exitOverlay = false; model.controllerName = nil
@@ -404,6 +404,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     model.templateStage = screen == "setup-ready" ? .ready : .creating
                     model.setupBusy = screen == "setup-runtime"
                     if screen == "setup-error" { model.setupFailure = OperationFailure(stage: "Create template", reason: "Game setup couldn’t finish. Try again, or browse your library and set up later.", output: "Design fixture") }
+                case "home-tabs":
+                    model.selectTab(.home); model.perform(.move(.up))
+                case "home-library-card":
+                    model.selectTab(.home)
+                    model.homeColumns[0] = model.rows[0].games.count
                 case "home-playstation", "library-playstation":
                     model.selectTab(screen == "home-playstation" ? .home : .library)
                     model.controllerName = "DualShock 4"; model.playStationGlyphs = true; model.keyboardNavigation = false

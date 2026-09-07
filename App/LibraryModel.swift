@@ -21,6 +21,13 @@ enum Panel: Equatable {
     case textEditor(TextPurpose), collections(GameID), collectionOptions(UUID), confirmation(Confirmation), logs(GameID)
 }
 
+struct HomeRow {
+    let name: String
+    let games: [Game]
+    let showsLibraryCard: Bool
+    var itemCount: Int { games.count + (showsLibraryCard ? 1 : 0) }
+}
+
 @MainActor @Observable
 final class LibraryModel {
     @ObservationIgnored let catalog: CatalogStore?
@@ -106,6 +113,7 @@ final class LibraryModel {
     var keyboardError: String?
     var symbols = false
     var downloadWhilePlaying = false { didSet { persistPreferences(); updateSessionDownloadPolicy() } }
+    var tabsFocused = false
     var tab: AppTab = .home
     var detailID: GameID?
     var panel: Panel? {
@@ -212,7 +220,7 @@ final class LibraryModel {
             return order == .orderedSame ? (lhs.id.source, lhs.id.value) < (rhs.id.source, rhs.id.value) : order == .orderedAscending
         }
     }
-    var rows: [(name: String, games: [Game])] {
+    var rows: [HomeRow] {
         let visible = games.filter { !$0.isHidden }
         let result: [(String, [Game])] = [
             ("Continue playing", isPreview ? ["Hades", "Cuphead", "Hollow Knight", "Dead Cells", "Stardew Valley", "Slay the Spire", "Celeste", "Outer Wilds"].compactMap { title in visible.first { $0.title == title } } : visible.filter { $0.lastPlayedAt != nil }.sorted { $0.lastPlayedAt! > $1.lastPlayedAt! }),
@@ -222,10 +230,14 @@ final class LibraryModel {
         ] + collections.filter(\.isPinned).map { collection in
             (collection.name, visible.filter { collection.gameIDs.contains($0.id) })
         }
-        return result.filter { !$0.1.isEmpty }
+        return result.filter { !$0.1.isEmpty }.map { name, games in
+            let isContinue = name == "Continue playing"
+            return HomeRow(name: name, games: isContinue ? Array(games.prefix(15)) : games, showsLibraryCard: isContinue)
+        }
     }
     var focusedGame: Game? {
         if let detailID { return games.first { $0.id == detailID } ?? liveJob(for: detailID).map { game(for: $0) } }
+        guard !tabsFocused else { return nil }
         if tab == .library { return filteredGames[safe: libraryCursor.index] }
         if tab == .downloads { return downloadGames[safe: downloadIndex] }
         return rows[safe: homeRow]?.games[safe: homeColumns[homeRow, default: 0]]
@@ -278,7 +290,7 @@ final class LibraryModel {
         let column = homeColumns[homeRow, default: 0]
         let left = 24.0 + Double(column) * 233
         homeRowOffsets[homeRow] = FocusViewport.reveal(offset: homeRowOffsets[homeRow, default: 0], itemMin: left,
-            itemMax: left + 213, viewport: 1848, content: 48 + Double(rows[safe: homeRow]?.games.count ?? 0) * 233)
+            itemMax: left + 213, viewport: 1752, content: 48 + Double(rows[safe: homeRow]?.itemCount ?? 0) * 233)
     }
     func browseAvailableGames() {
         selectTab(.library)
@@ -286,14 +298,14 @@ final class LibraryModel {
         filter = !games.isEmpty && games.allSatisfy(\.isHidden) ? .hidden : .all
         updateQuery("")
     }
-    func selectTab(_ value: AppTab) { tab = value; detailID = nil; panel = nil; railFocused = false }
+    func selectTab(_ value: AppTab, focusTabs: Bool = false) { tabsFocused = focusTabs; tab = value; detailID = nil; panel = nil; railFocused = false }
     func show(_ value: Panel) {
         panel = value; panelIndex = 0
         if value == .filters { filterChoiceIndex = 0; filterScrollOffset = 0; expandedGenres = false }
         if value == .search { textEditor = TextEditorState(query); keyboardError = nil }
     }
     func updateQuery(_ value: String) { query = value; libraryCursor = .init() }
-    func openGame(_ game: Game) { detailID = game.id; detailAction = 0; panel = nil }
+    func openGame(_ game: Game) { tabsFocused = false; detailID = game.id; detailAction = 0; panel = nil }
     func toggleFavorite() {
         guard let id = focusedGame?.id, let i = games.firstIndex(where: { $0.id == id }) else { return }
         games[i].isFavorite.toggle(); reconcileFocus()
@@ -302,7 +314,7 @@ final class LibraryModel {
         libraryCursor.clamp(count: filteredGames.count)
         downloadIndex = min(downloadIndex, max(0, downloadGames.count - 1))
         homeRow = min(homeRow, max(0, rows.count - 1))
-        for (i, row) in rows.enumerated() { homeColumns[i] = min(homeColumns[i, default: 0], max(0, row.games.count - 1)) }
+        for (i, row) in rows.enumerated() { homeColumns[i] = min(homeColumns[i, default: 0], max(0, row.itemCount - 1)) }
     }
     func perform(_ action: InputAction) {
         if performSessionInput(action) { return }
@@ -348,6 +360,20 @@ final class LibraryModel {
             }
             return
         }
+        if tabsFocused && detailID == nil {
+            switch action {
+            case .move(.left), .move(.right):
+                let tabs = AppTab.allCases, index = tabs.firstIndex(of: tab) ?? 0
+                let delta: Int
+                if case .move(.left) = action { delta = -1 } else { delta = 1 }
+                let next = min(max(0, index + delta), tabs.count - 1)
+                selectTab(tabs[next], focusTabs: true)
+                return
+            case .move(.down), .confirm, .back: tabsFocused = false; return
+            case .move(.up), .favorite, .context, .options, .previousPage, .nextPage: return
+            default: break
+            }
+        }
         switch action {
         case .move(let direction): move(direction)
         case .holdHome: break // Handled by the session focus scope above.
@@ -383,18 +409,20 @@ final class LibraryModel {
         case .home: selectTab(.home); homeRow = 0; homeColumns[0] = 0
         case .previousTab, .nextTab:
             let tabs = AppTab.allCases, index = tabs.firstIndex(of: tab) ?? 0
-            selectTab(tabs[(index + (action.isNextTab ? 1 : tabs.count - 1)) % tabs.count])
-        case .previousPage: for _ in 0..<2 { move(.up) }
+            selectTab(tabs[(index + (action.isNextTab ? 1 : tabs.count - 1)) % tabs.count], focusTabs: tabsFocused)
+        case .previousPage: for _ in 0..<2 { move(.up, allowsTabFocus: false) }
         case .nextPage: for _ in 0..<2 { move(.down) }
         }
     }
-    private func move(_ direction: Direction) {
+    private func move(_ direction: Direction, allowsTabFocus: Bool = true) {
         if detailID != nil {
             detailAction = min(max(0, detailAction + (direction == .left ? -1 : direction == .right ? 1 : 0)), detailActions.count - 1)
         } else if tab == .home {
+            if direction == .up && homeRow == 0 && allowsTabFocus { tabsFocused = true; return }
             if direction == .up || direction == .down { homeRow = min(max(0, homeRow + (direction == .up ? -1 : 1)), max(0, rows.count - 1)) }
-            else { homeColumns[homeRow] = min(max(0, homeColumns[homeRow, default: 0] + (direction == .left ? -1 : 1)), max(0, (rows[safe: homeRow]?.games.count ?? 0) - 1)) }
+            else { homeColumns[homeRow] = min(max(0, homeColumns[homeRow, default: 0] + (direction == .left ? -1 : 1)), max(0, (rows[safe: homeRow]?.itemCount ?? 0) - 1)) }
         } else if tab == .library {
+            if direction == .up && allowsTabFocus && (railFocused ? libraryRailIndex == 0 : libraryCursor.index < 6) { tabsFocused = true; return }
             if railFocused {
                 if direction == .right { railFocused = false }
                 else if direction == .up || direction == .down {
@@ -403,10 +431,12 @@ final class LibraryModel {
                 }
             } else if !libraryCursor.move(direction, count: filteredGames.count, columns: 6), direction == .left { railFocused = true }
         } else if tab == .downloads {
+            if direction == .up && downloadIndex == 0 && allowsTabFocus { tabsFocused = true; return }
             if direction == .up || direction == .down {
                 downloadIndex = min(max(0, downloadIndex + (direction == .up ? -1 : 1)), max(0, downloadGames.count - 1))
             }
         } else if tab == .settings {
+            if direction == .up && allowsTabFocus && (settingsRailFocused ? settingsSection == 0 : settingsIndex == 0) { tabsFocused = true; return }
             if direction == .left { settingsRailFocused = true }
             else if direction == .right { settingsRailFocused = false }
             else if settingsRailFocused { settingsSection = min(max(0, settingsSection + (direction == .up ? -1 : 1)), 4); settingsIndex = 0 }

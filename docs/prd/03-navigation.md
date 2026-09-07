@@ -49,7 +49,10 @@ for development.
 ## 3. Layout
 
 - **FR-LAY-1 (v1):** Persistent top bar: tabs Home, Library, Downloads, Settings, plus account and
-  time. Tabs switch with L1/R1 from anywhere except inside a modal.
+  time. Tabs switch with L1/R1 from anywhere except inside a modal. Up from Home's first row focuses
+  the active tab; Left/Right switches tabs while focus remains in the tab bar. Down or Confirm
+  enters the selected screen, restoring its content focus. Back leaves tab focus. Page-up actions
+  stop at the first content item rather than moving into the tab bar.
 - **FR-LAY-2 (v1):** Bottom bar: button legend (FR-IN-2) and a compact downloads indicator when a
   job is running.
 - **FR-LAY-3 (v1):** Safe area: 5% inset on all sides for TV overscan.
