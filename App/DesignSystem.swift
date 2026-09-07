@@ -54,12 +54,16 @@ final class ArtworkCache {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         memory.totalCostLimit = 160 * 1024 * 1024
     }
+    func cachedImage(for url: URL?) -> NSImage? {
+        guard let url else { return nil }
+        return memory.object(forKey: url as NSURL)
+    }
     func image(for url: URL) async -> NSImage? {
         if let image = memory.object(forKey: url as NSURL) { return image }
         if let request = requests[url] { return await request.value }
         let file = directory.appendingPathComponent(SHA256.hash(data: Data(url.absoluteString.utf8)).map { String(format: "%02x", $0) }.joined())
         let request = Task<NSImage?, Never> {
-            if let image = NSImage(contentsOf: file) { return image }
+            if FileManager.default.fileExists(atPath: file.path), let image = NSImage(contentsOf: file) { return image }
             var request = URLRequest(url: url); request.timeoutInterval = 20
             guard let (data, response) = try? await URLSession.shared.data(for: request),
                   let response = response as? HTTPURLResponse, response.statusCode == 200,
@@ -80,20 +84,29 @@ struct Artwork: View {
     var title = ""
     var fit = false
     var transparent = false
+    var fadeIn = false
     @State private var image: NSImage?
+    @State private var loadedURL: URL?
     var body: some View {
         GeometryReader { geometry in
             ZStack {
                 if !transparent { Color(hex: 0x2A2623) }
-                if let image {
-                    Image(nsImage: image).resizable().aspectRatio(contentMode: fit ? .fit : .fill)
+                if let displayed = loadedURL == url ? image : ArtworkCache.shared.cachedImage(for: url) {
+                    Image(nsImage: displayed).resizable().aspectRatio(contentMode: fit ? .fit : .fill)
                         .frame(width: geometry.size.width, height: geometry.size.height, alignment: fit ? .leading : .center)
+                        .transition(.opacity)
                 } else if !title.isEmpty {
                     Text(title).font(Design.condensed(36)).multilineTextAlignment(.center).padding(20)
                 }
             }.frame(width: geometry.size.width, height: geometry.size.height).clipped()
         }
-        .task(id: url) { image = nil; if let url { image = await ArtworkCache.shared.image(for: url) } }
+        .task(id: url) {
+            image = ArtworkCache.shared.cachedImage(for: url); loadedURL = url
+            guard image == nil, let url else { return }
+            let result = await ArtworkCache.shared.image(for: url)
+            guard !Task.isCancelled else { return }
+            withAnimation(fadeIn ? .easeInOut(duration: 0.25) : nil) { image = result }
+        }
     }
 }
 

@@ -5,7 +5,9 @@ controlled with a gamepad, with Steam and CrossOver integration planned.
 
 The first implementation is a **design preview**, matching the [designer handoff](docs/design/README.md).
 Home, Library, the split game page, Downloads, Settings, search keyboard, filters and context panels
-use isolated sample data. Favorites, hiding and compatibility edits last for the preview session.
+use isolated sample data. Collections (create, rename, pin and membership), compatibility ratings/notes,
+favorites, hiding, and download queue edits last for the preview session. Install/uninstall and cancel
+confirmations update preview state only.
 **Steam authentication, installation and game launching are not connected yet.**
 
 ## Build and run
@@ -43,9 +45,16 @@ shows a title placeholder. No login credentials or game files are accessed by th
 | Control-Command-F | — | Toggle fullscreen |
 | Command-Q | — | Quit preview |
 
-Type normally while the search keyboard is open, or navigate its keys with the controller. Mouse
-clicks are also available for development. Controller foreground mapping is implemented; physical
-DS4 testing and background exit-overlay handoff are still unverified.
+Type normally in search, collection names or compatibility notes, or navigate the on-screen keys.
+While editing, L1/R1 (Tab/Shift-Tab) moves the text cursor, Square deletes, Triangle inserts a space,
+and Options switches symbols. Select Done to save; Circle/Escape cancels collection/note drafts.
+Use More on a collection in the Library rail to rename, pin to Home, or delete it. On Downloads,
+More opens pause/cancel/reorder actions for the selected row. Mouse clicks are also supported.
+
+DS4 foreground input has been confirmed on hardware by the user. Background exit-overlay handoff
+remains unverified. Focus drives scrolling in Home, Library and Downloads; rapid Home navigation
+waits 400 ms before crossfading its ambient artwork. Game details fade in with a short upward motion.
+Settings → Display → Reduced motion disables these transitions.
 
 ## Validation
 
@@ -57,7 +66,8 @@ BIGSCREEN_SNAPSHOT_DIR="$PWD/.build/screenshots-720p" ./scripts/snapshot.sh --sn
 ```
 
 The test suite covers logical grid movement/repeat and native presentation-state interactions
-(modal focus, navigation memory, search, hidden collections and empty-state recovery).
+(modal focus, navigation memory, search, collection/note editing, Unicode text cursors,
+queue reordering, cancellation and focus-driven scrolling/empty-state recovery).
 
 Snapshots are actual native window captures in `.build/screenshots/`. They use a 1920×1080 logical
 canvas (pixel dimensions follow the display backing scale), a fixed clock, and the same artwork

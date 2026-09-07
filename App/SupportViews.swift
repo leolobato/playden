@@ -16,7 +16,7 @@ struct DownloadsScreen: View {
                     storageLine("Reserved by queue", "10.1 GB", Design.accent)
                     storageLine("Free", "412 GB", Design.muted)
                     Rectangle().fill(Design.text.opacity(0.1)).frame(height: 1)
-                    Text("Downloads pause automatically while you play.").font(Design.body(22)).foregroundStyle(Design.secondary).lineSpacing(6)
+                    Text(model.downloadWhilePlaying ? "Downloads continue while you play." : "Downloads pause automatically while you play.").font(Design.body(22)).foregroundStyle(Design.secondary).lineSpacing(6)
                 }.padding(28).background(Design.text.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
                 Text("Preview queue · no files are being downloaded").font(Design.body(18)).foregroundStyle(Design.muted)
             }.frame(width: 524)

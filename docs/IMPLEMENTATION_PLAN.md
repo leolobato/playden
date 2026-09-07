@@ -17,12 +17,21 @@ The preview uses isolated fixtures and does not connect Steam or CrossOver. Doma
 focus and foreground controller input are separate package targets. Native screenshots can be
 captured for visual review. This is partial M1/M5 work, not completion of either milestone.
 
+The follow-up UI pass fixes keyboard tab switching, download navigation and focus-driven scrolling
+(including trigger paging back to the first Library row). Details animate on arrival/return; Home's
+ambient artwork waits 400 ms before crossfading. Reduced motion skips transitions. Collection
+create/rename/delete/membership/pinning, compatibility notes, controller text cursor/symbol entry,
+and preview queue reorder/cancel/install confirmations are implemented with session-local state.
+
 M0 real-game/controller handoff, persistence, first-run auth, install/session services and remaining
-v1 actions are still outstanding. The user confirmed DS4 foreground input works on 2026-09-07; background game handoff is still unverified. Validation so far: Xcode build, four package tests, eight app interaction tests, and
-native window captures of Home, Library, game page, Downloads and Settings at 1920×1080 and
-1280×720 logical window sizes (Retina pixel output). A real keyboard-event smoke check caught and
-fixed a smaller-window scaling alignment bug. See the root README
-for reproducible build/run/validation commands.
+v1 actions are still outstanding. The user confirmed DS4 foreground input works on 2026-09-07;
+background game handoff is still unverified. Validation: Xcode build, five package tests and sixteen
+app tests, plus native window captures at 1920×1080 and 1280×720 logical sizes (Retina pixel output).
+The newer captures include paged Library return, queued download focus, collection/text editing,
+compatibility notes, uninstall confirmation and the empty log viewer. A native keyboard-event
+check exercised Tab/Shift-Tab, Command-2/3, Downloads up/down and Library paging back, and captured
+detail/ambient transitions during and after animation. Focus-settled artwork prefetch and late-art
+fades avoid a hard image pop on opening details. See the root README for reproducible commands.
 
 ## 1. Planning defaults and PRD corrections
 

@@ -48,6 +48,15 @@ struct CanvasView: View {
             .environment(\.colorScheme, .dark)
             .animation(model.reducedMotion ? nil : .easeInOut(duration: 0.28), value: model.detailID)
             .animation(model.reducedMotion ? nil : .easeOut(duration: 0.2), value: model.panel != nil)
+            .task(id: model.focusedGame?.id) {
+                guard let game = model.focusedGame, model.tab != .settings else { return }
+                // Warm detail art after focus settles, so opening a tile can immediately animate it.
+                do { try await Task.sleep(for: .milliseconds(200)) } catch { return }
+                for url in [game.heroURL, game.logoURL].compactMap({ $0 }) {
+                    guard !Task.isCancelled else { return }
+                    _ = await ArtworkCache.shared.image(for: url)
+                }
+            }
     }
 }
 struct TopBar: View {
@@ -99,7 +108,7 @@ struct BottomBar: View {
             if model.detailID == nil {
                 if model.controllerName == nil { LegendItem(glyph: "TAB", title: "Tabs") }
                 if model.tab == .library { LegendItem(glyph: model.playStationGlyphs ? "OPTIONS" : "MENU", title: "Sort & filter") }
-                else { HStack(spacing: 10) { Glyph(text: model.playStationGlyphs ? "L1" : "LB"); Glyph(text: model.playStationGlyphs ? "R1" : "RB"); Text("Tabs").font(Design.body(22, weight: "Medium")) } }
+                else if model.controllerName != nil { HStack(spacing: 10) { Glyph(text: model.playStationGlyphs ? "L1" : "LB"); Glyph(text: model.playStationGlyphs ? "R1" : "RB"); Text("Tabs").font(Design.body(22, weight: "Medium")) } }
                 if model.tab == .home || model.tab == .library { LegendItem(glyph: model.playStationGlyphs ? "PAD" : "VIEW", title: "Search") }
             }
             Spacer(minLength: 0)
@@ -167,10 +176,10 @@ struct GamePage: View {
     let game: Game
     var body: some View {
         ZStack(alignment: .topLeading) {
-            Artwork(url: game.heroURL).frame(width: 1920, height: 620)
+            Artwork(url: game.heroURL, fadeIn: !model.reducedMotion).frame(width: 1920, height: 620)
             LinearGradient(stops: [.init(color: Design.background.opacity(0.4), location: 0), .init(color: .clear, location: 0.3), .init(color: .clear, location: 0.75), .init(color: Design.background, location: 1)], startPoint: .top, endPoint: .bottom).frame(height: 620)
             HStack { LegendItem(glyph: model.playStationGlyphs ? "○" : "B", title: model.tab.rawValue); Spacer(); ClockLabel(fixed: model.fixedClock) }.frame(width: 1728, height: 40).offset(x: 96, y: 54)
-            Artwork(url: game.logoURL, title: game.title, fit: true, transparent: true).frame(width: 460, height: 160).shadow(color: .black.opacity(0.5), radius: 20, y: 8).offset(x: 96, y: 430)
+            Artwork(url: game.logoURL, title: game.title, fit: true, transparent: true, fadeIn: !model.reducedMotion).frame(width: 460, height: 160).shadow(color: .black.opacity(0.5), radius: 20, y: 8).offset(x: 96, y: 430)
             ScrollViewReader { proxy in
                 ScrollView(.horizontal) {
                     HStack(spacing: 14) {
