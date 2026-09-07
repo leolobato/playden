@@ -1,0 +1,40 @@
+name: BigScreen
+options:
+  bundleIdPrefix: com.gamenative
+  deploymentTarget:
+    macOS: '14.0'
+settings:
+  base:
+    SWIFT_VERSION: '6.0'
+    MACOSX_DEPLOYMENT_TARGET: '14.0'
+packages:
+  BigScreenKit:
+    path: Packages/BigScreenKit
+targets:
+  BigScreen:
+    type: application
+    platform: macOS
+    sources:
+      - path: App
+    dependencies:
+      - package: BigScreenKit
+        product: Domain
+      - package: BigScreenKit
+        product: Focus
+      - package: BigScreenKit
+        product: Input
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.gamenative.bigscreen
+        PRODUCT_NAME: GameNative Big Screen
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: GameNative Big Screen
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.games
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: '-'
+        ENABLE_APP_SANDBOX: NO
+schemes:
+  BigScreen:
+    build:
+      targets:
+        BigScreen: all

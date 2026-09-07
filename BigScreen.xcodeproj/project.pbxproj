@@ -1,0 +1,427 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		027C05DE49D217FF36A11277 /* Domain in Frameworks */ = {isa = PBXBuildFile; productRef = DCB264D4EC935990E4A49C62 /* Domain */; };
+		0ADE2D8965DF0EB2970C1299 /* Barlow-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 6AF948AAF0BAAEF8084DC07F /* Barlow-SemiBold.ttf */; };
+		0D2E79FBE3049ECE01746076 /* barlowcondensed-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = 99CC90B68B12DC034A62B4A8 /* barlowcondensed-OFL.txt */; };
+		14216B99792AA03166CC204A /* BigScreenApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC34C0B6A3AA65EAACEB3DF6 /* BigScreenApp.swift */; };
+		1893A3DCB6C8FDCE2B5C32E1 /* barlow-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = C8DF7A3A43F7711BF2900808 /* barlow-OFL.txt */; };
+		1C1BD2C0F9B2D54C8BA9272C /* Barlow-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 08513EE3EB4D3FF23A5EC440 /* Barlow-Medium.ttf */; };
+		1CDD97632E3844CB38650231 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACE543D0F8A5BF17507E08D4 /* DesignSystem.swift */; };
+		289C912D18322B71016A270B /* LibraryViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = E59AD64ED47C06CB9847E69F /* LibraryViews.swift */; };
+		764655582701C0B1C2F9BA54 /* SupportViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0ABE6CC32C22767FC77D4D03 /* SupportViews.swift */; };
+		8F22CB0C305DF070224934BA /* BarlowCondensed-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 675832B109B2E37BE237EB27 /* BarlowCondensed-SemiBold.ttf */; };
+		9056FBDE7AA54810D6A27738 /* BarlowCondensed-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = BBF8335C78563AB54988A674 /* BarlowCondensed-Bold.ttf */; };
+		A5BB015D1145708E9D242027 /* Focus in Frameworks */ = {isa = PBXBuildFile; productRef = 7DAA6C5CD5D24A18E0472A09 /* Focus */; };
+		B25B1F80C0B90AEC6CA8BC60 /* LibraryModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7E1299E802C11E73F8A1EDA /* LibraryModel.swift */; };
+		C1FB15B5D9027944888D38FA /* BarlowCondensed-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 8DF603146150E3A8F502D3AF /* BarlowCondensed-Medium.ttf */; };
+		CA2CD29BB2A361B7CCF5F01C /* PreviewCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB21DA9AE3F1CFE573775A04 /* PreviewCatalog.swift */; };
+		CAF7A51F716DA804FB81BE04 /* Barlow-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 4622DF2E186C3B6F638C30B1 /* Barlow-Regular.ttf */; };
+		FCB403FE4A0246DD90667FE7 /* Input in Frameworks */ = {isa = PBXBuildFile; productRef = 8A0E4D1D02D0A2AB2C0FF44A /* Input */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		08513EE3EB4D3FF23A5EC440 /* Barlow-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Barlow-Medium.ttf"; sourceTree = "<group>"; };
+		0ABE6CC32C22767FC77D4D03 /* SupportViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupportViews.swift; sourceTree = "<group>"; };
+		4622DF2E186C3B6F638C30B1 /* Barlow-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Barlow-Regular.ttf"; sourceTree = "<group>"; };
+		5036277590D70F7B4EDB65E7 /* BigScreenKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = BigScreenKit; path = Packages/BigScreenKit; sourceTree = SOURCE_ROOT; };
+		675832B109B2E37BE237EB27 /* BarlowCondensed-SemiBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "BarlowCondensed-SemiBold.ttf"; sourceTree = "<group>"; };
+		6AF948AAF0BAAEF8084DC07F /* Barlow-SemiBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Barlow-SemiBold.ttf"; sourceTree = "<group>"; };
+		8DF603146150E3A8F502D3AF /* BarlowCondensed-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "BarlowCondensed-Medium.ttf"; sourceTree = "<group>"; };
+		99CC90B68B12DC034A62B4A8 /* barlowcondensed-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "barlowcondensed-OFL.txt"; sourceTree = "<group>"; };
+		A7E1299E802C11E73F8A1EDA /* LibraryModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryModel.swift; sourceTree = "<group>"; };
+		ACE543D0F8A5BF17507E08D4 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
+		BBF8335C78563AB54988A674 /* BarlowCondensed-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "BarlowCondensed-Bold.ttf"; sourceTree = "<group>"; };
+		C8DF7A3A43F7711BF2900808 /* barlow-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "barlow-OFL.txt"; sourceTree = "<group>"; };
+		DB21DA9AE3F1CFE573775A04 /* PreviewCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewCatalog.swift; sourceTree = "<group>"; };
+		DC34C0B6A3AA65EAACEB3DF6 /* BigScreenApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BigScreenApp.swift; sourceTree = "<group>"; };
+		E59AD64ED47C06CB9847E69F /* LibraryViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryViews.swift; sourceTree = "<group>"; };
+		F549D7F628B1DA7071BA2F75 /* BigScreen.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BigScreen.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		1137D235C0FC0264B46D014E /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				027C05DE49D217FF36A11277 /* Domain in Frameworks */,
+				A5BB015D1145708E9D242027 /* Focus in Frameworks */,
+				FCB403FE4A0246DD90667FE7 /* Input in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		92362F9C9330BF887D34F154 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				F549D7F628B1DA7071BA2F75 /* BigScreen.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A251EF9B07E2D247834C407F /* App */ = {
+			isa = PBXGroup;
+			children = (
+				DC34C0B6A3AA65EAACEB3DF6 /* BigScreenApp.swift */,
+				ACE543D0F8A5BF17507E08D4 /* DesignSystem.swift */,
+				A7E1299E802C11E73F8A1EDA /* LibraryModel.swift */,
+				E59AD64ED47C06CB9847E69F /* LibraryViews.swift */,
+				DB21DA9AE3F1CFE573775A04 /* PreviewCatalog.swift */,
+				0ABE6CC32C22767FC77D4D03 /* SupportViews.swift */,
+				BE41A0948563E9044ACC39FF /* Resources */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		AD23B080BAD3FE31DDB0FDB0 = {
+			isa = PBXGroup;
+			children = (
+				A251EF9B07E2D247834C407F /* App */,
+				BDB57EE0D1D5201A1A15BFED /* Packages */,
+				92362F9C9330BF887D34F154 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		BC97F0E56FF5D7F887259578 /* Fonts */ = {
+			isa = PBXGroup;
+			children = (
+				08513EE3EB4D3FF23A5EC440 /* Barlow-Medium.ttf */,
+				C8DF7A3A43F7711BF2900808 /* barlow-OFL.txt */,
+				4622DF2E186C3B6F638C30B1 /* Barlow-Regular.ttf */,
+				6AF948AAF0BAAEF8084DC07F /* Barlow-SemiBold.ttf */,
+				BBF8335C78563AB54988A674 /* BarlowCondensed-Bold.ttf */,
+				8DF603146150E3A8F502D3AF /* BarlowCondensed-Medium.ttf */,
+				99CC90B68B12DC034A62B4A8 /* barlowcondensed-OFL.txt */,
+				675832B109B2E37BE237EB27 /* BarlowCondensed-SemiBold.ttf */,
+			);
+			path = Fonts;
+			sourceTree = "<group>";
+		};
+		BDB57EE0D1D5201A1A15BFED /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				5036277590D70F7B4EDB65E7 /* BigScreenKit */,
+			);
+			path = Packages;
+			sourceTree = "<group>";
+		};
+		BE41A0948563E9044ACC39FF /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				BC97F0E56FF5D7F887259578 /* Fonts */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		58B7188056332475075E4BE8 /* BigScreen */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 985B375A0B20AF53C914BABC /* Build configuration list for PBXNativeTarget "BigScreen" */;
+			buildPhases = (
+				0273FE39B0C558DA91D9242A /* Sources */,
+				397BB1D4372EEF9806B4500A /* Resources */,
+				1137D235C0FC0264B46D014E /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = BigScreen;
+			packageProductDependencies = (
+				DCB264D4EC935990E4A49C62 /* Domain */,
+				7DAA6C5CD5D24A18E0472A09 /* Focus */,
+				8A0E4D1D02D0A2AB2C0FF44A /* Input */,
+			);
+			productName = BigScreen;
+			productReference = F549D7F628B1DA7071BA2F75 /* BigScreen.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		DB407DB0B76C446F966BD895 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					58B7188056332475075E4BE8 = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = F8267173DE48E6FACC5026F8 /* Build configuration list for PBXProject "BigScreen" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = AD23B080BAD3FE31DDB0FDB0;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				6A2C46D718E6E93373D69E5F /* XCLocalSwiftPackageReference "Packages/BigScreenKit" */,
+			);
+			preferredProjectObjectVersion = 77;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				58B7188056332475075E4BE8 /* BigScreen */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		397BB1D4372EEF9806B4500A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1C1BD2C0F9B2D54C8BA9272C /* Barlow-Medium.ttf in Resources */,
+				CAF7A51F716DA804FB81BE04 /* Barlow-Regular.ttf in Resources */,
+				0ADE2D8965DF0EB2970C1299 /* Barlow-SemiBold.ttf in Resources */,
+				9056FBDE7AA54810D6A27738 /* BarlowCondensed-Bold.ttf in Resources */,
+				C1FB15B5D9027944888D38FA /* BarlowCondensed-Medium.ttf in Resources */,
+				8F22CB0C305DF070224934BA /* BarlowCondensed-SemiBold.ttf in Resources */,
+				1893A3DCB6C8FDCE2B5C32E1 /* barlow-OFL.txt in Resources */,
+				0D2E79FBE3049ECE01746076 /* barlowcondensed-OFL.txt in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		0273FE39B0C558DA91D9242A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				14216B99792AA03166CC204A /* BigScreenApp.swift in Sources */,
+				1CDD97632E3844CB38650231 /* DesignSystem.swift in Sources */,
+				B25B1F80C0B90AEC6CA8BC60 /* LibraryModel.swift in Sources */,
+				289C912D18322B71016A270B /* LibraryViews.swift in Sources */,
+				CA2CD29BB2A361B7CCF5F01C /* PreviewCatalog.swift in Sources */,
+				764655582701C0B1C2F9BA54 /* SupportViews.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		22A69E88F15E1F6166398641 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_APP_SANDBOX = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "GameNative Big Screen";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.games";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.gamenative.bigscreen;
+				PRODUCT_NAME = "GameNative Big Screen";
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		A5FE89B0440D04A149AD46DF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		E215427ED2FA7F227C192EB5 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_APP_SANDBOX = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "GameNative Big Screen";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.games";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.gamenative.bigscreen;
+				PRODUCT_NAME = "GameNative Big Screen";
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		EF820DB2030C3AF2874595C6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		985B375A0B20AF53C914BABC /* Build configuration list for PBXNativeTarget "BigScreen" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E215427ED2FA7F227C192EB5 /* Debug */,
+				22A69E88F15E1F6166398641 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		F8267173DE48E6FACC5026F8 /* Build configuration list for PBXProject "BigScreen" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				EF820DB2030C3AF2874595C6 /* Debug */,
+				A5FE89B0440D04A149AD46DF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		6A2C46D718E6E93373D69E5F /* XCLocalSwiftPackageReference "Packages/BigScreenKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/BigScreenKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		7DAA6C5CD5D24A18E0472A09 /* Focus */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Focus;
+		};
+		8A0E4D1D02D0A2AB2C0FF44A /* Input */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Input;
+		};
+		DCB264D4EC935990E4A49C62 /* Domain */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Domain;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = DB407DB0B76C446F966BD895 /* Project object */;
+}

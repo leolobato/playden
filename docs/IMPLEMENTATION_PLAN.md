@@ -2,11 +2,24 @@
 
 Written 2026-09-07 following review of [the PRD](prd/README.md), the sibling Swift implementation,
 and the installed CrossOver command-line help. This is an implementation proposal, not evidence
-that a title or integration already works. Implementation has not started.
+that a title or integration already works. Implementation started with a native design preview on 2026-09-07; see the progress note below.
 
 The delivery sequence is: prove controller-driven CrossOver launch and exit, establish durable
 state and shared contracts, complete one real install/play/save/reinstall journey, then complete
 the v1 interface and acceptance matrix. Home remains in v1; the background helper remains in v2.
+
+## Implementation progress — 2026-09-07
+
+The user prioritized fidelity to the new designer handoff and asked for incremental commits.
+An initial UI pass precedes the original M0 integration sequence: native Home, Library, split game
+page, Downloads/Settings previews, shared focus treatment, fonts, search keyboard and panels.
+The preview uses isolated fixtures and does not connect Steam or CrossOver. Domain, logical grid
+focus and foreground controller input are separate package targets. Native screenshots can be
+captured for visual review. This is partial M1/M5 work, not completion of either milestone.
+
+M0 real-game/controller handoff, persistence, first-run auth, install/session services and remaining
+v1 actions are still outstanding. Physical DS4 availability was asked about and has not yet been
+confirmed. See the root README for reproducible build/run/validation commands.
 
 ## 1. Planning defaults and PRD corrections
 
