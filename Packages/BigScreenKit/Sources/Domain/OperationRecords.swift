@@ -6,6 +6,7 @@ public struct GameLocation: Codable, Equatable, Sendable {
     public var rootBookmark: Data?
     public var lastKnownRoot: URL
     public var relativePath: String
+    public var relativeRoot: String?
     public init(volumeID: String, rootBookmark: Data? = nil, lastKnownRoot: URL, relativePath: String) {
         self.volumeID = volumeID; self.rootBookmark = rootBookmark; self.lastKnownRoot = lastKnownRoot; self.relativePath = relativePath
     }
@@ -74,6 +75,12 @@ public struct JobRecord: Codable, Equatable, Sendable, Identifiable {
     public var updatedAt: Date
     public var failure: OperationFailure?
     public var plan: InstallPlan?
+    public var bottle: GameBottle?
+    public var volume: GamesVolumeSelection?
+    public var staging: InstallStaging?
+    public var cancellationRequested: Bool?
+    public var launchSpec: LaunchSpec?
+    public var currentFile: String?
     public init(id: UUID = UUID(), gameID: GameID, kind: JobKind = .install, queuePosition: Int = 0, createdAt: Date = .now) {
         self.id = id; self.gameID = gameID; self.kind = kind; self.stage = .resolve; self.state = .queued
         self.completedStages = []; self.pauseReasons = []; self.queuePosition = queuePosition; self.manifestIDs = [:]

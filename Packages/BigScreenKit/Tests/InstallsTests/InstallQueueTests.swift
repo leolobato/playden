@@ -1,0 +1,194 @@
+import XCTest
+import Foundation
+import Domain
+import Catalog
+import Runner
+@testable import Installs
+
+private actor FixtureVolumes: VolumeManaging {
+    let root: URL
+    init(root: URL) { self.root = root }
+    func availableVolumes() async throws -> [GamesVolume] { [] }
+    func select(_ volume: GamesVolume) async throws -> GamesVolumeSelection { selection }
+    func resolve(_ selection: GamesVolumeSelection) async throws -> URL { root }
+    var selection: GamesVolumeSelection { .init(volumeID: "fixture-volume", rootBookmark: Data([1]), lastKnownRoot: root, relativeRoot: "games") }
+}
+private struct OfflineAuth: SourceAuth {
+    func identity() async throws -> SourceIdentity? { nil }
+    func signInWithQR(onEvent: @escaping @Sendable (AuthenticationEvent) -> Void) async throws -> SourceIdentity { throw SourceFailure.unavailable }
+    func signIn(accountName: String, password: String, codeProvider: @escaping @Sendable (GuardChallenge) async throws -> String, onEvent: @escaping @Sendable (AuthenticationEvent) -> Void) async throws -> SourceIdentity { throw SourceFailure.unavailable }
+    func cancelSignIn() async {}
+    func signOut() async throws {}
+}
+private actor OfflineContent {
+    var events: [String] = []
+    var held = Set<String>()
+    var failures = Set<String>()
+    func hold(_ id: String) { held.insert(id) }
+    func release(_ id: String) { held.remove(id) }
+    func failOnce(_ step: String) { failures.insert(step) }
+    func record(_ event: String) throws {
+        events.append(event)
+        if failures.remove(event) != nil { throw OperationFailure(stage: "Fixture", reason: "Injected failure", output: "Fixture only") }
+    }
+    func wait(_ id: String) async throws {
+        while held.contains(id) { try await Task.sleep(for: .milliseconds(10)) }
+    }
+}
+/// A store with no sign-in, no numeric IDs, no depots and no Steam emulation. The same queue runs it.
+private struct OfflineSource: GameSource {
+    let id = "offlinefixture", displayName = "Offline files"
+    let auth: any SourceAuth = OfflineAuth()
+    let content: OfflineContent
+    func ownedGames() async throws -> [SourceGameRecord] { [] }
+    func metadata(for game: SourceGameRecord) async throws -> SourceGameRecord { game }
+    func installer(for game: SourceGameRecord) throws -> any Installer { OfflineInstaller(game: game, content: content) }
+}
+private struct OfflineInstaller: Installer {
+    let game: SourceGameRecord
+    let content: OfflineContent
+    var gameID: GameID { game.id }
+    func resolve() async throws -> InstallPlan {
+        try await content.record("resolve:" + gameID.value)
+        return .init(game: game, manifestIDs: [:], estimate: .init(downloadBytes: 8, installedBytes: 8, requiredBytes: 1024),
+            launchSpec: .init(executableRelativePath: "game.exe"), sourcePayload: Data("offline-content-v1".utf8))
+    }
+    func download(_ plan: InstallPlan, to directory: URL, progress: @escaping @Sendable (InstallProgress) -> Void) async throws {
+        try await content.record("download:" + gameID.value)
+        try Data("part".utf8).write(to: directory.appendingPathComponent("partial"))
+        progress(.init(bytesCompleted: 4, bytesTotal: 8, currentFile: "game.exe"))
+        try await content.wait(gameID.value)
+        try Data("complete".utf8).write(to: directory.appendingPathComponent("game.exe"))
+    }
+    func verifyOriginals(_ plan: InstallPlan, at directory: URL, staging: InstallStaging?) async throws -> VerificationResult {
+        try await content.record("verify:" + gameID.value)
+        return .init(invalidFiles: (try? Data(contentsOf: directory.appendingPathComponent("game.exe"))) == Data("complete".utf8) ? [] : ["game.exe"])
+    }
+    func postInstall(_ plan: InstallPlan, at directory: URL) async throws -> InstallStaging {
+        try await content.record("stage:" + gameID.value)
+        try Data("offline-ready".utf8).write(to: directory.appendingPathComponent("offline.recipe"))
+        return .init()
+    }
+    func validate(_ plan: InstallPlan, at directory: URL, staging: InstallStaging) async throws -> LaunchSpec {
+        try await content.record("validate:" + gameID.value)
+        guard try Data(contentsOf: directory.appendingPathComponent("offline.recipe")) == Data("offline-ready".utf8) else { throw SourceFailure.unavailable }
+        return plan.launchSpec
+    }
+    func uninstall(_ plan: InstallPlan, at directory: URL) async throws { try await content.record("cleanup:" + gameID.value) }
+}
+private actor FixtureBottles: GameBottleManaging {
+    var ready: [String: GameBottle] = [:]
+    func prepare(_ bottle: GameBottle) async throws { ready[bottle.name] = bottle }
+    func isReady(_ bottle: GameBottle) async throws -> Bool { ready[bottle.name] == bottle }
+    func remove(_ bottle: GameBottle) async throws { if ready[bottle.name] == bottle { ready[bottle.name] = nil } }
+}
+final class InstallQueueTests: XCTestCase {
+    private func root() throws -> URL {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("BigScreen-queue-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        addTeardownBlock { try FileManager.default.removeItem(at: root) }
+        return root
+    }
+    private func game(_ id: String) -> SourceGameRecord { .init(id: GameID(source: "offlinefixture", value: id), title: id) }
+    private func waitFor(_ queue: InstallQueue, jobID: UUID, state: JobState, file: StaticString = #filePath, line: UInt = #line) async throws -> JobRecord {
+        let limit = Date().addingTimeInterval(5)
+        while Date() < limit {
+            if let value = await queue.snapshot().jobs.first(where: { $0.id == jobID && $0.state == state }) { return value }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        let value = await queue.snapshot().jobs.first { $0.id == jobID }
+        XCTFail("Expected \(state), got \(String(describing: value?.state)); \(value?.failure?.reason ?? "")", file: file, line: line)
+        throw SourceFailure.unavailable
+    }
+    func testOfflineSourceCompletesUnchangedPipelineAndCommitsInstallation() async throws {
+        let root = try root(), catalog = try CatalogStore(), content = OfflineContent(), volumes = FixtureVolumes(root: root)
+        let queue = try InstallQueue(catalog: catalog, sources: [OfflineSource(content: content)], storage: InstallStorage(volumes: volumes), bottles: FixtureBottles())
+        let offer = try await queue.offer(for: game("Café / Bundle"), volume: volumes.selection)
+        let id = try await queue.enqueue(offer)
+        try await queue.start()
+        let completed = try await waitFor(queue, jobID: id, state: .completed)
+        let installed = try XCTUnwrap(catalog.snapshot().entries.first?.installation)
+        XCTAssertEqual(installed.gameID, game("Café / Bundle").id)
+        XCTAssertEqual(installed.plan, offer.plan)
+        XCTAssertEqual(completed.stage, .finished)
+        XCTAssertEqual(try catalog.jobs().first?.state, .completed)
+        await queue.shutdown()
+    }
+    func testQueueIsSerialAndReorderSurvivesPersistence() async throws {
+        let root = try root(), catalog = try CatalogStore(), content = OfflineContent(), volumes = FixtureVolumes(root: root)
+        await content.hold("first")
+        let queue = try InstallQueue(catalog: catalog, sources: [OfflineSource(content: content)], storage: InstallStorage(volumes: volumes), bottles: FixtureBottles())
+        var ids: [UUID] = []
+        for name in ["first", "second", "third"] { ids.append(try await queue.enqueue(queue.offer(for: game(name), volume: volumes.selection))) }
+        try await queue.start()
+        _ = try await waitFor(queue, jobID: ids[0], state: .running)
+        try await queue.move(ids[2], before: ids[1])
+        XCTAssertEqual(try catalog.jobs().map(\.id), [ids[0], ids[2], ids[1]])
+        let before = await content.events
+        XCTAssertFalse(before.contains("download:second")); XCTAssertFalse(before.contains("download:third"))
+        await content.release("first")
+        _ = try await waitFor(queue, jobID: ids[1], state: .completed)
+        let downloaded = await content.events.filter { $0.hasPrefix("download:") }
+        XCTAssertEqual(downloaded, ["download:first", "download:third", "download:second"])
+        await queue.shutdown()
+    }
+    func testUserAndGameplayPausesAreIndependentAndNewJobsInheritGameplayPause() async throws {
+        let root = try root(), catalog = try CatalogStore(), content = OfflineContent(), volumes = FixtureVolumes(root: root)
+        let queue = try InstallQueue(catalog: catalog, sources: [OfflineSource(content: content)], storage: InstallStorage(volumes: volumes), bottles: FixtureBottles())
+        try await queue.start(); try await queue.setGameplayPaused(true)
+        let id = try await queue.enqueue(queue.offer(for: game("paused"), volume: volumes.selection))
+        try await queue.setPaused(true, jobID: id)
+        try await queue.setGameplayPaused(false)
+        let paused = try await waitFor(queue, jobID: id, state: .paused)
+        XCTAssertEqual(paused.pauseReasons, [.user])
+        try await queue.setPaused(false, jobID: id)
+        _ = try await waitFor(queue, jobID: id, state: .completed)
+        await queue.shutdown()
+    }
+    func testCancellationRemovesPartialContentAndRunsSourceCleanup() async throws {
+        let root = try root(), catalog = try CatalogStore(), content = OfflineContent(), volumes = FixtureVolumes(root: root)
+        await content.hold("cancelled")
+        let queue = try InstallQueue(catalog: catalog, sources: [OfflineSource(content: content)], storage: InstallStorage(volumes: volumes), bottles: FixtureBottles())
+        let id = try await queue.enqueue(queue.offer(for: game("cancelled"), volume: volumes.selection)); try await queue.start()
+        let limit = Date().addingTimeInterval(5)
+        while !(await content.events.contains("download:cancelled")) && Date() < limit { try await Task.sleep(for: .milliseconds(10)) }
+        try await queue.cancel(id)
+        let cancelled = try await waitFor(queue, jobID: id, state: .cancelled)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(CrossOverGameBottles.name(for: cancelled.gameID)).path))
+        let events = await content.events; XCTAssertTrue(events.contains("cleanup:cancelled"))
+        XCTAssertTrue(try catalog.snapshot().entries.isEmpty)
+        await queue.shutdown()
+    }
+    func testRestartKeepsPinnedPlanAndCompletedDownloadAfterPostInstallFailure() async throws {
+        let root = try root(), database = root.appendingPathComponent("catalog.sqlite").path
+        let content = OfflineContent(), volumes = FixtureVolumes(root: root), bottles = FixtureBottles()
+        await content.failOnce("stage:retry")
+        let catalog = try CatalogStore(path: database)
+        let first = try InstallQueue(catalog: catalog, sources: [OfflineSource(content: content)], storage: InstallStorage(volumes: volumes), bottles: bottles)
+        let id = try await first.enqueue(first.offer(for: game("retry"), volume: volumes.selection)); try await first.start()
+        let failed = try await waitFor(first, jobID: id, state: .failed)
+        XCTAssertTrue(failed.completedStages.contains(.download)); await first.shutdown()
+        let reopened = try CatalogStore(path: database)
+        let second = try InstallQueue(catalog: reopened, sources: [OfflineSource(content: content)], storage: InstallStorage(volumes: volumes), bottles: bottles)
+        try await second.start(); try await second.retry(id)
+        let completed = try await waitFor(second, jobID: id, state: .completed)
+        XCTAssertEqual(completed.plan, failed.plan)
+        let events = await content.events
+        XCTAssertEqual(events.filter { $0 == "resolve:retry" }.count, 1)
+        XCTAssertEqual(events.filter { $0 == "download:retry" }.count, 1)
+        XCTAssertEqual(events.filter { $0 == "stage:retry" }.count, 2)
+        await second.shutdown()
+    }
+    func testStorageRejectsUnownedFoldersWrongTokenAndEscapingLocation() async throws {
+        let root = try root(), volumes = FixtureVolumes(root: root), storage = InstallStorage(volumes: volumes)
+        let id = game("owned").id, token = UUID()
+        var location = try await storage.prepare(gameID: id, owner: token, on: volumes.selection)
+        do { try await storage.remove(location, gameID: id, owner: UUID()); XCTFail("Wrong owner accepted") } catch {}
+        location.relativePath = "../outside"
+        do { _ = try await storage.directory(location, gameID: id, owner: token); XCTFail("Escaping location accepted") } catch {}
+        let unowned = root.appendingPathComponent(CrossOverGameBottles.name(for: game("unowned").id))
+        try FileManager.default.createDirectory(at: unowned, withIntermediateDirectories: true)
+        do { _ = try await storage.prepare(gameID: game("unowned").id, owner: UUID(), on: volumes.selection); XCTFail("Unowned folder adopted") } catch {}
+        XCTAssertTrue(FileManager.default.fileExists(atPath: unowned.path))
+    }
+}

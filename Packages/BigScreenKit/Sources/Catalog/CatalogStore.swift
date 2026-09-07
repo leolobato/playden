@@ -170,6 +170,11 @@ public final class CatalogStore: Sendable {
     public func saveJob(_ job: JobRecord) throws {
         try database.write { try Self.putOperation($0, table: "jobs", id: job.id, gameID: job.gameID, value: job) }
     }
+    public func saveJobs(_ jobs: [JobRecord]) throws {
+        try database.write { db in
+            for job in jobs { try Self.putOperation(db, table: "jobs", id: job.id, gameID: job.gameID, value: job) }
+        }
+    }
     public func jobs() throws -> [JobRecord] {
         try database.read { db in
             let jobs: [JobRecord] = try Self.values(db, table: "jobs")
