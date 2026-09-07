@@ -6,6 +6,8 @@ import Input
 @testable import BigScreen
 
 private actor SessionFixture: SessionManaging {
+    func retryCloud(authorization: CloudSyncAuthorization?) async throws { throw SourceFailure.unavailable }
+    func playOffline() async throws { throw SourceFailure.unavailable }
     var plays: [GameID] = []
     var quitCount = 0
     var snapshot = SessionSnapshot()

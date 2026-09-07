@@ -6,7 +6,7 @@ import Catalog
 /// task lifetime (session preparation or an app-owned retry task), never a transient game view.
 /// Root access must verify ownership and that the game's writer has stopped. Upload validation
 /// is mandatory and source/title-specific, including handling crash/forced-exit save formats.
-public actor CloudSyncService {
+public actor CloudSyncService: CloudSyncManaging {
     public typealias RootAccess = @Sendable (InstallationRecord) async throws -> [SaveRoot: URL]
     public typealias UploadValidation = @Sendable (InstallationRecord, [CloudUpload]) async throws -> Void
     private let catalog: CatalogStore
@@ -48,8 +48,9 @@ public actor CloudSyncService {
         }
     }
 
-    /// Used before launch, after exit, and by Retry. `preparingSessionID` permits only the caller's
-    /// pre-launch record with no process receipt; post-exit callers use a finalized session.
+    /// Used before launch, after exit, and by Retry. `preparingSessionID` is the caller's owned
+    /// session reservation: either no process has launched or its runtime has verified exit.
+    /// Post-exit callers keep this reservation unfinished until sync has released its claim.
     public func synchronize(_ installation: InstallationRecord, mapping: SaveMapping,
                             preparingSessionID: UUID? = nil,
                             authorization: CloudSyncAuthorization? = nil) async -> CloudSyncStatus {
@@ -182,6 +183,7 @@ public actor CloudSyncService {
         guard fingerprints(beforeWrite) == fingerprints(local) else { throw issue("Local progress changed before upload. Retry to review it.") }
         var finalRemote = remote
         if !uploads.isEmpty || !deletes.isEmpty {
+            try Task.checkCancellation()
             let operationID = try current(gameID).id
             finalRemote = try await writer.upload(uploads, deleting: deletes, basedOn: remote,
                 clientID: catalog.cloudClientID(), buildID: 0) { batch in

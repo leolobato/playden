@@ -543,6 +543,13 @@ data, account changes, interrupted local recovery and validation of remote delet
 owned-root/upload validation, race-free session handoff, controller status/conflict UI and live
 Steam upload/restore acceptance remain. See `docs/validation/2026-09-08-cloud-coordinator.md`.
 
+Session integration now runs an injected Cloud coordinator after bottle preparation and before
+launch, pauses for conflict/retry/offline choices, and keeps the session reservation through
+post-exit sync. Restart recovers verified exits and interrupted Cloud claims before downloads
+start; sync time does not count as playtime or trigger forced termination. Production root access,
+save-format validation and the app's controller UI/factory wiring remain before enabling live
+Cloud writes. See `docs/validation/2026-09-08-cloud-sessions.md`.
+
 ### 8 September — SteamCore interface fix requested by the user
 
 - [x] Cherry-pick `c5dfc3f289acb5097e31d2fea4045e19095a2ca2` into GameNative-macos main and

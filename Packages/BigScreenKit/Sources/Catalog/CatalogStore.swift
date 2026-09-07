@@ -264,6 +264,9 @@ public final class CatalogStore: Sendable {
                 guard old.gameID == session.gameID, old.startedAt == session.startedAt, old.bottleID == session.bottleID else { throw CatalogError.identityMismatch }
                 // A late checkpoint must not overwrite a newer/final session.
                 if old.endedAt != nil || old.lastCheckpointAt > session.lastCheckpointAt || old.playedSeconds > session.playedSeconds { return }
+                // Once exit is verified, a late runner callback cannot reopen the writer while
+                // post-exit Cloud sync owns this still-unfinished session reservation.
+                if old.runtime?.phase == .exited, session.runtime?.phase != .exited { throw CatalogError.invalidSession }
                 if old.runtime == nil, session.runtime != nil { try Self.requireCloudIdle(db, gameID: session.gameID) }
             } else if session.endedAt == nil {
                 try Self.requireCloudIdle(db, gameID: session.gameID)

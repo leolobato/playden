@@ -1,5 +1,12 @@
 import Foundation
 
+public protocol CloudSyncManaging: Sendable {
+    func recoverInterruptedOperations() async throws
+    func updates() async -> AsyncStream<[GameID: CloudSyncStatus]>
+    func synchronize(_ installation: InstallationRecord, mapping: SaveMapping,
+                     preparingSessionID: UUID?, authorization: CloudSyncAuthorization?) async -> CloudSyncStatus
+}
+
 public struct CloudSyncStatus: Equatable, Sendable {
     public enum State: String, Sendable { case syncing, upToDate, pendingUpload, conflict, unavailable, failed }
     public let gameID: GameID

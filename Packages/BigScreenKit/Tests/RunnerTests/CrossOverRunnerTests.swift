@@ -160,6 +160,18 @@ final class CrossOverRunnerTests: XCTestCase {
         let reused = try await next.recover(snapshot)
         XCTAssertEqual(reused.phase, .exited)
     }
+    func testRecoveryPreservesVerifiedExitWhileCloudSyncWasPending() async throws {
+        let (root, bottle) = try fixture(), inspector = InspectionFixture()
+        let run = RunningGame(bottle: bottle, launcher: .init(pid: 100, startSeconds: 1, startMicroseconds: 0))
+        for (code, forced) in [(Int32(0), false), (Int32(3), false), (Int32(0), true)] {
+            var saved = RunSnapshot(run: run, phase: .exited, hadWindow: true, exitCode: code)
+            saved.forced = forced
+            let runner = CrossOverRunner(bottles: root, manager: ReadyGame(), inspector: inspector)
+            let recovered = try await runner.recover(saved)
+            XCTAssertEqual(recovered.phase, .exited); XCTAssertEqual(recovered.exitCode, code)
+            XCTAssertEqual(recovered.forced, forced)
+        }
+    }
     func testLaunchArgumentsStayLiteralAndCannotEscapeOwnedPaths() throws {
         let (root, bottle) = try fixture()
         let spec = LaunchSpec(executableRelativePath: "game.exe", arguments: ["$(touch bad)", "space value", "--workdir=/tmp"], dllOverrides: ["steam_api=n,b"])

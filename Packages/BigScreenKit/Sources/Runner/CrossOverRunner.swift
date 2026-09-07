@@ -82,7 +82,10 @@ public actor CrossOverRunner: GameRunner {
             if saved.processes.contains(where: { current.unreadablePIDs.contains($0.identity.pid) }) || current.unreadablePIDs.contains(saved.run.launcher.pid) {
                 throw failure("Recover game", "The previous game could not be checked yet. Try again.")
             }
-            snapshot.phase = .exited; snapshot.exitCode = nil
+            snapshot.phase = .exited
+            // A durably observed exit can outlive the launcher while post-exit Cloud sync is
+            // pending. Preserve that result; only an unobserved exit has an unknown status.
+            snapshot.exitCode = saved.phase == .exited ? saved.exitCode : nil
             latest[saved.run.id] = snapshot; return snapshot
         }
         snapshot.processes = current.processes

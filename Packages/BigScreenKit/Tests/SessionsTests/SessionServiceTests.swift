@@ -103,6 +103,56 @@ private struct Content: Installer {
     func postInstall(_ plan: InstallPlan, at directory: URL) async throws -> InstallStaging { await events.add("stage"); return .init() }
     func validate(_ plan: InstallPlan, at directory: URL, staging: InstallStaging) async throws -> LaunchSpec { await events.add("validate"); return .init(executableRelativePath: "rebuilt.exe") }
     func uninstall(_ plan: InstallPlan, at directory: URL) async throws {}
+    func saveMapping(_ plan: InstallPlan) throws -> SaveMapping {
+        .init(rules: [.init(root: .game, directory: "saves", pattern: "*.sav", cloudPrefix: "%GameInstall%saves")], coverage: .metadata)
+    }
+}
+
+private actor SessionCloud: CloudSyncManaging {
+    let catalog: CatalogStore, events: Events
+    var before: CloudSyncStatus.State = .upToDate
+    var holdExit = false
+    var calls: [PlaySessionRecord] = []
+    var authorizations: [CloudSyncAuthorization?] = []
+    init(_ catalog: CatalogStore, _ events: Events) { self.catalog = catalog; self.events = events }
+    func configure(before: CloudSyncStatus.State = .upToDate, holdExit: Bool = false) {
+        self.before = before; self.holdExit = holdExit
+    }
+    func updates() -> AsyncStream<[GameID: CloudSyncStatus]> { AsyncStream { $0.finish() } }
+    func recoverInterruptedOperations() async throws {
+        await events.add("cloud:recover")
+        for operation in try catalog.cloudOperations() where operation.claim != nil && !operation.phase.isTerminal {
+            _ = try catalog.recoverInterruptedCloudSync(operation)
+        }
+    }
+    func synchronize(_ installed: InstallationRecord, mapping: SaveMapping, preparingSessionID: UUID?,
+                     authorization: CloudSyncAuthorization?) async -> CloudSyncStatus {
+        var operation: CloudSyncOperation?
+        do {
+            let session = try XCTUnwrap(catalog.unfinishedSessions().first { $0.id == preparingSessionID })
+            calls.append(session); authorizations.append(authorization)
+            let exiting = session.runtime?.phase == .exited
+            await events.add(exiting ? "cloud:exit" : "cloud:launch")
+            if let pending = try catalog.cloudOperations(for: installed.gameID).last(where: { !$0.phase.isTerminal }) {
+                operation = try catalog.resumeCloudSync(pending, preparingSessionID: preparingSessionID)
+            } else {
+                operation = try catalog.beginCloudSync(installation: installed, accountKey: "fixture-account",
+                    mapping: mapping, preparingSessionID: preparingSessionID)
+            }
+            while exiting && holdExit { try await Task.sleep(for: .milliseconds(5)) }
+            if exiting || before == .upToDate {
+                operation = try catalog.supersedeCloudSync(XCTUnwrap(operation))
+                await events.add("cloud:finished")
+                return .init(gameID: installed.gameID, state: .upToDate, operation: operation, message: "Up to date")
+            }
+            operation = try catalog.pauseCloudSync(XCTUnwrap(operation), phase: .conflict)
+            return .init(gameID: installed.gameID, state: before, operation: operation, message: "Review saves", canPlayOffline: true)
+        } catch {
+            if let current = operation, current.claim != nil { operation = try? catalog.pauseCloudSync(current, phase: .pending) }
+            return .init(gameID: installed.gameID, state: .pendingUpload, operation: operation,
+                message: "Sync interrupted", canPlayOffline: operation?.claim == nil)
+        }
+    }
 }
 @MainActor
 final class SessionServiceTests: XCTestCase {
@@ -113,8 +163,8 @@ final class SessionServiceTests: XCTestCase {
         try catalog.saveInstallation(installation)
         return installation
     }
-    private func make(_ catalog: CatalogStore, _ runner: Runner, _ queue: Queue, _ clock: TestClock, _ events: Events) throws -> SessionService {
-        try SessionService(catalog: catalog, sources: [Store(events: events)], runner: runner, queue: queue, storage: Storage(), clock: clock, quitGrace: .milliseconds(20), stopTimeout: .seconds(1))
+    private func make(_ catalog: CatalogStore, _ runner: Runner, _ queue: Queue, _ clock: TestClock, _ events: Events, cloud: (any CloudSyncManaging)? = nil) throws -> SessionService {
+        try SessionService(catalog: catalog, sources: [Store(events: events)], runner: runner, queue: queue, storage: Storage(), clock: clock, quitGrace: .milliseconds(20), stopTimeout: .seconds(1), cloud: cloud)
     }
     private func current(_ service: SessionService) async -> SessionSnapshot {
         var iterator = await service.updates().makeAsyncIterator()
@@ -198,6 +248,118 @@ final class SessionServiceTests: XCTestCase {
         let ended = await current(service); XCTAssertEqual(ended.session?.outcome, .interrupted)
         XCTAssertTrue(try catalog.unfinishedSessions().isEmpty)
     }
+    func testCloudConflictPausesLaunchAndOfflineChoiceSkipsOnlyThatPreflight() async throws {
+        let catalog = try CatalogStore(), clock = TestClock(), events = Events(), runner = Runner(events), queue = Queue(events)
+        let cloud = SessionCloud(catalog, events), game = try installed(catalog)
+        await cloud.configure(before: .conflict)
+        let service = try make(catalog, runner, queue, clock, events, cloud: cloud)
+        try await service.start(downloadWhilePlaying: false); try await service.play(game.gameID)
+        let waiting = try await wait(service, phase: .awaitingCloud)
+        XCTAssertEqual(waiting.cloudStatus?.state, .conflict)
+        var ordered = await events.values; XCTAssertFalse(ordered.contains("launch:game.exe"))
+        XCTAssertEqual(try catalog.unfinishedSessions().count, 1)
+        let client: any SessionManaging = service
+        try await client.playOffline()
+        _ = try await wait(service, phase: .launching)
+        ordered = await events.values
+        XCTAssertEqual(ordered.filter { $0 == "cloud:launch" }.count, 1)
+        await runner.emit(exit: 0)
+        _ = try await wait(service, phase: .idle)
+        ordered = await events.values; XCTAssertTrue(ordered.contains("cloud:exit"))
+    }
+
+    func testCloudRetryForwardsChoiceAndLaunchesOnlyAfterSuccessfulSync() async throws {
+        let catalog = try CatalogStore(), clock = TestClock(), events = Events(), runner = Runner(events), queue = Queue(events)
+        let cloud = SessionCloud(catalog, events), game = try installed(catalog)
+        await cloud.configure(before: .conflict)
+        let service = try make(catalog, runner, queue, clock, events, cloud: cloud)
+        try await service.start(downloadWhilePlaying: false); try await service.play(game.gameID)
+        let waiting = try await wait(service, phase: .awaitingCloud)
+        let reviewed = try XCTUnwrap(waiting.cloudStatus?.operation)
+        await cloud.configure()
+        let client: any SessionManaging = service
+        try await client.retryCloud(authorization: .init(operation: reviewed, conflictChoice: .remote, attachAccount: true))
+        _ = try await wait(service, phase: .launching)
+        let choices = await cloud.authorizations
+        XCTAssertEqual(choices.count, 2); XCTAssertEqual(choices[1]?.operation, reviewed)
+        let ordered = await events.values
+        XCTAssertLessThan(try XCTUnwrap(ordered.lastIndex(of: "cloud:finished")), try XCTUnwrap(ordered.firstIndex(of: "launch:game.exe")))
+        try await service.quit()
+    }
+
+    func testExitSyncKeepsDurableSessionReservationAndDoesNotCountSyncTime() async throws {
+        let catalog = try CatalogStore(), clock = TestClock(), events = Events(), runner = Runner(events), queue = Queue(events)
+        let cloud = SessionCloud(catalog, events), game = try installed(catalog)
+        await cloud.configure(holdExit: true)
+        let service = try make(catalog, runner, queue, clock, events, cloud: cloud)
+        try await service.start(downloadWhilePlaying: false); try await service.play(game.gameID)
+        _ = try await wait(service, phase: .launching)
+        await runner.emit(); _ = try await wait(service, phase: .running)
+        clock.advance(20)
+        let quitting = Task { try await service.quit() }
+        _ = try await wait(service, phase: .syncingSaves)
+        let saved = try XCTUnwrap(catalog.unfinishedSessions().first)
+        XCTAssertEqual(saved.runtime?.phase, .exited); XCTAssertNil(saved.endedAt)
+        do { try await service.play(game.gameID); XCTFail("Started during exit sync") } catch { }
+        do { _ = try catalog.beginCloudSync(installation: game, accountKey: "other", mapping: .init()); XCTFail("Background sync stole reservation") } catch { }
+        clock.advance(60)
+        try await Task.sleep(for: .milliseconds(40))
+        let duringSync = await events.values; XCTAssertFalse(duringSync.contains("force"))
+        await cloud.configure()
+        try await quitting.value
+        let ended = try await wait(service, phase: .idle)
+        XCTAssertEqual(ended.session?.playedSeconds, 20); XCTAssertEqual(ended.session?.outcome, .clean)
+        XCTAssertTrue(try catalog.unfinishedSessions().isEmpty)
+        let ordered = await events.values
+        XCTAssertLessThan(try XCTUnwrap(ordered.lastIndex(of: "cloud:finished")), try XCTUnwrap(ordered.lastIndex(of: "pause:false")))
+    }
+
+    func testQuitWhileWaitingForCloudDoesNotLaunchAndExitSyncCancellationLeavesPendingWork() async throws {
+        let catalog = try CatalogStore(), clock = TestClock(), events = Events(), runner = Runner(events), queue = Queue(events)
+        let cloud = SessionCloud(catalog, events), game = try installed(catalog)
+        await cloud.configure(before: .conflict)
+        let service = try make(catalog, runner, queue, clock, events, cloud: cloud)
+        try await service.start(downloadWhilePlaying: false); try await service.play(game.gameID)
+        _ = try await wait(service, phase: .awaitingCloud)
+        try await service.quit()
+        XCTAssertTrue(try catalog.unfinishedSessions().isEmpty)
+        let ordered = await events.values; XCTAssertFalse(ordered.contains("launch:game.exe"))
+        await cloud.configure(holdExit: true)
+        try await service.play(game.gameID); _ = try await wait(service, phase: .launching)
+        await runner.emit(exit: 0); _ = try await wait(service, phase: .syncingSaves)
+        try await service.quit()
+        let ended = try await wait(service, phase: .idle)
+        XCTAssertEqual(ended.cloudStatus?.state, .pendingUpload)
+        XCTAssertEqual(ended.session?.outcome, .clean)
+        let pending = try XCTUnwrap(catalog.cloudOperations(for: game.gameID).last)
+        XCTAssertEqual(pending.phase, .pending); XCTAssertNil(pending.claim)
+    }
+
+    func testRestartRecoversExitedSessionAndItsCloudClaimBeforeStartingQueue() async throws {
+        let catalog = try CatalogStore(), clock = TestClock(), events = Events(), runner = Runner(events), queue = Queue(events)
+        let cloud = SessionCloud(catalog, events), game = try installed(catalog)
+        let bottle = GameBottle(gameID: game.gameID, name: game.bottleID, ownershipToken: game.ownershipToken, templateVersion: game.templateVersion)
+        var saved = PlaySessionRecord(gameID: game.gameID, bottleID: game.bottleID, startedAt: clock.wallTime)
+        saved.runtime = .init(run: .init(bottle: bottle, launcher: .init(pid: 123, startSeconds: 1, startMicroseconds: 0)))
+        saved.runtime?.phase = .exited; saved.runtime?.hadWindow = true; saved.runtime?.exitCode = 0
+        saved.playedSeconds = 25
+        try catalog.saveSession(saved)
+        let mapping = try Content(gameID: game.gameID, events: events).saveMapping(XCTUnwrap(game.plan))
+        let interrupted = try catalog.beginCloudSync(installation: game, accountKey: "fixture-account", mapping: mapping, preparingSessionID: saved.id)
+        var lateRunning = saved; lateRunning.runtime?.phase = .running
+        XCTAssertThrowsError(try catalog.saveSession(lateRunning))
+        let service = try make(catalog, runner, queue, clock, events, cloud: cloud)
+        try await service.start(downloadWhilePlaying: false)
+        let final = try XCTUnwrap(catalog.latestSession(for: game.gameID))
+        XCTAssertEqual(final.id, saved.id); XCTAssertEqual(final.playedSeconds, 25); XCTAssertEqual(final.outcome, .clean)
+        XCTAssertNotNil(final.endedAt)
+        XCTAssertEqual(try catalog.cloudOperations(for: game.gameID).first { $0.id == interrupted.id }?.phase, .superseded)
+        let ordered = await events.values
+        XCTAssertLessThan(try XCTUnwrap(ordered.firstIndex(of: "recover")), try XCTUnwrap(ordered.firstIndex(of: "cloud:recover")))
+        XCTAssertLessThan(try XCTUnwrap(ordered.firstIndex(of: "cloud:finished")), try XCTUnwrap(ordered.firstIndex(of: "queue:start")))
+        XCTAssertFalse(ordered.contains("launch:game.exe"))
+    }
+
     func testRuntimeRebuildRestagesAndPersistsValidatedLaunchSpec() async throws {
         let catalog = try CatalogStore(), clock = TestClock(), events = Events(), runner = Runner(events), queue = Queue(events)
         await runner.configure(changed: true)

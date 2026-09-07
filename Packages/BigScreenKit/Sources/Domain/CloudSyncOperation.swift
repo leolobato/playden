@@ -18,6 +18,8 @@ public struct CloudSyncOperation: Codable, Equatable, Sendable, Identifiable {
     public var version: Int64
     /// Fences callbacks from a previous worker. Never expires based on elapsed time.
     public var claim: UUID?
+    /// Session reservation before launch or after verified runtime exit. The historical encoded
+    /// name is retained for journals written before post-exit session integration.
     public var preparingSessionID: UUID?
     public var phase: Phase
     public var plan: CloudSyncPlan?

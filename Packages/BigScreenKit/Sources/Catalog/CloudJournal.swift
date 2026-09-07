@@ -66,7 +66,7 @@ extension CatalogStore {
     }
 
     /// Claims the same durable game boundary used by sessions and maintenance. The only permitted
-    /// unfinished session is the caller's pre-launch session, which must have no process receipt.
+    /// unfinished session is the caller's reservation before launch or after verified runtime exit.
     public func beginCloudSync(installation: InstallationRecord, accountKey: String, mapping: SaveMapping,
                                preparingSessionID: UUID? = nil) throws -> CloudSyncOperation {
         guard !accountKey.isEmpty else { throw CloudJournalError.identityMismatch }
@@ -165,7 +165,7 @@ extension CatalogStore {
             let sessions: [PlaySessionRecord] = try Self.values(db, table: "sessions",
                 whereSQL: "source = ? AND game = ?", arguments: [value.gameID.source, value.gameID.value])
             let active = sessions.filter { $0.endedAt == nil }
-            guard active.allSatisfy({ $0.id == value.preparingSessionID && $0.runtime == nil }) else { throw CloudJournalError.gameBusy }
+            guard active.allSatisfy({ $0.id == value.preparingSessionID && ($0.runtime == nil || $0.runtime?.phase == .exited) }) else { throw CloudJournalError.gameBusy }
             value.phase = .pending; value.claim = nil; value.preparingSessionID = nil
             value.failure = .init(stage: "Cloud saves", reason: "Save sync was interrupted. Retry to reconcile both copies.", output: "")
             try Self.advanceCloud(db, &value)
@@ -265,7 +265,8 @@ extension CatalogStore {
             whereSQL: "source = ? AND game = ?", arguments: [operation.gameID.source, operation.gameID.value])
         let active = sessions.filter { $0.endedAt == nil }
         if let sessionID {
-            guard active.count == 1, active[0].id == sessionID, active[0].runtime == nil,
+            guard active.count == 1, active[0].id == sessionID,
+                  active[0].runtime == nil || active[0].runtime?.phase == .exited,
                   active[0].bottleID == installed.bottleID else { throw CloudJournalError.gameBusy }
         } else if !active.isEmpty { throw CloudJournalError.gameBusy }
         let jobs: [JobRecord] = try values(db, table: "jobs",

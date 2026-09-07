@@ -3,14 +3,15 @@ import Domain
 import Catalog
 import Installs
 
-public enum SessionPhase: String, Sendable { case idle, preparing, launching, running, stopping }
+public enum SessionPhase: String, Sendable { case idle, preparing, awaitingCloud, syncingSaves, launching, running, stopping }
 public struct SessionSnapshot: Sendable {
     public var phase: SessionPhase
     public var game: SourceGameRecord?
     public var session: PlaySessionRecord?
     public var failure: OperationFailure?
-    public init(phase: SessionPhase = .idle, game: SourceGameRecord? = nil, session: PlaySessionRecord? = nil, failure: OperationFailure? = nil) {
-        self.phase = phase; self.game = game; self.session = session; self.failure = failure
+    public var cloudStatus: CloudSyncStatus?
+    public init(phase: SessionPhase = .idle, game: SourceGameRecord? = nil, session: PlaySessionRecord? = nil, failure: OperationFailure? = nil, cloudStatus: CloudSyncStatus? = nil) {
+        self.phase = phase; self.game = game; self.session = session; self.failure = failure; self.cloudStatus = cloudStatus
     }
 }
 public protocol SessionClock: Sendable {
@@ -26,6 +27,8 @@ public protocol SessionManaging: Sendable {
     func start(downloadWhilePlaying: Bool) async throws
     func updates() async -> AsyncStream<SessionSnapshot>
     func play(_ gameID: GameID) async throws
+    func retryCloud(authorization: CloudSyncAuthorization?) async throws
+    func playOffline() async throws
     func quit() async throws
     func setDownloadWhilePlaying(_ enabled: Bool) async throws
     func shutdown() async throws
@@ -41,6 +44,8 @@ public actor SessionService: SessionManaging {
     private let clock: any SessionClock
     private let quitGrace: Duration
     private let stopTimeout: Duration
+    private let cloud: (any CloudSyncManaging)?
+    private var finishing = false
     private var started = false, starting = false, shuttingDown = false
     private var downloadWhilePlaying = false
     private var value = SessionSnapshot()
@@ -52,9 +57,11 @@ public actor SessionService: SessionManaging {
     private var lastSave: TimeInterval = 0, lastPublish: TimeInterval = 0
     public init(catalog: CatalogStore, sources: [any GameSource], runner: any GameRunner, queue: any InstallQueuing,
                 storage: any InstallStorageManaging = InstallStorage(), clock: any SessionClock = SystemSessionClock(),
-                quitGrace: Duration = .seconds(10), stopTimeout: Duration = .seconds(10)) throws {
+                quitGrace: Duration = .seconds(10), stopTimeout: Duration = .seconds(10),
+                cloud: (any CloudSyncManaging)? = nil) throws {
         self.catalog = catalog; self.runner = runner; self.queue = queue; self.storage = storage; self.clock = clock
         self.quitGrace = quitGrace; self.stopTimeout = stopTimeout
+        self.cloud = cloud
         var registry: [String: any GameSource] = [:]
         for source in sources { guard registry.updateValue(source, forKey: source.id) == nil else { throw SourceFailure.unavailable } }
         self.sources = registry
@@ -95,10 +102,23 @@ public actor SessionService: SessionManaging {
                 // prepare a bottle with a live game, so uncertainty cannot restart downloads.
                 _ = try await runner.prepare(bottle(installed))
             }
+            if saved.runtime?.phase == .exited, cloud != nil {
+                // Keep the recovered session reservation until its post-exit Cloud work is durable.
+                // An interrupted worker's claim can be released only after runner recovery above.
+                try catalog.saveSession(saved)
+                try await cloud?.recoverInterruptedOperations()
+                guard active == nil else { throw issue("Recover session", "Another game is still running. Save recovery must wait for it to close.") }
+                active = saved; baseSeconds = saved.playedSeconds; playAnchor = nil
+                value = .init(phase: .syncingSaves, game: entry?.source, session: saved)
+                await finish(outcome: outcome(saved.runtime!), failure: saved.runtime?.failure)
+                guard active == nil else { throw issue("Recover session", "The recovered session checkpoint could not be finalized.") }
+                continue
+            }
             saved.endedAt = max(clock.wallTime, saved.lastCheckpointAt)
             saved.lastCheckpointAt = saved.endedAt!; saved.outcome = saved.runtime?.forced == true ? .forced : .interrupted
             try catalog.saveSession(saved)
         }
+        try await cloud?.recoverInterruptedOperations()
         try await queue.setGameplayPaused(active != nil && !downloadWhilePlaying)
         try await queue.start(); started = true
     }
@@ -116,7 +136,25 @@ public actor SessionService: SessionManaging {
         publish()
         worker = Task { await self.launch(installation) }
     }
-    private func launch(_ original: InstallationRecord) async {
+    public func retryCloud(authorization: CloudSyncAuthorization? = nil) async throws {
+        let installed = try waitingInstallation()
+        value.phase = .preparing; value.failure = nil; publish()
+        worker = Task { await self.launch(installed, authorization: authorization) }
+    }
+    public func playOffline() async throws {
+        let installed = try waitingInstallation()
+        guard value.cloudStatus?.canPlayOffline == true else { throw issue("Cloud saves", "Recover this save sync before playing offline.") }
+        value.phase = .preparing; value.failure = nil; publish()
+        worker = Task { await self.launch(installed, offline: true) }
+    }
+    private func waitingInstallation() throws -> InstallationRecord {
+        guard started, !shuttingDown, value.phase == .awaitingCloud, let active, active.runtime == nil,
+              let installed = try catalog.snapshot().entries.first(where: { $0.id == active.gameID })?.installation else {
+            throw issue("Cloud saves", "There is no game waiting for a save-sync choice.")
+        }
+        return installed
+    }
+    private func launch(_ original: InstallationRecord, offline: Bool = false, authorization: CloudSyncAuthorization? = nil) async {
         do {
             try await queue.setGameplayPaused(!downloadWhilePlaying)
             try Task.checkCancellation()
@@ -128,6 +166,16 @@ public actor SessionService: SessionManaging {
                 let staging = try await installer.postInstall(plan, at: directory)
                 installed.launchSpec = try await installer.validate(plan, at: directory, staging: staging)
                 installed.staging = staging; try catalog.saveInstallation(installed)
+            }
+            try Task.checkCancellation()
+            if !offline, let cloud, let session = active, let mapping = try mapping(installed) {
+                let result = await cloud.synchronize(installed, mapping: mapping,
+                    preparingSessionID: session.id, authorization: authorization)
+                value.cloudStatus = result
+                try Task.checkCancellation()
+                if result.state != .upToDate {
+                    value.phase = .awaitingCloud; worker = nil; publish(); return
+                }
             }
             try Task.checkCancellation()
             let run = try await runner.launch(installed.launchSpec, in: bottle(installed), directory: directory)
@@ -154,8 +202,7 @@ public actor SessionService: SessionManaging {
             session.lastCheckpointAt = max(clock.wallTime, session.lastCheckpointAt)
             active = session; value.phase = phase(runtime); value.session = session
             if runtime.phase == .exited {
-                let outcome: SessionOutcome = runtime.forced ? .forced : !runtime.hadWindow ? .launchFailed : runtime.exitCode == 0 ? .clean : runtime.exitCode == nil ? .interrupted : .crash
-                await finish(outcome: outcome, failure: runtime.failure)
+                await finish(outcome: outcome(runtime), failure: runtime.failure)
                 return
             }
             if changed || clock.uptime - lastSave >= 5 {
@@ -167,6 +214,17 @@ public actor SessionService: SessionManaging {
     }
     public func quit() async throws {
         guard var session = active else { return }
+        if finishing {
+            let syncing = worker
+            syncing?.cancel(); await syncing?.value
+            if active != nil { throw issue("Cloud saves", "Save sync is still stopping. Retry after its checkpoint finishes.") }
+            return
+        }
+        if let runtime = session.runtime, runtime.phase == .exited, session.endedAt == nil {
+            await finish(outcome: outcome(runtime), failure: value.failure)
+            if active != nil { throw issue("Save session", "The exited game's save checkpoint still needs recovery. Try again.") }
+            return
+        }
         if let outcome = session.outcome, session.endedAt != nil {
             await finish(outcome: outcome, failure: value.failure)
             if active != nil { throw issue("Save session", "The final checkpoint still could not be saved. Free space and try again.") }
@@ -178,6 +236,11 @@ public actor SessionService: SessionManaging {
             preparing?.cancel(); await preparing?.value
             guard let remaining = active else { return }
             session = remaining
+            if session.runtime == nil {
+                await finish(outcome: .interrupted, failure: nil)
+                if active != nil { throw issue("Save session", "Game preparation could not be finalized. Try again.") }
+                return
+            }
         }
         guard let run = session.runtime?.run else { throw issue("Quit game", "Game preparation has not finished stopping. Try again.") }
         let start = ContinuousClock.now
@@ -186,11 +249,17 @@ public actor SessionService: SessionManaging {
         let remaining = quitGrace - start.duration(to: .now)
         if remaining > .zero {
             let deadline = ContinuousClock.now.advanced(by: remaining)
-            while active?.id == session.id && ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(100)) }
+            while active?.id == session.id && active?.runtime?.phase != .exited && ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(100)) }
         }
-        if active?.id == session.id { try await runner.terminate(run, force: true) }
+        if active?.id == session.id && active?.runtime?.phase != .exited { try await runner.terminate(run, force: true) }
         let deadline = ContinuousClock.now.advanced(by: stopTimeout)
-        while active?.id == session.id && ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(100)) }
+        while active?.id == session.id && active?.runtime?.phase != .exited && ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(100)) }
+        if active?.id == session.id, active?.runtime?.phase == .exited {
+            // The game has stopped; waiting for save sync is not a reason to force-quit it.
+            let syncing = worker
+            if shuttingDown { syncing?.cancel() }
+            await syncing?.value
+        }
         if active?.id == session.id { throw issue("Quit game", "The game has not finished stopping. Try again.") }
     }
     public func setDownloadWhilePlaying(_ enabled: Bool) async throws {
@@ -204,7 +273,27 @@ public actor SessionService: SessionManaging {
         catch { shuttingDown = false; try? await queue.start(); throw error }
     }
     private func finish(outcome: SessionOutcome, failure: OperationFailure?) async {
+        guard !finishing else { return }
         guard var session = active else { return }
+        finishing = true; defer { finishing = false }
+        if session.endedAt == nil, session.runtime?.phase == .exited, let cloud {
+            // Persist verified exit but retain the unfinished session as the game reservation.
+            // Background retries and maintenance cannot claim the files between exit and sync.
+            session.playedSeconds = elapsed(); session.lastCheckpointAt = max(clock.wallTime, session.lastCheckpointAt)
+            active = session; baseSeconds = session.playedSeconds; playAnchor = nil
+            do {
+                try catalog.saveSession(session)
+                if let installed = try catalog.snapshot().entries.first(where: { $0.id == session.gameID })?.installation,
+                   let mapping = try mapping(installed) {
+                    value.phase = .syncingSaves; value.session = session; publish()
+                    value.cloudStatus = await cloud.synchronize(installed, mapping: mapping,
+                        preparingSessionID: session.id, authorization: nil)
+                }
+            } catch {
+                value.failure = error as? OperationFailure ?? issue("Save session", "Save recovery could not be checkpointed. Retry before leaving.")
+                value.session = session; value.phase = .stopping; publish(); return
+            }
+        }
         if session.endedAt == nil {
             session.playedSeconds = elapsed(); session.lastCheckpointAt = max(clock.wallTime, session.lastCheckpointAt)
             session.endedAt = session.lastCheckpointAt; session.outcome = outcome
@@ -217,8 +306,8 @@ public actor SessionService: SessionManaging {
             value.session = session; value.phase = .stopping; publish(); return
         }
         active = nil; worker = nil; playAnchor = nil
-        value = .init(phase: .idle, game: value.game, session: session, failure: failure)
-        if !shuttingDown {
+        value = .init(phase: .idle, game: value.game, session: session, failure: failure, cloudStatus: value.cloudStatus)
+        if !shuttingDown && !starting {
             do { try await queue.setGameplayPaused(false) }
             catch { value.failure = issue("Resume downloads", error.localizedDescription) }
         }
@@ -229,6 +318,19 @@ public actor SessionService: SessionManaging {
         let seconds = max(0, clock.uptime - playAnchor)
         guard seconds.isFinite, seconds < Double(Int64.max - baseSeconds) else { return Int64.max }
         return baseSeconds + Int64(seconds)
+    }
+    private func mapping(_ installed: InstallationRecord) throws -> SaveMapping? {
+        guard cloud != nil else { return nil }
+        guard let source = sources[installed.gameID.source], let plan = installed.plan else {
+            throw issue("Cloud saves", "The installed game's save mapping is unavailable. Verify its files before syncing.")
+        }
+        let mapping = try source.installer(for: installed.game).saveMapping(plan)
+        // Games without any declared Cloud path can still launch. The page can show unsupported
+        // coverage; inventing a remote mapping here would risk syncing unrelated local files.
+        return mapping.rules.contains(where: { $0.cloudPrefix != nil }) ? mapping : nil
+    }
+    private func outcome(_ runtime: RunSnapshot) -> SessionOutcome {
+        runtime.forced ? .forced : !runtime.hadWindow ? .launchFailed : runtime.exitCode == 0 ? .clean : runtime.exitCode == nil ? .interrupted : .crash
     }
     private func bottle(_ installation: InstallationRecord) -> GameBottle { .init(gameID: installation.gameID, name: installation.bottleID, ownershipToken: installation.ownershipToken, templateVersion: installation.templateVersion) }
     private func phase(_ runtime: RunSnapshot) -> SessionPhase {
