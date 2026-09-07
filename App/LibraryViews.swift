@@ -10,7 +10,7 @@ struct LauncherView: View {
             CanvasView(model: model)
                 .frame(width: 1920, height: 1080)
                 .scaleEffect(scale, anchor: .topLeading)
-                .frame(width: 1920 * scale, height: 1080 * scale)
+                .frame(width: 1920 * scale, height: 1080 * scale, alignment: .topLeading)
                 .frame(width: g.size.width, height: g.size.height)
         }.background(Design.background).preferredColorScheme(.dark)
     }

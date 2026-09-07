@@ -5,4 +5,4 @@ app='DerivedData/Build/Products/Debug/GameNative Big Screen.app/Contents/MacOS/G
 if [[ ! -x "$app" ]]; then
   ./scripts/build.sh
 fi
-"$app" --snapshot "$PWD/.build/screenshots"
+"$app" --snapshot "${BIGSCREEN_SNAPSHOT_DIR:-$PWD/.build/screenshots}" "$@"

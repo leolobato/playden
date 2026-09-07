@@ -52,6 +52,8 @@ DS4 testing and background exit-overlay handoff are still unverified.
 ```sh
 ./scripts/test.sh
 ./scripts/snapshot.sh
+# Also check scaled window layouts:
+BIGSCREEN_SNAPSHOT_DIR="$PWD/.build/screenshots-720p" ./scripts/snapshot.sh --snapshot-width 1280
 ```
 
 The test suite covers logical grid movement/repeat and native presentation-state interactions

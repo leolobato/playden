@@ -29,8 +29,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let isSnapshot = snapshotIndex != nil
         model.fixedClock = isSnapshot
         model.reducedMotion = isSnapshot
-        let width: CGFloat = isSnapshot ? 1920 : 1280
-        let height: CGFloat = isSnapshot ? 1080 : 720
+        let requestedWidth: Int? = args.firstIndex(of: "--snapshot-width").flatMap { index in
+            args.indices.contains(index + 1) ? Int(args[index + 1]) : nil
+        }
+        let width: CGFloat = isSnapshot ? CGFloat(min(3840, max(960, requestedWidth ?? 1920))) : 1280
+        let height: CGFloat = width * 9 / 16
         NSApp.setActivationPolicy(isSnapshot ? .accessory : .regular)
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: width, height: height),
                           styleMask: isSnapshot ? [.borderless] : [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
