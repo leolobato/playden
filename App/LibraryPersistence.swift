@@ -38,6 +38,7 @@ extension LibraryModel {
             if !libraryFilters.contains(filter) { filter = .all }
             sortByPlaytime = preferences.sort == .playtime
             reducedMotion = preferences.reducedMotion; downloadWhilePlaying = preferences.downloadWhilePlaying
+            gamesVolume = preferences.gamesVolume; selectedDisplayID = preferences.selectedDisplayID
             reconcileFocus()
         } catch { recordPersistenceError(error) }
     }

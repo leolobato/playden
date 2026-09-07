@@ -6,7 +6,9 @@ controlled with a gamepad, with Steam library integration and CrossOver game ins
 Normal launches use your local catalog. Steam QR sign-in, password/Steam Guard fallback, Keychain
 credential storage, progressive library refresh and offline cached browsing are connected. Favorites,
 hidden games, collections and compatibility notes persist independently of Steam refreshes.
-**Game installation, launching and complete first-run setup are still being implemented.**
+First run includes controller pairing guidance, display choice, a writable games-volume picker and
+CrossOver template preparation with progress, retry and a browse-without-setup path.
+**Game installation and launching are still being implemented.**
 
 Use `--preview` for the designer's sample library and simulated Downloads queue. Preview edits use
 an isolated database; install/uninstall confirmations only change preview state.
@@ -31,6 +33,14 @@ app does not require Homebrew's library paths.
 Open `BigScreen.xcodeproj` to work in Xcode. `project.yml` is the project source of truth; regenerate
 with `xcodegen generate` after changing targets or resources. The preview does not require a Steam
 account or CrossOver; building either mode requires the sibling package.
+
+CrossOver 26 or newer is required for game runtime setup. Big Screen creates only its managed
+`gn-template-1` Windows 10 template, with MSync and D3DMetal enabled, and checks Windows startup.
+It refuses an existing unowned bottle. Setup can be retried in Settings → Library → Runtime.
+Games-volume selection prefers `/Volumes/VM/GameNative/games` when that writable volume is present,
+otherwise `~/Games/GameNative`. It stores a volume identity and bookmark; choosing another drive
+does not move existing games. Setup progress and failures are retained under the live profile's
+`runtime/` folder. Template setup is separate from installing or verifying an actual game.
 
 The Barlow/Barlow Condensed fonts and their OFL licenses are bundled. Steam artwork loads over the
 network on first use and is cached in `~/Library/Caches/GameNative BigScreen/artwork/`. Missing art
@@ -84,7 +94,8 @@ queue reordering, cancellation and focus-driven scrolling/empty-state recovery).
 SQLite reopen/rollback, source refresh/logout retention, job reconstruction, exact session accounting,
 and credential redaction. Account tests cover Keychain isolation, cancellation/logout races, metadata
 mapping, masked credential entry and stable focus during refresh. See
-[Steam/account validation](docs/validation/2026-09-07-steam-account.md) and [recorded foundation/platform evidence](docs/validation/2026-09-07-foundation.md).
+[Steam/account validation](docs/validation/2026-09-07-steam-account.md),
+[setup/runtime validation](docs/validation/2026-09-07-setup-runtime.md), and [recorded foundation/platform evidence](docs/validation/2026-09-07-foundation.md).
 
 Snapshots are actual native window captures in `.build/screenshots/`. They use a 1920×1080 logical
 canvas (pixel dimensions follow the display backing scale), a fixed clock, and the same artwork

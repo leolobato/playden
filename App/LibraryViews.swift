@@ -57,8 +57,14 @@ struct CanvasView: View {
                     .padding(20).frame(width: 720, alignment: .leading).background(Design.panel, in: RoundedRectangle(cornerRadius: 10))
                     .offset(x: 1104, y: 880).zIndex(3)
             }
+            if model.setupScreen != nil && model.setupScreen != .account { SetupView(model: model).transition(.opacity).zIndex(4) }
             if model.authScreen != nil { AuthenticationView(model: model).transition(.opacity).zIndex(4) }
             if model.panel != nil { ModalLayer(model: model).transition(.opacity).zIndex(5) }
+            if model.controllerDisconnected {
+                Label("Controller disconnected · reconnect to keep playing", systemImage: "gamecontroller")
+                    .font(Design.body(24)).foregroundStyle(Design.amber).padding(24)
+                    .background(Design.panel, in: RoundedRectangle(cornerRadius: 12)).offset(x: 96, y: 880).zIndex(6)
+            }
         }.frame(width: 1920, height: 1080).clipped().foregroundStyle(Design.text)
             .environment(\.colorScheme, .dark)
             .animation(model.reducedMotion ? nil : .easeInOut(duration: 0.28), value: model.detailID)

@@ -5,6 +5,9 @@ import Input
 import Focus
 import Catalog
 import Sources
+import Domain
+import Runner
+import Installs
 
 @main
 struct BigScreenApp {
@@ -29,7 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             do {
                 let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
                     .appendingPathComponent(preview ? "Big Screen/Preview" : "Big Screen", isDirectory: true)
-                model = LibraryModel(catalog: try CatalogStore(path: root.appendingPathComponent("catalog.sqlite").path), preview: preview, source: preview ? nil : SteamSource())
+                model = LibraryModel(catalog: try CatalogStore(path: root.appendingPathComponent("catalog.sqlite").path), preview: preview, source: preview ? nil : SteamSource(), runtime: preview ? nil : CrossOverRuntime(), volumeStore: preview ? nil : GamesVolumeStore())
             } catch {
                 model = LibraryModel(preview: preview)
                 model.persistenceError = error.localizedDescription
@@ -42,6 +45,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var window: NSWindow!
     var keyboardMonitor: Any?
     private var cursorHidden = false
+    private var pendingDisplayID: UInt32?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Design.registerFonts()
@@ -73,13 +77,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         } else {
             installMenus()
             window.center(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
+            refreshDisplays()
+            if let display = model.selectedDisplayID { moveWindow(to: display) }
+            model.onDisplaySelected = { [weak self] id in self?.moveWindow(to: id) }
             if args.contains("--fullscreen") || (!model.isPreview && !args.contains("--windowed")) { window.toggleFullScreen(nil) }
             model.startServices()
+            model.startSetupServices()
             controller.onAction = { [weak self] action in
                 guard NSApp.isActive else { return }
                 self?.model.perform(action)
             }
             controller.onConnection = { [weak self] name, playStation in
+                if self?.model.controllerName != nil && name == nil { self?.model.controllerDisconnected = true }
+                if name != nil { self?.model.controllerDisconnected = false }
                 self?.model.controllerName = name
                 self?.model.playStationGlyphs = name == nil || playStation
             }
@@ -101,12 +111,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         restoreCursor()
     }
     func applicationDidResignActive(_ notification: Notification) { restoreCursor() }
+    func applicationDidBecomeActive(_ notification: Notification) {
+        if !model.fixedClock && !cursorHidden { NSCursor.hide(); cursorHidden = true }
+    }
+    func applicationDidChangeScreenParameters(_ notification: Notification) { refreshDisplays() }
+    private func refreshDisplays() {
+        model.displays = NSScreen.screens.compactMap { screen in
+            guard let id = (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value else { return nil }
+            return DisplayChoice(id: id, name: screen.localizedName, resolution: "\(CGDisplayPixelsWide(id)) × \(CGDisplayPixelsHigh(id))")
+        }
+        if model.setupScreen == .display { model.setupIndex = min(model.setupIndex, model.displays.count) }
+    }
+    private func moveWindow(to id: UInt32) {
+        guard let screen = NSScreen.screens.first(where: { ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value == id }) else { return }
+        if window.styleMask.contains(.fullScreen) {
+            pendingDisplayID = id; window.toggleFullScreen(nil); return
+        }
+        window.setFrameOrigin(NSPoint(x: screen.visibleFrame.midX - window.frame.width / 2, y: screen.visibleFrame.midY - window.frame.height / 2))
+    }
+    func windowDidExitFullScreen(_ notification: Notification) {
+        guard let id = pendingDisplayID else { return }
+        pendingDisplayID = nil; moveWindow(to: id); window.toggleFullScreen(nil)
+    }
     private func restoreCursor() { if cursorHidden { NSCursor.unhide(); cursorHidden = false } }
     private func handle(_ event: NSEvent) -> NSEvent? {
         if event.modifierFlags.contains(.command) {
             if [36, 76].contains(event.keyCode), model.isEditingText { model.finishText(); return nil }
             if let digit = Int(event.charactersIgnoringModifiers ?? ""), (1...4).contains(digit) {
-                if model.panel == nil && model.authScreen == nil { model.selectTab(AppTab.allCases[digit - 1]) }
+                if model.panel == nil && model.authScreen == nil && model.setupScreen == nil { model.selectTab(AppTab.allCases[digit - 1]) }
                 return nil
             }
             return event
@@ -165,9 +197,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 }
             }
             model.reducedMotion = false
-            for screen in ["home", "library", "library-paged", "library-return", "game", "downloads", "downloads-queued", "settings", "collections", "keyboard", "compatibility", "uninstall", "logs", "signin-qr", "signin-password", "signin-error"] {
-                model.panel = nil; model.detailID = nil; model.authScreen = nil
+            for screen in ["home", "library", "library-paged", "library-return", "game", "downloads", "downloads-queued", "settings", "collections", "keyboard", "compatibility", "uninstall", "logs", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready"] {
+                model.panel = nil; model.detailID = nil; model.authScreen = nil; model.setupScreen = nil
+                model.setupBusy = false; model.setupFailure = nil; model.setupIndex = 0; model.onboarding = false
                 switch screen {
+                case "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready":
+                    model.onboarding = true
+                    model.setupScreen = screen == "setup-controller" ? .controller : screen == "setup-display" ? .display : screen == "setup-volume" ? .volume : .runtime
+                    model.displays = [DisplayChoice(id: 1, name: "Living room TV", resolution: "3840 × 2160"), DisplayChoice(id: 2, name: "Studio Display", resolution: "5120 × 2880")]
+                    model.availableVolumes = [GamesVolume(id: "fixture-ssd", name: "Games SSD", mountURL: URL(fileURLWithPath: "/Volumes/Games"), gamesRoot: URL(fileURLWithPath: "/Volumes/Games/GameNative/games"), freeBytes: 812_000_000_000, totalBytes: 1_000_000_000_000, isRecommended: true), GamesVolume(id: "fixture-mac", name: "This Mac", mountURL: URL(fileURLWithPath: "/"), gamesRoot: URL(fileURLWithPath: "/fixture/games"), freeBytes: 206_000_000_000, totalBytes: 1_000_000_000_000)]
+                    model.selectedVolumeID = "fixture-ssd"
+                    model.runtimeInfo = RuntimeInfo(version: "26.2", templateVersion: "1", templateReady: screen == "setup-ready")
+                    model.templateStage = screen == "setup-ready" ? .ready : .creating
+                    model.setupBusy = screen == "setup-runtime"
+                    if screen == "setup-error" { model.setupFailure = OperationFailure(stage: "Create template", reason: "Game setup couldn’t finish. Try again, or browse your library and set up later.", output: "Design fixture") }
                 case "library": model.selectTab(.library)
                 case "library-paged":
                     model.selectTab(.library); model.perform(.nextPage); model.perform(.nextPage)

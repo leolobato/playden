@@ -59,6 +59,18 @@ approval, a real 600-title library and authenticated offline restart remain unve
 complete the M2 gate or v1: installer, runner/session services, setup and remaining UI acceptance are
 still pending. See [account validation](validation/2026-09-07-steam-account.md).
 
+The next setup slice adds a Runner command executor with bounded output, process-group cancellation
+and timeouts, plus owned, versioned CrossOver template preparation and persisted failures. A real
+unique template was created, checked with a Windows command, reopened from its receipt and deleted
+successfully. The Installs module now provides writable local-volume selection, a real write check,
+bookmarks and stable-volume resolution; the durable download orchestrator remains pending.
+
+The native first-run path now includes pairing guidance with highlighted Share/PS controls, optional
+display selection, account sign-in/skip, games volume, template progress/failure/retry and completion.
+These controls are also reachable from Settings. Display choice and setup completion persist; a
+controller-disconnect banner preserves focus. Actual game launch and background input are still
+unverified. See [setup/runtime evidence](validation/2026-09-07-setup-runtime.md).
+
 ## 1. Planning defaults and PRD corrections
 
 Use these defaults to make the work concrete. Reconcile the referenced PRD requirements during

@@ -21,8 +21,9 @@ struct DownloadsScreen: View {
                 }.padding(28).background(Design.text.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
                 Text("Preview queue · no files are being downloaded").font(Design.body(18)).foregroundStyle(Design.muted)
                 } else {
-                    Text("No games drive selected").font(Design.condensed(36))
-                    Text("Game installation setup is still being implemented. Your Steam library and local edits are available.").font(Design.body(24)).foregroundStyle(Design.secondary)
+                    Text(model.gamesVolume == nil ? "No games drive selected" : "Games folder").font(Design.condensed(36))
+                    Text(model.gamesVolume?.lastKnownRoot.path ?? "Choose a drive in Settings → Library.").font(Design.body(24)).foregroundStyle(Design.secondary)
+                    Text("Game installation is still being implemented.").font(Design.body(22)).foregroundStyle(Design.muted)
                 }
             }.frame(width: 524)
         }.offset(x: 96, y: 150)
@@ -38,10 +39,10 @@ struct SettingsScreen: View {
     var settings: [(String, String, String)] {
         switch model.settingsSection {
         case 0: [("Steam", model.isPreview ? "Using designer preview data" : model.identity.map { "Signed in as \($0.displayName)" } ?? "Sign in to see your games", model.identity == nil ? "Sign in" : "Sign out")]
-        case 1: [("Refresh library", model.syncError ?? (model.syncing ? "Loading your library…" : "Your games and artwork, up to date"), model.syncing ? "Refreshing" : "Refresh"), ("Games volume", model.isPreview ? "/Volumes/VM/GameNative/games" : "Not configured", "Change ›"), ("Download while playing", "Downloads pause automatically when a game starts", model.downloadWhilePlaying ? "On" : "Off"), ("Runtime", "CrossOver integration is a later milestone", "Not connected")]
-        case 2: [("Display", "A 1920 × 1080 canvas, scaled to your window", "Change ›"), ("Reduced motion", "Keep the focus ring; turn off scaling and transitions", model.reducedMotion ? "On" : "Off")]
+        case 1: [("Refresh library", model.syncError ?? (model.syncing ? "Loading your library…" : "Refresh your games and artwork"), model.syncing ? "Refreshing" : "Refresh"), ("Games volume", model.gamesVolume?.lastKnownRoot.path ?? (model.isPreview ? "/Volumes/VM/GameNative/games" : "Not configured"), "Change ›"), ("Download while playing", "Downloads pause automatically when a game starts", model.downloadWhilePlaying ? "On" : "Off"), ("Runtime", model.runtimeInfo.map { "CrossOver \($0.version ?? "not found") · Template \($0.templateVersion)" } ?? "Checking game setup", model.runtimeInfo?.templateReady == true ? "Ready" : "Set up ›")]
+        case 2: [("Display", model.displays.first(where: { $0.id == model.selectedDisplayID })?.name ?? "Current display", "Change ›"), ("Reduced motion", "Keep the focus ring; turn off scaling and transitions", model.reducedMotion ? "On" : "Off")]
         case 3: [("Controller", model.controllerName ?? "No controller connected · keyboard navigation available", "Button test")]
-        default: [("Big Screen", "Native UI preview · Barlow / Barlow Condensed", "v0.1")]
+        default: [("Big Screen", model.isPreview ? "Design preview" : "Your living-room game library", "v0.1")]
         }
     }
     var body: some View {
@@ -88,7 +89,7 @@ struct ModalLayer: View {
                 LogViewer(model: model, gameID: gameID).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if case .information(let message) = model.panel {
                 VStack(alignment: .leading, spacing: 30) {
-                    Text("Design preview").font(Design.condensed(48))
+                    Text(model.isPreview ? "Design preview" : "Big Screen").font(Design.condensed(48))
                     Text(message).font(Design.body(26)).foregroundStyle(Design.secondary).lineSpacing(8)
                     ActionButton(title: "Got it", primary: true, focused: true, reducedMotion: model.reducedMotion) { model.panel = nil }
                 }.padding(44).frame(width: 720).background(Design.panel, in: RoundedRectangle(cornerRadius: 12)).shadow(color: .black.opacity(0.7), radius: 50, y: 40).frame(maxWidth: .infinity, maxHeight: .infinity)

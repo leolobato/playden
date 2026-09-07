@@ -15,10 +15,11 @@ public struct GamesVolume: Equatable, Sendable, Identifiable {
     public var mountURL: URL
     public var gamesRoot: URL
     public var freeBytes: Int64
+    public var totalBytes: Int64?
     public var isRecommended: Bool
-    public init(id: String, name: String, mountURL: URL, gamesRoot: URL, freeBytes: Int64, isRecommended: Bool = false) {
+    public init(id: String, name: String, mountURL: URL, gamesRoot: URL, freeBytes: Int64, totalBytes: Int64? = nil, isRecommended: Bool = false) {
         self.id = id; self.name = name; self.mountURL = mountURL; self.gamesRoot = gamesRoot
-        self.freeBytes = freeBytes; self.isRecommended = isRecommended
+        self.freeBytes = freeBytes; self.totalBytes = totalBytes; self.isRecommended = isRecommended
     }
 }
 public protocol VolumeManaging: Sendable {

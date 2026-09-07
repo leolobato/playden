@@ -4,6 +4,7 @@ import Domain
 import Focus
 import Input
 import Catalog
+import Runner
 
 enum AppTab: String, CaseIterable { case home = "Home", library = "Library", downloads = "Downloads", settings = "Settings"
     var symbol: String { switch self { case .home: "house"; case .library: "square.grid.2x2"; case .downloads: "arrow.down.to.line"; case .settings: "gearshape" } }
@@ -22,6 +23,24 @@ final class LibraryModel {
     @ObservationIgnored let catalog: CatalogStore?
     @ObservationIgnored let source: (any GameSource)?
     @ObservationIgnored let syncCoordinator: LibrarySyncCoordinator?
+    @ObservationIgnored let runtime: (any BottleManaging)?
+    @ObservationIgnored let volumeStore: (any VolumeManaging)?
+    @ObservationIgnored var setupTask: Task<Void, Never>?
+    @ObservationIgnored var onDisplaySelected: ((UInt32) -> Void)?
+    var setupScreen: SetupScreen?
+    var setupIndex = 0
+    var onboarding = false
+    var setupBusy = false
+    var volumeSaving = false
+    var setupFailure: OperationFailure?
+    var templateStage: TemplateStage = .checking
+    var runtimeInfo: RuntimeInfo?
+    var availableVolumes: [GamesVolume] = []
+    var selectedVolumeID: String?
+    var gamesVolume: GamesVolumeSelection?
+    var displays: [DisplayChoice] = []
+    var selectedDisplayID: UInt32?
+    var controllerDisconnected = false
     @ObservationIgnored var authTask: Task<Void, Never>?
     @ObservationIgnored var syncTask: Task<Void, Never>?
     @ObservationIgnored var periodicSyncTask: Task<Void, Never>?
@@ -81,8 +100,9 @@ final class LibraryModel {
     var keyRow = 1
     var keyColumn = 0
     var uppercase = false
-    init(catalog: CatalogStore? = nil, preview: Bool = true, source: (any GameSource)? = nil) {
+    init(catalog: CatalogStore? = nil, preview: Bool = true, source: (any GameSource)? = nil, runtime: (any BottleManaging)? = nil, volumeStore: (any VolumeManaging)? = nil) {
         self.catalog = catalog; self.isPreview = preview; self.source = source
+        self.runtime = runtime; self.volumeStore = volumeStore
         self.syncCoordinator = catalog.map { LibrarySyncCoordinator(catalog: $0) }
         if !preview { games = []; collections = []; queueOrder = []; completedDownloads = [] }
         restoreCatalog()
@@ -225,6 +245,7 @@ final class LibraryModel {
             return
         }
         if authScreen != nil && panel == nil { performAuthentication(action); return }
+        if setupScreen != nil && panel == nil { performSetup(action); return }
         if case .logs = panel {
             switch action {
             case .back, .confirm: panel = nil
@@ -379,9 +400,12 @@ final class LibraryModel {
             else { show(.signOut) }
         }
         else if settingsSection == 1 && settingsIndex == 0 && !isPreview { refreshLibrary() }
+        else if settingsSection == 1 && settingsIndex == 1 { openVolumeSetup() }
+        else if settingsSection == 1 && settingsIndex == 3 { openRuntimeSetup() }
+        else if settingsSection == 2 && settingsIndex == 0 { onboarding = false; setupScreen = .display; setupIndex = 0 }
         else if settingsSection == 2 && settingsIndex == 1 { reducedMotion.toggle() }
         else if settingsSection == 1 && settingsIndex == 2 { downloadWhilePlaying.toggle() }
-        else { show(.information("The native interface is running with designer preview data. Steam, game installation, and CrossOver sessions are not connected yet.")) }
+        else { show(.information(isPreview ? "The design preview uses sample games. Launch without --preview to connect your account and set up your Mac." : "This setting is still being implemented.")) }
     }
 }
 private extension InputAction { var isNextTab: Bool { if case .nextTab = self { true } else { false } } }

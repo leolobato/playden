@@ -36,6 +36,10 @@ targets:
         product: Catalog
       - package: BigScreenKit
         product: Sources
+      - package: BigScreenKit
+        product: Runner
+      - package: BigScreenKit
+        product: Installs
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.gamenative.bigscreen
@@ -47,6 +51,7 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: Big Screen
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.games
+        INFOPLIST_KEY_NSRemovableVolumesUsageDescription: 'Big Screen installs and plays games on the drive you choose.'
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: '-'
         ENABLE_APP_SANDBOX: NO

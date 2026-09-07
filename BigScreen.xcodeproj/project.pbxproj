@@ -10,6 +10,7 @@
 		026CD25A5A7A4881AC6252AE /* LibraryEditing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ABB68A7CE89083ACCBE20BC /* LibraryEditing.swift */; };
 		027C05DE49D217FF36A11277 /* Domain in Frameworks */ = {isa = PBXBuildFile; productRef = DCB264D4EC935990E4A49C62 /* Domain */; };
 		0ADE2D8965DF0EB2970C1299 /* Barlow-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 6AF948AAF0BAAEF8084DC07F /* Barlow-SemiBold.ttf */; };
+		0B17236C1AE8462B76F1E113 /* SetupInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC29F464E7AA30FCF14E21D1 /* SetupInteractionTests.swift */; };
 		0B41C234F26FCC59D2D7FA28 /* LibraryPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A99C8A8DFE712FC7DD3CEF /* LibraryPersistence.swift */; };
 		0D2E79FBE3049ECE01746076 /* barlowcondensed-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = 99CC90B68B12DC034A62B4A8 /* barlowcondensed-OFL.txt */; };
 		14216B99792AA03166CC204A /* BigScreenApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC34C0B6A3AA65EAACEB3DF6 /* BigScreenApp.swift */; };
@@ -27,15 +28,20 @@
 		39CC303E3BA3D56385AAECF9 /* Catalog in Frameworks */ = {isa = PBXBuildFile; productRef = 28715DC80ABF712BDFAB9025 /* Catalog */; };
 		557F062A5951E40EC82A7F69 /* FocusViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = F51F9BB1C1297E755C6FB654 /* FocusViews.swift */; };
 		764655582701C0B1C2F9BA54 /* SupportViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0ABE6CC32C22767FC77D4D03 /* SupportViews.swift */; };
+		7C334DEF7D550877108D36C6 /* SetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E9A8D8C39868D9CD1F07282 /* SetupView.swift */; };
+		8E48D457DC1378C5E8F680BF /* SetupModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B189A59421792AA442D72A7D /* SetupModel.swift */; };
 		8F22CB0C305DF070224934BA /* BarlowCondensed-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 675832B109B2E37BE237EB27 /* BarlowCondensed-SemiBold.ttf */; };
 		9056FBDE7AA54810D6A27738 /* BarlowCondensed-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = BBF8335C78563AB54988A674 /* BarlowCondensed-Bold.ttf */; };
+		A1FF886A1306CD7D8B5CE27F /* Installs in Frameworks */ = {isa = PBXBuildFile; productRef = 616AFAA57B1C670A9E38212D /* Installs */; };
 		A5BB015D1145708E9D242027 /* Focus in Frameworks */ = {isa = PBXBuildFile; productRef = 7DAA6C5CD5D24A18E0472A09 /* Focus */; };
 		B1A657D405AAD7C8B281677C /* EditingViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4038C0219269A842D64FC94D /* EditingViews.swift */; };
 		B25B1F80C0B90AEC6CA8BC60 /* LibraryModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7E1299E802C11E73F8A1EDA /* LibraryModel.swift */; };
 		B2A98FB795CC03E24E7989E6 /* AccountInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 281D1CCE073CC4C5E8961058 /* AccountInteractionTests.swift */; };
 		C1FB15B5D9027944888D38FA /* BarlowCondensed-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 8DF603146150E3A8F502D3AF /* BarlowCondensed-Medium.ttf */; };
+		CA15BEFA39C7E33110214117 /* Runner in Frameworks */ = {isa = PBXBuildFile; productRef = 6310A68293BC5942095233F5 /* Runner */; };
 		CA2CD29BB2A361B7CCF5F01C /* PreviewCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB21DA9AE3F1CFE573775A04 /* PreviewCatalog.swift */; };
 		CAF7A51F716DA804FB81BE04 /* Barlow-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 4622DF2E186C3B6F638C30B1 /* Barlow-Regular.ttf */; };
+		CC095A8EDAF0E84A70F765E7 /* PairingControllerArt.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB83A4AB9B30E5196BC6109C /* PairingControllerArt.swift */; };
 		F97B357CF2C84140B4D6FD9C /* LibraryEditingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAA058B561808E36274C4A53 /* LibraryEditingTests.swift */; };
 		FCB403FE4A0246DD90667FE7 /* Input in Frameworks */ = {isa = PBXBuildFile; productRef = 8A0E4D1D02D0A2AB2C0FF44A /* Input */; };
 /* End PBXBuildFile section */
@@ -64,18 +70,22 @@
 		6C51BD54920288A7687D10E5 /* AmbientBackdrop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AmbientBackdrop.swift; sourceTree = "<group>"; };
 		8D6705B879274E7AFECA275A /* AuthenticationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationView.swift; sourceTree = "<group>"; };
 		8DF603146150E3A8F502D3AF /* BarlowCondensed-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "BarlowCondensed-Medium.ttf"; sourceTree = "<group>"; };
+		8E9A8D8C39868D9CD1F07282 /* SetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupView.swift; sourceTree = "<group>"; };
 		960AF38981989E6B845AE12D /* AccountModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountModel.swift; sourceTree = "<group>"; };
 		99B69173E3CBF5EC838826D5 /* LibraryInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryInteractionTests.swift; sourceTree = "<group>"; };
 		99CC90B68B12DC034A62B4A8 /* barlowcondensed-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "barlowcondensed-OFL.txt"; sourceTree = "<group>"; };
 		A7E1299E802C11E73F8A1EDA /* LibraryModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryModel.swift; sourceTree = "<group>"; };
 		ACE543D0F8A5BF17507E08D4 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
+		B189A59421792AA442D72A7D /* SetupModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupModel.swift; sourceTree = "<group>"; };
 		BAA058B561808E36274C4A53 /* LibraryEditingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryEditingTests.swift; sourceTree = "<group>"; };
 		BBF8335C78563AB54988A674 /* BarlowCondensed-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "BarlowCondensed-Bold.ttf"; sourceTree = "<group>"; };
 		C0A99C8A8DFE712FC7DD3CEF /* LibraryPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryPersistence.swift; sourceTree = "<group>"; };
 		C8DF7A3A43F7711BF2900808 /* barlow-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "barlow-OFL.txt"; sourceTree = "<group>"; };
+		CB83A4AB9B30E5196BC6109C /* PairingControllerArt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingControllerArt.swift; sourceTree = "<group>"; };
 		DB21DA9AE3F1CFE573775A04 /* PreviewCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewCatalog.swift; sourceTree = "<group>"; };
 		DC34C0B6A3AA65EAACEB3DF6 /* BigScreenApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BigScreenApp.swift; sourceTree = "<group>"; };
 		E59AD64ED47C06CB9847E69F /* LibraryViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryViews.swift; sourceTree = "<group>"; };
+		EC29F464E7AA30FCF14E21D1 /* SetupInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupInteractionTests.swift; sourceTree = "<group>"; };
 		F368FC58634A6CD38017484C /* DownloadPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadPresentation.swift; sourceTree = "<group>"; };
 		F51F9BB1C1297E755C6FB654 /* FocusViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusViews.swift; sourceTree = "<group>"; };
 		F549D7F628B1DA7071BA2F75 /* BigScreen.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BigScreen.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -92,6 +102,8 @@
 				FCB403FE4A0246DD90667FE7 /* Input in Frameworks */,
 				39CC303E3BA3D56385AAECF9 /* Catalog in Frameworks */,
 				27CA48F6804A313742ECE091 /* Sources in Frameworks */,
+				CA15BEFA39C7E33110214117 /* Runner in Frameworks */,
+				A1FF886A1306CD7D8B5CE27F /* Installs in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -105,6 +117,7 @@
 				BAA058B561808E36274C4A53 /* LibraryEditingTests.swift */,
 				99B69173E3CBF5EC838826D5 /* LibraryInteractionTests.swift */,
 				0EB9DBF77AE790F10C180E46 /* LibraryPersistenceTests.swift */,
+				EC29F464E7AA30FCF14E21D1 /* SetupInteractionTests.swift */,
 			);
 			name = AppTests;
 			path = Tests/AppTests;
@@ -134,7 +147,10 @@
 				A7E1299E802C11E73F8A1EDA /* LibraryModel.swift */,
 				C0A99C8A8DFE712FC7DD3CEF /* LibraryPersistence.swift */,
 				E59AD64ED47C06CB9847E69F /* LibraryViews.swift */,
+				CB83A4AB9B30E5196BC6109C /* PairingControllerArt.swift */,
 				DB21DA9AE3F1CFE573775A04 /* PreviewCatalog.swift */,
+				B189A59421792AA442D72A7D /* SetupModel.swift */,
+				8E9A8D8C39868D9CD1F07282 /* SetupView.swift */,
 				0ABE6CC32C22767FC77D4D03 /* SupportViews.swift */,
 				BE41A0948563E9044ACC39FF /* Resources */,
 			);
@@ -205,6 +221,8 @@
 				8A0E4D1D02D0A2AB2C0FF44A /* Input */,
 				28715DC80ABF712BDFAB9025 /* Catalog */,
 				AA4199507081D0EE49C53585 /* Sources */,
+				6310A68293BC5942095233F5 /* Runner */,
+				616AFAA57B1C670A9E38212D /* Installs */,
 			);
 			productName = BigScreen;
 			productReference = F549D7F628B1DA7071BA2F75 /* BigScreen.app */;
@@ -326,7 +344,10 @@
 				B25B1F80C0B90AEC6CA8BC60 /* LibraryModel.swift in Sources */,
 				0B41C234F26FCC59D2D7FA28 /* LibraryPersistence.swift in Sources */,
 				289C912D18322B71016A270B /* LibraryViews.swift in Sources */,
+				CC095A8EDAF0E84A70F765E7 /* PairingControllerArt.swift in Sources */,
 				CA2CD29BB2A361B7CCF5F01C /* PreviewCatalog.swift in Sources */,
+				8E48D457DC1378C5E8F680BF /* SetupModel.swift in Sources */,
+				7C334DEF7D550877108D36C6 /* SetupView.swift in Sources */,
 				764655582701C0B1C2F9BA54 /* SupportViews.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -339,6 +360,7 @@
 				F97B357CF2C84140B4D6FD9C /* LibraryEditingTests.swift in Sources */,
 				339B25E5D038DDAF8B50576E /* LibraryInteractionTests.swift in Sources */,
 				30306F64D650CE41AADD0B44 /* LibraryPersistenceTests.swift in Sources */,
+				0B17236C1AE8462B76F1E113 /* SetupInteractionTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -386,6 +408,7 @@
 				);
 				INFOPLIST_KEY_CFBundleDisplayName = "Big Screen";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.games";
+				INFOPLIST_KEY_NSRemovableVolumesUsageDescription = "Big Screen installs and plays games on the drive you choose.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -491,6 +514,7 @@
 				);
 				INFOPLIST_KEY_CFBundleDisplayName = "Big Screen";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.games";
+				INFOPLIST_KEY_NSRemovableVolumesUsageDescription = "Big Screen installs and plays games on the drive you choose.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -613,6 +637,14 @@
 		28715DC80ABF712BDFAB9025 /* Catalog */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = Catalog;
+		};
+		616AFAA57B1C670A9E38212D /* Installs */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Installs;
+		};
+		6310A68293BC5942095233F5 /* Runner */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Runner;
 		};
 		7DAA6C5CD5D24A18E0472A09 /* Focus */ = {
 			isa = XCSwiftPackageProductDependency;

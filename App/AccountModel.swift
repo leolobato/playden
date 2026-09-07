@@ -20,7 +20,7 @@ extension LibraryModel {
         }
     }
     func stopServices() {
-        cancelAuthentication(); syncTask?.cancel(); periodicSyncTask?.cancel()
+        cancelAuthentication(); syncTask?.cancel(); periodicSyncTask?.cancel(); setupTask?.cancel()
     }
     func beginSignIn() {
         guard source != nil else {
@@ -61,6 +61,7 @@ extension LibraryModel {
                 try Task.checkCancellation()
                 guard authAttempt == attempt else { return }
                 identity = result; cancelAuthentication(); refreshLibrary(); selectTab(.home)
+                if setupScreen == .account { openVolumeSetup(firstRun: true) }
             } catch {
                 guard authAttempt == attempt, !Task.isCancelled else { return }
                 authQR = nil; authError = error.localizedDescription; authMessage = "Couldn’t sign in"
@@ -110,7 +111,7 @@ extension LibraryModel {
     }
     func performAuthentication(_ action: InputAction) {
         switch action {
-        case .back: cancelAuthentication()
+        case .back: leaveAuthentication()
         case .move(let direction): authIndex = min(max(0, authIndex + (direction == .up || direction == .left ? -1 : 1)), authenticationActions.count - 1)
         case .confirm: activateAuthentication()
         default: break
@@ -128,8 +129,12 @@ extension LibraryModel {
         case "Sign in":
             guard !accountNameDraft.isEmpty, !passwordDraft.isEmpty else { authError = "Enter your account name and password."; return }
             authScreen = .approval; authIndex = 0; authMessage = "Signing in…"; runAuthentication(password: true)
-        default: cancelAuthentication()
+        default: leaveAuthentication()
         }
+    }
+    private func leaveAuthentication() {
+        cancelAuthentication()
+        if setupScreen == .account { openVolumeSetup(firstRun: true) }
     }
     func refreshLibrary() {
         guard let source, let syncCoordinator else { return }
