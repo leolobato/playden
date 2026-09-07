@@ -32,7 +32,7 @@ extension LibraryModel {
         var previousSection = "", top = 24.0
         return downloadGames.enumerated().map { index, game in
             let job = isPreview ? nil : liveJob(for: game.id)
-            let section = job.map { $0.id == activeInstallID ? "Installing now" : $0.state == .failed ? "Needs attention" : [.completed, .cancelled].contains($0.state) ? "Recently finished" : "Queued" }
+            let section = job.map { $0.id == activeInstallID ? ($0.kind == .repair ? "Verifying now" : "Installing now") : $0.state == .failed ? "Needs attention" : [.completed, .cancelled].contains($0.state) ? "Recently finished" : "Queued" }
                 ?? (game.status == .downloading ? "Downloading now" : game.status == .queued ? "Queued" : "Recently finished")
             let heading: String? = section != previousSection ? section : nil
             if heading != nil && index > 0 { top += 20 }
@@ -52,14 +52,15 @@ extension LibraryModel {
     func downloadActions(for id: GameID) -> [String] {
         if !isPreview, let job = liveJob(for: id) {
             let common = ["Open game", "View logs"]
+            let cancel = job.kind == .repair ? "Stop verifying…" : "Cancel download…"
             if [.completed, .cancelled].contains(job.state) { return common }
             if job.cancellationRequested == true { return (job.state == .paused || job.state == .failed ? ["Retry cancellation"] : []) + common }
             switch job.state {
-            case .running: return ["Pause", "Cancel download…"] + common
+            case .running: return ["Pause", cancel] + common
             case .stopping: return common
-            case .paused: return (job.pauseReasons == [.gameplay] ? [] : ["Resume"]) + ["Cancel download…"] + common
-            case .failed: return ["Retry", "Cancel download…"] + common
-            default: return ["Pause", "Move up", "Move down", "Cancel download…"] + common
+            case .paused: return (job.pauseReasons == [.gameplay] ? [] : ["Resume"]) + [cancel] + common
+            case .failed: return ["Retry", cancel] + common
+            default: return ["Pause", "Move up", "Move down", cancel] + common
             }
         }
         guard let game = games.first(where: { $0.id == id }) else { return [] }

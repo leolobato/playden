@@ -28,6 +28,7 @@ public protocol InstallQueuing: Sendable {
     func updates() async -> AsyncStream<InstallQueueSnapshot>
     func offer(for game: SourceGameRecord, volume: GamesVolumeSelection) async throws -> InstallOffer
     func enqueue(_ offer: InstallOffer) async throws -> UUID
+    func repair(_ gameID: GameID) async throws -> UUID
     func setPaused(_ paused: Bool, reason: PauseReason, jobID: UUID) async throws
     func retry(_ jobID: UUID) async throws
     func cancel(_ jobID: UUID) async throws
@@ -129,6 +130,24 @@ public actor InstallQueue: InstallQueuing {
         if !job.pauseReasons.isEmpty, activeID == jobID { activeTask?.cancel() }
         pump()
     }
+    @discardableResult public func repair(_ gameID: GameID) throws -> UUID {
+        guard let installed = try catalog.snapshot().entries.first(where: { $0.id == gameID })?.installation,
+              let plan = installed.plan, let bookmark = installed.location.rootBookmark,
+              let relativeRoot = installed.location.relativeRoot, let source = sources[gameID.source] else {
+            throw Self.failure("Verify files", "The installed manifest or games drive is unavailable.")
+        }
+        _ = try source.installer(for: installed.game)
+        var job = JobRecord(gameID: gameID, kind: .repair, queuePosition: records.count)
+        job.originalInstallation = installed; job.plan = plan; job.staging = installed.staging
+        job.ownershipToken = installed.ownershipToken; job.manifestIDs = installed.manifestIDs; job.location = installed.location
+        job.bottle = GameBottle(gameID: gameID, name: installed.bottleID, ownershipToken: installed.ownershipToken, templateVersion: installed.templateVersion)
+        job.volume = GamesVolumeSelection(volumeID: installed.location.volumeID, rootBookmark: bookmark,
+            lastKnownRoot: installed.location.lastKnownRoot, relativeRoot: relativeRoot)
+        job.bytesTotal = plan.estimate.installedBytes; job.stage = .download
+        job.completedStages = [.resolve, .estimate, .reserve]
+        if gameplayPaused { job.pauseReasons.insert(.gameplay); job.state = .paused }
+        try catalog.enqueueRepair(job); records[job.id] = job; publish(); pump(); return job.id
+    }
     public func setGameplayPaused(_ paused: Bool) async throws {
         gameplayPaused = paused
         for job in ordered where ![.completed, .cancelled].contains(job.state) { try setPaused(paused, reason: .gameplay, jobID: job.id) }
@@ -164,7 +183,7 @@ public actor InstallQueue: InstallQueuing {
     }
     private func reserved(on volumeID: String, excluding id: UUID? = nil) -> Int64 {
         records.values.filter { $0.id != id && $0.volume?.volumeID == volumeID && ![.completed, .cancelled].contains($0.state) }.reduce(0) {
-            let remaining = max(0, ($1.plan?.estimate.requiredBytes ?? 0) - $1.bytesCompleted)
+            let remaining = $1.kind == .repair ? 0 : max(0, ($1.plan?.estimate.requiredBytes ?? 0) - $1.bytesCompleted)
             let sum = $0.addingReportingOverflow(remaining); return sum.overflow ? Int64.max : sum.partialValue
         }
     }
@@ -177,7 +196,7 @@ public actor InstallQueue: InstallQueuing {
     private func execute(_ id: UUID, run: UUID) async {
         defer { activeTask = nil; activeID = nil; activeRun = nil; publish(); pump() }
         do {
-            guard let initial = records[id], initial.kind == .install, let plan = initial.plan, let volume = initial.volume,
+            guard let initial = records[id], [.install, .repair].contains(initial.kind), let plan = initial.plan, let volume = initial.volume,
                   let bottle = initial.bottle, let source = sources[initial.gameID.source] else { throw Self.failure("Recover", "The saved installation plan or store is unavailable.") }
             guard plan.game.id == initial.gameID, bottle.gameID == initial.gameID, bottle.ownershipToken == initial.ownershipToken else {
                 throw Self.failure("Recover", "The saved installation ownership does not match this job.")
@@ -200,7 +219,9 @@ public actor InstallQueue: InstallQueuing {
                     try update(id) { $0.location = location }
                 case .download:
                     let path = try await directory(job)
-                    try await installer.download(plan, to: path) { progress in Task { await self.progress(progress, id: id, run: run) } }
+                    let report: @Sendable (InstallProgress) -> Void = { progress in Task { await self.progress(progress, id: id, run: run) } }
+                    if job.kind == .repair { try await installer.repair(plan, at: path, staging: job.staging, progress: report) }
+                    else { try await installer.download(plan, to: path, progress: report) }
                     try update(id) { $0.bytesCompleted = plan.estimate.installedBytes; $0.currentFile = nil }
                 case .verifyOriginals:
                     let result = try await installer.verifyOriginals(plan, at: directory(job), staging: job.staging)
@@ -223,7 +244,12 @@ public actor InstallQueue: InstallQueuing {
                         manifestIDs: plan.manifestIDs, language: plan.language, templateVersion: bottle.templateVersion, recipeVersion: plan.recipeVersion,
                         stagingVersion: staging.version, launchSpec: launch, installedBytes: plan.estimate.installedBytes)
                     installation.plan = plan; installation.staging = staging
-                    job.state = .completed; job.stage = .finished; job.completedStages.formUnion([.commit, .finished]); job.updatedAt = .now
+                    if let original = job.originalInstallation, job.kind == .repair {
+                        installation.id = original.id; installation.installedAt = original.installedAt
+                        installation.needsRepair = false
+                    }
+                    job.state = .completed; job.stage = .finished; job.failure = nil
+                    job.completedStages.formUnion([.commit, .finished]); job.updatedAt = .now
                     try catalog.commitInstallation(installation, completing: job)
                     records[id] = job; publish(); return
                 default: break
@@ -245,6 +271,9 @@ public actor InstallQueue: InstallQueuing {
                     job.pauseReasons.insert(.unavailableDrive); job.state = .paused
                 } else { job.state = .failed }
                 if job.stage == .verifyOriginals { job.completedStages.remove(.download) }
+                if job.kind == .repair && job.stage == .validate {
+                    job.completedStages.subtract([.download, .verifyOriginals, .stage, .validate])
+                }
             }
             do { try save(job) } catch {
                 persistenceFailure = Self.failure("Save queue", "Install progress could not be saved. Free up space and restart Big Screen to recover the last checkpoint.")
@@ -252,6 +281,12 @@ public actor InstallQueue: InstallQueuing {
         }
     }
     private func cleanup(_ job: JobRecord, installer: any Installer) async throws {
+        if job.kind == .repair {
+            // Cancelling maintenance never uninstalls a game. needsRepair remains set until a
+            // later verification completes, so partially repaired content cannot be launched.
+            try update(job.id) { $0.state = .cancelled; $0.failure = nil; $0.pauseReasons = []; $0.updatedAt = .now }
+            return
+        }
         if job.completedStages.contains(.reserve), let plan = job.plan {
             try await installer.uninstall(plan, at: directory(job))
         }

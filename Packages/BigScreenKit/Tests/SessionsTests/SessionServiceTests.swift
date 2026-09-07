@@ -28,6 +28,7 @@ private actor Queue: InstallQueuing {
     func updates() -> AsyncStream<InstallQueueSnapshot> { AsyncStream { $0.finish() } }
     func offer(for game: SourceGameRecord, volume: GamesVolumeSelection) async throws -> InstallOffer { throw SourceFailure.unavailable }
     func enqueue(_ offer: InstallOffer) async throws -> UUID { throw SourceFailure.unavailable }
+    func repair(_ gameID: GameID) async throws -> UUID { throw SourceFailure.unavailable }
     func setPaused(_ paused: Bool, reason: PauseReason, jobID: UUID) async throws {}
     func retry(_ jobID: UUID) async throws {}
     func cancel(_ jobID: UUID) async throws {}

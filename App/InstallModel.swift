@@ -11,15 +11,26 @@ extension LibraryModel {
                 for await snapshot in await installQueue.updates() {
                     guard let self, !Task.isCancelled else { return }
                     let focusedDownload = self.downloadGames[safe: self.downloadIndex]?.id
-                    let completedBefore = Set(self.installJobs.filter { $0.state == .completed }.map(\.id))
+                    let completedBefore = Set(self.installJobs.filter { [.completed, .cancelled].contains($0.state) }.map(\.id))
                     self.installJobs = snapshot.jobs; self.activeInstallID = snapshot.activeJobID
                     self.installPersistenceError = snapshot.persistenceFailure?.reason
-                    if Set(snapshot.jobs.filter { $0.state == .completed }.map(\.id)) != completedBefore { self.reloadCatalog() }
+                    if Set(snapshot.jobs.filter { [.completed, .cancelled].contains($0.state) }.map(\.id)) != completedBefore { self.reloadCatalog() }
                     self.applyInstallStatuses()
                     if let focusedDownload, let index = self.downloadGames.firstIndex(where: { $0.id == focusedDownload }) { self.downloadIndex = index }
                     self.reconcileFocus()
                 }
             } catch { self?.installPersistenceError = error.localizedDescription }
+        }
+    }
+    func beginVerification(_ id: GameID) {
+        guard let installQueue else { show(.information("The install queue is unavailable.")); return }
+        Task { [weak self] in
+            do {
+                _ = try await installQueue.repair(id)
+                guard let self else { return }
+                self.reloadCatalog(); self.panel = nil; self.selectTab(.downloads)
+                self.downloadIndex = self.downloadGames.firstIndex(where: { $0.id == id }) ?? 0
+            } catch { self?.show(.information((error as? OperationFailure)?.reason ?? error.localizedDescription)) }
         }
     }
     func beginInstall(_ id: GameID) {
@@ -88,7 +99,7 @@ extension LibraryModel {
         guard let job = liveJob(for: id), let installQueue else { return }
         if label == "Open game" { openGame(game(for: job)); return }
         if label == "View logs" { show(.logs(id)); return }
-        if label == "Cancel download…" { show(.confirmation(.cancelDownload(id))); return }
+        if label == "Cancel download…" || label == "Stop verifying…" { show(.confirmation(.cancelDownload(id))); return }
         panel = nil
         Task { [weak self] in
             do {
@@ -123,16 +134,16 @@ extension JobRecord {
     var stageTitle: String {
         switch stage {
         case .resolve: "Checking game"; case .estimate: "Checking space"; case .reserve: "Reserving space"
-        case .download: "Downloading"; case .verifyOriginals, .validate: "Verifying files"; case .createBottle: "Preparing game runtime"
+        case .download: kind == .repair ? "Checking and repairing files" : "Downloading"; case .verifyOriginals, .validate: "Verifying files"; case .createBottle: "Preparing game runtime"
         case .prerequisites: "Installing prerequisites"; case .stage: "Preparing game"; case .commit: "Finishing installation"
-        case .finished: "Installed"; case .preserveSaves: "Keeping saves"; case .removeFiles, .removeBottle: "Removing game"
+        case .finished: kind == .repair ? "Files verified" : "Installed"; case .preserveSaves: "Keeping saves"; case .removeFiles, .removeBottle: "Removing game"
         }
     }
     var statusTitle: String {
         switch state {
         case .queued: "Queued"; case .running: stageTitle; case .stopping: cancellationRequested == true ? "Cancelling…" : "Pausing…"
         case .paused: pauseReasons.contains(.authentication) ? "Sign in to resume" : pauseReasons.contains(.unavailableDrive) ? "Reconnect your games drive" : pauseReasons.contains(.insufficientSpace) ? "More space needed" : pauseReasons.contains(.user) ? "Paused" : "Paused while playing"
-        case .failed: "Installation failed"; case .cancelled: "Cancelled"; case .completed: "Installed"
+        case .failed: kind == .repair ? "Verification failed" : "Installation failed"; case .cancelled: kind == .repair ? "Verification stopped" : "Cancelled"; case .completed: kind == .repair ? "Files verified" : "Installed"
         }
     }
     var bytesLabel: String {

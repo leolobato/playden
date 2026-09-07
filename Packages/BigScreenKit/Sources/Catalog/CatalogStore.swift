@@ -175,6 +175,27 @@ public final class CatalogStore: Sendable {
             for job in jobs { try Self.putOperation(db, table: "jobs", id: job.id, gameID: job.gameID, value: job) }
         }
     }
+    /// Claim maintenance and block new play sessions in the same transaction. Session creation
+    /// checks the same installation flag, closing the race between the queue and session actors.
+    public func enqueueRepair(_ job: JobRecord) throws {
+        guard job.kind == .repair, let original = job.originalInstallation else { throw CatalogError.identityMismatch }
+        try database.write { db in
+            let installs: [InstallationRecord] = try Self.values(db, table: "installations")
+            guard var installed = installs.first(where: { $0.id == original.id }), installed == original,
+                  installed.gameID == job.gameID, installed.ownershipToken == job.ownershipToken else { throw CatalogError.identityMismatch }
+            let sessions: [PlaySessionRecord] = try Self.values(db, table: "sessions")
+            let jobs: [JobRecord] = try Self.values(db, table: "jobs")
+            guard !sessions.contains(where: { $0.gameID == job.gameID && $0.endedAt == nil }) else {
+                throw OperationFailure(stage: "Verify files", reason: "Quit this game before verifying its files.", output: "")
+            }
+            guard !jobs.contains(where: { $0.gameID == job.gameID && ![.completed, .cancelled].contains($0.state) }) else {
+                throw OperationFailure(stage: "Verify files", reason: "This game already has an unfinished job. Resume or retry it in Downloads.", output: "")
+            }
+            installed.needsRepair = true
+            try Self.putOperation(db, table: "installations", id: installed.id, gameID: installed.gameID, value: installed)
+            try Self.putOperation(db, table: "jobs", id: job.id, gameID: job.gameID, value: job)
+        }
+    }
     public func jobs() throws -> [JobRecord] {
         try database.read { db in
             let jobs: [JobRecord] = try Self.values(db, table: "jobs")
@@ -201,6 +222,11 @@ public final class CatalogStore: Sendable {
                 guard old.gameID == session.gameID, old.startedAt == session.startedAt, old.bottleID == session.bottleID else { throw CatalogError.identityMismatch }
                 // A late checkpoint must not overwrite a newer/final session.
                 if old.endedAt != nil || old.lastCheckpointAt > session.lastCheckpointAt || old.playedSeconds > session.playedSeconds { return }
+            } else if session.endedAt == nil {
+                let installs: [InstallationRecord] = try Self.values(db, table: "installations")
+                if installs.contains(where: { $0.gameID == session.gameID && $0.needsRepair == true }) {
+                    throw OperationFailure(stage: "Launch game", reason: "Verify this game's files before playing. Resume or retry verification in Downloads.", output: "")
+                }
             }
             try Self.putOperation(db, table: "sessions", id: session.id, gameID: session.gameID, value: session)
         }

@@ -82,6 +82,25 @@ public struct SteamInstaller: Installer {
         }
         return InstallStaging(mutations: mutations, dllOverrides: Array(Set(result.dlls.map { $0.dll.deletingPathExtension().lastPathComponent.lowercased() + "=n,b" })).sorted())
     }
+    public func repair(_ plan: InstallPlan, at directory: URL, staging: InstallStaging?,
+                       progress: @escaping @Sendable (InstallProgress) -> Void) async throws {
+        let payload = try SteamPlanBuilder.payload(plan, for: gameID)
+        let mappings = try replacements(staging ?? InstallStaging(), payload: payload)
+        try rejectLinks(in: directory)
+        guard try await !verifyOriginals(plan, at: directory, staging: staging).isValid else { return }
+        // Download originals to their verified backup paths. Leave the staged DLLs and save
+        // directories in place; postInstall will reapply preparation after all originals verify.
+        let manifests = try payload.manifests.map { manifest in
+            let files = try manifest.files.map { file in
+                let path = try SteamPlanBuilder.relativePath(file.path)
+                return DepotManifest.File(path: mappings[path] ?? path, size: file.size, flags: file.flags,
+                    linkTarget: file.linkTarget, chunks: file.chunks, contentSHA1: file.contentSHA1)
+            }
+            return DepotManifest(depotID: manifest.depotID, gid: manifest.gid, files: files, totalSize: manifest.totalSize)
+        }
+        try await backend.download(SteamInstallPayload(app: payload.app, manifests: manifests, ownedDLC: payload.ownedDLC),
+                                   to: directory, progress: progress)
+    }
     public func validate(_ plan: InstallPlan, at directory: URL, staging: InstallStaging) async throws -> LaunchSpec {
         let payload = try SteamPlanBuilder.payload(plan, for: gameID)
         try rejectLinks(in: directory)

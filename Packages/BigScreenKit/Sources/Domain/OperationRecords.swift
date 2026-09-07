@@ -41,6 +41,8 @@ public struct InstallationRecord: Codable, Equatable, Sendable, Identifiable {
     public var installedBytes: Int64
     public var plan: InstallPlan?
     public var staging: InstallStaging?
+    /// Set before maintenance writes; only successful validation makes the game playable again.
+    public var needsRepair: Bool?
     public init(id: UUID = UUID(), game: SourceGameRecord, location: GameLocation, bottleID: String,
                 ownershipToken: UUID = UUID(), manifestIDs: [String: String], language: String = "english",
                 templateVersion: String, recipeVersion: Int = 1, stagingVersion: Int = 1,
@@ -81,6 +83,8 @@ public struct JobRecord: Codable, Equatable, Sendable, Identifiable {
     public var cancellationRequested: Bool?
     public var launchSpec: LaunchSpec?
     public var currentFile: String?
+    /// Repair keeps the original install identity, location and installation date.
+    public var originalInstallation: InstallationRecord?
     public init(id: UUID = UUID(), gameID: GameID, kind: JobKind = .install, queuePosition: Int = 0, createdAt: Date = .now) {
         self.id = id; self.gameID = gameID; self.kind = kind; self.stage = .resolve; self.state = .queued
         self.completedStages = []; self.pauseReasons = []; self.queuePosition = queuePosition; self.manifestIDs = [:]

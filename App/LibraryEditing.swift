@@ -105,14 +105,14 @@ extension LibraryModel {
         reconcileFocus()
     }
     func confirmationAction(_ intent: Confirmation) -> String {
-        switch intent { case .deleteCollection: "Delete collection"; case .uninstall: "Uninstall"; case .install: "Add to downloads"; case .cancelDownload: "Cancel download"; case .switchGame: "Quit and play" }
+        switch intent { case .deleteCollection: "Delete collection"; case .uninstall: "Uninstall"; case .install: "Add to downloads"; case .cancelDownload(let id): liveJob(for: id)?.kind == .repair ? "Stop verifying" : "Cancel download"; case .switchGame: "Quit and play" }
     }
     func confirmationTitle(_ intent: Confirmation) -> String {
         switch intent {
         case .deleteCollection(let id): "Delete ‘\(collections.first { $0.id == id }?.name ?? "collection")’?"
         case .uninstall(let id): "Uninstall \(gameName(id))?"
         case .install(let id): "Install \(gameName(id))?"
-        case .cancelDownload(let id): "Cancel \(gameName(id)) download?"
+        case .cancelDownload(let id): liveJob(for: id)?.kind == .repair ? "Stop verifying \(gameName(id))?" : "Cancel \(gameName(id)) download?"
         case .switchGame(let id): "Play \(gameName(id))?"
         }
     }
@@ -121,7 +121,7 @@ extension LibraryModel {
         case .deleteCollection: "Only the collection is removed. Your games, favorites and play history are kept."
         case .uninstall: "Remove this preview installation. Game files and saves on your Mac are untouched while the runtime is disconnected."
         case .install(let id): "\(games.first { $0.id == id }?.size ?? "Unknown size") required. This adds a preview queue entry; downloading will be available when Steam is connected."
-        case .cancelDownload: isPreview ? "Remove this entry from the preview queue. No game files on your Mac are changed." : "Stop this installation and remove its downloaded files. You can install the game again from your library."
+        case .cancelDownload(let id): liveJob(for: id)?.kind == .repair ? "Your game files and saves are kept. Verification must finish before you can play again." : isPreview ? "Remove this entry from the preview queue. No game files on your Mac are changed." : "Stop this installation and remove its downloaded files. You can install the game again from your library."
         case .switchGame: "\(session.game?.title ?? "Another game") is still running. Quit it before starting this game. Unsaved progress may be lost."
         }
     }

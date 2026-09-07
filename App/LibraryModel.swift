@@ -96,6 +96,7 @@ final class LibraryModel {
     @ObservationIgnored var restoringState = true
     let isPreview: Bool
     var persistenceError: String?
+    var gamesNeedingRepair: Set<GameID> = []
     var games = PreviewCatalog.games { didSet { persistGameEdits(previous: oldValue) } }
     var collections = PreviewCatalog.collections { didSet { persistCollections() } }
     var compatibilityNotes: [GameID: String] = [:] { didSet { persistNotes(previous: oldValue) } }
@@ -233,9 +234,10 @@ final class LibraryModel {
         guard let game = focusedGame else { return [] }
         let primary: String
         if hasActiveSession, session.session?.gameID == game.id { primary = "Return to game" }
-        else if !isPreview, let job = liveJob(for: game.id), ![.completed, .cancelled].contains(job.state) { primary = "View download" }
+        else if !isPreview, let job = liveJob(for: game.id), ![.completed, .cancelled].contains(job.state) { primary = job.kind == .repair ? "View verification" : "View download" }
+        else if gamesNeedingRepair.contains(game.id) { primary = "Verify files" }
         else { primary = switch game.status { case .installed: "Play"; case .downloading: downloadPaused ? "Resume download" : "Pause download"; case .queued: "View download"; case .driveDisconnected: "Drive disconnected"; case .notInstalled: "Install" } }
-        return [primary, game.isFavorite ? "Favorited" : "Favorite", "Add to collection", game.isHidden ? "Unhide" : "Hide", "Set compatibility"] + (game.status == .installed ? ["Verify files", "Uninstall"] : []) + ["View logs"]
+        return [primary, game.isFavorite ? "Favorited" : "Favorite", "Add to collection", game.isHidden ? "Unhide" : "Hide", "Set compatibility"] + (game.status == .installed ? (primary == "Verify files" ? ["Uninstall"] : ["Verify files", "Uninstall"]) : []) + ["View logs"]
     }
     var contextActions: [String] { ["Open game", focusedGame?.isFavorite == true ? "Unfavorite" : "Favorite", "Set compatibility", focusedGame?.isHidden == true ? "Unhide" : "Hide", "View logs", "Add to collection"] }
     var panelActions: [String] {
@@ -424,6 +426,9 @@ final class LibraryModel {
         case "Set compatibility": show(.compatibility)
         case "Add to collection": if let id = focusedGame?.id { show(.collections(id)) }
         case "View logs": if let id = focusedGame?.id { show(.logs(id)) }
+        case "Verify files":
+            if !isPreview, let id = focusedGame?.id { beginVerification(id) }
+            else { show(.information("Verification checks the installed game and repairs damaged files when connected.")) }
         case "Uninstall":
             if !isPreview { show(.information("Uninstall and save retention are still being implemented. Your installed files have been kept.")) }
             else if let id = focusedGame?.id { show(.confirmation(.uninstall(id))) }
@@ -431,7 +436,7 @@ final class LibraryModel {
             if !isPreview, let id = focusedGame?.id { beginInstall(id) }
             else if let id = focusedGame?.id { show(.confirmation(.install(id))) }
         case "Pause download", "Resume download": downloadPaused.toggle()
-        case "View download":
+        case "View download", "View verification":
             let id = focusedGame?.id
             selectTab(.downloads)
             downloadIndex = downloadGames.firstIndex(where: { $0.id == id }) ?? 0

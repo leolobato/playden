@@ -19,6 +19,7 @@ extension LibraryModel {
                     collections: collections, preferences: try catalog.preferences())
             }
             let snapshot = try catalog.snapshot()
+            gamesNeedingRepair = Set(snapshot.entries.filter { $0.installation?.needsRepair == true }.map(\.id))
             let fixtures = Dictionary(uniqueKeysWithValues: PreviewCatalog.games.map { ($0.id, $0) })
             games = snapshot.entries.map { entry in
                 let record = entry.source

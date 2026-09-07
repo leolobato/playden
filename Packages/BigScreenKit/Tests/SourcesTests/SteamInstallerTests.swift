@@ -125,6 +125,28 @@ final class SteamInstallerTests: XCTestCase {
             XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent("Game.exe")), bytes)
         }
     }
+    func testRepairRestoresMissingContentAndOriginalBackupsWithoutReplacingSaves() async throws {
+        let bytes = pe()
+        let content = ResolvedSteamContent(app: app(), manifests: [manifest([file("Game.exe", bytes), file("steam_api64.dll", bytes)])], entitlements: .init(appIDs: [100], depotIDs: [101]))
+        let installer = SteamInstaller(game: game, backend: FixtureContentBackend(content: content, chunks: [Data(Insecure.SHA1.hash(data: bytes)): bytes]))
+        let plan = try await installer.resolve(), directory = try temporaryDirectory()
+        try await installer.download(plan, to: directory) { _ in }
+        let staging = try await installer.postInstall(plan, at: directory)
+        let replacement = try Data(contentsOf: directory.appendingPathComponent("steam_api64.dll"))
+        let save = directory.appendingPathComponent("player.sav")
+        try Data("keep this save".utf8).write(to: save)
+        try FileManager.default.removeItem(at: directory.appendingPathComponent("Game.exe"))
+        try Data("short".utf8).write(to: directory.appendingPathComponent("steam_api64.dll.orig"))
+        try await installer.repair(plan, at: directory, staging: staging) { _ in }
+        XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent("Game.exe")), bytes)
+        XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent("steam_api64.dll.orig")), bytes)
+        XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent("steam_api64.dll")), replacement)
+        XCTAssertEqual(try Data(contentsOf: save), Data("keep this save".utf8))
+        try Data("damaged replacement".utf8).write(to: directory.appendingPathComponent("steam_api64.dll"))
+        let repaired = try await installer.postInstall(plan, at: directory)
+        _ = try await installer.validate(plan, at: directory, staging: repaired)
+        XCTAssertEqual(repaired, staging)
+    }
     private func temporaryDirectory() throws -> URL {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("BigScreenInstaller-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)

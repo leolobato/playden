@@ -26,6 +26,7 @@ private actor InteractionQueue: InstallQueuing {
         return result
     }
     func enqueue(_ offer: InstallOffer) async throws -> UUID { enqueued.append(offer); return UUID() }
+    func repair(_ gameID: GameID) async throws -> UUID { throw SourceFailure.unavailable }
     func setPaused(_ paused: Bool, reason: PauseReason, jobID: UUID) async throws { commands.append("\(paused ? "pause" : "resume"):\(reason.rawValue)") }
     func retry(_ jobID: UUID) async throws { commands.append("retry") }
     func cancel(_ jobID: UUID) async throws { commands.append("cancel") }
@@ -128,5 +129,22 @@ final class InstallInteractionTests: XCTestCase {
         XCTAssertEqual(model.detailActions.first, "View download")
         XCTAssertEqual(model.downloadActions(for: id).first, "Retry")
         XCTAssertEqual(job.statusTitle, "Installation failed")
+    }
+    @MainActor func testRepairHasClearProgressAndNonDestructiveStopConfirmation() throws {
+        let offer = offer(), queue = InteractionQueue(offer)
+        let model = try model(queue, offer: offer)
+        var job = JobRecord(gameID: id, kind: .repair); job.plan = offer.plan; job.state = .running; job.stage = .download
+        model.installJobs = [job]; model.activeInstallID = job.id; model.applyInstallStatuses()
+        model.openGame(model.games[0])
+        XCTAssertEqual(model.detailActions.first, "View verification")
+        XCTAssertTrue(model.downloadActions(for: id).contains("Stop verifying…"))
+        XCTAssertFalse(model.downloadActions(for: id).contains("Cancel download…"))
+        XCTAssertEqual(model.confirmationAction(.cancelDownload(id)), "Stop verifying")
+        XCTAssertTrue(model.confirmationMessage(.cancelDownload(id)).contains("files and saves are kept"))
+        job.state = .cancelled; model.installJobs = [job]; model.gamesNeedingRepair = [id]
+        XCTAssertEqual(model.detailActions.first, "Verify files")
+        XCTAssertEqual(job.statusTitle, "Verification stopped")
+        job.state = .completed
+        XCTAssertEqual(job.statusTitle, "Files verified")
     }
 }
