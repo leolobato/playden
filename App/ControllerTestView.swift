@@ -41,7 +41,7 @@ struct ControllerTestView: View {
                 ForEach(ControllerControl.allCases.filter { sample?.buttons[$0] != nil }, id: \.self) { control in
                     let active = sample?.pressed.contains(control) == true
                     let tested = model.controllerTest.tested[sample?.id ?? ""]?.contains(control) == true
-                    Text(control.label(playStation: sample?.playStation ?? true)).font(Design.body(19, weight: "SemiBold"))
+                    ButtonSymbol(text: control.label(playStation: sample?.playStation ?? true), size: 20)
                         .foregroundStyle(active ? Design.background : tested ? Design.text : Design.muted)
                         .padding(.horizontal, 12).frame(minWidth: 44, minHeight: 44)
                         .background(active ? Design.accent : Design.text.opacity(tested ? 0.12 : 0.04), in: RoundedRectangle(cornerRadius: 8))

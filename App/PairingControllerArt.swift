@@ -35,7 +35,7 @@ struct PairingControllerArt: View {
             ForEach(0..<4) { index in
                 let points = [CGPoint(x: 526, y: 130), CGPoint(x: 568, y: 173), CGPoint(x: 526, y: 216), CGPoint(x: 484, y: 173)]
                 let control: ControllerControl = [.north, .east, .south, .west][index]
-                Text(control.label(playStation: sample?.playStation ?? true)).font(Design.body(25, weight: "Medium"))
+                ButtonSymbol(text: control.label(playStation: sample?.playStation ?? true), size: 21)
                     .foregroundStyle(active(control) ? Design.background : [Design.green, Design.red, Color(hex: 0x6CA4CF), Color(hex: 0xC280B3)][index])
                     .frame(width: 34, height: 34).background(fill(control), in: Circle()).position(points[index])
             }

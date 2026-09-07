@@ -125,10 +125,48 @@ struct SectionLabel: View {
 struct Glyph: View {
     let text: String
     var body: some View {
-        Text(text).font(Design.body(text.count > 1 ? 15 : 20, weight: "SemiBold"))
+        ButtonSymbol(text: text, size: 20)
             .frame(minWidth: text.count > 1 ? 20 : 36, minHeight: 36)
             .padding(.horizontal, text.count > 1 ? 10 : 0)
             .overlay(Capsule().stroke(Design.text, lineWidth: 2))
+    }
+}
+
+/// Face buttons use optically balanced vector artwork. Font characters have unrelated em-boxes:
+/// the previous hollow Circle and Square rendered much smaller than Cross and Triangle.
+struct ButtonSymbol: View {
+    let text: String
+    var size: CGFloat = 20
+    var body: some View {
+        if let button = PlayStationFaceButton(rawValue: text) {
+            PlayStationButtonShape(button: button)
+                .stroke(style: StrokeStyle(lineWidth: size * 0.1, lineCap: .round, lineJoin: .round))
+                .frame(width: size, height: size)
+                .accessibilityLabel(button.name)
+        } else {
+            Text(text).font(Design.body(text.count > 1 ? min(15, size) : size, weight: "SemiBold"))
+        }
+    }
+}
+enum PlayStationFaceButton: String {
+    case cross = "✕", circle = "○", square = "□", triangle = "△"
+    var name: String { switch self { case .cross: "Cross"; case .circle: "Circle"; case .square: "Square"; case .triangle: "Triangle" } }
+}
+private struct PlayStationButtonShape: Shape {
+    let button: PlayStationFaceButton
+    func path(in rect: CGRect) -> Path {
+        func point(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: rect.minX + x * rect.width, y: rect.minY + y * rect.height) }
+        var path = Path()
+        switch button {
+        case .cross:
+            path.move(to: point(0.12, 0.12)); path.addLine(to: point(0.88, 0.88))
+            path.move(to: point(0.88, 0.12)); path.addLine(to: point(0.12, 0.88))
+        case .circle: path.addEllipse(in: rect.insetBy(dx: rect.width * 0.05, dy: rect.height * 0.05))
+        case .square: path.addRect(rect.insetBy(dx: rect.width * 0.12, dy: rect.height * 0.12))
+        case .triangle:
+            path.move(to: point(0.5, 0.06)); path.addLine(to: point(0.975, 0.89)); path.addLine(to: point(0.025, 0.89)); path.closeSubpath()
+        }
+        return path
     }
 }
 struct LegendItem: View {

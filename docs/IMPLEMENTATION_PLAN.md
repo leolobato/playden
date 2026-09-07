@@ -349,14 +349,16 @@ a game survives. Session completion and playtime are recorded once.
 
 Dependencies: M2–M4 services.
 
-- [ ] Replace or normalize PlayStation button glyphs so Circle and Square have comparable optical
+- [x] Replace or normalize PlayStation button glyphs so Circle and Square have comparable optical
   size and stroke weight to Cross and Triangle. Check footer hints, action buttons and focused states
   at 1080p and 4K; use consistent vector symbols rather than relying on mismatched font characters.
   Requested by the user on 7 September 2026.
-- [ ] Make cursor visibility follow the active input device: mouse movement/clicks reveal and keep
+- [x] Make cursor visibility follow the active input device: mouse movement/clicks reveal and keep
   the pointer usable; controller/keyboard navigation can hide it. Do not capture or lock the mouse
   in the launcher. Verify clicks do not immediately hide it, repeated input changes balance AppKit
   hide/unhide calls, and focus loss restores normal desktop behavior. Requested 7 September 2026.
+  Both changes implemented and checked in `docs/validation/2026-09-07-input-polish.md`; physical
+  controller/game handoff remains part of the wider TV acceptance run.
 
 - [ ] Finish first run: pairing guidance, display/volume choice, sign-in/skip, CrossOver retry and template progress.
 - [ ] Finish Home rows, empty fallback, persistent tabs/legend/download indicator and exit focus behavior.

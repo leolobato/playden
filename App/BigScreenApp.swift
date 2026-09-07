@@ -45,9 +45,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     let controller = ControllerInput()
     var window: NSWindow!
     var keyboardMonitor: Any?
+    private var mouseMonitor: Any?
     private var exitPanel: GameExitPanel?
     private let exitShortcut = GameExitShortcut()
-    private var cursorHidden = false
     private var pendingDisplayID: UInt32?
     private var resumeFullscreenAfterMove = false
 
@@ -74,6 +74,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.contentAspectRatio = NSSize(width: 16, height: 9)
         window.minSize = NSSize(width: 960, height: 540)
         window.delegate = self
+        window.acceptsMouseMovedEvents = true
         window.contentView = NSHostingView(rootView: LauncherView(model: model))
         if isSnapshot, let snapshotIndex, args.indices.contains(snapshotIndex + 1) {
             window.orderBack(nil)
@@ -105,6 +106,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             controller.onAction = { [weak self] action in
                 if case .holdHome = action, self?.model.hasActiveSession == true { self?.model.performController(action); return }
                 guard NSApp.isActive || self?.model.exitOverlay == true else { return }
+                self?.hideCursorForNavigation()
                 self?.model.performController(action)
             }
             controller.onSnapshot = { [weak self] values, time in
@@ -124,6 +126,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     if let self { result = self.handle(event) }
                 }
                 return result
+            }
+            mouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDown, .rightMouseDown, .otherMouseDown, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged, .scrollWheel]) { [weak self] event in
+                MainActor.assumeIsolated {
+                    self?.restoreCursor()
+                    self?.model.keyboardNavigation = true
+                }
+                return event
             }
         }
     }
@@ -154,11 +163,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         controller.stop()
         exitShortcut.stop()
         if let keyboardMonitor { NSEvent.removeMonitor(keyboardMonitor) }
+        if let mouseMonitor { NSEvent.removeMonitor(mouseMonitor) }
         restoreCursor()
     }
     func applicationDidResignActive(_ notification: Notification) { restoreCursor() }
     func applicationDidBecomeActive(_ notification: Notification) {
-        if !model.fixedClock && !cursorHidden { NSCursor.hide(); cursorHidden = true }
+        restoreCursor()
     }
     func applicationDidChangeScreenParameters(_ notification: Notification) { refreshDisplays() }
     private func refreshDisplays() {
@@ -230,20 +240,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         pendingDisplayID = nil; resumeFullscreenAfterMove = false
         model.show(.information("macOS could not switch the window mode. Try again from Settings → Display."))
     }
-    private func restoreCursor() { if cursorHidden { NSCursor.unhide(); cursorHidden = false } }
+    private func restoreCursor() { NSCursor.setHiddenUntilMouseMoves(false) }
+    private func hideCursorForNavigation() {
+        guard !model.fixedClock, NSApp.isActive || exitPanel?.isKeyWindow == true else { return }
+        // AppKit reveals the pointer on movement. Do not hold a hide/unhide counter across
+        // mouse input or activation changes, and never capture/warp the launcher's pointer.
+        NSCursor.setHiddenUntilMouseMoves(true)
+    }
     private func handle(_ event: NSEvent) -> NSEvent? {
         model.keyboardNavigation = true
-        if event.keyCode == 115, event.modifierFlags.contains(.shift), model.hasActiveSession { model.perform(.holdHome); return nil }
+        if event.keyCode == 115, event.modifierFlags.contains(.shift), model.hasActiveSession { hideCursorForNavigation(); model.perform(.holdHome); return nil }
         if (model.exitOverlay || model.isLaunchingGame) && event.modifierFlags.contains(.command) { return event }
         if event.modifierFlags.contains(.command) {
-            if [36, 76].contains(event.keyCode), model.isEditingText { model.finishText(); return nil }
+            if [36, 76].contains(event.keyCode), model.isEditingText { hideCursorForNavigation(); model.finishText(); return nil }
             if let digit = Int(event.charactersIgnoringModifiers ?? ""), (1...4).contains(digit) {
-                if model.panel == nil && model.authScreen == nil && model.setupScreen == nil { model.selectTab(AppTab.allCases[digit - 1]) }
+                if model.panel == nil && model.authScreen == nil && model.setupScreen == nil { hideCursorForNavigation(); model.selectTab(AppTab.allCases[digit - 1]) }
                 return nil
             }
             return event
         }
-        if !cursorHidden { NSCursor.hide(); cursorHidden = true }
         let action: InputAction?
         switch event.keyCode {
         case 48: action = event.modifierFlags.contains(.shift) ? .previousTab : .nextTab
@@ -256,11 +271,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         case 115: action = .home
         case 116: action = .previousPage
         case 121: action = .nextPage
-        case 51 where model.isEditingText: model.eraseText(); return nil
+        case 51 where model.isEditingText: hideCursorForNavigation(); model.eraseText(); return nil
         default:
             let text = event.characters ?? ""
             if model.isEditingText && !text.isEmpty && !event.modifierFlags.contains(.control) {
-                model.insertText(text); return nil
+                hideCursorForNavigation(); model.insertText(text); return nil
             }
             action = switch text.lowercased() {
             case "[": .previousTab
@@ -272,10 +287,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             default: nil
             }
         }
-        if let action { model.perform(action); return nil }
+        if let action { hideCursorForNavigation(); model.perform(action); return nil }
         return event
     }
     private func activateGame(_ gameWindow: GameWindow) {
+        restoreCursor()
         exitPanel?.orderOut(nil)
         if let app = NSRunningApplication(processIdentifier: gameWindow.process.pid) {
             // Hand over activation before lowering our window. macOS can otherwise activate
@@ -309,6 +325,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let panel = GameExitPanel(contentRect: screen.frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
             panel.isOpaque = false; panel.backgroundColor = .clear; panel.hasShadow = false
             panel.hidesOnDeactivate = false; panel.isReleasedWhenClosed = false
+            panel.acceptsMouseMovedEvents = true
             panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]; panel.level = .floating
             panel.contentView = NSHostingView(rootView: ScaledGameExitOverlay(model: model))
             exitPanel = panel
@@ -344,7 +361,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let requestedScreens: Set<String>? = arguments.firstIndex(of: "--snapshot-screens").flatMap { index in
                 arguments.indices.contains(index + 1) ? Set(arguments[index + 1].split(separator: ",").map(String.init)) : nil
             }
-            for screen in ["home", "library", "library-paged", "library-return", "game", "downloads", "downloads-queued", "settings", "settings-display", "settings-runtime", "settings-runtime-missing", "settings-runtime-busy", "collections", "keyboard", "compatibility", "uninstall", "logs", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom", "library-download-glyph", "library-download-focused", "game-unknown-size", "game-favorite", "install-offer", "install-offer-space", "install-queue", "install-game-progress", "launching", "exit-overlay", "exit-overlay-quit", "notification", "notification-focused"] {
+            for screen in ["home", "home-playstation", "library", "library-playstation", "library-paged", "library-return", "game", "downloads", "downloads-queued", "settings", "settings-display", "settings-runtime", "settings-runtime-missing", "settings-runtime-busy", "collections", "keyboard", "compatibility", "uninstall", "logs", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom", "library-download-glyph", "library-download-focused", "game-unknown-size", "game-favorite", "install-offer", "install-offer-space", "install-queue", "install-game-progress", "launching", "exit-overlay", "exit-overlay-quit", "notification", "notification-focused"] {
                 if let requestedScreens, !requestedScreens.contains(screen) { continue }
                 model.panel = nil; model.detailID = nil; model.authScreen = nil; model.setupScreen = nil
                 model.session = .init(); model.exitOverlay = false; model.controllerName = nil
@@ -380,6 +397,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     model.templateStage = screen == "setup-ready" ? .ready : .creating
                     model.setupBusy = screen == "setup-runtime"
                     if screen == "setup-error" { model.setupFailure = OperationFailure(stage: "Create template", reason: "Game setup couldn’t finish. Try again, or browse your library and set up later.", output: "Design fixture") }
+                case "home-playstation", "library-playstation":
+                    model.selectTab(screen == "home-playstation" ? .home : .library)
+                    model.controllerName = "DualShock 4"; model.playStationGlyphs = true; model.keyboardNavigation = false
                 case "library": model.selectTab(.library)
                 case "library-paged":
                     model.selectTab(.library); model.perform(.nextPage); model.perform(.nextPage)
