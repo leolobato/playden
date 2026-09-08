@@ -204,7 +204,7 @@ struct DownloadCard: View {
                 if let job {
                     HStack(spacing: 12) {
                         Text(model.downloadStatusTitle(for: job)).foregroundStyle(job.state == .failed ? Design.amber : active ? Design.accent : Design.secondary)
-                        if active && job.stage == .download { Text(model.downloadProgress(for: job).formatted(.percent.precision(.fractionLength(0)))).monospacedDigit().foregroundStyle(Design.accent) }
+                        if let percentage = model.downloadPercentage(for: job) { Text(percentage).monospacedDigit().foregroundStyle(Design.accent) }
                     }.font(Design.body(active ? 24 : 22, weight: "Medium"))
                     if !active, let failure = job.failure {
                         Text(job.stageTitle + " · " + failure.reason).font(Design.body(20)).foregroundStyle(Design.secondary).lineLimit(2)

@@ -1,21 +1,17 @@
 # Big Screen — v1 implementation plan
 
-## Current checkpoint — paused 8 September 2026
+## Current checkpoint — resumed 8 September 2026
 
-The user needs the Mac; interactive testing is paused. Big Screen and the test game are closed.
-Resume from [NEXT_SESSION_HANDOFF.md](NEXT_SESSION_HANDOFF.md), which records the current code,
-test evidence, preserved user files, dependency revision and remaining acceptance work.
+Implementation and automated verification have resumed. The earlier desktop pause is historical;
+interactive acceptance requires an available Mac. The installed app was running at this audit's
+start, so builds/tests must not replace it or control its windows without coordinating availability.
+See [NEXT_SESSION_HANDOFF.md](NEXT_SESSION_HANDOFF.md) for preservation and remaining work, and
+[the requirement audit](validation/2026-09-08-v1-requirement-audit.md) for evidence and gaps.
 
-Notifications (`f0a76d7`) and installed-drive availability (`b779c28`) are implemented and have
-app-test/native-render evidence. Launcher quit confirmation is a work-in-progress checkpoint:
-137 app tests and signed build pass, and the live confirmation appeared, but its full affirmative
-shutdown path remains unverified. Fix the consequence text being replaced by unrelated errors
-and investigate the focus warning seen in the interrupted live run. No v1 release sign-off.
-Historical milestone notes below must be read with the current handoff and validation evidence.
-
-The user subsequently resumed only the Oniken startup regression check. Play in its Windows
-launcher reached Stage 1-1 without the reported crash, confirmed by the user; the session ended
-cleanly. That acceptance item is closed. Both apps are closed again and other work remains paused.
+The checkout now includes self-contained release packaging, sign-in recovery, launch choices,
+download-size caching, and download/resume verification progress. The historical unchecked
+milestones below are not a list of wholly missing features. Launcher quit confirmation still needs
+the complete live cancel/confirm shutdown check. No v1 release sign-off.
 
 Written 2026-09-07 following review of [the PRD](prd/README.md), the sibling Swift implementation,
 and the installed CrossOver command-line help. This is an implementation proposal, not evidence
@@ -114,7 +110,7 @@ M1; record any changed product decision explicitly rather than silently reducing
 | Input modes | Separate launcher, game, and exit-overlay modes. The overlay accepts navigation and confirmation while a game runs. In game mode, short PS is ignored; PS-hold opens the exit overlay. | FR-IN-3, FR-INGAME-1/2 |
 | Download resume | Implement persistent chunk resume as written in the PRD. Existing SteamCore only resumes completed files. Completed-file resume is a possible scope reduction, not the planned acceptance bar. | FR-INST-3/6 |
 | Verification | Verify depot originals before modifications. Track modified files and validate staging separately. Repair uses the installed manifest and reapplies staging. | FR-INST-8/9 |
-| Launch delay | After a configurable launch threshold, show a recoverable delayed-launch state with Keep waiting, Stop, and View logs. Do not infer a crash solely from elapsed time. Start with 60 seconds and tune against verified titles. | FR-LAUNCH-2/3, FR-FAIL-1 |
+| Launch delay | Reconciled 8 September against the retained PRD and adopted design: keep the launching spinner until a relevant game window or observed failure, with the exit overlay as the escape hatch. The earlier 60-second Keep waiting/Stop/View logs proposal is not adopted. Never infer a crash from elapsed time. | FR-LAUNCH-2/3, FR-FAIL-1 |
 | Return destination | Return to Home after game exit; retain the just-played tile as focus when visible, otherwise use the normal Home fallback. Launch failures return to the game page. | FR-HOME-1, FR-EXIT-1 |
 | Empty Home | Show a focused Browse library action, or Sign in when appropriate, if no rows have content. | FR-HOME-1/2, FR-DONE-1 |
 | Save retention | Deferred to a future version by the user. v1 uninstall explains local save deletion and resolves pending Cloud uploads before removal; reinstall restores synchronized saves from Cloud. No Keep saves option in v1. | FR-UN-1/2/4 |
@@ -212,7 +208,7 @@ Publish a single derived presentation snapshot for each game; all screens use th
 | Failed install/repair | Retry and View logs; play availability depends on validated install state |
 | Installed and available | Play |
 | Drive disconnected | Reconnect drive; Play disabled |
-| Launching/delayed launch | Launch status and Stop; delayed state also offers Keep waiting |
+| Launching | Indefinite launch status with the exit overlay available to stop; observed failures offer recovery/logs |
 | Running | Return to game |
 | Uninstalling | Removal progress; Play disabled |
 
@@ -350,7 +346,7 @@ different metadata/auth/capability behavior through the same pipeline, not just 
 Dependencies: M3; M0 process/input validation.
 
 - [ ] Implement Sessions orchestration, installed-state checks, missing-bottle recovery and offline launch.
-- [ ] Implement launch/delayed/error states, window handoff, exit overlay, graceful/forced stop and Home return.
+- [ ] Implement launch/error states and indefinite no-window waiting with an exit escape hatch, window handoff, exit overlay, graceful/forced stop and Home return.
   Automatic keyboard focus after startup-window replacement, exit overlay Return, subsequent
   game input and clean Home return passed with A Short Hike on 8 September. Physical DS4/TV
   acceptance remains open. See [focus handoff evidence](validation/2026-09-08-game-focus-handoff.md).
@@ -434,7 +430,7 @@ Dependencies: M0–M5 gates passed.
   libraries contain no Homebrew paths. See [minimal-environment evidence](validation/2026-09-08-minimal-environment.md).
 - [ ] Check every v1 requirement against its implementation and evidence; unresolved items are recorded failures or
   explicit scope decisions, not silently marked complete.
-- [ ] Document build/run instructions, required sibling commit, CrossOver/system setup, supported-title results,
+- [ ] Document build/run instructions, in-repository SteamKit provenance, CrossOver/system setup, supported-title results,
   known limitations and recovery steps. Prove the v1 cloud-save gates separately; do not claim updates or general game compatibility.
 - [x] Write an end-user README: verified v1 feature list, setup and first launch, CrossOver
   requirements/focus, known limitations, and the v2 roadmap (optional native macOS versions and
@@ -442,7 +438,7 @@ Dependencies: M0–M5 gates passed.
   stores without promising those broader integrations for v2. Requested 8 September 2026.
   Written with an actual sample-library capture, player controls, Cloud/uninstall behavior and
   explicit remaining acceptance limits. Developer instructions moved to `docs/DEVELOPMENT.md`,
-  including the required sibling revision. Keep both current through final acceptance.
+  including in-repository SteamKit provenance. Keep both current through final acceptance.
 
 Gate: README's corrected MVP bar and all retained v1 requirements pass. A skipped CrossOver integration
 test on a machine without CrossOver cannot satisfy the real-platform release gate.

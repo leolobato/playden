@@ -24,6 +24,31 @@ final class DownloadTransferTests: XCTestCase {
         XCTAssertEqual(model.downloadProgress(for: job), 0.25)
         XCTAssertEqual(model.downloadBytesLabel(for: job), job.bytesLabel)
     }
+    @MainActor func testFinalVerificationUsesCheckedBytesAndPercentageInsteadOfCompletedDownload() {
+        let model = LibraryModel(preview: false)
+        var job = JobRecord(gameID: .init(source: "fake", value: "test"))
+        job.state = .running; job.bytesCompleted = 1000; job.bytesTotal = 1000
+        model.activeInstallID = job.id
+        for stage in [JobStage.verifyOriginals, .validate] {
+            job.stage = stage; model.installTransfer = nil
+            XCTAssertNil(model.downloadPercentage(for: job))
+            XCTAssertEqual(model.downloadProgress(for: job), 0)
+            XCTAssertEqual(model.downloadBytesLabel(for: job), "Checking files…")
+            model.installTransfer = .init(bytesPerSecond: 0, secondsRemaining: nil,
+                verification: .init(file: "large.bdt", bytesChecked: 500, bytesTotal: 1000, scope: .installation))
+            XCTAssertEqual(model.downloadStatusTitle(for: job), "Verifying files")
+            XCTAssertEqual(model.downloadPercentage(for: job), "50%")
+            XCTAssertEqual(model.downloadProgress(for: job), 0.5)
+            XCTAssertTrue(model.downloadBytesLabel(for: job).hasSuffix(" checked"))
+            XCTAssertNil(model.transferLabel(for: job))
+            model.installTransfer = .init(bytesPerSecond: 0, secondsRemaining: nil,
+                verification: .init(file: "large.bdt", bytesChecked: 999, bytesTotal: 1000, scope: .installation))
+            XCTAssertEqual(model.downloadPercentage(for: job), "99%")
+        }
+        job.state = .paused
+        XCTAssertNil(model.downloadPercentage(for: job))
+        XCTAssertNil(model.fileVerification(for: job))
+    }
     @MainActor func testRateOnlyAppearsForTheActiveDownloadingInvocation() {
         let model = LibraryModel(preview: false)
         var job = JobRecord(gameID: .init(source: "fake", value: "test"))

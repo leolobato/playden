@@ -62,9 +62,17 @@ struct GameExitOverlay: View {
                         model.isConfirmingLauncherQuit ? model.confirmLauncherQuit() : model.quitGame()
                     }
                 }
-                Text(model.sessionIssue?.reason ?? (model.isConfirmingLauncherQuit ? "This closes the game and Big Screen. Unsaved progress may be lost. Downloads pause so you can resume them later." : "Quit asks the game to close first and forces it after 10 seconds. Unsaved progress may be lost."))
-                    .font(Design.body(21)).foregroundStyle(model.sessionIssue == nil ? Design.muted : Design.amber)
+                Text(model.isConfirmingLauncherQuit ? "This closes the game and Big Screen. Unsaved progress may be lost. Downloads pause so you can resume them later." : "Quit asks the game to close first and forces it after 10 seconds. Unsaved progress may be lost.")
+                    .font(Design.body(21)).foregroundStyle(Design.muted)
                     .lineSpacing(5).multilineTextAlignment(.center).frame(maxWidth: .infinity)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let issue = model.sessionIssue {
+                    // Bound diagnostic text so the consequence and both actions stay on screen.
+                    // The complete failure remains available in the session log.
+                    Text(issue.reason).font(Design.body(21)).foregroundStyle(Design.amber)
+                        .lineSpacing(5).lineLimit(6).multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                }
             }.padding(44).frame(width: 810)
                 .background(Design.panel, in: RoundedRectangle(cornerRadius: 12))
                 .overlay(RoundedRectangle(cornerRadius: 12).stroke(Design.text.opacity(0.12), lineWidth: 1))

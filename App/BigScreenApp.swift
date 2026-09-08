@@ -23,11 +23,15 @@ struct BigScreenApp {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     let model: LibraryModel
+    private static var isTestProcess: Bool {
+        let args = ProcessInfo.processInfo.arguments
+        return ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil ||
+            args.contains("-XCTest") || args.contains("-NSTreatUnknownArgumentsAsOpen")
+    }
     override init() {
         let args = ProcessInfo.processInfo.arguments
-        let isTest = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil || args.contains("-XCTest") || args.contains("-NSTreatUnknownArgumentsAsOpen")
         // Keep tests and visual fixtures deterministic and separate from the interactive profile.
-        if args.contains("--snapshot") || args.contains("--cloud-read-check") || args.contains("--diagnose-install") || isTest { model = LibraryModel() }
+        if args.contains("--snapshot") || args.contains("--cloud-read-check") || args.contains("--diagnose-install") || Self.isTestProcess { model = LibraryModel() }
         else {
             let preview = args.contains("--preview")
             do {
@@ -56,6 +60,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var resumeFullscreenAfterMove = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if Self.isTestProcess {
+            NSApp.setActivationPolicy(.prohibited)
+            Design.registerFonts()
+            return
+        }
         let args = ProcessInfo.processInfo.arguments
         if let index = args.firstIndex(of: "--diagnose-install") {
             NSApp.setActivationPolicy(.prohibited)
@@ -173,7 +182,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }
         }
     }
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { !Self.isTestProcess }
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         guard model.hasActiveSession else { return true }
         NSApp.terminate(nil)
@@ -433,7 +442,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let requestedScreens: Set<String>? = arguments.firstIndex(of: "--snapshot-screens").flatMap { index in
                 arguments.indices.contains(index + 1) ? Set(arguments[index + 1].split(separator: ",").map(String.init)) : nil
             }
-            for screen in ["launch-options", "launcher-quit", "launcher-quitting", "game-drive-disconnected", "game-drive-checking", "context-drive-disconnected", "library-drive-disconnected", "toast-complete", "toast-failed", "toast-connected", "toast-disconnected", "uninstall-confirm", "uninstall-unsynced", "uninstall-checking", "cloud-ready", "cloud-conflict", "cloud-account", "cloud-pending", "cloud-syncing", "cloud-recovery", "home", "home-tabs", "home-library-card", "home-playstation", "home-large-library", "home-large-library-end", "home-collection-end", "library-large", "library-large-end", "library", "library-playstation", "library-paged", "library-return", "game", "game-status-clean", "game-status-crash", "library-running", "context-uninstall", "downloads", "downloads-queued", "settings", "settings-about", "settings-reset", "settings-reset-blocked", "settings-reset-error", "settings-reset-busy", "settings-display", "settings-runtime", "settings-runtime-missing", "settings-runtime-busy", "collections", "keyboard", "keyboard-playstation", "keyboard-generic", "keyboard-space", "keyboard-long", "compatibility", "uninstall", "logs", "logs-retry", "logs-long", "logs-long-end", "logs-long-return", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom", "library-download-glyph", "library-download-focused", "library-artwork-fallback", "game-unknown-size", "game-favorite", "install-offer", "install-offer-space", "install-queue", "install-verifying", "install-history-failed", "install-history-completed", "install-mini-progress", "install-storage-shortage", "install-storage-unavailable", "install-game-progress", "launching", "exit-overlay", "exit-overlay-quit", "notification", "notification-focused"] {
+            for screen in ["launch-options", "launcher-quit", "launcher-quit-warning", "exit-overlay-warning", "launcher-quitting", "game-drive-disconnected", "game-drive-checking", "context-drive-disconnected", "library-drive-disconnected", "toast-complete", "toast-failed", "toast-connected", "toast-disconnected", "uninstall-confirm", "uninstall-unsynced", "uninstall-checking", "cloud-ready", "cloud-conflict", "cloud-account", "cloud-pending", "cloud-syncing", "cloud-recovery", "home", "home-tabs", "home-library-card", "home-playstation", "home-large-library", "home-large-library-end", "home-collection-end", "library-large", "library-large-end", "library", "library-playstation", "library-paged", "library-return", "game", "game-status-clean", "game-status-crash", "library-running", "context-uninstall", "downloads", "downloads-queued", "settings", "settings-about", "settings-reset", "settings-reset-blocked", "settings-reset-error", "settings-reset-busy", "settings-display", "settings-runtime", "settings-runtime-missing", "settings-runtime-busy", "collections", "keyboard", "keyboard-playstation", "keyboard-generic", "keyboard-space", "keyboard-long", "compatibility", "uninstall", "logs", "logs-retry", "logs-long", "logs-long-end", "logs-long-return", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom", "library-download-glyph", "library-download-focused", "library-artwork-fallback", "game-unknown-size", "game-favorite", "install-offer", "install-offer-space", "install-queue", "install-verifying", "install-verifying-all", "install-history-failed", "install-history-completed", "install-mini-progress", "install-storage-shortage", "install-storage-unavailable", "install-game-progress", "launching", "exit-overlay", "exit-overlay-quit", "notification", "notification-focused"] {
                 if let requestedScreens, !requestedScreens.contains(screen) { continue }
                 // Keep each capture independent of the requested screen order.
                 let model = LibraryModel()
@@ -487,7 +496,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 case "game-status-clean", "game-status-crash", "library-running", "context-uninstall": model.configureGameStatusSnapshot(screen)
                 case "uninstall-confirm", "uninstall-unsynced", "uninstall-checking": model.configureUninstallSnapshot(screen)
                 case "cloud-ready", "cloud-conflict", "cloud-account", "cloud-pending", "cloud-syncing", "cloud-recovery": model.configureCloudSnapshot(screen)
-                case "launcher-quit", "launcher-quitting", "launching", "exit-overlay", "exit-overlay-quit", "notification", "notification-focused": model.configureSessionSnapshot(screen)
+                case "launcher-quit", "launcher-quit-warning", "exit-overlay-warning", "launcher-quitting", "launching", "exit-overlay", "exit-overlay-quit", "notification", "notification-focused": model.configureSessionSnapshot(screen)
                 case "library-download-glyph", "library-download-focused":
                     model.selectTab(.library); model.filter = .all
                     if let index = model.games.firstIndex(where: { $0.title == "Disco Elysium" }) { model.games[index].status = .notInstalled }

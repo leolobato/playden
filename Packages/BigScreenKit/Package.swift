@@ -5,6 +5,7 @@ let package = Package(
     name: "BigScreenKit",
     platforms: [.macOS(.v15)],
     products: [
+        .library(name: "Artwork", targets: ["Artwork"]),
         .library(name: "Domain", targets: ["Domain"]),
         .library(name: "Focus", targets: ["Focus"]),
         .library(name: "Input", targets: ["Input"]),
@@ -20,6 +21,8 @@ let package = Package(
         .package(url: "https://github.com/groue/GRDB.swift.git", exact: "7.11.1"),
     ],
     targets: [
+        .target(name: "Artwork"),
+        .testTarget(name: "ArtworkTests", dependencies: ["Artwork"]),
         .target(name: "Domain"),
         .target(name: "Sessions", dependencies: ["Domain", "Catalog", "Installs"]),
         .testTarget(name: "SessionsTests", dependencies: ["Sessions", "Domain", "Catalog"]),

@@ -44,7 +44,9 @@ public final class ControllerInput {
             onConnection?(controller?.vendorName, controller?.extendedGamepad is GCDualShockGamepad || controller?.extendedGamepad is GCDualSenseGamepad)
         }
         guard let pad = controller?.extendedGamepad else { return }
-        if homeHold.update(pressed: pad.buttonHome?.isPressed == true, at: now) { onAction?(.holdHome) }
+        if let event = homeHold.event(pressed: pad.buttonHome?.isPressed == true, at: now) {
+            onAction?(event == .hold ? .holdHome : .home)
+        }
         let dpad = DirectionRepeater.direction(x: pad.dpad.xAxis.value, y: pad.dpad.yAxis.value)
         let stick = DirectionRepeater.direction(x: pad.leftThumbstick.xAxis.value, y: pad.leftThumbstick.yAxis.value)
         if let direction = repeater.update(dpad ?? stick, at: ProcessInfo.processInfo.systemUptime) {
@@ -53,7 +55,7 @@ public final class ControllerInput {
         let buttons: [(String, GCControllerButtonInput?, InputAction)] = [
             ("confirm", pad.buttonA, .confirm), ("back", pad.buttonB, .back),
             ("context", pad.buttonY, .context), ("favorite", pad.buttonX, .favorite),
-            ("options", pad.buttonMenu, .options), ("home", pad.buttonHome, .home),
+            ("options", pad.buttonMenu, .options),
             ("previousTab", pad.leftShoulder, .previousTab), ("nextTab", pad.rightShoulder, .nextTab),
             ("previousPage", pad.leftTrigger, .previousPage), ("nextPage", pad.rightTrigger, .nextPage),
             ("search", (pad as? GCDualShockGamepad)?.touchpadButton ?? (pad as? GCDualSenseGamepad)?.touchpadButton ?? pad.buttonOptions, .search),

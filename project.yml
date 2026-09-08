@@ -34,6 +34,8 @@ targets:
           - '$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Licenses/zstd.txt'
     dependencies:
       - package: BigScreenKit
+        product: Artwork
+      - package: BigScreenKit
         product: Domain
       - package: BigScreenKit
         product: Focus

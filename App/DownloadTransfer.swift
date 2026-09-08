@@ -3,17 +3,29 @@ import Domain
 
 extension LibraryModel {
     func fileVerification(for job: JobRecord) -> InstallFileVerification? {
-        guard job.id == activeInstallID, job.state == .running, job.stage == .download else { return nil }
+        guard job.id == activeInstallID, job.state == .running, [.download, .verifyOriginals, .validate].contains(job.stage) else { return nil }
         return installTransfer?.verification
     }
     func downloadStatusTitle(for job: JobRecord) -> String {
-        fileVerification(for: job) == nil ? job.statusTitle : "Verifying file"
+        guard let check = fileVerification(for: job) else { return job.statusTitle }
+        return check.scope == .installation ? "Verifying files" : "Verifying file"
     }
     func downloadProgress(for job: JobRecord) -> Double {
-        fileVerification(for: job)?.fraction ?? job.displayProgress
+        if let check = fileVerification(for: job) { return check.fraction }
+        return job.state == .running && [.verifyOriginals, .validate].contains(job.stage) ? 0 : job.displayProgress
+    }
+    func downloadPercentage(for job: JobRecord) -> String? {
+        guard job.id == activeInstallID, job.state == .running else { return nil }
+        if let check = fileVerification(for: job) {
+            guard check.bytesTotal > 0 else { return nil }
+        } else if job.stage != .download { return nil }
+        // Do not round an unfinished verification up to 100%.
+        return (floor(downloadProgress(for: job) * 100) / 100).formatted(.percent.precision(.fractionLength(0)))
     }
     func downloadBytesLabel(for job: JobRecord) -> String {
-        guard let check = fileVerification(for: job) else { return job.bytesLabel }
+        guard let check = fileVerification(for: job) else {
+            return job.state == .running && [.verifyOriginals, .validate].contains(job.stage) ? "Checking files…" : job.bytesLabel
+        }
         let formatter = ByteCountFormatter(); formatter.countStyle = .file; formatter.allowsNonnumericFormatting = false
         return formatter.string(fromByteCount: check.bytesChecked) + " of "
             + formatter.string(fromByteCount: check.bytesTotal) + " checked"

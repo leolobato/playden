@@ -44,6 +44,13 @@ import Installs
                 model.installTransfer = .init(bytesPerSecond: 0, secondsRemaining: nil,
                     verification: .init(file: active.currentFile!, bytesChecked: 900_000_000, bytesTotal: 1_500_000_000))
             }
+            if screen == "install-verifying-all" {
+                model.installJobs[0].stage = .verifyOriginals
+                model.installJobs[0].bytesCompleted = plan.estimate.installedBytes
+                model.installTransfer = .init(bytesPerSecond: 0, secondsRemaining: nil,
+                    verification: .init(file: "Game/Data0.bdt", bytesChecked: 1_750_000_000,
+                        bytesTotal: plan.estimate.installedBytes, scope: .installation))
+            }
             if screen == "install-game-progress" { model.openGame(model.games.first { $0.id == game.id }!) }
             else if screen == "install-mini-progress" { model.selectTab(.library) }
             else { model.selectTab(.downloads) }

@@ -31,13 +31,15 @@ public struct InstallPlan: Codable, Equatable, Sendable, Identifiable {
         self.launchOptions = launchOptions
     }
 }
-/// Ephemeral progress reading one file; never counted as downloaded or written bytes.
+/// Ephemeral disk-check progress; never counted as downloaded or written bytes.
 public struct InstallFileVerification: Equatable, Sendable {
+    public enum Scope: Sendable { case file, installation }
+    public let scope: Scope
     public let file: String
     public let bytesChecked: Int64
     public let bytesTotal: Int64
-    public init(file: String, bytesChecked: Int64, bytesTotal: Int64) {
-        self.file = file; self.bytesChecked = bytesChecked; self.bytesTotal = bytesTotal
+    public init(file: String, bytesChecked: Int64, bytesTotal: Int64, scope: Scope = .file) {
+        self.scope = scope; self.file = file; self.bytesChecked = bytesChecked; self.bytesTotal = bytesTotal
     }
     public var fraction: Double { bytesTotal > 0 ? min(1, max(0, Double(bytesChecked) / Double(bytesTotal))) : 0 }
 }
@@ -86,17 +88,29 @@ public protocol Installer: Sendable {
     func download(_ plan: InstallPlan, to directory: URL,
                   progress: @escaping @Sendable (InstallProgress) -> Void) async throws
     func verifyOriginals(_ plan: InstallPlan, at directory: URL, staging: InstallStaging?) async throws -> VerificationResult
+    func verifyOriginals(_ plan: InstallPlan, at directory: URL, staging: InstallStaging?,
+        progress: @escaping @Sendable (InstallFileVerification) -> Void) async throws -> VerificationResult
     func repair(_ plan: InstallPlan, at directory: URL, staging: InstallStaging?,
                 progress: @escaping @Sendable (InstallProgress) -> Void) async throws
     func postInstall(_ plan: InstallPlan, at directory: URL) async throws -> InstallStaging
     func preparePrerequisites(_ plan: InstallPlan, at directory: URL, in bottle: GameBottle) async throws
     func postInstall(_ plan: InstallPlan, at directory: URL, in bottle: GameBottle) async throws -> InstallStaging
     func validate(_ plan: InstallPlan, at directory: URL, staging: InstallStaging) async throws -> LaunchSpec
+    func validate(_ plan: InstallPlan, at directory: URL, staging: InstallStaging,
+        progress: @escaping @Sendable (InstallFileVerification) -> Void) async throws -> LaunchSpec
     func saveMapping(_ plan: InstallPlan) throws -> SaveMapping
     /// Source-side cleanup only. Removing the owned game directory/bottle is the orchestrator's job.
     func uninstall(_ plan: InstallPlan, at directory: URL) async throws
 }
 public extension Installer {
+    func validate(_ plan: InstallPlan, at directory: URL, staging: InstallStaging,
+        progress: @escaping @Sendable (InstallFileVerification) -> Void) async throws -> LaunchSpec {
+        try await validate(plan, at: directory, staging: staging)
+    }
+    func verifyOriginals(_ plan: InstallPlan, at directory: URL, staging: InstallStaging?,
+        progress: @escaping @Sendable (InstallFileVerification) -> Void) async throws -> VerificationResult {
+        try await verifyOriginals(plan, at: directory, staging: staging)
+    }
     func launchOptions(_ plan: InstallPlan) throws -> [LaunchOption] { plan.launchOptions ?? [] }
     func preparePrerequisites(_ plan: InstallPlan, at directory: URL, in bottle: GameBottle) async throws {}
     func postInstall(_ plan: InstallPlan, at directory: URL, in bottle: GameBottle) async throws -> InstallStaging {

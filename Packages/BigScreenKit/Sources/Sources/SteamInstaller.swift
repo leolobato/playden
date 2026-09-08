@@ -25,9 +25,16 @@ public struct SteamInstaller: Installer {
         try await backend.download(SteamPlanBuilder.payload(plan, for: gameID), to: directory, progress: progress)
     }
     public func verifyOriginals(_ plan: InstallPlan, at directory: URL, staging: InstallStaging?) async throws -> VerificationResult {
+        try await verifyOriginals(plan, at: directory, staging: staging, progress: { _ in })
+    }
+    public func verifyOriginals(_ plan: InstallPlan, at directory: URL, staging: InstallStaging?,
+        progress: @escaping @Sendable (InstallFileVerification) -> Void) async throws -> VerificationResult {
         let payload = try SteamPlanBuilder.payload(plan, for: gameID)
         let replacements = try replacements(staging ?? InstallStaging(), payload: payload)
+        let total = try verificationBytes(payload)
+        var completed: Int64 = 0
         var invalid: [String] = []
+        progress(.init(file: "", bytesChecked: 0, bytesTotal: total, scope: .installation))
         for manifest in payload.manifests {
             try Task.checkCancellation()
             let mapped = try manifest.files.map { file in
@@ -35,7 +42,12 @@ public struct SteamInstaller: Installer {
                 return DepotManifest.File(path: replacements[path] ?? path, size: file.size, flags: file.flags,
                     linkTarget: file.linkTarget, chunks: file.chunks, contentSHA1: file.contentSHA1)
             }
-            let result = try ResumableDepotDownload(destination: directory).invalidFiles(in: DepotManifest(depotID: manifest.depotID, gid: manifest.gid, files: mapped, totalSize: manifest.totalSize))
+            let result = try ResumableDepotDownload(destination: directory).invalidFiles(in: DepotManifest(depotID: manifest.depotID, gid: manifest.gid, files: mapped, totalSize: manifest.totalSize)) { file, checked, _ in
+                progress(.init(file: replacements.first(where: { $0.value == file })?.key ?? file,
+                    bytesChecked: completed + Int64(checked), bytesTotal: total, scope: .installation))
+            }
+            completed += mapped.filter { !$0.isDirectory && !$0.isSymlink }.reduce(Int64(0)) { $0 + Int64($1.size) }
+            progress(.init(file: "", bytesChecked: completed, bytesTotal: total, scope: .installation))
             invalid += result.map { path in replacements.first(where: { $0.value == path })?.key ?? path }
         }
         return VerificationResult(invalidFiles: invalid)
@@ -139,17 +151,37 @@ public struct SteamInstaller: Installer {
             ownedApps: Set(payload.ownedDLC + [payload.app.appID]))
     }
     public func validate(_ plan: InstallPlan, at directory: URL, staging: InstallStaging) async throws -> LaunchSpec {
+        try await validate(plan, at: directory, staging: staging, progress: { _ in })
+    }
+    public func validate(_ plan: InstallPlan, at directory: URL, staging: InstallStaging,
+        progress: @escaping @Sendable (InstallFileVerification) -> Void) async throws -> LaunchSpec {
         let payload = try SteamPlanBuilder.payload(plan, for: gameID)
         try rejectLinks(in: directory)
         let apis = Set(try apiPaths(payload)), executables = Set(try executablePaths(payload)), changed = Set(staging.mutations.map(\.relativePath))
         guard apis.isSubset(of: changed), changed.isSubset(of: apis.union(executables)) else {
             throw SteamPlanBuilder.failure("Verify", "Game preparation is incomplete.")
         }
-        let verification = try await verifyOriginals(plan, at: directory, staging: staging)
-        guard verification.isValid else { throw SteamPlanBuilder.failure("Verify", "Some game files are missing or damaged. Verify files to repair them.") }
-        for mutation in staging.mutations {
+        let originalBytes = try verificationBytes(payload)
+        let mutationSizes = try staging.mutations.map { mutation in
             let path = try SteamPlanBuilder.relativePath(mutation.relativePath)
-            guard try digest(directory.appendingPathComponent(path)) == mutation.stagedSHA256 else { throw SteamPlanBuilder.failure("Verify", "A prepared game file changed unexpectedly.") }
+            return Int64(try directory.appendingPathComponent(path).resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0)
+        }
+        let total = try mutationSizes.reduce(originalBytes) { sum, size in
+            let result = sum.addingReportingOverflow(size)
+            guard !result.overflow else { throw SteamPlanBuilder.failure("Verify", "The verification size is too large.") }
+            return result.partialValue
+        }
+        let verification = try await verifyOriginals(plan, at: directory, staging: staging) { check in
+            progress(.init(file: check.file, bytesChecked: check.bytesChecked, bytesTotal: total, scope: .installation))
+        }
+        guard verification.isValid else { throw SteamPlanBuilder.failure("Verify", "Some game files are missing or damaged. Verify files to repair them.") }
+        var completed = originalBytes
+        for (index, mutation) in staging.mutations.enumerated() {
+            let path = try SteamPlanBuilder.relativePath(mutation.relativePath)
+            guard try digest(directory.appendingPathComponent(path), progress: { checked in
+                progress(.init(file: path, bytesChecked: completed + min(checked, mutationSizes[index]), bytesTotal: total, scope: .installation))
+            }) == mutation.stagedSHA256 else { throw SteamPlanBuilder.failure("Verify", "A prepared game file changed unexpectedly.") }
+            completed += mutationSizes[index]
             if executables.contains(path) {
                 let original = try PEInspector.inspect(directory.appendingPathComponent(mutation.originalRelativePath))
                 let prepared = try PEInspector.inspect(directory.appendingPathComponent(path))
@@ -177,14 +209,28 @@ public struct SteamInstaller: Installer {
         // Steam has no separate source-side uninstall operation; the owned directory is removed by
         // Installs only after save retention, and the app's cached plan is deleted transactionally.
     }
-    private func digest(_ url: URL) throws -> Data {
+    private func verificationBytes(_ payload: SteamInstallPayload) throws -> Int64 {
+        try payload.manifests.reduce(Int64(0)) { sum, manifest in
+            try ResumableDepotDownload.validateManifest(manifest)
+            return try manifest.files.filter { !$0.isDirectory && !$0.isSymlink }.reduce(sum) { sum, file in
+                let next = sum.addingReportingOverflow(Int64(file.size))
+                guard !next.overflow else { throw SteamPlanBuilder.failure("Verify", "The verification size is too large.") }
+                return next.partialValue
+            }
+        }
+    }
+    private func digest(_ url: URL, progress: (Int64) -> Void = { _ in }) throws -> Data {
         let handle = try FileHandle(forReadingFrom: url); defer { try? handle.close() }
-        var hash = SHA256()
+        var hash = SHA256(), checked: Int64 = 0
+        var lastReport = ContinuousClock.now
+        progress(0)
         while true {
             try Task.checkCancellation()
             guard let bytes = try handle.read(upToCount: 1024 * 1024), !bytes.isEmpty else { break }
-            hash.update(data: bytes)
+            hash.update(data: bytes); checked += Int64(bytes.count)
+            if lastReport.duration(to: .now) >= .milliseconds(250) { progress(checked); lastReport = .now }
         }
+        progress(checked)
         return Data(hash.finalize())
     }
     private func apiPaths(_ payload: SteamInstallPayload) throws -> [String] {

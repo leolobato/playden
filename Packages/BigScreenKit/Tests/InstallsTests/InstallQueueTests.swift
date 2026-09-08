@@ -25,6 +25,11 @@ private actor OfflineContent {
     var held = Set<String>()
     var failures = Set<String>()
     var verificationFixture = false
+    var stageVerificationFixture = false
+    var verificationReports: [String: @Sendable (InstallFileVerification) -> Void] = [:]
+    func enableStageVerificationFixture() { stageVerificationFixture = true }
+    func saveReport(_ key: String, report: @escaping @Sendable (InstallFileVerification) -> Void) { verificationReports[key] = report }
+    func sendLateReport(_ key: String) { verificationReports[key]?(.init(file: "old", bytesChecked: 7, bytesTotal: 8, scope: .installation)) }
     func enableVerificationFixture() { verificationFixture = true }
     func hold(_ id: String) { held.insert(id) }
     func release(_ id: String) { held.remove(id) }
@@ -71,6 +76,23 @@ private struct OfflineInstaller: Installer {
     func verifyOriginals(_ plan: InstallPlan, at directory: URL, staging: InstallStaging?) async throws -> VerificationResult {
         try await content.record("verify:" + gameID.value)
         return .init(invalidFiles: (try? Data(contentsOf: directory.appendingPathComponent("game.exe"))) == Data("complete".utf8) ? [] : ["game.exe"])
+    }
+    func verifyOriginals(_ plan: InstallPlan, at directory: URL, staging: InstallStaging?,
+                         progress: @escaping @Sendable (InstallFileVerification) -> Void) async throws -> VerificationResult {
+        if await content.stageVerificationFixture {
+            await content.saveReport("verify", report: progress)
+            progress(.init(file: "game.exe", bytesChecked: 2, bytesTotal: 8, scope: .installation))
+            try await content.wait("verify:" + gameID.value)
+        }
+        return try await verifyOriginals(plan, at: directory, staging: staging)
+    }
+    func validate(_ plan: InstallPlan, at directory: URL, staging: InstallStaging,
+                  progress: @escaping @Sendable (InstallFileVerification) -> Void) async throws -> LaunchSpec {
+        if await content.stageVerificationFixture {
+            progress(.init(file: "game.exe", bytesChecked: 4, bytesTotal: 8, scope: .installation))
+            try await content.wait("validate:" + gameID.value)
+        }
+        return try await validate(plan, at: directory, staging: staging)
     }
     func postInstall(_ plan: InstallPlan, at directory: URL) async throws -> InstallStaging {
         try await content.record("stage:" + gameID.value)
@@ -196,12 +218,14 @@ final class InstallQueueTests: XCTestCase {
     }
     private func game(_ id: String) -> SourceGameRecord { .init(id: GameID(source: "offlinefixture", value: id), title: id) }
     private func waitFor(_ queue: InstallQueue, jobID: UUID, state: JobState, file: StaticString = #filePath, line: UInt = #line) async throws -> JobRecord {
-        let limit = Date().addingTimeInterval(5)
-        while Date() < limit {
+        let limit = ContinuousClock.now.advanced(by: .seconds(5))
+        while ContinuousClock.now < limit {
             if let value = await queue.snapshot().jobs.first(where: { $0.id == jobID && $0.state == state }) { return value }
             try await Task.sleep(for: .milliseconds(10))
         }
         let value = await queue.snapshot().jobs.first { $0.id == jobID }
+        // A completion can arrive while the polling task is suspended at its deadline.
+        if let value, value.state == state { return value }
         XCTFail("Expected \(state), got \(String(describing: value?.state)); \(value?.failure?.reason ?? "")", file: file, line: line)
         throw SourceFailure.unavailable
     }
@@ -223,6 +247,35 @@ final class InstallQueueTests: XCTestCase {
         _ = try await waitFor(queue, jobID: id, state: .paused)
         let paused = await queue.snapshot()
         XCTAssertNil(paused.transfer)
+        await queue.shutdown()
+    }
+    func testStageVerificationIsEphemeralAndRejectsCallbacksFromPreviousStage() async throws {
+        let root = try root(), catalog = try CatalogStore(), content = OfflineContent(), volumes = FixtureVolumes(root: root)
+        await content.enableStageVerificationFixture()
+        await content.hold("verify:checks"); await content.hold("validate:checks")
+        let queue = try InstallQueue(catalog: catalog, sources: [OfflineSource(content: content)], storage: InstallStorage(volumes: volumes), bottles: FixtureBottles())
+        let id = try await queue.enqueue(queue.offer(for: game("checks"), volume: volumes.selection))
+        try await queue.start()
+        for (stage, fraction) in [(JobStage.verifyOriginals, 0.25), (.validate, 0.5)] {
+            let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+            while ContinuousClock.now < deadline {
+                let snapshot = await queue.snapshot()
+                if snapshot.jobs.first?.stage == stage, snapshot.transfer?.verification?.fraction == fraction { break }
+                try await Task.sleep(for: .milliseconds(10))
+            }
+            let snapshot = await queue.snapshot()
+            XCTAssertEqual(snapshot.jobs.first?.stage, stage)
+            XCTAssertEqual(snapshot.transfer?.verification?.fraction, fraction)
+            XCTAssertEqual(snapshot.jobs.first?.bytesCompleted, 8, "Checking must not overwrite downloaded byte counts")
+            if stage == .verifyOriginals { await content.release("verify:checks") }
+        }
+        await content.sendLateReport("verify")
+        try await Task.sleep(for: .milliseconds(30))
+        let afterLate = await queue.snapshot()
+        XCTAssertEqual(afterLate.transfer?.verification?.fraction, 0.5)
+        try await queue.setPaused(true, jobID: id)
+        _ = try await waitFor(queue, jobID: id, state: .paused)
+        let paused = await queue.snapshot(); XCTAssertNil(paused.transfer)
         await queue.shutdown()
     }
     func testOfflineSourceCompletesUnchangedPipelineAndCommitsInstallation() async throws {

@@ -153,6 +153,29 @@ final class SteamInstallerTests: XCTestCase {
             launchSpec: original.launchSpec, sourcePayload: try JSONEncoder().encode(wrongTotal))
         XCTAssertThrowsError(try SteamPlanBuilder.payload(oversized, for: game.id))
     }
+    func testVerificationProgressSpansDepotsAndPreparedFiles() async throws {
+        let bytes = pe()
+        let info = app(depots: [.init(id: 101, manifestGID: 7), .init(id: 102, manifestGID: 8)])
+        let content = ResolvedSteamContent(app: info, manifests: [manifest([file("Game.exe", bytes)]),
+            manifest([file("steam_api64.dll", bytes)], depotID: 102, gid: 8)], entitlements: .init(appIDs: [100], depotIDs: [101, 102]))
+        let installer = SteamInstaller(game: game, backend: FixtureContentBackend(content: content, chunks: [Data(Insecure.SHA1.hash(data: bytes)): bytes]))
+        let plan = try await installer.resolve(), directory = try temporaryDirectory()
+        try await installer.download(plan, to: directory) { _ in }
+        let original = VerificationSamples()
+        let result = try await installer.verifyOriginals(plan, at: directory, staging: nil, progress: original.append)
+        XCTAssertTrue(result.isValid)
+        XCTAssertEqual(original.values.first?.bytesChecked, 0)
+        XCTAssertEqual(original.values.last?.bytesChecked, 2048)
+        XCTAssertTrue(original.values.contains { $0.bytesChecked == 1024 })
+        XCTAssertTrue(original.values.allSatisfy { $0.bytesTotal == 2048 && $0.scope == .installation })
+        let staging = try await installer.postInstall(plan, at: directory)
+        let final = VerificationSamples()
+        _ = try await installer.validate(plan, at: directory, staging: staging, progress: final.append)
+        let expected = Int64(2048 + (try Data(contentsOf: directory.appendingPathComponent("steam_api64.dll"))).count)
+        XCTAssertEqual(final.values.last?.bytesChecked, expected)
+        XCTAssertTrue(final.values.allSatisfy { $0.bytesTotal == expected })
+        XCTAssertEqual(final.values.map(\.bytesChecked), final.values.map(\.bytesChecked).sorted())
+    }
     func testDownloadStageRetryVerifyAndChangedReplacementDetection() async throws {
         let bytes = pe(), dll = pe()
         let content = ResolvedSteamContent(app: app(), manifests: [manifest([file("Game.exe", bytes), file("bin\\steam_api64.dll", dll)])], entitlements: .init(appIDs: [100], depotIDs: [101]))
@@ -430,4 +453,11 @@ private struct FixtureContentBackend: SteamInstallBackend {
             }
         }
     }
+}
+
+private final class VerificationSamples: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: [InstallFileVerification] = []
+    func append(_ value: InstallFileVerification) { lock.withLock { storage.append(value) } }
+    var values: [InstallFileVerification] { lock.withLock { storage } }
 }

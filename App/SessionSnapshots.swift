@@ -42,6 +42,12 @@ extension LibraryModel {
             requestLauncherQuit()
             if screen == "launcher-quitting" { launcherQuitting = true; exitIndex = 1 }
         }
+        if screen == "launcher-quit-warning" || screen == "exit-overlay-warning" {
+            sessionIssue = .init(stage: "Return to game", reason:
+                "The game window could not receive keyboard focus. " +
+                String(repeating: "Return to the game and try again, or view the session log for details. ", count: 12),
+                output: "Long focus-warning snapshot fixture")
+        }
         if screen.hasPrefix("notification") {
             session.phase = .idle; exitOverlay = false; detailID = nil
             reportSessionIssue(.init(stage: "Game closed unexpectedly", reason: "TUNIC closed unexpectedly. Retry or view the session log for details.", output: "Snapshot fixture"), gameID: game.id, recovery: .play(game.id))

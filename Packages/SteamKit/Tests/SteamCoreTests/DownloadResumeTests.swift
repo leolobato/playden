@@ -28,6 +28,22 @@ final class DownloadResumeTests: XCTestCase {
         let files = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil)!
         return try XCTUnwrap(files.allObjects.compactMap { $0 as? URL }.first { $0.pathExtension == "partial" })
     }
+    func testOriginalVerificationReportsAggregateBytesAndStillRejectsCorruption() async throws {
+        let root = try root(), first = fixture(path: "first.bin"), second = fixture(path: "second.bin")
+        let manifest = DepotManifest(depotID: 7, gid: 9, files: first.files + second.files, totalSize: 32)
+        try await download(root).download(manifest: manifest, fetchChunk: Feed(pieces).fetch)
+        var counts: [UInt64] = []
+        let valid = try download(root).invalidFiles(in: manifest) { _, checked, total in
+            counts.append(checked); XCTAssertEqual(total, 32)
+        }
+        XCTAssertTrue(valid.isEmpty)
+        XCTAssertEqual(counts.first, 0); XCTAssertEqual(counts.last, 32)
+        XCTAssertTrue(counts.contains(16)); XCTAssertEqual(counts, counts.sorted())
+        try Data("bad".utf8).write(to: root.appendingPathComponent("second.bin"))
+        let invalid = try download(root).invalidFiles(in: manifest) { _, checked, _ in counts.append(checked) }
+        XCTAssertEqual(invalid, ["second.bin"])
+        XCTAssertEqual(counts.last, 32, "100% examined must not imply every file was valid")
+    }
     func testReopenReusesOnlyDurableVerifiedChunks() async throws {
         let root = try root(), manifest = fixture(), feed = Feed(pieces, failAt: 5)
         do { try await download(root).download(manifest: manifest, fetchChunk: feed.fetch); XCTFail("Expected interruption") } catch {}

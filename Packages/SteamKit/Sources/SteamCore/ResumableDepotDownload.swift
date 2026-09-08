@@ -91,16 +91,27 @@ public struct ResumableDepotDownload: Sendable {
 
     /// Returns corrupt/missing original manifest files. The caller maps emulation-transformed files
     /// to their retained originals before using this for a repair; this API never stages emulation.
-    public func invalidFiles(in manifest: DepotManifest) throws -> [String] {
+    public func invalidFiles(in manifest: DepotManifest, onVerification: (String, UInt64, UInt64) -> Void = { _, _, _ in }) throws -> [String] {
         let entries = try Self.validate(manifest)
         guard FileManager.default.fileExists(atPath: destination.path) else { return entries.filter { !$0.file.isDirectory }.map(\.path) }
         let workspace = try DownloadWorkspace(destination: destination, lock: false)
         var invalid: [String] = []
+        let total = entries.filter { !$0.file.isDirectory && !$0.file.isSymlink }.reduce(UInt64(0)) { $0 + $1.file.size }
+        var completed: UInt64 = 0
+        onVerification("", 0, total)
         for entry in entries where !entry.file.isDirectory {
             try Task.checkCancellation()
             if entry.file.isSymlink {
                 if (try? workspace.symlinkTarget(entry.path)) != entry.link { invalid.append(entry.path) }
-            } else if try !Self.isValid(entry.file, path: entry.path, workspace: workspace) { invalid.append(entry.path) }
+            } else {
+                onVerification(entry.path, completed, total)
+                if try !Self.isValid(entry.file, path: entry.path, workspace: workspace, onVerification: { checked in
+                    onVerification(entry.path, completed + checked, total)
+                }) { invalid.append(entry.path) }
+                // Examined bytes include files found missing/corrupt; completion is not validity.
+                completed += entry.file.size
+                onVerification(entry.path, completed, total)
+            }
         }
         return invalid
     }

@@ -174,7 +174,7 @@ struct BottomBar: View {
                             Image(systemName: job.kind == .uninstall ? "trash" : "arrow.down.to.line").foregroundStyle(Design.accent)
                             Text(download.title).lineLimit(1).truncationMode(.tail)
                             Spacer(minLength: 4)
-                            Text(model.downloadStatusTitle(for: job) + (job.stage == .download ? " · " + model.downloadProgress(for: job).formatted(.percent.precision(.fractionLength(0))) : ""))
+                            Text(model.downloadStatusTitle(for: job) + (model.downloadPercentage(for: job).map { " · " + $0 } ?? ""))
                                 .foregroundStyle(Design.secondary)
                         }.font(Design.body(18, weight: "SemiBold"))
                         ProgressTrack(value: model.downloadProgress(for: job), height: 4)
@@ -279,7 +279,7 @@ struct GamePage: View {
                     }
                     if !model.isPreview, let job = model.liveJob(for: game.id), ![.completed, .cancelled].contains(job.state) {
                         VStack(alignment: .leading, spacing: 12) {
-                            HStack { Text(model.downloadStatusTitle(for: job)); Spacer(); if job.stage == .download { Text(model.downloadProgress(for: job).formatted(.percent.precision(.fractionLength(0)))) } }.font(Design.body(22, weight: "Medium"))
+                            HStack { Text(model.downloadStatusTitle(for: job)); Spacer(); if let percentage = model.downloadPercentage(for: job) { Text(percentage) } }.font(Design.body(22, weight: "Medium"))
                             Text(model.downloadStats(for: job)).font(Design.body(22)).foregroundStyle(Design.secondary)
                             ProgressTrack(value: model.downloadProgress(for: job), height: 8)
                             if let failure = job.failure { Text(failure.reason).font(Design.body(20)).foregroundStyle(Design.amber).lineLimit(2) }

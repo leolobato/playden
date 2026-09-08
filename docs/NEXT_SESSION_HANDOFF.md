@@ -1,6 +1,37 @@
 # Next session handoff — 8 September 2026
 
-## Pause requested by the user
+## Current resumption — 8 September 2026
+
+The user has resumed implementation of this handoff and asked to check stale instructions.
+The pause account below is historical. At the start of this pass, `main` was at `2cbd398` and
+`/Applications/Big Screen.app` was running; the earlier claim that both apps are closed must not
+be used as current state. Desktop availability has been requested; until answered, continue
+implementation/automated checks without launching games, moving windows or sending input.
+
+Changes since the paused checkpoint include self-contained release packaging/sign-in recovery,
+remembered launch choices, download-size caching and transfer/resume verification progress.
+Pre-existing uncommitted depot-boundary download fixes and design work were preserved.
+
+This pass fixes the quit consequence being replaced by warnings, adds 1080p/4K long-warning
+render/OCR coverage, and separates PS tap from hold so one press cannot emit both actions.
+Automated test hosts no longer activate the launcher or terminate when a fixture window closes.
+The user's subsequent verification-percentage request is implemented across Downloads/details/the
+compact indicator, using actual aggregate checked bytes during original and final verification.
+The current installed app was not replaced during its active installation.
+See [implementation validation](validation/2026-09-08-handoff-implementation.md) and
+[the 109-requirement inventory](validation/2026-09-08-v1-requirement-audit.md).
+The inventory distinguishes partial evidence from missing implementation and physical acceptance;
+it does not sign off v1. The full live quit cancel/confirm round trip remains open.
+
+The launch-delay discrepancy is reconciled in the plan: the retained PRD/adopted design's
+indefinite spinner and exit escape hatch apply; the proposed 60-second state was not adopted.
+Fetch/decode/disk caching and cancellation now live in the separate Artwork package target; the
+NSImage/memory presentation adapter stays in App. Generic focus-container/nearest-geometry
+architecture remains a real implementation gap.
+The private old UI helper now guards a missing process and has been typechecked; its historical
+bundle/path selection must be revalidated before use with the current installed app.
+
+## Historical pause requested by the user
 
 The user needs the Mac now. **Do not resume interactive testing, launch games, open Big Screen,
 move windows or send keyboard/controller events until the user resumes the work.** The v1 goal
@@ -104,11 +135,11 @@ Evidence on this code:
 
 ### First fixes/checks after resuming
 
-1. **Quit confirmation consequence must always be visible.** In the live capture, an existing
+1. **Quit confirmation consequence — implementation fixed in the resumed pass.** In the historical live capture, an existing
    focus warning replaced the entire unsaved-progress/closing-app explanation because
    `GameExitOverlay` uses `sessionIssue?.reason ?? consequence`. Keep the consequence and show
    relevant errors separately; do not let an unrelated focus warning replace destructive-action
-   consequences. Validate long text at 1080p/4K.
+   consequences. The resumed pass separates/bounds diagnostic text and checks both layouts; live shutdown acceptance is still open.
 2. **Recheck focus under controlled conditions.** Earlier `e2d6867` live tests passed automatic
    focus, Shift–Home and Return. The latest run had Terminal foreground and an inactive game,
    then showed the keyboard-focus warning again. This may involve foreground activity during
@@ -129,13 +160,13 @@ Evidence on this code:
 - Finish the full audit against every retained PRD requirement and accepted plan correction;
   produce a requirement/evidence table. Do not mark v1 complete from green unit tests alone.
 - The plan proposes a delayed-launch state after 60 seconds with Keep waiting/Stop/View logs;
-  the PRD and designer guidance still say no hang timeout and an indefinite spinner/exit escape
-  hatch. Current code follows the latter. Reconcile that discrepancy explicitly; do not silently
-  claim the plan's delayed state exists or infer crashes from elapsed time.
+  the PRD and designer guidance specify no hang timeout and an indefinite spinner/exit escape
+  hatch. Reconciled in this pass: retain the PRD/design behavior; the 60-second proposal is not
+  adopted. Do not claim that state exists or infer crashes from elapsed time.
 - Architecture/focus audit: `Focus` has logical grid/repeat/viewport helpers and model-owned
-  navigation, not the originally described generic focus-tree/nearest-geometry engine. Artwork
-  lives in App, not a separate SwiftPM target. Check the actual requirement and retained module
-  boundaries before deciding whether refactoring is necessary.
+  navigation, not the retained generic focus-tree/nearest-geometry engine. Artwork loading now
+  lives in a separate SwiftPM target; App retains its NSImage/memory adapter. Finish the focus
+  implementation and check the remaining memory-cache boundary against the retained requirements.
 - Physical DS4/TV acceptance: onboarding after desktop prerequisites, hold-PS global exit,
   no controller input leakage to the launcher while playing, disconnect/reconnect focus,
   every action/modal/log accessible, display selection/fullscreen/return at 1080p and 4K.
