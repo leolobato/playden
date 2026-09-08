@@ -10,14 +10,23 @@ private actor SessionFixture: SessionManaging {
     func playOffline() async throws { throw SourceFailure.unavailable }
     var plays: [GameID] = []
     var quitCount = 0
+    var startCount = 0
+    var failStart = false
+    var failPlay = false
+    func failNextStart() { failStart = true }
+    func failNextPlay() { failPlay = true }
     var snapshot = SessionSnapshot()
     var observer: AsyncStream<SessionSnapshot>.Continuation?
     let game: SourceGameRecord
     init(_ game: SourceGameRecord) { self.game = game }
-    func start(downloadWhilePlaying: Bool) async throws {}
+    func start(downloadWhilePlaying: Bool) async throws {
+        startCount += 1
+        if failStart { failStart = false; throw SourceFailure.unavailable }
+    }
     func updates() -> AsyncStream<SessionSnapshot> { AsyncStream { observer = $0; $0.yield(snapshot) } }
     func play(_ id: GameID) async throws {
         plays.append(id)
+        if failPlay { failPlay = false; throw OperationFailure(stage: "Check files", reason: "Reconnect the games drive.", output: "Fixture") }
         snapshot = .init(phase: .preparing, game: game, session: .init(gameID: id, bottleID: "test"))
         observer?.yield(snapshot)
     }
@@ -67,7 +76,7 @@ final class SessionInteractionTests: XCTestCase {
     func testNotificationActionsHaveTheirOwnFocusAndDoNotStealSortFilter() {
         let model = LibraryModel(); model.tab = .library
         model.session = snapshot(phase: .idle)
-        model.sessionIssue = .init(stage: "Game closed unexpectedly", reason: "Test failure", output: "")
+        model.reportSessionIssue(.init(stage: "Game closed unexpectedly", reason: "Test failure", output: ""), gameID: id)
         model.perform(.options)
         XCTAssertEqual(model.panel, .filters)
         model.perform(.back)
@@ -161,6 +170,100 @@ final class SessionInteractionTests: XCTestCase {
         XCTAssertEqual(model.panel, .confirmation(.switchGame(second)))
         model.perform(.back)
         let quits = await service.quitCount; XCTAssertEqual(quits, 0)
+        model.stopServices()
+    }
+    func testFailureRetryUsesFailedGameAfterNavigatingElsewhere() async throws {
+        let service = SessionFixture(.init(id: id, title: "A Short Hike"))
+        let model = LibraryModel(preview: false, sessions: service)
+        model.sessionReady = true
+        var failed = snapshot(phase: .idle)
+        failed.session?.endedAt = .now; failed.session?.outcome = .launchFailed
+        failed.failure = .init(stage: "Prepare game", reason: "Preparation failed.", output: "Fixture")
+        model.receiveSession(failed)
+        XCTAssertEqual(model.sessionIssueActions, ["Retry", "View logs", "Dismiss"])
+        let other = GameID(source: "fixture", value: "other")
+        model.games = [.init(id: other, title: "Other")]; model.detailID = other
+        model.perform(.context); model.perform(.confirm)
+        await model.sessionCommand?.value
+        let plays = await service.plays
+        XCTAssertEqual(plays, [id]); XCTAssertNil(model.sessionIssue)
+        model.stopServices()
+    }
+    func testRejectedPlayDoesNotUsePreviousSessionsGameOrLogIdentity() async throws {
+        let requested = GameID(source: "fixture", value: "new")
+        let service = SessionFixture(.init(id: requested, title: "Requested"))
+        let model = LibraryModel(preview: false, sessions: service)
+        model.sessionReady = true; model.session = snapshot(phase: .idle)
+        await service.failNextPlay()
+        model.beginPlay(requested); await model.sessionCommand?.value
+        XCTAssertEqual(model.sessionIssueGameID, requested)
+        model.sessionIssueIndex = 1; model.activateSessionIssue()
+        XCTAssertEqual(model.panel, .logs(requested))
+        model.panel = nil; model.sessionIssueIndex = 0; model.activateSessionIssue()
+        await model.sessionCommand?.value
+        let plays = await service.plays; XCTAssertEqual(plays, [requested, requested])
+        model.stopServices()
+    }
+    func testRecoveryRetryRestartsRecoveryWithoutLaunchingPreviousGame() async throws {
+        let service = SessionFixture(.init(id: id, title: "A Short Hike"))
+        await service.failNextStart()
+        let model = LibraryModel(preview: false, sessions: service)
+        model.startSessionServices(); await model.sessionStartup?.value
+        XCTAssertFalse(model.sessionReady)
+        XCTAssertEqual(model.sessionIssueActions, ["Retry", "Dismiss"])
+        model.retrySessionIssue(); await model.sessionCommand?.value
+        XCTAssertTrue(model.sessionReady); XCTAssertNil(model.sessionIssue)
+        let starts = await service.startCount, plays = await service.plays
+        XCTAssertEqual(starts, 2); XCTAssertTrue(plays.isEmpty)
+        model.stopServices()
+    }
+    func testLogRetryMatchesFailureIdentityAndHonorsSessionAndResetGuards() async throws {
+        let service = SessionFixture(.init(id: id, title: "A Short Hike"))
+        let catalog = try CatalogStore()
+        let model = LibraryModel(catalog: catalog, preview: false, sessions: service)
+        model.sessionReady = true
+        var failed = snapshot(phase: .idle)
+        failed.session?.endedAt = .now; failed.session?.outcome = .crash
+        model.receiveSession(failed)
+        let sessionID = try XCTUnwrap(failed.session?.id)
+        model.logDocument = .init(id: UUID(), gameID: id, kind: "play session", startedAt: .now)
+        XCTAssertNil(model.logRecovery)
+        try catalog.saveSession(try XCTUnwrap(failed.session))
+        model.show(.logs(id))
+        XCTAssertEqual(model.logDocument?.id, sessionID)
+        XCTAssertEqual(model.logActions, ["Close", "Retry"])
+        model.resetBusy = true; model.retrySessionIssue(); XCTAssertNil(model.logRecovery)
+        model.resetBusy = false; model.session.phase = .running
+        model.retrySessionIssue(); XCTAssertNil(model.logRecovery)
+        model.session.phase = .idle
+        let before = await service.plays; XCTAssertTrue(before.isEmpty)
+        model.logActionIndex = 1; model.activateLogAction(); await model.sessionCommand?.value
+        let after = await service.plays; XCTAssertEqual(after, [id])
+        model.stopServices()
+    }
+    func testUnrelatedFailureClearsOldRetryAndLogContext() {
+        let model = LibraryModel()
+        model.reportSessionIssue(.init(stage: "Launch", reason: "Failed", output: ""), gameID: id, recovery: .play(id))
+        model.sessionIssue = .init(stage: "Other action", reason: "Failed", output: "")
+        XCTAssertNil(model.sessionIssueRecovery); XCTAssertNil(model.sessionIssueGameID)
+        XCTAssertEqual(model.sessionIssueActions, ["Dismiss"])
+    }
+    func testReopenedFailureLogOffersRetryButCannotReplaySupersededSession() async throws {
+        let catalog = try CatalogStore()
+        var failed = snapshot(phase: .idle)
+        failed.session?.endedAt = .now; failed.session?.outcome = .launchFailed
+        try catalog.saveSession(try XCTUnwrap(failed.session))
+        let service = SessionFixture(.init(id: id, title: "A Short Hike"))
+        let model = LibraryModel(catalog: catalog, preview: false, sessions: service)
+        model.sessionReady = true; model.show(.logs(id))
+        XCTAssertNil(model.sessionIssue)
+        XCTAssertEqual(model.logActions, ["Close", "Retry"])
+        var newer = PlaySessionRecord(gameID: id, bottleID: "fixture", startedAt: Date.now.addingTimeInterval(1))
+        newer.endedAt = newer.startedAt.addingTimeInterval(1); newer.outcome = .clean
+        try catalog.saveSession(newer)
+        model.logActionIndex = 1; model.activateLogAction()
+        let plays = await service.plays; XCTAssertTrue(plays.isEmpty)
+        model.refreshLogView(id); XCTAssertEqual(model.logActions, ["Close"])
         model.stopServices()
     }
 }

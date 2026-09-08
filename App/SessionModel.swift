@@ -5,9 +5,12 @@ import Input
 
 extension LibraryModel {
     var showsSessionIssue: Bool { sessionIssue != nil && !hasActiveSession && panel == nil && authScreen == nil && setupScreen == nil }
-    var sessionIssueActions: [String] { (session.session?.gameID == nil ? [] : ["View logs"]) + ["Dismiss"] }
+    var sessionIssueActions: [String] {
+        (canRetrySessionIssue ? ["Retry"] : []) + (sessionIssueGameID == nil ? [] : ["View logs"]) + ["Dismiss"]
+    }
     func activateSessionIssue() {
-        if sessionIssueActions[safe: sessionIssueIndex] == "View logs", let id = session.session?.gameID {
+        if sessionIssueActions[safe: sessionIssueIndex] == "Retry" { retrySessionIssue() }
+        else if sessionIssueActions[safe: sessionIssueIndex] == "View logs", let id = sessionIssueGameID {
             sessionIssueFocused = false; show(.logs(id))
         } else { sessionIssue = nil }
     }
@@ -31,7 +34,7 @@ extension LibraryModel {
         sessionStartup = Task { [weak self] in
             guard let self else { return }
             do { try await sessions.start(downloadWhilePlaying: self.downloadWhilePlaying); self.sessionReady = true }
-            catch { self.sessionIssue = self.sessionFailure(error, stage: "Recover session") }
+            catch { self.reportSessionIssue(self.sessionFailure(error, stage: "Recover session"), recovery: .recoverSession) }
         }
     }
     func receiveSession(_ snapshot: SessionSnapshot) {
@@ -46,7 +49,11 @@ extension LibraryModel {
             setExitOverlay(false); onGameEnded?()
         }
         if previous.phase == .idle && snapshot.phase != .idle { onGameStarted?() }
-        if let failure = snapshot.failure { sessionIssue = failure }
+        if let failure = snapshot.failure {
+            let retryable = snapshot.phase == .idle && [.launchFailed, .crash].contains(snapshot.session?.outcome)
+            reportSessionIssue(failure, gameID: snapshot.session?.gameID,
+                               recovery: retryable ? snapshot.session.map { .play($0.gameID) } : nil)
+        }
         if let window = snapshot.session?.runtime?.window,
            previous.session?.runtime?.hadWindow != true && snapshot.session?.runtime?.hadWindow == true && !exitOverlay {
             onGameWindow?(window)
@@ -69,7 +76,8 @@ extension LibraryModel {
             }
             reconcileFocus()
             if snapshot.session?.outcome == .crash && sessionIssue == nil {
-                sessionIssue = .init(stage: "Game closed unexpectedly", reason: "\(snapshot.game?.title ?? "The game") closed unexpectedly. View logs for details.", output: snapshot.session?.runtime?.output ?? "")
+                reportSessionIssue(.init(stage: "Game closed unexpectedly", reason: "\(snapshot.game?.title ?? "The game") closed unexpectedly. Retry or view logs for details.", output: snapshot.session?.runtime?.output ?? ""),
+                                   gameID: snapshot.session?.gameID, recovery: snapshot.session.map { .play($0.gameID) })
             }
             if previous.phase != .syncingSaves { onGameEnded?() }
             if !uninstallBusy, snapshot.cloudStatus?.state == .conflict, let id = snapshot.session?.gameID { detailID = id; showCloud(id) }
@@ -93,7 +101,7 @@ extension LibraryModel {
         sessionOrigin = tab; sessionIssue = nil; sessionBusy = true
         sessionCommand = Task { [weak self] in
             do { try await sessions.play(id) }
-            catch { self?.sessionIssue = self?.sessionFailure(error, stage: "Launch game") }
+            catch { if let self { self.reportSessionIssue(self.sessionFailure(error, stage: "Launch game"), gameID: id, recovery: .play(id)) } }
             self?.sessionBusy = false
         }
     }
@@ -109,7 +117,12 @@ extension LibraryModel {
                 if let snapshot = await updates.next() { self.receiveSession(snapshot) }
                 self.sessionBusy = false; self.sessionOrigin = origin; self.tab = origin
                 self.beginPlay(id)
-            } catch { self?.sessionBusy = false; self?.sessionIssue = self?.sessionFailure(error, stage: "Quit game") }
+            } catch {
+                if let self {
+                    self.sessionBusy = false
+                    self.reportSessionIssue(self.sessionFailure(error, stage: "Quit game"), gameID: self.session.session?.gameID)
+                }
+            }
         }
     }
     func setExitOverlay(_ visible: Bool) {
@@ -127,7 +140,7 @@ extension LibraryModel {
         sessionBusy = true; sessionIssue = nil
         sessionCommand = Task { [weak self] in
             do { try await sessions.quit() }
-            catch { self?.sessionIssue = self?.sessionFailure(error, stage: "Quit game") }
+            catch { if let self { self.reportSessionIssue(self.sessionFailure(error, stage: "Quit game"), gameID: self.session.session?.gameID) } }
             self?.sessionBusy = false
         }
     }
@@ -176,7 +189,7 @@ extension LibraryModel {
         Task { [weak self] in
             guard let self else { return }
             do { try await sessions.setDownloadWhilePlaying(self.downloadWhilePlaying) }
-            catch { self.sessionIssue = self.sessionFailure(error, stage: "Pause downloads") }
+            catch { self.reportSessionIssue(self.sessionFailure(error, stage: "Pause downloads"), recovery: .downloadPolicy) }
         }
     }
     func sessionFailure(_ error: Error, stage: String) -> OperationFailure {

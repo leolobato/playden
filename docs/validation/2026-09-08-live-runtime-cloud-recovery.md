@@ -49,7 +49,9 @@ Raw saves and account-scoped records are intentionally not committed.
 Synthetic global Shift–Home input did not produce an observable exit overlay during this
 session, including a second attempt with held modifier/key events. The game stayed running
 and was closed through its own menus. This does not establish whether physical Shift–Home
-fails, but global shortcut delivery and registration need investigation before acceptance.
+fails. A subsequent [System Events check](2026-09-08-failure-retry-controls.md) opened the current
+build's overlay, exercised Return, and stopped the game through Quit. The discrepancy is specific
+to bare CGEvent injection; physical DS4 and game focus handoff acceptance remain open.
 
 This test does not establish physical DS4/TV operation, unplug/reconnect, interrupted upload,
 concurrent remote edits, account switching or the complete uninstall/reinstall journey.

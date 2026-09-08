@@ -40,7 +40,7 @@ extension LibraryModel {
         controllerName = "DUALSHOCK 4"; keyboardNavigation = false
         if screen.hasPrefix("notification") {
             session.phase = .idle; exitOverlay = false; detailID = nil
-            sessionIssue = .init(stage: "Game closed unexpectedly", reason: "TUNIC closed unexpectedly. You can view the session log for details.", output: "Snapshot fixture")
+            reportSessionIssue(.init(stage: "Game closed unexpectedly", reason: "TUNIC closed unexpectedly. Retry or view the session log for details.", output: "Snapshot fixture"), gameID: game.id, recovery: .play(game.id))
             sessionIssueFocused = screen == "notification-focused"
         }
     }

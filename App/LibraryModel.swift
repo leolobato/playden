@@ -44,6 +44,7 @@ final class LibraryModel {
     @ObservationIgnored let diagnosticArchive: DiagnosticArchive?
     @ObservationIgnored var logObserver: Task<Void, Never>?
     var logDocument: DiagnosticLog?
+    var logSession: PlaySessionRecord?
     var logArchiveError: String?
     var logScrollRequest = LogScrollRequest()
     var logScrollFraction = 0.0
@@ -77,7 +78,14 @@ final class LibraryModel {
     @ObservationIgnored var onExitOverlayChanged: ((Bool) -> Void)?
     var session = SessionSnapshot()
     var sessionReady = false
-    var sessionIssue: OperationFailure? { didSet { if oldValue != sessionIssue { sessionIssueFocused = false; sessionIssueIndex = 0 } } }
+    var sessionIssue: OperationFailure? {
+        didSet {
+            sessionIssueGameID = nil; sessionIssueRecovery = nil
+            if oldValue != sessionIssue { sessionIssueFocused = false; sessionIssueIndex = 0 }
+        }
+    }
+    var sessionIssueGameID: GameID?
+    var sessionIssueRecovery: SessionIssueRecovery?
     var sessionIssueFocused = false
     var sessionIssueIndex = 0
     var sessionOrigin: AppTab = .library

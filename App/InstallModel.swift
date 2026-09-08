@@ -107,8 +107,9 @@ extension LibraryModel {
         let source = job.plan?.game ?? job.originalInstallation?.game
         return Game(id: job.gameID, title: source?.title ?? "Game", coverURL: source?.coverURL, heroURL: source?.heroURL, logoURL: source?.logoURL)
     }
-    func performLiveDownloadAction(_ label: String, id: GameID) {
+    func performLiveDownloadAction(_ label: String, id: GameID, expectedJobID: UUID? = nil) {
         guard let job = liveJob(for: id) else { return }
+        guard expectedJobID == nil || expectedJobID == job.id else { return }
         if label == "Dismiss from history" {
             guard let reviewed = downloadHistoryReview, reviewed.id == job.id else { return }
             dismissDownloadHistory(reviewed); return

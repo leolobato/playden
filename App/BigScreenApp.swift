@@ -96,7 +96,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 guard let self else { return }
                 self.exitShortcut.action = { [weak self] in self?.model.keyboardNavigation = true; self?.model.perform(.holdHome) }
                 if !self.exitShortcut.start() {
-                    self.model.sessionIssue = .init(stage: "Game controls", reason: "Shift–Home is already in use. Return to Big Screen to open the game controls.", output: "Could not register the game exit shortcut.")
+                    self.model.reportSessionIssue(.init(stage: "Game controls", reason: "Shift–Home is already in use. Return to Big Screen to open the game controls.", output: "Could not register the game exit shortcut."), gameID: self.model.session.session?.gameID)
                 }
             }
             model.onGameWindow = { [weak self] gameWindow in self?.activateGame(gameWindow) }
@@ -161,7 +161,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 model.stopServices(); await model.flushLogs(); sender.reply(toApplicationShouldTerminate: true)
             } catch {
                 terminating = false
-                model.sessionIssue = model.sessionFailure(error, stage: "Quit game")
+                model.reportSessionIssue(model.sessionFailure(error, stage: "Quit game"), gameID: model.session.session?.gameID)
                 sender.reply(toApplicationShouldTerminate: false)
                 if model.hasActiveSession { model.setExitOverlay(true) }
             }
@@ -311,10 +311,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 if model.sessionIssue?.stage == "Return to game" { model.sessionIssue = nil }
                 window.level = .normal; window.orderBack(nil)
             } else {
-                model.sessionIssue = .init(stage: "Return to game", reason: "The game is open, but could not take keyboard focus. Use the Dock to return to it.", output: "Game activation was declined by macOS.")
+                model.reportSessionIssue(.init(stage: "Return to game", reason: "The game is open, but could not take keyboard focus. Use the Dock to return to it.", output: "Game activation was declined by macOS."), gameID: model.session.session?.gameID)
             }
         } else {
-            model.sessionIssue = .init(stage: "Return to game", reason: "The game window could not be activated. Use the Dock to return to it.", output: "No application for the observed game window.")
+            model.reportSessionIssue(.init(stage: "Return to game", reason: "The game window could not be activated. Use the Dock to return to it.", output: "No application for the observed game window."), gameID: model.session.session?.gameID)
         }
     }
     private func presentExitOverlay(_ visible: Bool) {
@@ -372,7 +372,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let requestedScreens: Set<String>? = arguments.firstIndex(of: "--snapshot-screens").flatMap { index in
                 arguments.indices.contains(index + 1) ? Set(arguments[index + 1].split(separator: ",").map(String.init)) : nil
             }
-            for screen in ["uninstall-confirm", "uninstall-unsynced", "uninstall-checking", "cloud-ready", "cloud-conflict", "cloud-account", "cloud-pending", "cloud-syncing", "cloud-recovery", "home", "home-tabs", "home-library-card", "home-playstation", "home-large-library", "home-large-library-end", "home-collection-end", "library-large", "library-large-end", "library", "library-playstation", "library-paged", "library-return", "game", "game-status-clean", "game-status-crash", "library-running", "context-uninstall", "downloads", "downloads-queued", "settings", "settings-about", "settings-reset", "settings-reset-blocked", "settings-reset-error", "settings-reset-busy", "settings-display", "settings-runtime", "settings-runtime-missing", "settings-runtime-busy", "collections", "keyboard", "keyboard-playstation", "keyboard-generic", "keyboard-space", "keyboard-long", "compatibility", "uninstall", "logs", "logs-long", "logs-long-end", "logs-long-return", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom", "library-download-glyph", "library-download-focused", "game-unknown-size", "game-favorite", "install-offer", "install-offer-space", "install-queue", "install-history-failed", "install-history-completed", "install-mini-progress", "install-storage-shortage", "install-storage-unavailable", "install-game-progress", "launching", "exit-overlay", "exit-overlay-quit", "notification", "notification-focused"] {
+            for screen in ["uninstall-confirm", "uninstall-unsynced", "uninstall-checking", "cloud-ready", "cloud-conflict", "cloud-account", "cloud-pending", "cloud-syncing", "cloud-recovery", "home", "home-tabs", "home-library-card", "home-playstation", "home-large-library", "home-large-library-end", "home-collection-end", "library-large", "library-large-end", "library", "library-playstation", "library-paged", "library-return", "game", "game-status-clean", "game-status-crash", "library-running", "context-uninstall", "downloads", "downloads-queued", "settings", "settings-about", "settings-reset", "settings-reset-blocked", "settings-reset-error", "settings-reset-busy", "settings-display", "settings-runtime", "settings-runtime-missing", "settings-runtime-busy", "collections", "keyboard", "keyboard-playstation", "keyboard-generic", "keyboard-space", "keyboard-long", "compatibility", "uninstall", "logs", "logs-retry", "logs-long", "logs-long-end", "logs-long-return", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom", "library-download-glyph", "library-download-focused", "game-unknown-size", "game-favorite", "install-offer", "install-offer-space", "install-queue", "install-history-failed", "install-history-completed", "install-mini-progress", "install-storage-shortage", "install-storage-unavailable", "install-game-progress", "launching", "exit-overlay", "exit-overlay-quit", "notification", "notification-focused"] {
                 if let requestedScreens, !requestedScreens.contains(screen) { continue }
                 // Keep each capture independent of the requested screen order.
                 let model = LibraryModel()
@@ -473,7 +473,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     model.authQR = screen == "signin-qr" ? URL(string: "https://example.invalid/big-screen-design-preview") : nil
                     model.authMessage = "Design preview · QR layout"
                     model.authError = screen == "signin-error" ? "Steam can’t be reached. Check your connection and try again." : nil
-                case "collections", "keyboard", "keyboard-playstation", "keyboard-generic", "keyboard-space", "keyboard-long", "compatibility", "uninstall", "logs", "logs-long", "logs-long-end", "logs-long-return":
+                case "collections", "keyboard", "keyboard-playstation", "keyboard-generic", "keyboard-space", "keyboard-long", "compatibility", "uninstall", "logs", "logs-retry", "logs-long", "logs-long-end", "logs-long-return":
                     model.selectTab(.library)
                     if let game = model.games.first(where: { $0.title == "Hades" }) {
                         model.openGame(game)
@@ -498,6 +498,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                         case "uninstall": model.show(.confirmation(.uninstall(game.id)))
                         default:
                             model.show(.logs(game.id))
+                            if screen == "logs-retry" {
+                                var played = PlaySessionRecord(gameID: game.id, bottleID: "snapshot-only")
+                                played.endedAt = played.startedAt; played.outcome = .launchFailed
+                                var log = DiagnosticLog(id: played.id, gameID: game.id, kind: "play session", startedAt: played.startedAt)
+                                log.record("Prepare game · failed", at: played.startedAt)
+                                log.capture("The game runtime could not be prepared. Reconnect the games drive, then retry.", at: played.startedAt)
+                                model.logDocument = log; model.logSession = played; model.logActionIndex = 1
+                            }
                             if screen.hasPrefix("logs-long") {
                                 var log = DiagnosticLog(id: UUID(), gameID: game.id, kind: "repair", startedAt: Date(timeIntervalSince1970: 1_788_832_000))
                                 log.record("download · running", at: log.startedAt)

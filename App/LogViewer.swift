@@ -27,9 +27,10 @@ struct LogViewer: View {
             }
             if let error = model.logArchiveError { Text(error).font(Design.body(22)).foregroundStyle(Design.amber).lineLimit(2) }
             HStack(spacing: 28) {
-                ActionButton(title: "Close", primary: true, focused: model.logActionIndex == 0, reducedMotion: model.reducedMotion) { model.panel = nil }
-                if model.logDocument != nil && model.diagnosticArchive != nil {
-                    ActionButton(title: "Reveal in Finder", focused: model.logActionIndex == 1, reducedMotion: model.reducedMotion) { model.revealLogFile() }
+                ForEach(Array(model.logActions.enumerated()), id: \.offset) { index, title in
+                    ActionButton(title: title, primary: index == 0, focused: model.logActionIndex == index, reducedMotion: model.reducedMotion) {
+                        model.logActionIndex = index; model.activateLogAction()
+                    }
                 }
                 Spacer()
                 if model.logCanScroll {
@@ -42,6 +43,7 @@ struct LogViewer: View {
                 }
             }
         }.padding(40).frame(width: 1728, height: 864).background(Design.panel, in: RoundedRectangle(cornerRadius: 12))
+            .onChange(of: model.logActions) { _, _ in model.logActionIndex = 0 }
     }
 }
 

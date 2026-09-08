@@ -106,7 +106,7 @@ extension LibraryModel {
             if session.phase == .awaitingCloud, session.session?.gameID == id {
                 sessionCommand = Task { [weak self] in
                     do { try await self?.sessions?.quit() }
-                    catch { self?.sessionIssue = self?.sessionFailure(error, stage: "Cloud saves") }
+                    catch { if let self { self.reportSessionIssue(self.sessionFailure(error, stage: "Cloud saves"), gameID: id) } }
                 }
             }
             return
@@ -126,7 +126,7 @@ extension LibraryModel {
                 do {
                     if choice == .offline { try await sessions?.playOffline() }
                     else { try await sessions?.retryCloud(authorization: authorization) }
-                } catch { sessionIssue = sessionFailure(error, stage: "Cloud saves"); showCloud(id) }
+                } catch { reportSessionIssue(sessionFailure(error, stage: "Cloud saves"), gameID: id); showCloud(id) }
             }
             return
         }

@@ -71,6 +71,26 @@ final class InstallInteractionTests: XCTestCase {
         XCTAssertEqual(submitted.map(\.plan), [offer.plan])
         model.stopServices()
     }
+    @MainActor func testLogRecoveryRetriesOnlyTheCurrentFailedJobAndPreservesCancellationIntent() async throws {
+        let offer = offer(), queue = InteractionQueue(offer)
+        let model = try model(queue, offer: offer)
+        var failed = JobRecord(gameID: id); failed.state = .failed
+        model.installJobs = [failed]
+        model.logDocument = .init(id: failed.id, gameID: id, kind: "install", startedAt: .now)
+        XCTAssertEqual(model.logRecovery, .job(failed.id, id, cancellation: false))
+        model.logActionIndex = 1; model.activateLogAction()
+        try await eventually { await queue.commands == ["retry"] }
+        failed.cancellationRequested = true; model.installJobs = [failed]
+        XCTAssertEqual(model.logActions, ["Close", "Retry cancellation"])
+        model.activateLogAction()
+        try await eventually { await queue.commands == ["retry", "cancel"] }
+        var newer = JobRecord(gameID: id); newer.createdAt = failed.createdAt.addingTimeInterval(10)
+        newer.state = .failed; model.installJobs = [failed, newer]
+        XCTAssertNil(model.logRecovery)
+        model.performLiveDownloadAction("Retry", id: id, expectedJobID: failed.id)
+        let commands = await queue.commands; XCTAssertEqual(commands, ["retry", "cancel"])
+        model.stopServices()
+    }
     @MainActor func testInsufficientSpaceCannotEnqueue() async throws {
         let offer = offer(free: 499), queue = InteractionQueue(offer)
         let model = try model(queue, offer: offer)
