@@ -191,8 +191,8 @@ struct GameTile: View {
         if game.status == .queued { return (job?.statusTitle ?? "Queued", job?.state == .failed ? Design.amber : Design.secondary) }
         if game.status == .driveDisconnected { return ("Drive disconnected", Design.amber) }
         if game.compatibility == .broken { return ("Broken", Design.red) }
-        if game.compatibility == .works { return ("Works", Design.green) }
-        if game.compatibility == .playable { return ("Playable", Design.amber) }
+        // The adopted tile design reserves compatibility badges for Broken.
+        // Other ratings remain visible on game details and in the library filters.
         return nil
     }
     var body: some View {

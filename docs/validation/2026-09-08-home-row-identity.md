@@ -42,3 +42,10 @@ Validation:
 
 No live game preparation, launch, save modification or Cloud transfer was performed for this
 checkpoint. The remaining physical acceptance gates remain open.
+
+After the desktop became available, the signed app's real Home was captured with the user's
+Steam library loaded. PID-targeted keyboard input then exercised Home → Up to tabs → Right to
+Library → Down to content, returned Home, moved to the final Library card, and opened the full
+Library. Accessibility assertions and owned-window captures passed:
+`/tmp/bigscreen-home-identity-live.log`, `.build/home-identity-live/`. No game was launched or
+collection changed. This adds live keyboard/window evidence; it does not prove physical DS4 input.

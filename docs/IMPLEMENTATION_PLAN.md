@@ -397,6 +397,10 @@ Dependencies: M0–M5 gates passed.
   explicit scope decisions, not silently marked complete.
 - [ ] Document build/run instructions, required sibling commit, CrossOver/system setup, supported-title results,
   known limitations and recovery steps. Prove the v1 cloud-save gates separately; do not claim updates or general game compatibility.
+- [ ] Finish with an end-user README: verified v1 feature list, setup and first launch, CrossOver
+  requirements/focus, known limitations, and the v2 roadmap (optional native macOS versions and
+  official Steam macOS installation discovery). Explain future support for other engines and
+  stores without promising those broader integrations for v2. Requested 8 September 2026.
 
 Gate: README's corrected MVP bar and all retained v1 requirements pass. A skipped CrossOver integration
 test on a machine without CrossOver cannot satisfy the real-platform release gate.
@@ -833,4 +837,12 @@ collection with the same name retains every game. Home now preserves each row's 
 and scroll position by stable identity across download updates, collection changes and catalog
 refreshes. Row/card view identities are stable as well. All 108 app tests and the signed build
 pass; 1080p/4K Home endpoint layouts were rendered and inspected. Physical acceptance remains
-open. See [Home focus validation](validation/2026-09-08-home-row-identity.md).
+open. See [Home focus validation](validation/2026-09-08-home-row-identity.md), including the later
+live keyboard/window checks for Home tabs and the final Library card.
+
+### 8 September — Cover badges match the designer's state guidance
+
+Removed the earlier Works/Playable cover badges: the adopted design reserves compatibility tile
+badges for Broken. All ratings remain on details and in filters; Running retains its state badge.
+All 108 app tests, signed build and 1080p/4K layout checks pass. See
+[tile fidelity validation](validation/2026-09-08-tile-fidelity.md).

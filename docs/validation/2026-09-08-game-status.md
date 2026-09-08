@@ -2,6 +2,11 @@
 
 The v1 UI audit identified concrete differences between the PRD/implementation plan and the app:
 
+**Tile-design correction:** the later fidelity audit removed Works/Playable tile badges to match
+the designer's explicit rule that Broken is the only compatibility badge on covers. Those ratings
+remain on game details and in filters. Running still has its status badge. See
+[tile fidelity validation](2026-09-08-tile-fidelity.md); the table below records the original checkpoint.
+
 | Requirement | Finding | Change |
 | --- | --- | --- |
 | FR-EXIT-1 / plan return destination | A Library-launched game returned to details. | Normal, crashed and forced exits return to Home, focusing the played game when present or the first available Home item. Launch failures retain their origin's game page. Post-exit Cloud conflict recovery still opens its review panel. |

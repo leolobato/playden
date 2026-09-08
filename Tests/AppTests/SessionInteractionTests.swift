@@ -131,12 +131,12 @@ final class SessionInteractionTests: XCTestCase {
         model.receiveSession(value)
         XCTAssertEqual(model.tab, .library); XCTAssertEqual(model.detailID, id)
     }
-    func testTileBadgesDistinguishRunningAndUserCompatibility() {
+    func testTileBadgesShowRunningAndBrokenWithoutCoveringArtForOtherRatings() {
         var game = Game(id: id, title: "A Short Hike", status: .installed, compatibility: .works)
-        XCTAssertEqual(GameTile(game: game, focused: false).badge?.0, "Works")
+        XCTAssertNil(GameTile(game: game, focused: false).badge)
         XCTAssertEqual(GameTile(game: game, focused: false, running: true).badge?.0, "Running")
         game.compatibility = .playable
-        XCTAssertEqual(GameTile(game: game, focused: false).badge?.0, "Playable")
+        XCTAssertNil(GameTile(game: game, focused: false).badge)
         game.status = .notInstalled
         XCTAssertTrue(GameTile(game: game, focused: false).showsDownloadMark)
         XCTAssertFalse(GameTile(game: game, focused: false, running: true).showsDownloadMark)
