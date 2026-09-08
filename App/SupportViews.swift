@@ -119,12 +119,14 @@ struct ModalLayer: View {
 }
 struct SearchKeyboard: View {
     @Bindable var model: LibraryModel
+    private var keyboard: Bool { model.controllerName == nil || model.keyboardNavigation }
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
             HStack { Text(model.keyboardTitle).font(Design.condensed(40)); Spacer(); if model.panel == .search { Text("\(model.filteredGames.count) results").font(Design.body(22)).foregroundStyle(Design.secondary) } }
             HStack(spacing: 0) {
                 Image(systemName: model.panel == .search ? "magnifyingglass" : "pencil").padding(.trailing, 16).foregroundStyle(Design.secondary)
                 Text(model.maskedText ? String(repeating: "•", count: model.textEditor.beforeCursor.count) : model.textEditor.beforeCursor)
+                    .truncationMode(.head)
                 Rectangle().fill(Design.accent).frame(width: 3, height: 34).padding(.horizontal, 2)
                 Text(model.maskedText ? String(repeating: "•", count: model.textEditor.afterCursor.count) : model.textEditor.afterCursor)
                 Spacer(minLength: 0)
@@ -135,20 +137,33 @@ struct SearchKeyboard: View {
                 ForEach(Array(model.searchKeys.enumerated()), id: \.offset) { row, keys in
                     HStack(spacing: 8) {
                         ForEach(Array(keys.enumerated()), id: \.offset) { column, key in
-                            Text(key).font(Design.body(28, weight: "Medium")).frame(width: key == "Space" ? 520 : key == "Done" ? 180 : 96, height: 64)
+                            Text(key).font(Design.body(28, weight: "Medium")).frame(width: model.keyboardKeyWidth(key), height: 64)
                                 .background(Design.text.opacity(key.count > 1 ? 0.14 : 0.07), in: RoundedRectangle(cornerRadius: 8))
                                 .focusRing(model.keyRow == row && model.keyColumn == column, compact: true)
-                                .onTapGesture { model.keyRow = row; model.keyColumn = column; model.activateKey() }
+                                .onTapGesture { model.keyPreferredX = nil; model.keyRow = row; model.keyColumn = column; model.activateKey() }
                         }
                     }.frame(maxWidth: .infinity)
                 }
             }
             HStack(spacing: 26) {
-                LegendItem(glyph: model.playStationGlyphs ? "□" : "X", title: "Backspace")
-                LegendItem(glyph: model.playStationGlyphs ? "△" : "Y", title: "Space")
-                LegendItem(glyph: model.playStationGlyphs ? "L1 R1" : "LB RB", title: "Cursor")
-                LegendItem(glyph: model.playStationGlyphs ? "OPTIONS" : "MENU", title: "Symbols")
-                LegendItem(glyph: model.playStationGlyphs ? "○" : "B", title: model.panel == .search ? "Done" : "Cancel")
+                if keyboard {
+                    LegendItem(glyph: "⌫", title: "Backspace")
+                    HStack(spacing: 10) {
+                        Glyph(text: "SHIFT TAB"); Glyph(text: "TAB")
+                        Text("Cursor").font(Design.body(22, weight: "Medium"))
+                    }
+                    LegendItem(glyph: "CMD ENTER", title: "Done")
+                    LegendItem(glyph: "ESC", title: model.panel == .search ? "Done" : "Cancel")
+                } else {
+                    LegendItem(glyph: model.playStationGlyphs ? "□" : "X", title: "Backspace")
+                    LegendItem(glyph: model.playStationGlyphs ? "△" : "Y", title: "Space")
+                    HStack(spacing: 10) {
+                        Glyph(text: model.playStationGlyphs ? "L1" : "LB"); Glyph(text: model.playStationGlyphs ? "R1" : "RB")
+                        Text("Cursor").font(Design.body(22, weight: "Medium"))
+                    }
+                    LegendItem(glyph: model.playStationGlyphs ? "OPTIONS" : "MENU", title: "Symbols")
+                    LegendItem(glyph: model.playStationGlyphs ? "○" : "B", title: model.panel == .search ? "Done" : "Cancel")
+                }
             }.padding(.top, 8)
         }.padding(28).frame(width: 1280).background(Design.panel, in: RoundedRectangle(cornerRadius: 12)).shadow(color: .black.opacity(0.7), radius: 50, y: 40)
     }

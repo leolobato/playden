@@ -1,6 +1,7 @@
 import Foundation
 import Domain
 import Input
+import Focus
 
 extension LibraryModel {
     var libraryFilters: [LibraryFilter] { [.installed, .all, .favorites, .hidden] + collections.map { .collection($0.id) } }
@@ -67,8 +68,32 @@ extension LibraryModel {
         if panel == .search { updateQuery(textEditor.text) }
     }
     func toggleSymbols() {
+        keyPreferredX = nil
         symbols.toggle(); keyRow = min(keyRow, searchKeys.count - 1)
         keyColumn = min(keyColumn, searchKeys[keyRow].count - 1)
+    }
+    func keyboardKeyWidth(_ key: String) -> Double { key == "Space" ? 520 : key == "Done" ? 180 : 96 }
+    private func keyboardCenters(_ row: Int) -> [Double] {
+        let widths = searchKeys[row].map(keyboardKeyWidth)
+        var edge = -(widths.reduce(0, +) + Double(max(0, widths.count - 1)) * 8) / 2
+        return widths.map { width in
+            defer { edge += width + 8 }
+            return edge + width / 2
+        }
+    }
+    func moveKeyboardFocus(_ direction: Direction) {
+        if direction == .up || direction == .down {
+            let next = min(max(0, keyRow + (direction == .up ? -1 : 1)), searchKeys.count - 1)
+            guard next != keyRow else { return }
+            let x = keyPreferredX ?? keyboardCenters(keyRow)[keyColumn]
+            keyPreferredX = x
+            let centers = keyboardCenters(next)
+            keyColumn = centers.indices.min { abs(centers[$0] - x) < abs(centers[$1] - x) } ?? 0
+            keyRow = next
+        } else {
+            keyColumn = min(max(0, keyColumn + (direction == .left ? -1 : 1)), searchKeys[keyRow].count - 1)
+            keyPreferredX = nil
+        }
     }
     var maskedText: Bool { panel == .textEditor(.password) || panel == .textEditor(.guardCode) }
     func cancelText() {

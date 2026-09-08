@@ -193,6 +193,7 @@ final class LibraryModel {
     var fixedClock = false
     var keyRow = 1
     var keyColumn = 0
+    var keyPreferredX: Double?
     var uppercase = false
     init(catalog: CatalogStore? = nil, preview: Bool = true, source: (any GameSource)? = nil, runtime: (any BottleManaging)? = nil, volumeStore: (any VolumeManaging)? = nil, installQueue: (any InstallQueuing)? = nil, sessions: (any SessionManaging)? = nil, cloud: (any CloudSyncManaging)? = nil, gamesStorageReader: (any GamesStorageReading)? = nil, diagnosticArchive: DiagnosticArchive? = nil) {
         self.catalog = catalog; self.isPreview = preview; self.source = source
@@ -360,6 +361,7 @@ final class LibraryModel {
     func show(_ value: Panel) {
         guard !resetBusy else { return }
         panel = value; panelIndex = 0
+        if isEditingText { keyPreferredX = nil }
         if value == .filters { filterChoiceIndex = 0; filterScrollOffset = 0; expandedGenres = false }
         if value == .search { textEditor = TextEditorState(query); keyboardError = nil }
     }
@@ -395,11 +397,7 @@ final class LibraryModel {
             case .previousTab: textEditor.moveCursor(by: -1)
             case .nextTab: textEditor.moveCursor(by: 1)
             case .options: toggleSymbols()
-            case .move(let direction):
-                if direction == .up || direction == .down {
-                    keyRow = min(max(0, keyRow + (direction == .up ? -1 : 1)), searchKeys.count - 1)
-                    keyColumn = min(keyColumn, searchKeys[keyRow].count - 1)
-                } else { keyColumn = min(max(0, keyColumn + (direction == .left ? -1 : 1)), searchKeys[keyRow].count - 1) }
+            case .move(let direction): moveKeyboardFocus(direction)
             default: break
             }
             return

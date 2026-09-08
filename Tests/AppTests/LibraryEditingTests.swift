@@ -4,6 +4,31 @@ import Input
 @testable import BigScreen
 
 final class LibraryEditingTests: XCTestCase {
+    @MainActor func testKeyboardMovesByKeyCentersAndKeepsItsColumnThroughWideKeys() {
+        let model = LibraryModel()
+        model.beginText(.newCollection(nil))
+        model.keyRow = 4; model.keyColumn = 0
+        model.perform(.move(.up))
+        XCTAssertEqual(model.searchKeys[model.keyRow][model.keyColumn], "c")
+        model.keyPreferredX = nil; model.keyRow = 1; model.keyColumn = 9
+        model.perform(.move(.down))
+        XCTAssertEqual(model.searchKeys[model.keyRow][model.keyColumn], "l")
+        model.perform(.move(.down)); model.perform(.move(.down))
+        XCTAssertEqual(model.searchKeys[model.keyRow][model.keyColumn], "Done")
+        model.perform(.move(.up))
+        XCTAssertEqual(model.searchKeys[model.keyRow][model.keyColumn], "⌫")
+        model.perform(.move(.down)); model.perform(.move(.left)); model.perform(.move(.right))
+        model.perform(.move(.up))
+        XCTAssertEqual(model.searchKeys[model.keyRow][model.keyColumn], "n")
+        model.perform(.options)
+        for _ in 0..<10 { model.perform(.move(.down)) }
+        XCTAssertTrue(model.searchKeys[model.keyRow].indices.contains(model.keyColumn))
+        model.perform(.options)
+        for _ in 0..<10 { model.perform(.move(.up)) }
+        XCTAssertEqual(model.keyRow, 0)
+        XCTAssertTrue(model.searchKeys[model.keyRow].indices.contains(model.keyColumn))
+        XCTAssertTrue(model.isEditingText)
+    }
     func testCharacterCursorPreservesEmojiAndCombiningAccents() {
         var editor = TextEditorState("A👨‍👩‍👧‍👦é")
         editor.moveCursor(by: -1)

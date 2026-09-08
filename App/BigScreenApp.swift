@@ -366,12 +366,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     for url in [game.heroURL, game.logoURL].compactMap({ $0 }) { _ = await ArtworkCache.shared.image(for: url) }
                 }
             }
-            model.reducedMotion = false
             let arguments = ProcessInfo.processInfo.arguments
+            let reducedMotion = arguments.contains("--snapshot-reduced-motion")
+            model.reducedMotion = reducedMotion
             let requestedScreens: Set<String>? = arguments.firstIndex(of: "--snapshot-screens").flatMap { index in
                 arguments.indices.contains(index + 1) ? Set(arguments[index + 1].split(separator: ",").map(String.init)) : nil
             }
-            for screen in ["uninstall-confirm", "uninstall-unsynced", "uninstall-checking", "cloud-ready", "cloud-conflict", "cloud-account", "cloud-pending", "cloud-syncing", "cloud-recovery", "home", "home-tabs", "home-library-card", "home-playstation", "library", "library-playstation", "library-paged", "library-return", "game", "downloads", "downloads-queued", "settings", "settings-about", "settings-reset", "settings-reset-blocked", "settings-reset-error", "settings-reset-busy", "settings-display", "settings-runtime", "settings-runtime-missing", "settings-runtime-busy", "collections", "keyboard", "compatibility", "uninstall", "logs", "logs-long", "logs-long-end", "logs-long-return", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom", "library-download-glyph", "library-download-focused", "game-unknown-size", "game-favorite", "install-offer", "install-offer-space", "install-queue", "install-history-failed", "install-history-completed", "install-mini-progress", "install-storage-shortage", "install-storage-unavailable", "install-game-progress", "launching", "exit-overlay", "exit-overlay-quit", "notification", "notification-focused"] {
+            for screen in ["uninstall-confirm", "uninstall-unsynced", "uninstall-checking", "cloud-ready", "cloud-conflict", "cloud-account", "cloud-pending", "cloud-syncing", "cloud-recovery", "home", "home-tabs", "home-library-card", "home-playstation", "library", "library-playstation", "library-paged", "library-return", "game", "downloads", "downloads-queued", "settings", "settings-about", "settings-reset", "settings-reset-blocked", "settings-reset-error", "settings-reset-busy", "settings-display", "settings-runtime", "settings-runtime-missing", "settings-runtime-busy", "collections", "keyboard", "keyboard-playstation", "keyboard-generic", "keyboard-space", "keyboard-long", "compatibility", "uninstall", "logs", "logs-long", "logs-long-end", "logs-long-return", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom", "library-download-glyph", "library-download-focused", "game-unknown-size", "game-favorite", "install-offer", "install-offer-space", "install-queue", "install-history-failed", "install-history-completed", "install-mini-progress", "install-storage-shortage", "install-storage-unavailable", "install-game-progress", "launching", "exit-overlay", "exit-overlay-quit", "notification", "notification-focused"] {
                 if let requestedScreens, !requestedScreens.contains(screen) { continue }
                 model.resetBusy = false; model.resetError = nil; model.resetBlocker = nil
                 model.panel = nil; model.detailID = nil; model.authScreen = nil; model.setupScreen = nil
@@ -466,13 +467,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     model.authQR = screen == "signin-qr" ? URL(string: "https://example.invalid/big-screen-design-preview") : nil
                     model.authMessage = "Design preview · QR layout"
                     model.authError = screen == "signin-error" ? "Steam can’t be reached. Check your connection and try again." : nil
-                case "collections", "keyboard", "compatibility", "uninstall", "logs", "logs-long", "logs-long-end", "logs-long-return":
+                case "collections", "keyboard", "keyboard-playstation", "keyboard-generic", "keyboard-space", "keyboard-long", "compatibility", "uninstall", "logs", "logs-long", "logs-long-end", "logs-long-return":
                     model.selectTab(.library)
                     if let game = model.games.first(where: { $0.title == "Hades" }) {
                         model.openGame(game)
                         switch screen {
                         case "collections": model.show(.collections(game.id))
-                        case "keyboard": model.beginText(.newCollection(game.id)); model.insertText("Weekend favorites")
+                        case "keyboard", "keyboard-playstation", "keyboard-generic", "keyboard-space", "keyboard-long":
+                            model.symbols = false; model.uppercase = false
+                            model.beginText(.newCollection(game.id)); model.insertText("Weekend favorites")
+                            model.keyRow = screen == "keyboard-space" ? 4 : 1; model.keyColumn = 0
+                            model.keyboardNavigation = screen == "keyboard" || screen == "keyboard-long"
+                            if !model.keyboardNavigation {
+                                model.controllerName = screen == "keyboard-generic" ? "Xbox Wireless Controller" : "DUALSHOCK 4"
+                                model.playStationGlyphs = screen != "keyboard-generic"
+                            }
+                            if screen == "keyboard-long" {
+                                model.beginText(.compatibilityNote(game.id))
+                                model.insertText(String(repeating: "Long compatibility note. ", count: 12) + "Latest typed words")
+                            }
                         case "compatibility":
                             model.compatibilityNotes[game.id] = "Works well with the controller. Try a lower resolution for a quieter Mac."
                             model.show(.compatibility); model.panelIndex = 1
@@ -491,9 +504,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     }
                 default: model.selectTab(.home)
                 }
-                if screen.hasPrefix("install-") {
-                    window.contentView = NSHostingView(rootView: LauncherView(model: InstallSnapshots.model(for: screen)))
-                } else { window.contentView = NSHostingView(rootView: LauncherView(model: model)) }
+                let fixture = screen.hasPrefix("install-") ? InstallSnapshots.model(for: screen) : model
+                fixture.reducedMotion = reducedMotion
+                window.contentView = NSHostingView(rootView: LauncherView(model: fixture))
                 try await Task.sleep(for: .seconds(2))
                 if screen == "logs-long-end" || screen == "logs-long-return" {
                     for _ in 0..<40 { model.perform(.nextPage); try await Task.sleep(for: .milliseconds(30)) }
@@ -508,7 +521,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 if arguments.contains("--snapshot-offscreen") {
                     // Explicit SwiftUI-only rendering for layout review while the desktop is
                     // locked. Native NSViewRepresentable content still needs a window capture.
-                    let fixture = screen.hasPrefix("install-") ? InstallSnapshots.model(for: screen) : model
                     let renderer = ImageRenderer(content: LauncherView(model: fixture)
                         .frame(width: view.bounds.width, height: view.bounds.height))
                     renderer.scale = 1

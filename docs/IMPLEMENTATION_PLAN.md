@@ -778,3 +778,12 @@ atomically with retirement of the old attempt. Tests cover repeated root loss, l
 checkpoint boundary, exact controller consent without a Steam plan and a committed upload whose
 response was lost. Real game/controller acceptance remains separate and open. See
 `docs/validation/2026-09-08-pending-upload-archive-recovery.md`.
+
+### 8 September — Keyboard and modal polish
+
+On-screen keyboard navigation follows key centers and preserves its column through Space/Done.
+Editor, sign-in and setup legends follow the active input device; long text stays visible beside
+the cursor, and background pages no longer retain a second focus ring behind a modal. All 89 app
+tests and the signed build pass. Seven screens render at 1080p and 4K with reduced motion; inspected
+fixtures show readable controls and glyphs. Live DS4/animation acceptance remains open. See
+[keyboard validation](validation/2026-09-08-keyboard-polish.md).

@@ -30,7 +30,7 @@ struct CanvasView: View {
                     case .settings: SettingsScreen(model: model)
                     }
                 }
-                .environment(\.showsFocusRing, !model.tabsFocused && !model.sessionIssueFocused)
+                .environment(\.showsFocusRing, !model.tabsFocused && !model.sessionIssueFocused && model.panel == nil)
                 .simultaneousGesture(TapGesture().onEnded { model.tabsFocused = false })
                 TopBar(model: model).frame(width: 1728, height: 56).offset(x: 96, y: 54)
             }.frame(width: 1920, height: 1080, alignment: .topLeading)
@@ -61,8 +61,8 @@ struct CanvasView: View {
                     .padding(20).frame(width: 720, alignment: .leading).background(Design.panel, in: RoundedRectangle(cornerRadius: 10))
                     .offset(x: 1104, y: 880).zIndex(3)
             }
-            if model.setupScreen != nil && model.setupScreen != .account { SetupView(model: model).transition(.opacity).zIndex(4) }
-            if model.authScreen != nil { AuthenticationView(model: model).transition(.opacity).zIndex(4) }
+            if model.setupScreen != nil && model.setupScreen != .account { SetupView(model: model).environment(\.showsFocusRing, model.panel == nil).transition(.opacity).zIndex(4) }
+            if model.authScreen != nil { AuthenticationView(model: model).environment(\.showsFocusRing, model.panel == nil).transition(.opacity).zIndex(4) }
             if model.panel != nil { ModalLayer(model: model).transition(.opacity).zIndex(5) }
             if model.controllerDisconnected && model.panel != .controllerTest {
                 Label("Controller disconnected · reconnect to keep playing", systemImage: "gamecontroller")
