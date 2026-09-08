@@ -1,8 +1,20 @@
 import XCTest
+import Darwin
 import Domain
 @testable import Runner
 
 final class OwnedDirectoryRemovalTests: XCTestCase {
+    func testUnreadableParentIsNotMistakenForSuccessfulRemoval() throws {
+        guard getuid() != 0 else { throw XCTSkip("Permission denial requires an unprivileged process") }
+        let root = try root(), directory = root.appendingPathComponent("game"), receipt = root.appendingPathComponent("removing.json")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
+        let removal = OwnedDirectoryRemoval(directory: directory, receipt: receipt, owner: UUID())
+        try removal.begin {}
+        XCTAssertEqual(chmod(root.path, 0), 0)
+        defer { chmod(root.path, 0o700) }
+        XCTAssertThrowsError(try removal.removeRemainingFiles())
+        XCTAssertThrowsError(try removal.finish())
+    }
     private func root() throws -> URL {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("OwnedRemoval-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)

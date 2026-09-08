@@ -73,7 +73,11 @@ public struct OwnedDirectoryRemoval<Owner: Codable & Equatable & Sendable>: Send
         defer { close(fd) }
         guard fsync(fd) == 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
     }
-    private func exists(_ path: URL) -> Bool { var info = stat(); return lstat(path.path, &info) == 0 }
+    private func exists(_ path: URL) -> Bool {
+        var info = stat()
+        if lstat(path.path, &info) == 0 { return true }
+        return errno != ENOENT // Unreadable is not evidence of removal.
+    }
     private func issue() -> Domain.OperationFailure {
         .init(stage: "Uninstall", reason: "The folder's removal ownership changed. Its remaining files have been kept.", output: "")
     }

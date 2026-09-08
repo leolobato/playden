@@ -169,10 +169,11 @@ struct BottomBar: View {
             }
             }
             Spacer(minLength: 0)
-            if model.detailID != nil, let game = model.focusedGame, game.status == .installed { CloudStatusLabel(model: model, gameID: game.id) }
+            if model.detailID != nil, let game = model.focusedGame, game.status == .installed,
+               model.liveJob(for: game.id).map({ $0.kind != .uninstall || $0.state == .completed }) ?? true { CloudStatusLabel(model: model, gameID: game.id) }
             if model.detailID == nil && model.tab != .downloads && model.tab != .settings, let download = model.activeDownload {
                 HStack(spacing: 16) {
-                    Image(systemName: model.downloadPaused ? "pause.fill" : "arrow.down.to.line").foregroundStyle(Design.accent)
+                    Image(systemName: model.liveJob(for: download.id)?.kind == .uninstall ? "trash" : model.downloadPaused ? "pause.fill" : "arrow.down.to.line").foregroundStyle(Design.accent)
                     Text(download.title).font(Design.body(20, weight: "SemiBold"))
                     ProgressTrack(value: model.isPreview ? 0.43 : model.liveJob(for: download.id)?.displayProgress ?? 0, height: 6).frame(width: 120)
                     Text(model.isPreview ? (model.downloadPaused ? "Paused" : "43% · 38 MB/s") : model.liveJob(for: download.id).map { $0.stage == .download ? $0.displayProgress.formatted(.percent.precision(.fractionLength(0))) : $0.statusTitle } ?? "Queued").font(Design.body(20, weight: "SemiBold")).foregroundStyle(Design.secondary)

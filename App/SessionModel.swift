@@ -59,7 +59,7 @@ extension LibraryModel {
                 sessionIssue = .init(stage: "Game closed unexpectedly", reason: "\(snapshot.game?.title ?? "The game") closed unexpectedly. View logs for details.", output: snapshot.session?.runtime?.output ?? "")
             }
             if previous.phase != .syncingSaves { onGameEnded?() }
-            if snapshot.cloudStatus?.state == .conflict, let id = snapshot.session?.gameID { detailID = id; showCloud(id) }
+            if !uninstallBusy, snapshot.cloudStatus?.state == .conflict, let id = snapshot.session?.gameID { detailID = id; showCloud(id) }
         }
     }
     func beginPlay(_ id: GameID) {

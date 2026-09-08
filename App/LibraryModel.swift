@@ -20,6 +20,7 @@ enum Panel: Equatable {
     case downloadActions(GameID)
     case installOffer(GameID)
     case cloudSaves(GameID)
+    case uninstall(GameID)
     case textEditor(TextPurpose), collections(GameID), collectionOptions(UUID), confirmation(Confirmation), logs(GameID)
 }
 
@@ -44,7 +45,14 @@ final class LibraryModel {
     @ObservationIgnored var cloudCommands: [GameID: Task<Void, Never>] = [:]
     var cloudStatuses: [GameID: CloudSyncStatus] = [:]
     var cloudAvailability: [GameID: Bool] = [:]
+    @ObservationIgnored var cloudInstallationIDs: [GameID: UUID] = [:]
     var cloudReview: CloudSyncOperation?
+    @ObservationIgnored var uninstallTask: Task<Void, Never>?
+    var uninstallBusy = false
+    var uninstallReview: UninstallReview?
+    var uninstallInstallation: InstallationRecord?
+    var uninstallPhase: UninstallPhase = .confirm
+    var uninstallError: String?
     @ObservationIgnored var sessionObserver: Task<Void, Never>?
     @ObservationIgnored var sessionStartup: Task<Void, Never>?
     @ObservationIgnored var sessionCommand: Task<Void, Never>?
@@ -264,11 +272,14 @@ final class LibraryModel {
     }
     var detailActions: [String] {
         guard let game = focusedGame else { return [] }
+        if !isPreview, let job = liveJob(for: game.id), job.kind == .uninstall, ![.completed, .cancelled].contains(job.state) {
+            return ["View removal", game.isFavorite ? "Favorited" : "Favorite", "Add to collection", game.isHidden ? "Unhide" : "Hide", "Set compatibility", "View logs"]
+        }
         let primary: String
         if session.phase == .awaitingCloud, session.session?.gameID == game.id { primary = "Review saves" }
         else if hasActiveSession, session.session?.gameID == game.id { primary = "Return to game" }
         else if cloudBusy(game.id) { primary = "Cloud saves" }
-        else if !isPreview, let job = liveJob(for: game.id), ![.completed, .cancelled].contains(job.state) { primary = job.kind == .repair ? "View verification" : "View download" }
+        else if !isPreview, let job = liveJob(for: game.id), ![.completed, .cancelled].contains(job.state) { primary = job.kind == .uninstall ? "View removal" : job.kind == .repair ? "View verification" : "View download" }
         else if gamesNeedingRepair.contains(game.id) { primary = "Verify files" }
         else { primary = switch game.status { case .installed: "Play"; case .downloading: downloadPaused ? "Resume download" : "Pause download"; case .queued: "View download"; case .driveDisconnected: "Drive disconnected"; case .notInstalled: "Install" } }
         return [primary, game.isFavorite ? "Favorited" : "Favorite", "Add to collection", game.isHidden ? "Unhide" : "Hide", "Set compatibility"] + (game.status == .installed ? (primary == "Verify files" ? ["Uninstall", "Cloud saves"] : ["Verify files", "Uninstall", "Cloud saves"]) : []) + ["View logs"]
@@ -339,6 +350,7 @@ final class LibraryModel {
         for (i, row) in rows.enumerated() { homeColumns[i] = min(homeColumns[i, default: 0], max(0, row.itemCount - 1)) }
     }
     func perform(_ action: InputAction) {
+        if performUninstallInput(action) { return }
         if performCloudInput(action) { return }
         if performSessionInput(action) { return }
         if panel == .controllerTest {
@@ -481,13 +493,12 @@ final class LibraryModel {
             if !isPreview, let id = focusedGame?.id { beginVerification(id) }
             else { show(.information("Verification checks the installed game and repairs damaged files when connected.")) }
         case "Uninstall":
-            if !isPreview { show(.information("Uninstall and save retention are still being implemented. Your installed files have been kept.")) }
-            else if let id = focusedGame?.id { show(.confirmation(.uninstall(id))) }
+            if let id = focusedGame?.id { beginUninstall(id) }
         case "Install":
             if !isPreview, let id = focusedGame?.id { beginInstall(id) }
             else if let id = focusedGame?.id { show(.confirmation(.install(id))) }
         case "Pause download", "Resume download": downloadPaused.toggle()
-        case "View download", "View verification":
+        case "View download", "View verification", "View removal":
             let id = focusedGame?.id
             selectTab(.downloads)
             downloadIndex = downloadGames.firstIndex(where: { $0.id == id }) ?? 0

@@ -132,6 +132,7 @@ public actor CrossOverGameBottles: GameBottleManaging {
     }
     public func verifyRemoved(_ bottle: GameBottle) async throws {
         try validateIdentity(bottle)
+        try requireDirectory(bottles, under: bottles.deletingLastPathComponent())
         guard !exists(bottles.appendingPathComponent(bottle.name)), !removal(bottle).isPending,
               !exists(bottles.appendingPathComponent(".bigscreen-staging").appendingPathComponent(bottle.ownershipToken.uuidString)) else {
             throw problem("The game's runtime has not finished being removed.")
@@ -139,6 +140,7 @@ public actor CrossOverGameBottles: GameBottleManaging {
     }
     private func validateRemoval(_ bottle: GameBottle, previousRuntime: RunSnapshot?) throws {
         try validateIdentity(bottle)
+        try requireDirectory(bottles, under: bottles.deletingLastPathComponent())
         let directory = bottles.appendingPathComponent(bottle.name), removing = removal(bottle)
         if removing.isPending { try removing.verify() }
         else if exists(directory) { _ = try readMarker(at: directory, matching: bottle) }
@@ -241,7 +243,11 @@ public actor CrossOverGameBottles: GameBottleManaging {
         let file = try FileHandle(forWritingTo: destination); defer { try? file.close() }
         try file.synchronize()
     }
-    private func exists(_ path: URL) -> Bool { var info = stat(); return lstat(path.path, &info) == 0 }
+    private func exists(_ path: URL) -> Bool {
+        var info = stat()
+        if lstat(path.path, &info) == 0 { return true }
+        return errno != ENOENT // Unreadable is not evidence of removal.
+    }
     @discardableResult private func run(_ name: String, _ arguments: [String], timeout: TimeInterval) async throws -> CommandResult {
         let executable = application.appendingPathComponent("Contents/SharedSupport/CrossOver/bin/" + name)
         let result = try await commands.run(executable: executable, arguments: arguments, timeout: timeout)

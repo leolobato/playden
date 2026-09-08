@@ -8,8 +8,12 @@ extension LibraryModel {
     func refreshCloudAvailability() {
         guard !isPreview, let catalog, let source else { return }
         do {
+            let entries = try catalog.snapshot().entries
+            let identities = Dictionary(uniqueKeysWithValues: entries.compactMap { entry in entry.installation.map { (entry.id, $0.id) } })
+            for (id, previous) in cloudInstallationIDs where identities[id] != previous { cloudStatuses[id] = nil }
+            cloudInstallationIDs = identities
             var values: [GameID: Bool] = [:]
-            for entry in try catalog.snapshot().entries {
+            for entry in entries {
                 guard let installed = entry.installation, let plan = installed.plan else { continue }
                 let mapping = try source.installer(for: installed.game).saveMapping(plan)
                 values[entry.id] = mapping.coverage != .unknown && mapping.unresolved.isEmpty && mapping.rules.contains { $0.cloudPrefix != nil }

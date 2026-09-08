@@ -108,6 +108,10 @@ public actor InstallStorage: InstallStorageManaging {
         var info = stat()
         guard lstat(path.path, &info) == 0, info.st_mode & S_IFMT == S_IFDIR else { throw issue("Storage", "The game folder is missing or has become a symbolic link.") }
     }
-    private func exists(_ path: URL) -> Bool { var info = stat(); return lstat(path.path, &info) == 0 }
+    private func exists(_ path: URL) -> Bool {
+        var info = stat()
+        if lstat(path.path, &info) == 0 { return true }
+        return errno != ENOENT // Unreadable is not evidence of removal.
+    }
     private func issue(_ stage: String, _ reason: String) -> OperationFailure { .init(stage: stage, reason: reason, output: reason) }
 }

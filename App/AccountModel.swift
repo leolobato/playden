@@ -27,6 +27,7 @@ extension LibraryModel {
         installObserver?.cancel(); installOfferTask?.cancel()
         sessionObserver?.cancel()
         cloudObserver?.cancel()
+        uninstallTask?.cancel()
     }
     func beginSignIn() {
         guard source != nil else {
@@ -165,6 +166,7 @@ extension LibraryModel {
             guard let self else { return }
             do {
                 await syncCoordinator?.cancel()
+                await stopUninstallPreparation()
                 await stopCloudCommands()
                 try await source.auth.signOut()
                 try catalog.clearSourceCatalog(source.id)

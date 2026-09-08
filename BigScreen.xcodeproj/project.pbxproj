@@ -47,13 +47,16 @@
 		A1FF886A1306CD7D8B5CE27F /* Installs in Frameworks */ = {isa = PBXBuildFile; productRef = 616AFAA57B1C670A9E38212D /* Installs */; };
 		A5BB015D1145708E9D242027 /* Focus in Frameworks */ = {isa = PBXBuildFile; productRef = 7DAA6C5CD5D24A18E0472A09 /* Focus */; };
 		A87C77D05E6DD17B5E85C9BD /* InstallInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 766C5E1AA303977304DFD467 /* InstallInteractionTests.swift */; };
+		AE24E3CF1C61026537390A49 /* UninstallSnapshots.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0567D32888B0D5F62BD9122E /* UninstallSnapshots.swift */; };
 		B1283F0A6BA67AEA7A9C5AE0 /* ControllerInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E569123866C09B72649085F1 /* ControllerInteractionTests.swift */; };
 		B1A657D405AAD7C8B281677C /* EditingViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4038C0219269A842D64FC94D /* EditingViews.swift */; };
 		B25B1F80C0B90AEC6CA8BC60 /* LibraryModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7E1299E802C11E73F8A1EDA /* LibraryModel.swift */; };
 		B2A98FB795CC03E24E7989E6 /* AccountInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 281D1CCE073CC4C5E8961058 /* AccountInteractionTests.swift */; };
 		B9C9F1D5CF194B3D92E7705B /* Sessions in Frameworks */ = {isa = PBXBuildFile; productRef = F113430A9DD2F5547F593DAD /* Sessions */; };
 		C1FB15B5D9027944888D38FA /* BarlowCondensed-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 8DF603146150E3A8F502D3AF /* BarlowCondensed-Medium.ttf */; };
+		C2F8F929032A1920F449F960 /* UninstallViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46AAFB1CC7B0350A0887992E /* UninstallViews.swift */; };
 		C4EDBB9348B8E1E02A0161D8 /* CloudReadCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F124DDCA81FCCB25F42B2E6 /* CloudReadCheck.swift */; };
+		C4F6044A852DE53219F2C612 /* UninstallModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAE11B2EFFCEB9C2937AF54F /* UninstallModel.swift */; };
 		C617DC97E2339CC012966C7D /* GameDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F8702FA8C0998A1511EBD2C /* GameDisplay.swift */; };
 		CA15BEFA39C7E33110214117 /* Runner in Frameworks */ = {isa = PBXBuildFile; productRef = 6310A68293BC5942095233F5 /* Runner */; };
 		CA2CD29BB2A361B7CCF5F01C /* PreviewCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB21DA9AE3F1CFE573775A04 /* PreviewCatalog.swift */; };
@@ -65,6 +68,7 @@
 		F2DA9DFDEA33D570E8F5757B /* CloudSnapshots.swift in Sources */ = {isa = PBXBuildFile; fileRef = B937D52D98A5C57034AC4FCD /* CloudSnapshots.swift */; };
 		F620DFB1233765EA67216E53 /* RuntimeSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5CAAE0C8897E979FA0DE729 /* RuntimeSettingsView.swift */; };
 		F97B357CF2C84140B4D6FD9C /* LibraryEditingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAA058B561808E36274C4A53 /* LibraryEditingTests.swift */; };
+		FA75CFEF0078B5B129977FDF /* UninstallInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 697CFDC2E8EEEA5BF7F978E3 /* UninstallInteractionTests.swift */; };
 		FCB403FE4A0246DD90667FE7 /* Input in Frameworks */ = {isa = PBXBuildFile; productRef = 8A0E4D1D02D0A2AB2C0FF44A /* Input */; };
 /* End PBXBuildFile section */
 
@@ -79,6 +83,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		0567D32888B0D5F62BD9122E /* UninstallSnapshots.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UninstallSnapshots.swift; sourceTree = "<group>"; };
 		067070582F28748F251928CB /* SessionViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionViews.swift; sourceTree = "<group>"; };
 		08513EE3EB4D3FF23A5EC440 /* Barlow-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Barlow-Medium.ttf"; sourceTree = "<group>"; };
 		0ABE6CC32C22767FC77D4D03 /* SupportViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupportViews.swift; sourceTree = "<group>"; };
@@ -92,11 +97,13 @@
 		3F8702FA8C0998A1511EBD2C /* GameDisplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameDisplay.swift; sourceTree = "<group>"; };
 		4038C0219269A842D64FC94D /* EditingViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditingViews.swift; sourceTree = "<group>"; };
 		4622DF2E186C3B6F638C30B1 /* Barlow-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Barlow-Regular.ttf"; sourceTree = "<group>"; };
+		46AAFB1CC7B0350A0887992E /* UninstallViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UninstallViews.swift; sourceTree = "<group>"; };
 		4C9C86672EFCA75AD8158EA9 /* LibraryFilterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryFilterTests.swift; sourceTree = "<group>"; };
 		5036277590D70F7B4EDB65E7 /* BigScreenKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = BigScreenKit; path = Packages/BigScreenKit; sourceTree = SOURCE_ROOT; };
 		5B2BFD1CFF9C87356CDEE098 /* DisplayModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayModel.swift; sourceTree = "<group>"; };
 		5F124DDCA81FCCB25F42B2E6 /* CloudReadCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudReadCheck.swift; sourceTree = "<group>"; };
 		675832B109B2E37BE237EB27 /* BarlowCondensed-SemiBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "BarlowCondensed-SemiBold.ttf"; sourceTree = "<group>"; };
+		697CFDC2E8EEEA5BF7F978E3 /* UninstallInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UninstallInteractionTests.swift; sourceTree = "<group>"; };
 		6AF948AAF0BAAEF8084DC07F /* Barlow-SemiBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Barlow-SemiBold.ttf"; sourceTree = "<group>"; };
 		6C51BD54920288A7687D10E5 /* AmbientBackdrop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AmbientBackdrop.swift; sourceTree = "<group>"; };
 		766C5E1AA303977304DFD467 /* InstallInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallInteractionTests.swift; sourceTree = "<group>"; };
@@ -108,6 +115,7 @@
 		99B69173E3CBF5EC838826D5 /* LibraryInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryInteractionTests.swift; sourceTree = "<group>"; };
 		99CC90B68B12DC034A62B4A8 /* barlowcondensed-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "barlowcondensed-OFL.txt"; sourceTree = "<group>"; };
 		A7E1299E802C11E73F8A1EDA /* LibraryModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryModel.swift; sourceTree = "<group>"; };
+		AAE11B2EFFCEB9C2937AF54F /* UninstallModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UninstallModel.swift; sourceTree = "<group>"; };
 		ACE543D0F8A5BF17507E08D4 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
 		B189A59421792AA442D72A7D /* SetupModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupModel.swift; sourceTree = "<group>"; };
 		B937D52D98A5C57034AC4FCD /* CloudSnapshots.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSnapshots.swift; sourceTree = "<group>"; };
@@ -168,6 +176,7 @@
 				0EB9DBF77AE790F10C180E46 /* LibraryPersistenceTests.swift */,
 				FAD5F2E37317C6DA181E77C1 /* SessionInteractionTests.swift */,
 				EC29F464E7AA30FCF14E21D1 /* SetupInteractionTests.swift */,
+				697CFDC2E8EEEA5BF7F978E3 /* UninstallInteractionTests.swift */,
 			);
 			name = AppTests;
 			path = Tests/AppTests;
@@ -217,6 +226,9 @@
 				B189A59421792AA442D72A7D /* SetupModel.swift */,
 				8E9A8D8C39868D9CD1F07282 /* SetupView.swift */,
 				0ABE6CC32C22767FC77D4D03 /* SupportViews.swift */,
+				AAE11B2EFFCEB9C2937AF54F /* UninstallModel.swift */,
+				0567D32888B0D5F62BD9122E /* UninstallSnapshots.swift */,
+				46AAFB1CC7B0350A0887992E /* UninstallViews.swift */,
 				BE41A0948563E9044ACC39FF /* Resources */,
 			);
 			path = App;
@@ -451,6 +463,9 @@
 				8E48D457DC1378C5E8F680BF /* SetupModel.swift in Sources */,
 				7C334DEF7D550877108D36C6 /* SetupView.swift in Sources */,
 				764655582701C0B1C2F9BA54 /* SupportViews.swift in Sources */,
+				C4F6044A852DE53219F2C612 /* UninstallModel.swift in Sources */,
+				AE24E3CF1C61026537390A49 /* UninstallSnapshots.swift in Sources */,
+				C2F8F929032A1920F449F960 /* UninstallViews.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -469,6 +484,7 @@
 				30306F64D650CE41AADD0B44 /* LibraryPersistenceTests.swift in Sources */,
 				F1B4A1FB95046FCBED1C109D /* SessionInteractionTests.swift in Sources */,
 				0B17236C1AE8462B76F1E113 /* SetupInteractionTests.swift in Sources */,
+				FA75CFEF0078B5B129977FDF /* UninstallInteractionTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

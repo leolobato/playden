@@ -32,7 +32,7 @@ extension LibraryModel {
         var previousSection = "", top = 24.0
         return downloadGames.enumerated().map { index, game in
             let job = isPreview ? nil : liveJob(for: game.id)
-            let section = job.map { $0.id == activeInstallID ? ($0.kind == .repair ? "Verifying now" : "Installing now") : $0.state == .failed ? "Needs attention" : [.completed, .cancelled].contains($0.state) ? "Recently finished" : "Queued" }
+            let section = job.map { $0.id == activeInstallID ? ($0.kind == .uninstall ? "Removing now" : $0.kind == .repair ? "Verifying now" : "Installing now") : $0.state == .failed ? "Needs attention" : [.completed, .cancelled].contains($0.state) ? "Recently finished" : "Queued" }
                 ?? (game.status == .downloading ? "Downloading now" : game.status == .queued ? "Queued" : "Recently finished")
             let heading: String? = section != previousSection ? section : nil
             if heading != nil && index > 0 { top += 20 }
@@ -52,6 +52,7 @@ extension LibraryModel {
     func downloadActions(for id: GameID) -> [String] {
         if !isPreview, let job = liveJob(for: id) {
             let common = ["Open game", "View logs"]
+            if job.kind == .uninstall { return (job.state == .failed ? ["Retry"] : []) + common }
             let cancel = job.kind == .repair ? "Stop verifying…" : "Cancel download…"
             if [.completed, .cancelled].contains(job.state) { return common }
             if job.cancellationRequested == true { return (job.state == .paused || job.state == .failed ? ["Retry cancellation"] : []) + common }

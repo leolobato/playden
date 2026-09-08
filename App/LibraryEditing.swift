@@ -133,6 +133,7 @@ extension LibraryModel {
             if filter == .collection(id) { filter = .all }
             libraryRailIndex = min(libraryRailIndex, libraryFilters.count - 1)
         case .uninstall(let id):
+            if !isPreview { beginUninstall(id); return }
             if let i = games.firstIndex(where: { $0.id == id }) { games[i].status = .notInstalled }
             detailAction = 0
         case .install(let id):

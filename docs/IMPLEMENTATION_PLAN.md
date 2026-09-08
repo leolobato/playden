@@ -615,3 +615,9 @@ receipts for interrupted deletion, stopped-writer checks, verified absence and d
 The full regression suite and a real disposable CrossOver clone/delete probe pass. UI integration
 and live A Short Hike uninstall/reinstall with Cloud restore are next.
 See `docs/validation/2026-09-08-uninstall-worker.md`.
+
+Live uninstall controls now show what is removed/kept, stop the selected game, check Cloud and require
+separate consent before discarding unsynced progress. Downloads offers removal status/retry instead
+of download cancellation; details blocks Play until removal finishes. Controller/keyboard interaction
+tests and 1080p/4K rendering checks pass. Live A Short Hike removal/reinstall/restore acceptance is next.
+See `docs/validation/2026-09-08-uninstall-ui.md`.

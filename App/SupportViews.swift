@@ -86,7 +86,11 @@ struct ModalLayer: View {
     @Bindable var model: LibraryModel
     var body: some View {
         ZStack(alignment: .trailing) {
-            Design.background.opacity(0.72).onTapGesture { model.panel = nil }
+            Design.background.opacity(0.72).onTapGesture {
+                if case .uninstall(let id) = model.panel { model.activateUninstall(.cancel, id: id) }
+                else if case .cloudSaves(let id) = model.panel { model.activateCloud(.close, id: id) }
+                else { model.panel = nil }
+            }
             if model.panel == .filters {
                 LibraryFilterSheet(model: model)
             } else if model.panel == .controllerTest {
@@ -101,6 +105,8 @@ struct ModalLayer: View {
                 LogViewer(model: model, gameID: gameID).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if case .cloudSaves(let gameID) = model.panel {
                 CloudSaveDialog(model: model, gameID: gameID).frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if case .uninstall(let gameID) = model.panel {
+                UninstallDialog(model: model, gameID: gameID).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if case .information(let message) = model.panel {
                 VStack(alignment: .leading, spacing: 30) {
                     Text(model.isPreview ? "Design preview" : "Big Screen").font(Design.condensed(48))
@@ -205,7 +211,7 @@ struct DownloadCard: View {
                     if active {
                         ProgressTrack(value: job.displayProgress)
                         Text(job.bytesLabel).font(Design.body(22)).foregroundStyle(Design.secondary)
-                        Text(job.currentFile ?? "Your game will be ready after verification and setup.").font(Design.body(18)).foregroundStyle(Design.muted).lineLimit(1).truncationMode(.middle)
+                        Text(job.kind == .uninstall ? "Steam Cloud saves and library history are kept." : job.currentFile ?? "Your game will be ready after verification and setup.").font(Design.body(18)).foregroundStyle(Design.muted).lineLimit(1).truncationMode(.middle)
                     }
                 } else if active {
                     Text(model.downloadPaused ? "Paused · 43%" : "Download · 43%").font(Design.body(24, weight: "Medium")).foregroundStyle(Design.accent)

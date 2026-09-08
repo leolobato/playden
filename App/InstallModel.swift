@@ -82,6 +82,10 @@ extension LibraryModel {
         guard !isPreview else { return }
         for job in visibleInstallJobs {
             guard let index = games.firstIndex(where: { $0.id == job.gameID }) else { continue }
+            if job.kind == .uninstall {
+                games[index].status = job.state == .completed ? .notInstalled : .installed
+                continue
+            }
             if ![.completed, .cancelled].contains(job.state), let plan = job.plan {
                 games[index].size = ByteCountFormatter.string(fromByteCount: plan.estimate.downloadBytes, countStyle: .file)
             }
@@ -92,7 +96,7 @@ extension LibraryModel {
     }
     func game(for job: JobRecord) -> Game {
         if let game = games.first(where: { $0.id == job.gameID }) { return game }
-        let source = job.plan?.game
+        let source = job.plan?.game ?? job.originalInstallation?.game
         return Game(id: job.gameID, title: source?.title ?? "Game", coverURL: source?.coverURL, heroURL: source?.heroURL, logoURL: source?.logoURL)
     }
     func performLiveDownloadAction(_ label: String, id: GameID) {
@@ -130,23 +134,27 @@ extension LibraryModel {
     }
 }
 extension JobRecord {
-    var displayProgress: Double { guard let bytesTotal, bytesTotal > 0 else { return 0 }; return min(1, max(0, Double(bytesCompleted) / Double(bytesTotal))) }
+    var displayProgress: Double {
+        if kind == .uninstall { return state == .completed ? 1 : completedStages.contains(.removeBottle) ? 0.9 : completedStages.contains(.removeFiles) ? 0.6 : 0.1 }
+        guard let bytesTotal, bytesTotal > 0 else { return 0 }; return min(1, max(0, Double(bytesCompleted) / Double(bytesTotal)))
+    }
     var stageTitle: String {
         switch stage {
         case .resolve: "Checking game"; case .estimate: "Checking space"; case .reserve: "Reserving space"
         case .download: kind == .repair ? "Checking and repairing files" : "Downloading"; case .verifyOriginals, .validate: "Verifying files"; case .createBottle: "Preparing game runtime"
-        case .prerequisites: "Installing prerequisites"; case .stage: "Preparing game"; case .commit: "Finishing installation"
-        case .finished: kind == .repair ? "Files verified" : "Installed"; case .preserveSaves: "Keeping saves"; case .removeFiles, .removeBottle: "Removing game"
+        case .prerequisites: "Installing prerequisites"; case .stage: "Preparing game"; case .commit: kind == .uninstall ? "Finishing removal" : "Finishing installation"
+        case .finished: kind == .uninstall ? "Uninstalled" : kind == .repair ? "Files verified" : "Installed"; case .preserveSaves: "Checking saves"; case .removeFiles: "Removing game files"; case .removeBottle: "Removing game runtime"
         }
     }
     var statusTitle: String {
         switch state {
         case .queued: "Queued"; case .running: stageTitle; case .stopping: cancellationRequested == true ? "Cancelling…" : "Pausing…"
         case .paused: pauseReasons.contains(.authentication) ? "Sign in to resume" : pauseReasons.contains(.unavailableDrive) ? "Reconnect your games drive" : pauseReasons.contains(.insufficientSpace) ? "More space needed" : pauseReasons.contains(.user) ? "Paused" : "Paused while playing"
-        case .failed: kind == .repair ? "Verification failed" : "Installation failed"; case .cancelled: kind == .repair ? "Verification stopped" : "Cancelled"; case .completed: kind == .repair ? "Files verified" : "Installed"
+        case .failed: kind == .uninstall ? "Removal needs attention" : kind == .repair ? "Verification failed" : "Installation failed"; case .cancelled: kind == .repair ? "Verification stopped" : "Cancelled"; case .completed: kind == .uninstall ? "Uninstalled" : kind == .repair ? "Files verified" : "Installed"
         }
     }
     var bytesLabel: String {
+        if kind == .uninstall { return state == .completed ? "Local files removed · Cloud saves kept" : "Game files, runtime and local saves" }
         let done = ByteCountFormatter.string(fromByteCount: bytesCompleted, countStyle: .file)
         return bytesTotal.map { done + " of " + ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) + " written" } ?? done + " written"
     }
