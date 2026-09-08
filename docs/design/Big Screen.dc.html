@@ -19,6 +19,90 @@ a{color:#F0863A}a:hover{color:#ffa566}
 
 <section style="padding:48px 64px;display:flex;flex-direction:column;gap:40px;border-bottom:1px solid rgba(243,239,233,.1)">
   <div style="display:flex;flex-direction:column;gap:6px;max-width:900px">
+    <div style="font:600 14px/1 'Barlow Condensed';letter-spacing:.14em;text-transform:uppercase;color:#a8a29e">Turn 3</div>
+    <h1 style="margin:0;font:600 34px/1.1 'Barlow Condensed';color:#f3efe9">Installed vs. not installed without fading the art</h1>
+    <p style="margin:0;font:400 15px/1.5 Barlow;color:#a8a29e;text-wrap:pretty">All covers at full color. <a href="#3a">3a</a> marks installed tiles with a small check pill and leaves the rest bare. <a href="#3b">3b</a> does the opposite: not-installed tiles carry a small download glyph. <a href="#3c">3c</a> gives installed tiles a light frame and lifts them, so the whole grid reads as "on this Mac" vs. "in the cloud" at a glance.</p>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:48px;align-items:flex-start">
+    <sc-for list="{{ altBoards }}" as="b" hint-placeholder-count="3">
+      <div id="{{ b.id }}" style="display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span style="font:700 13px/1 'Barlow Condensed';letter-spacing:.1em;padding:6px 9px;border-radius:6px;background:#F0863A;color:#1a1210">{{ b.id }}</span>
+          <span style="font:500 17px/1 'Barlow Condensed';color:#f3efe9">{{ b.label }}</span>
+          <span style="font:400 14px/1 Barlow;color:#a8a29e">{{ b.note }}</span>
+        </div>
+        <div style="position:relative;width:1920px;height:1080px;overflow:hidden;background:#0e0d0c;border-radius:4px;box-shadow:0 30px 80px rgba(0,0,0,.5)" data-screen-label="{{ b.label }}">
+          <div style="position:absolute;left:96px;right:96px;top:54px;height:56px;display:flex;align-items:center;justify-content:space-between">
+            <div style="display:flex;align-items:center;gap:8px">
+              <div style="display:flex;align-items:center;gap:10px;padding:0 22px;height:52px"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#a8a29e" stroke-width="2" stroke-linejoin="round"><polygon points="3 11 12 3 21 11"></polygon><rect x="6" y="11" width="12" height="10"></rect></svg><span style="font:500 30px/1 'Barlow Condensed';color:#a8a29e">Home</span></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:0 22px;height:52px;border-radius:8px;background:rgba(243,239,233,.12);border:2px solid rgba(243,239,233,.35)"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#f3efe9" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect></svg><span style="font:600 30px/1 'Barlow Condensed';color:#f3efe9">Library</span></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:0 22px;height:52px"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#a8a29e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="3" x2="12" y2="15"></line><polyline points="6 10 12 16 18 10"></polyline><line x1="4" y1="21" x2="20" y2="21"></line></svg><span style="font:500 30px/1 'Barlow Condensed';color:#a8a29e">Downloads</span><span style="font:600 16px/1 Barlow;color:#1a1210;background:#F0863A;border-radius:12px;padding:5px 9px">1</span></div>
+              <div style="display:flex;align-items:center;gap:10px;padding:0 22px;height:52px"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#a8a29e" stroke-width="2"><circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="3"></circle></svg><span style="font:500 30px/1 'Barlow Condensed';color:#a8a29e">Settings</span></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:22px">
+              <div style="display:flex;align-items:center;gap:12px"><div style="width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#F0863A,#8a3d15)"></div><span style="font:500 24px/1 Barlow;color:#f3efe9">Leo</span></div>
+              <span style="font:500 26px/1 'Barlow Condensed';color:#a8a29e;letter-spacing:.02em">21:42</span>
+            </div>
+          </div>
+          <div style="position:absolute;left:96px;top:150px;width:300px;display:flex;flex-direction:column;gap:6px">
+            <div style="padding:16px 22px;font:500 28px/1 'Barlow Condensed';color:#a8a29e;display:flex;justify-content:space-between"><span>Installed</span><span style="font:400 20px/1.2 Barlow;color:#6b655f">14</span></div>
+            <div style="padding:16px 22px;font:600 28px/1 'Barlow Condensed';color:#f3efe9;border-radius:8px;background:rgba(243,239,233,.1);display:flex;justify-content:space-between"><span>All</span><span style="font:400 20px/1.2 Barlow;color:#a8a29e">612</span></div>
+            <div style="padding:16px 22px;font:500 28px/1 'Barlow Condensed';color:#a8a29e;display:flex;justify-content:space-between"><span>Favorites</span><span style="font:400 20px/1.2 Barlow;color:#6b655f">8</span></div>
+            <div style="padding:16px 22px;font:500 28px/1 'Barlow Condensed';color:#a8a29e;display:flex;justify-content:space-between"><span>Hidden</span><span style="font:400 20px/1.2 Barlow;color:#6b655f">23</span></div>
+            <div style="margin:18px 22px 6px;height:1px;background:rgba(243,239,233,.12)"></div>
+            <div style="padding:16px 22px;font:500 28px/1 'Barlow Condensed';color:#a8a29e;display:flex;justify-content:space-between"><span>Couch co-op</span><span style="font:400 20px/1.2 Barlow;color:#6b655f">6</span></div>
+            <div style="padding:16px 22px;font:500 28px/1 'Barlow Condensed';color:#a8a29e;display:flex;justify-content:space-between"><span>Short sessions</span><span style="font:400 20px/1.2 Barlow;color:#6b655f">11</span></div>
+          </div>
+          <div style="position:absolute;left:444px;top:150px;width:1380px;height:790px;display:grid;grid-template-columns:repeat(6,210px);gap:24px;align-content:start">
+            <sc-for list="{{ b.tiles }}" as="t" hint-placeholder-count="18">
+              <div style="position:relative;width:210px;height:315px;border-radius:8px;transform:scale({{ t.scale }}) translateY({{ t.lift }}px);box-shadow:{{ t.shadow }}">
+                <img src="{{ t.cover }}" alt="{{ t.title }}" style="width:210px;height:315px;object-fit:cover;border-radius:8px;display:block;background:#2a2623">
+                <sc-if value="{{ t.showFrame }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;border-radius:8px;border:2px solid rgba(243,239,233,.55);pointer-events:none"></div></sc-if>
+                <sc-if value="{{ t.showCheck }}" hint-placeholder-val="{{ false }}">
+                  <div style="position:absolute;left:10px;bottom:10px;width:30px;height:30px;border-radius:50%;background:#F0863A;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,.5)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1a1210" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 12 10 18 20 6"></polyline></svg></div>
+                </sc-if>
+                <sc-if value="{{ t.showGet }}" hint-placeholder-val="{{ false }}">
+                  <div style="position:absolute;right:10px;bottom:10px;width:30px;height:30px;border-radius:50%;background:rgba(14,13,12,.8);border:1.5px solid rgba(243,239,233,.5);display:flex;align-items:center;justify-content:center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f3efe9" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="4" x2="12" y2="15"></line><polyline points="6 10 12 16 18 10"></polyline><line x1="5" y1="20" x2="19" y2="20"></line></svg></div>
+                </sc-if>
+                <sc-if value="{{ t.showBadge }}" hint-placeholder-val="{{ false }}">
+                  <div style="position:absolute;left:10px;top:10px;padding:6px 10px;border-radius:6px;background:rgba(14,13,12,.85);color:#f3efe9;font:600 16px/1 Barlow;letter-spacing:.04em;display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:{{ t.badgeColor }};display:inline-block"></span>{{ t.badge }}</div>
+                </sc-if>
+                <sc-if value="{{ t.showProgress }}" hint-placeholder-val="{{ false }}">
+                  <div style="position:absolute;left:0;right:0;bottom:0;padding:10px 12px 12px;border-radius:0 0 8px 8px;background:linear-gradient(180deg,rgba(14,13,12,0),rgba(14,13,12,.9))">
+                    <div style="display:flex;justify-content:space-between;font:600 16px/1 Barlow;color:#f3efe9;margin-bottom:8px"><span>Downloading</span><span>{{ t.pct }}%</span></div>
+                    <div style="height:6px;border-radius:3px;background:rgba(243,239,233,.25)"><div style="height:6px;border-radius:3px;background:#F0863A;width:{{ t.pct }}%"></div></div>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ t.focused }}" hint-placeholder-val="{{ false }}">
+                  <div style="position:absolute;left:0;right:0;bottom:0;padding:40px 14px 14px;border-radius:0 0 8px 8px;background:linear-gradient(180deg,rgba(14,13,12,0),rgba(14,13,12,.92));display:flex;flex-direction:column;gap:4px"><div style="font:600 24px/1.05 'Barlow Condensed';color:#f3efe9">{{ t.title }}</div><div style="font:400 15px/1.2 Barlow;color:#a8a29e">{{ t.sub }}</div></div>
+                  <div style="position:absolute;inset:-7px;border-radius:13px;border:4px solid #F0863A;box-shadow:0 0 44px rgba(240,134,58,.55),0 12px 40px rgba(0,0,0,.6);pointer-events:none"></div>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+          <div style="position:absolute;left:0;right:0;bottom:0;height:150px;background:linear-gradient(180deg,rgba(14,13,12,0),#0e0d0c 60%)"></div>
+          <div style="position:absolute;left:96px;right:96px;bottom:54px;height:40px;display:flex;align-items:center;justify-content:space-between">
+            <div style="display:flex;align-items:center;gap:30px">
+              <div style="display:flex;align-items:center;gap:10px"><span style="width:36px;height:36px;border-radius:50%;border:2px solid #f3efe9;display:inline-flex;align-items:center;justify-content:center;font:600 18px/1 Barlow;color:#f3efe9">{{ g.confirm }}</span><span style="font:500 22px/1 Barlow;color:#f3efe9">Open</span></div>
+              <div style="display:flex;align-items:center;gap:10px"><span style="width:36px;height:36px;border-radius:50%;border:2px solid #f3efe9;display:inline-flex;align-items:center;justify-content:center;font:600 18px/1 Barlow;color:#f3efe9">{{ g.back }}</span><span style="font:500 22px/1 Barlow;color:#f3efe9">Home</span></div>
+              <div style="display:flex;align-items:center;gap:10px"><span style="width:36px;height:36px;border-radius:50%;border:2px solid #f3efe9;display:inline-flex;align-items:center;justify-content:center;font:600 18px/1 Barlow;color:#f3efe9">{{ g.context }}</span><span style="font:500 22px/1 Barlow;color:#f3efe9">More</span></div>
+              <div style="display:flex;align-items:center;gap:10px"><span style="width:36px;height:36px;border-radius:50%;border:2px solid #f3efe9;display:inline-flex;align-items:center;justify-content:center;font:600 18px/1 Barlow;color:#f3efe9">{{ g.favorite }}</span><span style="font:500 22px/1 Barlow;color:#f3efe9">Favorite</span></div>
+              <div style="display:flex;align-items:center;gap:10px"><span style="height:36px;padding:0 10px;border-radius:18px;border:2px solid #f3efe9;display:inline-flex;align-items:center;justify-content:center;font:600 15px/1 Barlow;color:#f3efe9;letter-spacing:.04em">{{ g.options }}</span><span style="font:500 22px/1 Barlow;color:#f3efe9">Sort &amp; filter</span></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:14px;padding:0 16px;height:40px;border-radius:8px;background:rgba(243,239,233,.08)">
+              <span style="font:500 20px/1 Barlow;color:#f3efe9">TUNIC</span>
+              <div style="width:120px;height:6px;border-radius:3px;background:rgba(243,239,233,.2)"><div style="width:43%;height:6px;border-radius:3px;background:#F0863A"></div></div>
+              <span style="font:500 20px/1 Barlow;color:#a8a29e">43% · 38 MB/s</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+</section>
+
+<section style="padding:48px 64px;display:flex;flex-direction:column;gap:40px;border-bottom:1px solid rgba(243,239,233,.1)">
+  <div style="display:flex;flex-direction:column;gap:6px;max-width:900px">
     <div style="font:600 14px/1 'Barlow Condensed';letter-spacing:.14em;text-transform:uppercase;color:#a8a29e">Turn 2</div>
     <h1 style="margin:0;font:600 34px/1.1 'Barlow Condensed';color:#f3efe9">Remaining screens, built on focus B and the split game page</h1>
     <p style="margin:0;font:400 15px/1.5 Barlow;color:#a8a29e;text-wrap:pretty">Library states (<a href="#2a">2a</a>–<a href="#2c">2c</a>), Downloads (<a href="#2d">2d</a>), first run (<a href="#2e">2e</a>–<a href="#2h">2h</a>), in-game (<a href="#2i">2i</a>, <a href="#2j">2j</a>), Settings (<a href="#2k">2k</a>) and the components sheet (<a href="#2l">2l</a>). In the grid the focused title sits inside the tile so rows keep their pitch.</p>
@@ -1082,8 +1166,26 @@ class Component extends DCLogic {
       bg: k.length > 1 ? 'rgba(243,239,233,.14)' : 'rgba(243,239,233,.07)',
       focused: k === 'd',
     })));
+    const alt = variant => LIB.map((t, i) => {
+      const x = this.tile(t, i === 0);
+      const inst = x.state === 'installed' || x.state === 'running' || x.state === 'broken' || x.state === 'downloading';
+      const bare = x.state === 'not' || x.state === 'disconnected';
+      x.opacity = 1;
+      x.showCheck = variant === 'check' && inst && x.state !== 'downloading';
+      x.showGet = variant === 'get' && x.state === 'not';
+      x.showFrame = variant === 'frame' && inst;
+      x.lift = variant === 'frame' && inst ? -4 : 0;
+      x.shadow = variant === 'frame' ? (inst ? '0 14px 30px rgba(0,0,0,.55)' : 'none') : 'none';
+      if (variant === 'frame' && bare) x.opacity = 1;
+      return x;
+    });
     return {
       g: glyphs,
+      altBoards: [
+        { id: '3a', label: 'Installed check', note: 'Accent check bottom-left on installed tiles; not installed is bare', tiles: alt('check') },
+        { id: '3b', label: 'Download glyph', note: 'Not-installed tiles carry a quiet download mark bottom-right', tiles: alt('get') },
+        { id: '3c', label: 'Frame and lift', note: 'Installed tiles get a light frame, 4 px lift and a shadow', tiles: alt('frame') },
+      ],
       glyphSetLabel: glyphKey === 'ps' ? 'PlayStation set' : 'generic set',
       celeste: art(G.celeste), outerwilds: art(G.outerwilds), spiritfarer: art(G.spiritfarer), cuphead: art(G.cuphead),
       keyRows,

@@ -83,13 +83,21 @@ Left column x 96, w 1140, sections gap 32 with 22 px uppercase labels. Active ca
 Rail (same as Library) with Account, Library, Display, Controller, About. Rows `padding 26 30`, grid `1fr auto`: title BC 600 30, subtitle Barlow 22. Controls: outlined button (h 56), disclosure "Change ›", toggle 84×44 (knob 36; on = accent track, knob `#1A1210`). Library section rows shown: Refresh library, Games volume, Download while playing, Runtime (the one place CrossOver/template names appear). Other sections follow PRD 07 FR-SET-1 with the same row pattern.
 
 ## Shared components (board 2l)
-- **Tile states** (210×315 here, 213×320 on Home): not installed → art at 45 % opacity; queued → top-left badge (`rgba(14,13,12,.85)`, 8 px status dot, Barlow 600 16); downloading → bottom overlay with "Downloading" / % and 6 px accent bar; installed → plain art; running → green "Running" badge; broken → red "Broken" badge; drive disconnected → 45 % opacity + amber badge. Compatibility badge is not shown on tiles except Broken; it appears on the game page and in filters.
+- **Tile states** (210×315 here, 213×320 on Home): not installed → full-color art + download mark (see "Not-installed treatment" below; the 45 % fade in boards 1a–2l is superseded); queued → top-left badge (`rgba(14,13,12,.85)`, 8 px status dot, Barlow 600 16); downloading → bottom overlay with "Downloading" / % and 6 px accent bar; installed → plain art; running → green "Running" badge; broken → red "Broken" badge; drive disconnected → full-color art + amber badge (no fade). Compatibility badge is not shown on tiles except Broken; it appears on the game page and in filters.
 - **Compatibility badges**: `padding 8 14`, radius 6, 2px border tinted with the status color at 50 %, dot 10 + label. Values only: Untested, Works, Playable · note, Broken · note.
 - **Context menu**: w 440, `padding 12`, radius 12, `#16140F`; header cover 40×60 + title; items `padding 14 18`, Barlow 500 26; focused item `.10` fill + 3px ring; right-aligned hints (favorite glyph, current rating); hairline before destructive "Uninstall…" in `#E05A4F`. Items: Play/Install, Add to collection, Favorite, Set compatibility, Hide, View logs, Uninstall.
 - **Confirm dialog**: w 680, `padding 40`, title BC 600 40, one-sentence consequence Barlow 24/1.4, optional toggle row ("Keep saves", default on), two equal buttons h 68 — Cancel focused by default, destructive button `rgba(224,90,79,.18)` fill + `.5` border.
 - **Toasts**: bottom-right, w 560, `padding 18 22`, `#16140F`, status dot 12, title BC 600 24 + detail Barlow 18, optional trailing action in accent (`△ View logs`). Auto-dismiss ~5 s; controller disconnect toast persists until reconnect.
 - **On-screen keyboard**: w 1280, `padding 28`, `#16140F`; field h 64; rows centered gap 8; key 96×64 (`.07` fill), modifier 110 (`.14`), space 520, Done 180; Barlow 500 28. Shortcut strip: □ Backspace, △ Space, L1/R1 Cursor, OPTIONS Symbols, ○ Done. Masked mode shows • per character.
 - **Log viewer**: full-width overlay; header title `<game> · <job> · <time>` + "n of 10 logs · L1 R1 older/newer"; `<pre>` monospace 19/1.55 `#D6D0C8`, wraps; footer actions: ✕ Retry from <stage>, △ Reveal in Finder, ○ Close.
+
+## Not-installed treatment (board 3b, adopted)
+Covers are never dimmed. State is carried by a small mark in the bottom-right corner:
+- Mark: 30×30 circle, `background rgba(14,13,12,.8)`, `border 1.5px solid rgba(243,239,233,.5)`, positioned `right 10, bottom 10` inside the tile. Icon: download arrow (line 12,4→12,15 + chevron 6,10 / 12,16 / 18,10 + baseline 5,20→19,20 on a 24 grid) at 16 px, stroke `#F3EFE9` 2.6, round caps. SF Symbol equivalent: `arrow.down.to.line` at 13 pt medium.
+- Shown only when `InstallState == notInstalled`. Installed, running, broken and downloading tiles carry no mark (their existing badge/progress overlay applies). Queued and drive-disconnected keep their top-left badge and no fade.
+- When the tile is focused the mark stays visible above the title gradient; the focus ring is unchanged.
+- Home rows use the same mark at the same size (tile 213×320).
+- Rationale: keeps the artwork-led look; the mark reads as "tap to get" from 3 m without lowering contrast. Screenshots: `3b-library-download-glyph.png` (full grid), `3b-tile-detail.png` (3× tile close-up).
 
 ## Interactions and motion
 - Focus move: ring and scale animate 180 ms ease-out; row/grid scroll follows focus keeping a margin so the ring is never clipped (FR-FOCUS-4). Reduced motion: instant, no scale.
@@ -108,5 +116,6 @@ Rail (same as Library) with Account, Library, Display, Controller, About. Rows `
 - Placeholders to replace: QR panel (render from `SteamAuth` challenge), controller illustration, game descriptions and log text (illustrative), compatibility "Broken" on Spiritfarer (demo only).
 
 ## Files
+- `screenshots/` — one PNG per artboard at 1920×1080 (components sheet is taller). Files named `<board>-<screen>.png`; `-reference` suffix marks rejected explorations kept for context.
 - `Big Screen.dc.html` — all artboards. Turn 2 (top): 2a–2l. Turn 1 (below): 1a–1g. Ids are anchors (`#2d`).
 - `prd/` — the PRD and `GUI_DESIGN_BRIEF.md` these screens implement.
