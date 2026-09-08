@@ -20,6 +20,7 @@
 		1DE958E3B313DE1A01F739EE /* SessionRecovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE694640CAB1FCAEA1669D39 /* SessionRecovery.swift */; };
 		23DE61E6DEEEFF0284517338 /* Catalog in Frameworks */ = {isa = PBXBuildFile; productRef = F8CD3DD4C20BB4555C08D6B1 /* Catalog */; };
 		2868BC6B6FA17FE360CFF708 /* Domain in Frameworks */ = {isa = PBXBuildFile; productRef = A40B7AAC967B79B363BAA0BA /* Domain */; };
+		2C13C5EABA5B52FBE75E1FD4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DFB5C8D29C9334B6EC203BC2 /* Assets.xcassets */; };
 		2C36214C2D2781BC9F6CE640 /* CloudModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A58957A338530DCE3314A1B9 /* CloudModel.swift */; };
 		2D22A0581EEA1F5119CB3995 /* DisplayInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9687BB9AC16273EF6E471287 /* DisplayInteractionTests.swift */; };
 		2DD4585248DA3A0DA3A9E4A8 /* GameDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4FF352DBF3FCF99F7F06A5E /* GameDisplay.swift */; };
@@ -201,6 +202,7 @@
 		DA3335FF643F3626DFE4C682 /* NotificationInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationInteractionTests.swift; sourceTree = "<group>"; };
 		DB3AAA8DAFBFE1E1F465DD6D /* SetupInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupInteractionTests.swift; sourceTree = "<group>"; };
 		DF7C9BEE76958CB42F6BE5D7 /* DownloadTransferTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadTransferTests.swift; sourceTree = "<group>"; };
+		DFB5C8D29C9334B6EC203BC2 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		E0A098157649B997A832EBC5 /* AccountInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountInteractionTests.swift; sourceTree = "<group>"; };
 		E7817305A0EE8FCC3F88CD6D /* SetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupView.swift; sourceTree = "<group>"; };
 		EC04162A9293F2D2402CF51A /* LibraryPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryPersistenceTests.swift; sourceTree = "<group>"; };
@@ -300,6 +302,7 @@
 		336A06DDDD016AFA83423C8A /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				DFB5C8D29C9334B6EC203BC2 /* Assets.xcassets */,
 				2DD807985535839D4651796C /* Fonts */,
 			);
 			path = Resources;
@@ -489,6 +492,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2C13C5EABA5B52FBE75E1FD4 /* Assets.xcassets in Resources */,
 				79C5742FB0E8DCB42EFDC384 /* Barlow-Medium.ttf in Resources */,
 				B8600AC5F4858AC14150C91A /* Barlow-Regular.ttf in Resources */,
 				56406AA6136535F0396ED203 /* Barlow-SemiBold.ttf in Resources */,
