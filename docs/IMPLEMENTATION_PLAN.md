@@ -592,3 +592,10 @@ Regression tests pass, and conflict/account/status screens were rendered and ins
 and 4K. Live upload/readback, restore and offline/account-switch acceptance remain outstanding;
 this checkpoint does not declare Cloud sync or v1 complete.
 See `docs/validation/2026-09-08-cloud-ui.md`.
+
+The first live A Short Hike Cloud roundtrip now passes: the app displayed a real conflict, restored
+the user's existing remote progress after selecting Cloud, launched and loaded it, and uploaded
+the game's changed save after a clean exit. An independent fresh-connection download of revision 2
+matched the game-written save byte-for-byte. Both original conflict copies were preserved.
+Uninstall/reinstall restore, disconnected-network and additional account/recovery acceptance remain.
+See `docs/validation/2026-09-08-cloud-live-roundtrip.md`.
