@@ -75,18 +75,11 @@ struct Artwork: View {
                 }
                 if let displayed = loadedRequest == request ? image : ArtworkCache.shared.cachedImage(for: url, fallbackURL: fallbackURL) {
                     if fallbackURL != nil && displayed.size.width > displayed.size.height {
-                        // Preserve landscape artwork inside a portrait card; never stretch or
-                        // crop away its title. Compact download thumbnails only need the image.
-                        VStack(spacing: 16) {
-                            Image(nsImage: displayed).resizable().scaledToFit()
-                            if !title.isEmpty {
-                                Text(title).font(Design.condensed(min(30, geometry.size.width * 0.14)))
-                                    .multilineTextAlignment(.center).lineLimit(4).minimumScaleFactor(0.85).padding(.horizontal, 12)
-                            }
-                        }
-                        .frame(width: geometry.size.width, height: geometry.size.height * 0.75, alignment: .center)
-                        .frame(height: geometry.size.height, alignment: .top)
-                        .transition(.opacity)
+                        // Preserve the full landscape image. The tile owns the title overlay
+                        // shown on highlight, just as it does for portrait covers.
+                        Image(nsImage: displayed).resizable().scaledToFit()
+                            .frame(width: geometry.size.width, height: geometry.size.height)
+                            .transition(.opacity)
                     } else {
                         Image(nsImage: displayed).resizable().aspectRatio(contentMode: fit ? .fit : .fill)
                             .frame(width: geometry.size.width, height: geometry.size.height, alignment: fit ? .leading : .center)
