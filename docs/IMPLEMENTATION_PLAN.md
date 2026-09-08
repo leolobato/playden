@@ -401,10 +401,13 @@ Dependencies: M0–M5 gates passed.
   explicit scope decisions, not silently marked complete.
 - [ ] Document build/run instructions, required sibling commit, CrossOver/system setup, supported-title results,
   known limitations and recovery steps. Prove the v1 cloud-save gates separately; do not claim updates or general game compatibility.
-- [ ] Finish with an end-user README: verified v1 feature list, setup and first launch, CrossOver
+- [x] Write an end-user README: verified v1 feature list, setup and first launch, CrossOver
   requirements/focus, known limitations, and the v2 roadmap (optional native macOS versions and
   official Steam macOS installation discovery). Explain future support for other engines and
   stores without promising those broader integrations for v2. Requested 8 September 2026.
+  Written with an actual sample-library capture, player controls, Cloud/uninstall behavior and
+  explicit remaining acceptance limits. Developer instructions moved to `docs/DEVELOPMENT.md`,
+  including the required sibling revision. Keep both current through final acceptance.
 
 Gate: README's corrected MVP bar and all retained v1 requirements pass. A skipped CrossOver integration
 test on a machine without CrossOver cannot satisfy the real-platform release gate.

@@ -1,149 +1,181 @@
 # Big Screen
 
-A living-room launcher for Windows games on a Mac: a TV-sized native SwiftUI/AppKit interface,
-controlled with a gamepad, with Steam library integration and CrossOver game installation in progress.
+Your Steam library, on the TV. Big Screen is a native Mac app for browsing, installing and
+playing Windows games from the couch with a controller.
 
-Normal launches use your local catalog. Steam QR sign-in, password/Steam Guard fallback, Keychain
-credential storage, progressive library refresh and offline cached browsing are connected. Favorites,
-hidden games, collections and compatibility notes persist independently of Steam refreshes.
-First run includes controller pairing guidance, display choice, a writable games-volume picker and
-CrossOver template preparation with progress, retry and a browse-without-setup path.
-**Game installation and launching are still being implemented.**
+**The current focus is Steam and CrossOver on Apple Silicon.** Big Screen downloads your games
+and prepares an isolated CrossOver environment for each one. Support for other engines and
+stores is planned.
 
-Use `--preview` for the designer's sample library and simulated Downloads queue. Preview edits use
-an isolated database; install/uninstall confirmations only change preview state.
+![Big Screen Library with sample games](docs/images/library.png)
 
-## Build and run
+*Actual app capture using the sample library. Displayed games are not a compatibility list.*
 
-Requires Xcode 26.3 / Swift 6, XcodeGen, Homebrew xz/zstd/LLVM/LLD (`brew install xcodegen xz zstd llvm lld`), and an
-Apple Silicon Mac. Check out the sibling `../GameNative-macos` with commit `0661a04` or its descendant
-containing injected authentication/key storage, verified chunk resume, bounded CM requests, and package entitlement resolution.
-The local Swift package uses that checkout.
-The deployment target is macOS 15 because of the bundled compression libraries; actual execution
-has currently been checked on macOS 26.6.2. The build embeds xz/zstd in the app, so running the built
-app does not require Homebrew's library paths.
+Big Screen is in active v1 development. Installation, play sessions and Steam Cloud sync are
+implemented; final controller/TV acceptance and broader game testing are still in progress.
+
+## What you can do
+
+- **Browse from the couch.** Cover art, game details, search, sorting and filters, with keyboard
+  and mouse support alongside the controller. Recently added follows Steam acquisition dates.
+- **Pick up where you left off.** Home shows up to 15 Continue Playing games and a Library card,
+  plus downloads, recent installs, favorites and pinned collections.
+- **Make the library yours.** Create collections, favorite or hide games, and keep your own
+  compatibility ratings and notes.
+- **Install and manage games.** Choose a games drive, queue downloads, pause/resume, reorder,
+  retry failures, verify files and uninstall. Download checkpoints survive restarting the app.
+- **Play through CrossOver.** Per-game runtime preparation, game controls for returning or
+  quitting, session playtime and recorded exit results. Downloads can pause while you play.
+- **Sync supported Steam Cloud saves.** Download before playing, upload after exit, review
+  conflicts and retry pending transfers. Save support depends on a verified mapping for the game.
+- **Set up your display.** Choose the preferred monitor for Big Screen and game placement,
+  toggle fullscreen, start in fullscreen, and reduce animation.
+- **Troubleshoot on the TV.** Visible failure stages, Retry controls, scrollable logs, a runtime
+  status screen and a controller button test.
+
+## Set it up
+
+You need an **Apple Silicon Mac**, **CrossOver 26.x with a valid license or trial**, a Steam
+account with games, and enough space for game files and their CrossOver environments. The app
+targets **macOS 15 or newer**; current live testing uses macOS 26.6.2 and CrossOver 26.2.
+DualShock 4 is the target controller. A keyboard and mouse can also be used throughout setup.
+
+### Build this development version
+
+Place this repository beside `GameNative-macos`, which provides the Steam library. Use the
+compatible SteamCore revision listed in the [developer setup](docs/DEVELOPMENT.md#source-layout).
+Install Xcode 26.3 with its command-line tools selected, then run from this repository:
 
 ```sh
+brew install xcodegen xz zstd llvm lld
 ./scripts/build.sh
 ./scripts/run.sh
-# Optional windowed presentation or isolated design preview:
-./scripts/run.sh --windowed
+```
+
+The run script places the app in `~/Library/Application Support/Big Screen/Run/Big Screen.app`.
+You can open that copy from Finder for subsequent launches. It also keeps the running app
+separate from Xcode's build output.
+
+To look around with sample games and without signing in:
+
+```sh
 ./scripts/run.sh --preview
 ```
 
-`run.sh` launches a verified copy in `~/Library/Application Support/Big Screen/Run`, separate from Xcode's build output and macOS-protected Documents/Desktop folders, and
-quits the previous instance before replacing that copy. This lets builds/tests run while you
-browse without replacing the signed bundle underneath the running app or disrupting Keychain access.
-Build/test scripts reuse an available Apple Development certificate, caching the local selection in
-`.build/signing-identity`, so the app retains a stable identity across rebuilds. Set
-`BIGSCREEN_CODE_SIGN_IDENTITY` to choose another identity, or `-` for ad-hoc signing. Without a development
-certificate the scripts fall back to ad-hoc signing, which may require Keychain approval after rebuilds.
-Moving an existing sign-in from an ad-hoc build to development signing requires one macOS Keychain
-approval; the app never requests or stores your Mac password.
+Preview uses separate sample data; it does not install or launch games. Build and signing
+options are in [Development](docs/DEVELOPMENT.md).
 
-Open `BigScreen.xcodeproj` to work in Xcode. `project.yml` is the project source of truth; regenerate
-with `xcodegen generate` after changing targets or resources. The preview does not require a Steam
-account or CrossOver; building either mode requires the sibling package.
+### First launch
 
-CrossOver 26 or newer is required for game runtime setup. Big Screen creates only its managed
-`gn-template-1` Windows 10 template, with MSync and D3DMetal enabled, and checks Windows startup.
-It refuses an existing unowned bottle. Setup can be retried in Settings → Library → Runtime.
-Games-volume selection prefers `/Volumes/VM/GameNative/games` when that writable volume is present,
-otherwise `~/Games/GameNative`. It stores a volume identity and bookmark; choosing another drive
-does not move existing games. Setup progress and failures are retained under the live profile's
-`runtime/` folder. Template setup is separate from installing or verifying an actual game.
+1. Install and open CrossOver once to finish its setup and license/trial activation.
+2. Connect your controller. For a DualShock 4, hold **Share + PS** until the light flashes,
+   then pair it in macOS Bluetooth settings. The app includes pairing guidance.
+3. Follow Big Screen's setup to choose your display, sign into Steam and select a games volume.
+   Scan the QR code with the Steam mobile app, or use the password and Steam Guard option.
+4. Let Big Screen prepare its game runtime. You can browse while setup is incomplete and return
+   to **Settings → Library → Runtime** to check or retry it.
+5. Open a game, select **Install**, then **Play** when installation finishes. A Short Hike is the
+   most thoroughly exercised title so far.
 
-The Barlow/Barlow Condensed fonts and their OFL licenses are bundled. Steam artwork loads over the
-network on first use and is cached in `~/Library/Caches/GameNative BigScreen/artwork/`. Missing art
-shows a title placeholder. Local edits and preferences are stored separately in
-`~/Library/Application Support/Big Screen/catalog.sqlite` (live) and
-`~/Library/Application Support/Big Screen/Preview/catalog.sqlite` (preview). Tests and snapshots use
-isolated in-memory catalogs. Authentication tokens use the macOS Keychain service
-`com.gamenative.bigscreen.steam`, with no credential-file fallback. Passwords are kept only for the
-current sign-in attempt. Signing out clears credentials and cached Steam ownership while retaining
-local edits and installation records. The preview does not access account credentials or game files.
+macOS may ask for access to the Steam sign-in item in Keychain. Big Screen stores sign-in tokens
+there; it does not store your Mac password. See [signing and permissions](docs/DEVELOPMENT.md#signing-and-permissions)
+if rebuilding repeatedly causes permission prompts.
 
-## Navigation
+Under **Settings → Display**, choose your preferred monitor and **Start in fullscreen**.
+The **Fullscreen** control changes the current window mode. `./scripts/run.sh --windowed`
+overrides fullscreen for that launch.
 
-| Keyboard | Controller | Action |
+## Controls
+
+The footer shows the actions available on the current screen and changes with your input device.
+
+| Action | DualShock 4 | Keyboard |
 |---|---|---|
-| Arrows | D-pad / left stick | Move focus |
-| Return / Escape | Cross / Circle | Open or select / back |
-| Tab / Shift-Tab, `[` / `]`, Command-1…4 | L1 / R1 | Change tabs |
-| F / T | Square / Triangle | Favorite / context menu |
-| O | Options | Library sort/filter sheet |
-| `/` | Touchpad click | Search keyboard |
-| Page Up / Page Down | L2 / R2 | Move two grid rows |
-| Home | PS | Return to Home |
-| Control-Command-F | — | Toggle fullscreen |
-| Command-Q | — | Quit Big Screen |
+| Move focus | D-pad / left stick | Arrow keys |
+| Select / back | Cross / Circle | Return / Escape |
+| Change tabs | L1 / R1 | Tab / Shift-Tab, or Command-1…4 |
+| More actions | Triangle | T |
+| Favorite | Square | F |
+| Sort and filter | Options | O |
+| Search | Touchpad click | `/` |
+| Page through the library | L2 / R2 | Page Up / Page Down |
+| Home | PS | Home |
+| Game controls | Hold PS for one second | Shift-Home |
+| Toggle fullscreen | Settings → Display | Control-Command-F |
 
-Type normally in search, collection names or compatibility notes, or navigate the on-screen keys.
-While editing, L1/R1 (Tab/Shift-Tab) moves the text cursor, Square deletes, Triangle inserts a space,
-and Options switches symbols. Select Done to save; Circle/Escape cancels collection/note drafts.
-Command-Return finishes text entry from a physical keyboard. Password and Guard fields are masked.
-Use More on a collection in the Library rail to rename, pin to Home, or delete it. On Downloads,
-More opens pause/cancel/reorder actions for the selected row. Mouse clicks are also supported.
+From the top Home row, press Up to highlight the tabs, then Left/Right to choose one. Continue
+Playing ends with a Library card instead of scrolling indefinitely.
 
-DS4 foreground input has been confirmed on hardware by the user. Background exit-overlay handoff
-remains unverified. Focus drives scrolling in Home, Library and Downloads; rapid Home navigation
-waits 400 ms before crossfading its ambient artwork. Game details fade in with a short upward motion.
-Settings → Display → Reduced motion disables these transitions. Footer hints switch to keyboard
-shortcuts when you use the keyboard, and back to gamepad glyphs when you use the controller.
+Search, collection names and notes accept ordinary typing or the on-screen keyboard. While
+editing with a controller, L1/R1 moves the text cursor, Square deletes, Triangle inserts a space,
+and Options switches symbols. Choose Done to finish. Command-Return finishes keyboard entry.
 
-Sort & Filter has grouped chips for all four sort orders, installation, genre, controller support
-and compatibility; Source appears when multiple sources are present. The sheet scrolls with focus,
-updates the result count immediately, and persists selections. Reset clears refinements and sorting
-while preserving the current collection and search. Browse all games recovers an empty result.
+When a failure notification appears, **Triangle / T** focuses its actions. Use Left/Right and
+Select for Retry, View logs or Dismiss. In logs, Up/Down scrolls and Left/Right chooses an action.
 
-Settings → Controller → Button test shows live button presses, both sticks, and trigger pressure.
-Press a control on another connected pad to switch the readout. Short Circle/B presses are testable;
-hold Circle/B for 1.2 seconds to close, or press Escape. Launcher actions stay trapped in this screen.
-Hardware validation of this new diagnostic screen is still pending.
+## Saves and offline play
 
-## Validation
+The game page shows Cloud status. For supported games, Big Screen checks saves before launch
+and syncs after the game closes. **Up to date** means the sync completed. **Pending upload** or
+**Failed** needs attention; open Cloud saves for details and Retry. If both local and remote
+progress changed, choose which copy to use in the conflict screen.
 
-```sh
-./scripts/test.sh
-./scripts/snapshot.sh
-# Also check scaled window layouts:
-BIGSCREEN_SNAPSHOT_DIR="$PWD/.build/screenshots-720p" ./scripts/snapshot.sh --snapshot-width 1280
-# SwiftUI layout review while the desktop is locked:
-BIGSCREEN_SNAPSHOT_DIR="$PWD/.build/cloud-recovery-ui" ./scripts/snapshot.sh --snapshot-screens cloud-recovery --snapshot-offscreen
-```
+Cached library browsing and prepared games can work offline. When a Cloud check cannot finish,
+**Play offline** is offered when it is safe to proceed; progress can be synchronized later.
+Games with unsupported save locations show **Unavailable** and keep their saves locally.
 
-Offscreen rendering checks SwiftUI layout. Use normal window captures for native
-`NSViewRepresentable` content and live interaction checks.
+**Uninstall removes the game's local files, runtime and local saves.** It checks for unsynced
+progress before removal and leaves remote Cloud saves intact. Reinstalling a supported game
+restores available Cloud saves before launch. Optional local save retention is planned for a
+future version; v1 does not offer a Keep saves option.
 
-The test suite covers logical grid movement/repeat and native presentation-state interactions
-(modal focus, navigation memory, search, collection/note editing, Unicode text cursors,
-queue reordering, cancellation and focus-driven scrolling/empty-state recovery). Catalog tests cover
-SQLite reopen/rollback, source refresh/logout retention, job reconstruction, exact session accounting,
-and credential redaction. Account tests cover Keychain isolation, cancellation/logout races, metadata
-mapping, masked credential entry and stable focus during refresh. See
-[Steam/account validation](docs/validation/2026-09-07-steam-account.md),
-[setup/runtime validation](docs/validation/2026-09-07-setup-runtime.md),
-[controller/filter and download-resume validation](docs/validation/2026-09-07-controller-filters.md), and [recorded foundation/platform evidence](docs/validation/2026-09-07-foundation.md).
+## Current limits and troubleshooting
 
-The next installation dependency slice is recorded in
-[Steam installation boundary validation](docs/validation/2026-09-07-steam-install-boundary.md).
-The subsequent [installer contract and live library recovery checkpoint](docs/validation/2026-09-07-install-plans-library-recovery.md)
-records pinned plans, verified staging fixtures, and the first successful 538-game account sync.
+**A Short Hike** has completed real installation, gameplay, save/reload, uninstall/reinstall,
+Cloud restore, missing-runtime recovery and independently verified Cloud upload/download checks.
+Those journeys were exercised with keyboard input. The complete physical DS4/TV journey is
+still awaiting acceptance. See the [validation notes](docs/validation/2026-09-08-live-runtime-cloud-recovery.md).
 
-Snapshots are actual native window captures in `.build/screenshots/`. They use a 1920×1080 logical
-canvas (pixel dimensions follow the display backing scale), a fixed clock, and the same artwork
-cache as the app. Window capture requires existing macOS Screen Recording access for the launching
-terminal; the script fails with an explicit error if it is unavailable. Reference screenshots live
-in `docs/design/screenshots/`. Snapshot capture never launches a game. Sign-in captures contain a non-authenticating example QR,
-never a live challenge or account credentials.
+Seeing a game in your Steam library does not guarantee it will work through CrossOver or support
+save sync. BioShock Infinite prerequisite setup has been checked, but a complete fresh gameplay
+run remains open. Multiplayer, anti-cheat, achievements UI and DLC management are outside v1.
 
-## Product and delivery
+| Problem | Where to go |
+|---|---|
+| Library is empty or stale | Settings → Account to check sign-in; Settings → Library → Refresh library |
+| CrossOver setup failed | Settings → Library → Runtime, then Check again or Retry setup |
+| Download or installation failed | Downloads → More → Retry or View logs |
+| Game fails to launch | Retry on the failure notification; game page → View logs or Verify files |
+| Cloud sync needs attention | Game page → Cloud saves |
+| Controller input seems wrong | Settings → Controller → Button test |
+| Game did not take focus | Return to game; if macOS declines, select the game in the Dock |
 
-- [PRD](docs/prd/README.md)
-- [Implementation plan](docs/IMPLEMENTATION_PLAN.md)
-- [Designer guidance and chosen mockups](docs/design/README.md)
+Game focus handoff and physical controller reconnect still need final testing. Keep Big Screen
+open while downloading or playing: background operation after quitting the launcher is planned
+for v2. Game updates, moving existing installations between drives, native macOS builds and
+importing official Steam macOS installations are also not available in v1.
 
-Related repositories, siblings under `../`:
+## Roadmap
 
-- `GameNative-macos` — Swift Steam layer (`SteamCore`) and a separate VM runtime.
-- `GameNative-android` — upstream Android app whose per-game config schema informs v2 properties.
+### v2
+
+- **Optional native macOS games:** choose a Mac build when available, while retaining the option
+  to use the Windows build through CrossOver.
+- **Official Steam macOS integration:** show games already installed by Steam, clearly distinguish
+  them from Big Screen-managed installations, and offer the available launch choices.
+- **Per-game properties:** executable, arguments, graphics settings, language and other runtime options.
+- **Background helper and game updates:** keep downloads and supervision independent of the UI;
+  offer explicit updates and moves between game volumes.
+- **Quick Access:** in-game audio controls, performance information, screenshots and controller battery.
+- **Library improvements:** dynamic collections, alternative artwork, shared compatibility notes,
+  richer game details and exportable diagnostics.
+- **Another store:** GOG or itch.io is the preferred next integration.
+
+### Further ahead
+
+Other compatibility engines and runtimes, more stores such as Epic, manually added games,
+optional local save retention, controller remapping and kiosk conveniences. These are plans,
+not features of the current build.
+
+[Product requirements](docs/prd/README.md) · [Implementation and acceptance plan](docs/IMPLEMENTATION_PLAN.md) ·
+[Developer setup](docs/DEVELOPMENT.md)
