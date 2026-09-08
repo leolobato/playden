@@ -126,6 +126,52 @@ final class SteamInstallerTests: XCTestCase {
             XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent("Game.exe")), bytes)
         }
     }
+    private func prerequisiteFixture(tools: RecipeTools) async throws -> (SteamInstaller, InstallPlan, URL, GameBottle) {
+        let game = SourceGameRecord(id: .init(source: "steam", value: "8870"), title: "BioShock Infinite")
+        let info = AppInfo(appID: 8870, name: game.title, depots: [.init(id: 8871, manifestGID: 1)], launches: [.init(id: "0", executable: "Game.exe")])
+        let data = pe(), cab = Data("fixture cabinet".utf8)
+        let paths = try SteamRecipes.steps(for: game.id, version: 2).map(\.executable)
+        let files = [file("Game.exe", data)] + paths.map { file($0, data) } + [file("Binaries/Prerequisites/directx_Jun2010_redist/runtime.cab", cab)]
+        let content = ResolvedSteamContent(app: info, manifests: [manifest(files, depotID: 8871, gid: 1)], entitlements: .init(appIDs: [8870], depotIDs: [8871]))
+        let backend = FixtureContentBackend(content: content, chunks: [Data(Insecure.SHA1.hash(data: data)): data, Data(Insecure.SHA1.hash(data: cab)): cab])
+        let installer = SteamInstaller(game: game, backend: backend, runtimeTools: tools)
+        let plan = try await installer.resolve(), root = try temporaryDirectory()
+        try await installer.download(plan, to: root) { _ in }
+        return (installer, plan, root, .init(gameID: game.id, name: "gn-steam-8870", ownershipToken: UUID()))
+    }
+    func testPinnedRecipeRetriesFromFailedPrerequisiteWithoutTouchingGameFiles() async throws {
+        let tools = RecipeTools(), (installer, plan, root, bottle) = try await prerequisiteFixture(tools: tools)
+        XCTAssertEqual(plan.recipeVersion, 2)
+        let restored = try JSONDecoder().decode(InstallPlan.self, from: JSONEncoder().encode(plan))
+        let save = root.appendingPathComponent("player.sav"); try Data("progress".utf8).write(to: save)
+        await tools.failOnce("bioshock-vc2010-x86-1")
+        do { try await installer.preparePrerequisites(restored, at: root, in: bottle); XCTFail("Prerequisite failure ignored") } catch {}
+        try await installer.preparePrerequisites(restored, at: root, in: bottle)
+        try await installer.preparePrerequisites(restored, at: root, in: bottle)
+        let calls = await tools.calls
+        XCTAssertEqual(calls, ["bioshock-vc2008-x86-1", "bioshock-vc2010-x86-1", "bioshock-vc2010-x86-1", "bioshock-directx-jun2010-1"])
+        XCTAssertEqual(try Data(contentsOf: save), Data("progress".utf8))
+        let intact = try await installer.verifyOriginals(plan, at: root, staging: nil); XCTAssertTrue(intact.isValid)
+    }
+    func testRecipeRejectsDamagedInputsAndUnownedBottleBeforeExecuting() async throws {
+        let tools = RecipeTools(), (installer, plan, root, bottle) = try await prerequisiteFixture(tools: tools)
+        let wrong = GameBottle(gameID: .init(source: "steam", value: "other"), name: bottle.name, ownershipToken: bottle.ownershipToken)
+        do { try await installer.preparePrerequisites(plan, at: root, in: wrong); XCTFail("Foreign game accepted") } catch {}
+        try Data("damaged".utf8).write(to: root.appendingPathComponent("Binaries/Prerequisites/vcredist_x86_vs2008sp1.exe"))
+        do { try await installer.preparePrerequisites(plan, at: root, in: bottle); XCTFail("Damaged prerequisite executed") } catch {}
+        let calls = await tools.calls; XCTAssertTrue(calls.isEmpty)
+    }
+    func testRecipeVersionOneRemainsPinnedAndMissingPrerequisitesBlockNewResolution() async throws {
+        let id = GameID(source: "steam", value: "8870"), game = SourceGameRecord(id: id, title: "BioShock Infinite")
+        let info = AppInfo(appID: 8870, name: game.title, depots: [.init(id: 8871, manifestGID: 1)], launches: [.init(id: "0", executable: "Game.exe")])
+        let files = [manifest([file("Game.exe", pe())], depotID: 8871, gid: 1)]
+        XCTAssertThrowsError(try SteamPlanBuilder.build(game: game, app: info, manifests: files, ownedApps: [8870]))
+        let legacy = try SteamPlanBuilder.build(game: game, app: info, manifests: files, ownedApps: [8870], recipeVersion: 1)
+        XCTAssertNoThrow(try SteamPlanBuilder.payload(legacy, for: id))
+        XCTAssertTrue(try SteamRecipes.steps(for: id, version: legacy.recipeVersion).isEmpty)
+        XCTAssertThrowsError(try SteamRecipes.steps(for: id, version: 3))
+        XCTAssertThrowsError(try SteamRecipes.steps(for: .init(source: "steam", value: "100"), version: 2))
+    }
     func testSteamStubPreparationReplayRepairAndSavedReceiptKeepOriginalAndSaves() async throws {
         for hasAPI in [false, true] {
             let original = pe(section: ".bind"), unpacked = pe(), tools = FixtureUnpackingTools(output: unpacked)
@@ -235,6 +281,21 @@ final class SteamInstallerTests: XCTestCase {
         for (i, byte) in section.utf8.enumerated() { data[0x188 + i] = byte }
         put(0x1000, at: 0x190); put(0x1000, at: 0x194); put(0x200, at: 0x198)
         return data
+    }
+}
+private actor RecipeTools: RuntimeToolRunning {
+    var calls: [String] = []
+    var completed: [String: Data] = [:]
+    var fail: String?
+    func failOnce(_ id: String) { fail = id }
+    func runTool(executable: URL, arguments: [String], in bottle: GameBottle) async throws { XCTFail("Prerequisite context was lost") }
+    func prerequisiteReady(_ prerequisite: RuntimePrerequisite, in bottle: GameBottle) async throws -> Bool { completed[prerequisite.id] == prerequisite.fingerprint }
+    func preparePrerequisite(_ prerequisite: RuntimePrerequisite, executable: URL, in bottle: GameBottle) async throws {
+        calls.append(prerequisite.id)
+        XCTAssertTrue(executable.path.contains("BigScreen-prerequisites-"))
+        if prerequisite.id.contains("directx") { XCTAssertTrue(FileManager.default.fileExists(atPath: executable.deletingLastPathComponent().appendingPathComponent("runtime.cab").path)) }
+        if fail == prerequisite.id { fail = nil; throw SourceFailure.unavailable }
+        completed[prerequisite.id] = prerequisite.fingerprint
     }
 }
 private actor FixtureUnpackingTools: RuntimeToolRunning {

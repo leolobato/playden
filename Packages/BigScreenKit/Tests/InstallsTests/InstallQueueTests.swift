@@ -69,6 +69,10 @@ private struct OfflineInstaller: Installer {
         try Data("offline-ready".utf8).write(to: directory.appendingPathComponent("offline.recipe"))
         return .init()
     }
+    func preparePrerequisites(_ plan: InstallPlan, at directory: URL, in bottle: GameBottle) async throws {
+        XCTAssertEqual(bottle.gameID, gameID)
+        try await content.record("prerequisites:" + gameID.value)
+    }
     func validate(_ plan: InstallPlan, at directory: URL, staging: InstallStaging) async throws -> LaunchSpec {
         try await content.record("validate:" + gameID.value)
         guard try Data(contentsOf: directory.appendingPathComponent("offline.recipe")) == Data("offline-ready".utf8) else { throw SourceFailure.unavailable }
@@ -333,6 +337,25 @@ final class InstallQueueTests: XCTestCase {
         XCTAssertEqual(events.filter { $0 == "resolve:retry" }.count, 1)
         XCTAssertEqual(events.filter { $0 == "download:retry" }.count, 1)
         XCTAssertEqual(events.filter { $0 == "stage:retry" }.count, 2)
+        await second.shutdown()
+    }
+    func testPrerequisiteFailureRestartsAtPrerequisitesWithoutRepeatingDownload() async throws {
+        let root = try root(), path = root.appendingPathComponent("catalog.sqlite").path
+        let content = OfflineContent(), volumes = FixtureVolumes(root: root), bottles = FixtureBottles()
+        await content.failOnce("prerequisites:retry")
+        let first = try InstallQueue(catalog: CatalogStore(path: path), sources: [OfflineSource(content: content)], storage: InstallStorage(volumes: volumes), bottles: bottles)
+        let id = try await first.enqueue(first.offer(for: game("retry"), volume: volumes.selection)); try await first.start()
+        let failed = try await waitFor(first, jobID: id, state: .failed)
+        XCTAssertEqual(failed.stage, .prerequisites)
+        XCTAssertTrue(failed.completedStages.contains(.createBottle)); XCTAssertFalse(failed.completedStages.contains(.prerequisites))
+        await first.shutdown()
+        let second = try InstallQueue(catalog: CatalogStore(path: path), sources: [OfflineSource(content: content)], storage: InstallStorage(volumes: volumes), bottles: bottles)
+        try await second.start(); try await second.retry(id)
+        _ = try await waitFor(second, jobID: id, state: .completed)
+        let events = await content.events
+        XCTAssertEqual(events.filter { $0 == "download:retry" }.count, 1)
+        XCTAssertEqual(events.filter { $0 == "prerequisites:retry" }.count, 2)
+        XCTAssertEqual(events.filter { $0 == "stage:retry" }.count, 1)
         await second.shutdown()
     }
     func testStorageRejectsUnownedFoldersWrongTokenAndEscapingLocation() async throws {

@@ -72,6 +72,7 @@ public protocol Installer: Sendable {
     func repair(_ plan: InstallPlan, at directory: URL, staging: InstallStaging?,
                 progress: @escaping @Sendable (InstallProgress) -> Void) async throws
     func postInstall(_ plan: InstallPlan, at directory: URL) async throws -> InstallStaging
+    func preparePrerequisites(_ plan: InstallPlan, at directory: URL, in bottle: GameBottle) async throws
     func postInstall(_ plan: InstallPlan, at directory: URL, in bottle: GameBottle) async throws -> InstallStaging
     func validate(_ plan: InstallPlan, at directory: URL, staging: InstallStaging) async throws -> LaunchSpec
     func saveMapping(_ plan: InstallPlan) throws -> SaveMapping
@@ -79,6 +80,7 @@ public protocol Installer: Sendable {
     func uninstall(_ plan: InstallPlan, at directory: URL) async throws
 }
 public extension Installer {
+    func preparePrerequisites(_ plan: InstallPlan, at directory: URL, in bottle: GameBottle) async throws {}
     func postInstall(_ plan: InstallPlan, at directory: URL, in bottle: GameBottle) async throws -> InstallStaging {
         try await postInstall(plan, at: directory)
     }

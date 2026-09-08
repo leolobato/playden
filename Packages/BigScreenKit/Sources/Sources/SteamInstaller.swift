@@ -42,6 +42,10 @@ public struct SteamInstaller: Installer {
     public func postInstall(_ plan: InstallPlan, at directory: URL) async throws -> InstallStaging {
         try await prepare(plan, at: directory, bottle: nil)
     }
+    public func preparePrerequisites(_ plan: InstallPlan, at directory: URL, in bottle: GameBottle) async throws {
+        try await SteamPrerequisites.prepare(plan, gameID: gameID, at: directory, in: bottle, tools: runtimeTools,
+            validateDirectory: { try rejectLinks(in: directory) })
+    }
     public func postInstall(_ plan: InstallPlan, at directory: URL, in bottle: GameBottle) async throws -> InstallStaging {
         guard bottle.gameID == gameID else { throw SteamPlanBuilder.failure("Prepare", "The game runtime belongs to another installation.") }
         return try await prepare(plan, at: directory, bottle: bottle)

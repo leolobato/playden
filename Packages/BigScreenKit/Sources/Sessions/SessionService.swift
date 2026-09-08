@@ -174,7 +174,13 @@ public actor SessionService: SessionManaging {
             let directory = try await storage.directory(original.location, gameID: original.gameID, owner: original.ownershipToken)
             var installed = original
             if let id = active?.id { catalog.captureDiagnosticEvent(for: id, message: "Preparing runtime", at: clock.wallTime) }
-            if try await runner.prepare(bottle(installed)) {
+            let runtimeChanged = try await runner.prepare(bottle(installed))
+            // A prerequisite can fail after the runtime itself becomes ready. Check its own
+            // receipts on every launch, so Retry cannot skip a half-prepared runtime.
+            if let source = sources[installed.gameID.source], let plan = installed.plan {
+                try await source.installer(for: installed.game).preparePrerequisites(plan, at: directory, in: bottle(installed))
+            }
+            if runtimeChanged {
                 guard let source = sources[installed.gameID.source], let plan = installed.plan else { throw issue("Prepare game", "The saved install plan is unavailable. Verify or reinstall this game.") }
                 let installer = try source.installer(for: installed.game)
                 let staging = try await installer.postInstall(plan, at: directory, in: bottle(installed))

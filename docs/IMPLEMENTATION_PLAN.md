@@ -744,3 +744,15 @@ The real CLI passed with BioShock Infinite's original executable in a disposable
 installation and saves stayed untouched. Package/app tests, signed build and bundled-resource
 hash checks pass. Title prerequisites and full game acceptance remain open. See
 `docs/validation/2026-09-08-steamless.md` and the pinned dependency details in `docs/STEAMLESS.md`.
+
+### 8 September — Pinned game prerequisites checkpoint
+
+New BioShock Infinite plans include a versioned recipe for its bundled Visual C++ 2008/2010 x86
+and DirectX installers. The queue prepares them in the owned bottle before staging; manifest
+verification and disposable input copies preserve originals. Per-step completion records survive
+restart, retain successful work on retry and are lost with a recreated bottle. Launch checks
+these records even when the base runtime is already ready. Existing recipe versions remain pinned.
+Regression tests and a real disposable CrossOver probe passed, including native runtime component
+verification and a second pass executing no completed commands. Full fresh installation/gameplay,
+broader recipes and physical missing-bottle Cloud acceptance remain open. See
+`docs/validation/2026-09-08-prerequisites.md`.

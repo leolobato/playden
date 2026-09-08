@@ -56,7 +56,7 @@ public actor InstallQueue: InstallQueuing {
     private var transferMeter: TransferRateEstimator?
     private var transferTicker: Task<Void, Never>?
     private var gameplayPaused = false
-    private let stages: [JobStage] = [.reserve, .download, .verifyOriginals, .createBottle, .stage, .validate, .commit]
+    private let stages: [JobStage] = [.reserve, .download, .verifyOriginals, .createBottle, .prerequisites, .stage, .validate, .commit]
     public init(catalog: CatalogStore, sources: [any GameSource], storage: any InstallStorageManaging = InstallStorage(),
                 bottles: any GameBottleManaging = CrossOverGameBottles()) throws {
         self.catalog = catalog; self.storage = storage; self.bottles = bottles
@@ -247,13 +247,14 @@ public actor InstallQueue: InstallQueuing {
                     let result = try await installer.verifyOriginals(plan, at: directory(job), staging: job.staging)
                     guard result.isValid else { throw Self.failure("Verify", "Downloaded game files are missing or damaged. Retry to repair the download.") }
                 case .createBottle: try await bottles.prepare(bottle)
+                case .prerequisites: try await installer.preparePrerequisites(plan, at: directory(job), in: bottle)
                 case .stage:
                     let staging = try await installer.postInstall(plan, at: directory(job), in: bottle)
                     try update(id) { $0.staging = staging }
                 case .validate:
                     guard let staging = job.staging else { throw Self.failure("Verify", "Game preparation has no saved receipt.") }
                     guard try await bottles.isReady(bottle) else {
-                        try update(id) { $0.completedStages.remove(.createBottle) }
+                        try update(id) { $0.completedStages.subtract([.createBottle, .prerequisites]) }
                         throw Self.failure("Game runtime", "The game's runtime is missing or incomplete. Retry to prepare it again.")
                     }
                     let launch = try await installer.validate(plan, at: directory(job), staging: staging)

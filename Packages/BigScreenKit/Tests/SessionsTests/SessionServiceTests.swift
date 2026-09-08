@@ -16,7 +16,17 @@ private final class TestClock: SessionClock, Sendable {
 }
 private actor Events {
     var values: [String] = []
+    var prerequisiteChecks = 0
+    var prerequisiteFailure = false
     func add(_ event: String) { values.append(event) }
+    func failPrerequisiteOnce() { prerequisiteFailure = true }
+    func checkPrerequisite() throws {
+        prerequisiteChecks += 1
+        if prerequisiteFailure {
+            prerequisiteFailure = false
+            throw OperationFailure(stage: "Fixture prerequisite", reason: "Retry preparation.", output: "fixture")
+        }
+    }
 }
 private actor Queue: InstallQueuing {
     let events: Events
@@ -102,6 +112,7 @@ private struct Content: Installer {
     func download(_ plan: InstallPlan, to directory: URL, progress: @escaping @Sendable (InstallProgress) -> Void) async throws { throw SourceFailure.unavailable }
     func verifyOriginals(_ plan: InstallPlan, at directory: URL, staging: InstallStaging?) async throws -> VerificationResult { .init(invalidFiles: []) }
     func postInstall(_ plan: InstallPlan, at directory: URL) async throws -> InstallStaging { await events.add("stage"); return .init() }
+    func preparePrerequisites(_ plan: InstallPlan, at directory: URL, in bottle: GameBottle) async throws { try await events.checkPrerequisite() }
     func validate(_ plan: InstallPlan, at directory: URL, staging: InstallStaging) async throws -> LaunchSpec { await events.add("validate"); return .init(executableRelativePath: "rebuilt.exe") }
     func uninstall(_ plan: InstallPlan, at directory: URL) async throws {}
     func saveMapping(_ plan: InstallPlan) throws -> SaveMapping {
@@ -391,6 +402,20 @@ final class SessionServiceTests: XCTestCase {
         let ordered = await events.values
         XCTAssertEqual(Array(ordered.suffix(5)), ["pause:true", "prepare", "stage", "validate", "launch:rebuilt.exe"])
         XCTAssertEqual(try catalog.snapshot().entries.first?.installation?.launchSpec.executableRelativePath, "rebuilt.exe")
+        try await service.quit()
+    }
+    func testPrerequisiteRetryRunsEvenAfterBottleAlreadyBecameReady() async throws {
+        let catalog = try CatalogStore(), clock = TestClock(), events = Events(), runner = Runner(events), queue = Queue(events)
+        let game = try installed(catalog), service = try make(catalog, runner, queue, clock, events)
+        await runner.configure(changed: true); await events.failPrerequisiteOnce()
+        try await service.start(downloadWhilePlaying: false); try await service.play(game.gameID)
+        let failed = try await wait(service, phase: .idle)
+        XCTAssertEqual(failed.session?.outcome, .launchFailed)
+        let before = await events.values; XCTAssertFalse(before.contains(where: { $0.hasPrefix("launch:") }))
+        await runner.configure(changed: false)
+        try await service.play(game.gameID)
+        _ = try await wait(service, phase: .launching)
+        let checks = await events.prerequisiteChecks; XCTAssertEqual(checks, 2)
         try await service.quit()
     }
 
