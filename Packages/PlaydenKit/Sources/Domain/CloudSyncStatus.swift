@@ -13,11 +13,12 @@ public struct CloudSyncStatus: Equatable, Sendable {
     public let state: State
     public let operation: CloudSyncOperation?
     public let message: String
+    public let latestCloudSaveAt: Date?
     public let canPlayOffline: Bool
     public init(gameID: GameID, state: State, operation: CloudSyncOperation? = nil, message: String,
-                canPlayOffline: Bool = false) {
+                canPlayOffline: Bool = false, latestCloudSaveAt: Date? = nil) {
         self.gameID = gameID; self.state = state; self.operation = operation
-        self.message = message; self.canPlayOffline = canPlayOffline
+        self.message = message; self.canPlayOffline = canPlayOffline; self.latestCloudSaveAt = latestCloudSaveAt
     }
 }
 

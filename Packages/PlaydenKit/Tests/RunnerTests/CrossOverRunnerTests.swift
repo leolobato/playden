@@ -246,3 +246,51 @@ extension CrossOverRunnerTests {
         XCTAssertEqual(windows, [.init(id: 2, process: identity), .init(id: 1, process: identity)])
     }
 }
+
+private actor ControllerCommands: CommandExecuting {
+    var calls: [[String]] = []
+    let fails: Bool
+    init(fails: Bool = false) { self.fails = fails }
+    func run(executable: URL, arguments: [String], timeout: TimeInterval) async throws -> CommandResult {
+        calls.append(arguments)
+        return .init(exitCode: fails ? 1 : 0, output: fails ? "registry failed" : "")
+    }
+}
+
+extension CrossOverRunnerTests {
+    func testControllerModeAppliesToOwnedBottleBeforeLaunching() async throws {
+        for mode in ControllerMode.allCases {
+            let (root, bottle) = try fixture(), inspector = InspectionFixture(), child = ProcessFixture()
+            let commands = ControllerCommands()
+            let runner = CrossOverRunner(bottles: root, manager: ReadyGame(), inspector: inspector,
+                launcher: child, commands: commands, controllerMode: { _ in mode })
+            let run = try await runner.launch(.init(executableRelativePath: "game.exe"), in: bottle, directory: root)
+            let calls = await commands.calls
+            XCTAssertEqual(calls.count, 3)
+            XCTAssertTrue(calls[0].contains("DisableHidraw"))
+            let dataIndex = try XCTUnwrap(calls[0].firstIndex(of: "/d"))
+            XCTAssertEqual(calls[0][dataIndex + 1], mode == .xboxCompatible ? "1" : "0")
+            XCTAssertEqual(calls[1].suffix(3), ["--ux-app", "wineserver", "-k"])
+            XCTAssertEqual(calls[2].last, "-w")
+            for call in calls { XCTAssertEqual(call[1], root.appendingPathComponent(bottle.name).path) }
+            XCTAssertNotNil(child.launched())
+            child.exit(0); _ = try await wait(runner, run, phase: .exited)
+        }
+    }
+    func testControllerFailureAndBusyRuntimeNeverLaunchGame() async throws {
+        for busy in [false, true] {
+            let (root, bottle) = try fixture(), inspector = InspectionFixture(), child = ProcessFixture()
+            if busy { inspector.set(.init(processes: [process(555, .game)])) }
+            let commands = ControllerCommands(fails: true)
+            let runner = CrossOverRunner(bottles: root, manager: ReadyGame(), inspector: inspector,
+                launcher: child, commands: commands, controllerMode: { _ in .xboxCompatible })
+            do {
+                _ = try await runner.launch(.init(executableRelativePath: "game.exe"), in: bottle, directory: root)
+                XCTFail("Unsafe launch accepted")
+            } catch {}
+            XCTAssertNil(child.launched())
+            let calls = await commands.calls
+            XCTAssertEqual(calls.count, busy ? 0 : 1)
+        }
+    }
+}

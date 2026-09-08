@@ -13,6 +13,7 @@ public actor CrossOverRunner: GameRunner {
     private let displayHelper: URL?
     private let displayTarget: @Sendable () async throws -> GameDisplayTarget?
     private let audioDeviceUID: @Sendable () async throws -> String?
+    private let controllerMode: @Sendable (GameID) async throws -> ControllerMode?
     private var starting = false
     private var active: RunningGame?
     private var child: (any GameProcess)?
@@ -24,10 +25,11 @@ public actor CrossOverRunner: GameRunner {
                 manager: any GameBottleManaging = CrossOverGameBottles(), inspector: any RuntimeInspecting = RuntimeProcessInspector(),
                 launcher: any GameProcessLaunching = GameProcessLauncher(), commands: any CommandExecuting = CommandExecutor(),
                 displayHelper: URL? = nil, displayTarget: @escaping @Sendable () async throws -> GameDisplayTarget? = { nil },
-                audioDeviceUID: @escaping @Sendable () async throws -> String? = { nil }) {
+                audioDeviceUID: @escaping @Sendable () async throws -> String? = { nil },
+                controllerMode: @escaping @Sendable (GameID) async throws -> ControllerMode? = { _ in nil }) {
         self.application = application; self.bottles = bottles; self.manager = manager; self.inspector = inspector
         self.launcher = launcher; self.commands = commands
-        self.displayHelper = displayHelper; self.displayTarget = displayTarget; self.audioDeviceUID = audioDeviceUID
+        self.displayHelper = displayHelper; self.displayTarget = displayTarget; self.audioDeviceUID = audioDeviceUID; self.controllerMode = controllerMode
     }
     @discardableResult public func prepare(_ bottle: GameBottle) async throws -> Bool {
         guard !starting, active == nil else { throw failure("Prepare game", "Quit the current game before preparing another game.") }
@@ -50,7 +52,7 @@ public actor CrossOverRunner: GameRunner {
         guard try await manager.isReady(bottle) else { throw failure("Launch game", "The game's runtime needs to be prepared again.") }
         guard try await !manager.requiresSourcePreparation(bottle) else { throw failure("Launch game", "The game's preparation has not finished. Retry to continue.") }
         let prefix = try prefix(bottle)
-        let baseline = try inspector.inspect(bottle: prefix)
+        var baseline = try inspector.inspect(bottle: prefix)
         guard !baseline.processes.contains(where: { $0.kind == .game }) else { throw failure("Launch game", "This game's bottle already has an application running.") }
         let target = try await displayTarget()
         let audioUID = try await audioDeviceUID()
@@ -61,12 +63,54 @@ public actor CrossOverRunner: GameRunner {
         let plainArguments = try Self.arguments(spec, bottle: prefix, directory: directory)
         let input = try useHelper ? GameDisplayTarget.launchInput(display: target, executable: plainArguments[plainArguments.count - spec.arguments.count - 1], arguments: spec.arguments) : nil
         let arguments = try Self.arguments(spec, bottle: prefix, directory: directory, display: target, helper: displayHelper, forceHelper: useHelper)
+        if let mode = try await controllerMode(bottle.gameID) {
+            try verifyOwnership(bottle, at: prefix)
+            try await configureController(mode, bottle: bottle, prefix: prefix, knownProcesses: baseline.processes)
+            baseline = try inspector.inspect(bottle: prefix)
+            guard baseline.processes.isEmpty else {
+                throw failure("Configure controller", "The game runtime is still busy. Close its other applications and retry.")
+            }
+        }
         try Task.checkCancellation()
         let process = try launcher.start(executable: tool("cxstart"), arguments: arguments, environment: spec.environment.merging(audioUID.map { ["PLAYDEN_AUDIO_DEVICE_UID": $0] } ?? [:]) { _, preferred in preferred }, input: input)
         let run = RunningGame(bottle: bottle, launcher: process.identity)
         active = run; child = process; latest[run.id] = .init(run: run, processes: baseline.processes)
         worker = Task { await self.watch(run, process: process) }
         return run
+    }
+    /// Settings are applied only at launch, after ownership and executable validation.
+    /// Restart the owned idle runtime so WineBus reloads the registry before the game starts.
+    private func configureController(_ mode: ControllerMode, bottle: GameBottle, prefix: URL, knownProcesses: [RuntimeProcess]) async throws {
+        var knownPIDs = Set(knownProcesses.map { $0.identity.pid })
+        func requireIdle() throws {
+            try verifyOwnership(bottle, at: prefix)
+            let current = try inspector.inspect(bottle: prefix)
+            guard current.unreadablePIDs.isDisjoint(with: knownPIDs), !current.processes.contains(where: { $0.kind == .game }) else {
+                throw failure("Configure controller", "Close this game’s other applications before changing controller mode.")
+            }
+            knownPIDs.formUnion(current.processes.map { $0.identity.pid })
+        }
+        try requireIdle()
+        let set = try await commands.run(executable: tool("cxstart"), arguments: [
+            "--bottle", prefix.path, "--no-gui", "--wait-children", "reg.exe", "add",
+            #"HKLM\System\CurrentControlSet\Services\WineBus"#, "/v", "DisableHidraw",
+            "/t", "REG_DWORD", "/d", mode == .xboxCompatible ? "1" : "0", "/f"
+        ], timeout: 30)
+        try controllerCommandSucceeded(set)
+        try requireIdle()
+        for flag in ["-k", "-w"] {
+            try Task.checkCancellation()
+            let result = try await commands.run(executable: tool("wine"), arguments: [
+                "--bottle", prefix.path, "--ux-app", "wineserver", flag
+            ], timeout: 15)
+            try controllerCommandSucceeded(result)
+        }
+    }
+    private func controllerCommandSucceeded(_ result: CommandResult) throws {
+        if result.cancelled || Task.isCancelled { throw CancellationError() }
+        guard !result.timedOut, result.exitCode == 0 else {
+            throw failure("Configure controller", "Controller mode could not be applied. Retry the launch.", output: result.output)
+        }
     }
     public func observe(_ run: RunningGame) -> AsyncStream<RunSnapshot> {
         let id = UUID()

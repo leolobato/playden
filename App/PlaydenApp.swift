@@ -442,7 +442,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let requestedScreens: Set<String>? = arguments.firstIndex(of: "--snapshot-screens").flatMap { index in
                 arguments.indices.contains(index + 1) ? Set(arguments[index + 1].split(separator: ",").map(String.init)) : nil
             }
-            for screen in ["launch-options", "launcher-quit", "launcher-quit-warning", "exit-overlay-warning", "launcher-quitting", "game-drive-disconnected", "game-drive-checking", "context-drive-disconnected", "library-drive-disconnected", "toast-complete", "toast-failed", "toast-connected", "toast-disconnected", "uninstall-confirm", "uninstall-unsynced", "uninstall-checking", "cloud-ready", "cloud-conflict", "cloud-account", "cloud-pending", "cloud-syncing", "cloud-recovery", "home", "home-tabs", "home-library-card", "home-playstation", "home-large-library", "home-large-library-end", "home-collection-end", "library-large", "library-large-end", "library", "library-playstation", "library-paged", "library-return", "game", "game-status-clean", "game-status-crash", "library-running", "context-uninstall", "downloads", "downloads-queued", "settings", "settings-about", "settings-reset", "settings-reset-blocked", "settings-reset-error", "settings-reset-busy", "settings-display", "settings-runtime", "settings-runtime-missing", "settings-runtime-busy", "collections", "keyboard", "keyboard-playstation", "keyboard-generic", "keyboard-space", "keyboard-long", "compatibility", "uninstall", "logs", "logs-retry", "logs-long", "logs-long-end", "logs-long-return", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-permissions", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom", "library-download-glyph", "library-download-focused", "library-artwork-fallback", "game-unknown-size", "game-favorite", "install-offer", "install-offer-space", "install-queue", "install-verifying", "install-verifying-all", "install-history-failed", "install-history-completed", "install-mini-progress", "install-storage-shortage", "install-storage-unavailable", "install-game-progress", "launching", "exit-overlay", "exit-overlay-quit", "notification", "notification-focused"] {
+            for screen in ["game-settings", "game-more", "cloud-timestamp", "launch-options", "launcher-quit", "launcher-quit-warning", "exit-overlay-warning", "launcher-quitting", "game-drive-disconnected", "game-drive-checking", "context-drive-disconnected", "library-drive-disconnected", "toast-complete", "toast-failed", "toast-connected", "toast-disconnected", "uninstall-confirm", "uninstall-unsynced", "uninstall-checking", "cloud-ready", "cloud-conflict", "cloud-account", "cloud-pending", "cloud-syncing", "cloud-recovery", "home", "home-tabs", "home-library-card", "home-playstation", "home-large-library", "home-large-library-end", "home-collection-end", "library-large", "library-large-end", "library", "library-playstation", "library-paged", "library-return", "game", "game-status-clean", "game-status-crash", "library-running", "context-uninstall", "downloads", "downloads-queued", "settings", "settings-about", "settings-reset", "settings-reset-blocked", "settings-reset-error", "settings-reset-busy", "settings-display", "settings-runtime", "settings-runtime-missing", "settings-runtime-busy", "collections", "keyboard", "keyboard-playstation", "keyboard-generic", "keyboard-space", "keyboard-long", "compatibility", "uninstall", "logs", "logs-retry", "logs-long", "logs-long-end", "logs-long-return", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-permissions", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom", "library-download-glyph", "library-download-focused", "library-artwork-fallback", "game-unknown-size", "game-favorite", "install-offer", "install-offer-space", "install-queue", "install-verifying", "install-verifying-all", "install-history-failed", "install-history-completed", "install-mini-progress", "install-storage-shortage", "install-storage-unavailable", "install-game-progress", "launching", "exit-overlay", "exit-overlay-quit", "notification", "notification-focused"] {
                 if let requestedScreens, !requestedScreens.contains(screen) { continue }
                 // Keep each capture independent of the requested screen order.
                 let model = LibraryModel()
@@ -507,7 +507,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     if let index = model.games.firstIndex(where: { $0.title == "TUNIC" }) {
                         model.games[index].status = .notInstalled; model.games[index].size = "—"
                         model.games[index].isFavorite = screen == "game-favorite"
-                        model.openGame(model.games[index]); model.detailAction = 1
+                        model.openGame(model.games[index]); model.detailAction = screen == "game-favorite" ? 2 : 0
                     }
                 case "settings-runtime", "settings-runtime-missing", "settings-runtime-busy":
                     model.selectTab(.settings); model.settingsSection = 1; model.settingsIndex = 3
@@ -543,6 +543,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     for _ in 0..<5 { model.perform(.previousPage) }
                 case "downloads-queued":
                     model.selectTab(.downloads); model.perform(.move(.down))
+                case "game-settings", "game-more":
+                    if let game = model.games.first(where: { $0.status == .installed }) {
+                        model.openGame(game)
+                        if screen == "game-settings" { model.showGameSettings(game.id) }
+                        else { model.show(.context) }
+                    }
+                case "cloud-timestamp":
+                    model.configureCloudSnapshot("cloud-ready")
+                    if let id = model.detailID { model.showCloud(id) }
                 case "game":
                     model.selectTab(.library)
                     if let index = model.games.firstIndex(where: { $0.title == "TUNIC" }) {

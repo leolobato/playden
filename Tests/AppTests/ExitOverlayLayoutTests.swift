@@ -55,7 +55,7 @@ import Domain
             } else {
                 model.configureSessionSnapshot("exit-overlay"); model.exitOverlay = false
                 model.detailID = model.sessionGame?.id
-                content = AnyView(LauncherView(model: model)); expected = ["return to game", "quit game"]
+                content = AnyView(LauncherView(model: model)); expected = ["return to game", "game settings", "more"]
             }
             // AppKit-backed scroll views need a hosting view to participate in snapshots.
             let hosting = NSHostingView(rootView: content.frame(width: 1920, height: 1080))

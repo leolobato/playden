@@ -37,6 +37,10 @@ struct CloudSaveDialog: View {
             }
             Text(model.cloudMessage(gameID)).font(Design.body(25)).foregroundStyle(Design.secondary).lineSpacing(6)
                 .fixedSize(horizontal: false, vertical: true)
+            if !conflict, let date = model.cloudStatuses[gameID]?.latestCloudSaveAt {
+                Label("Latest Steam Cloud save · \(date.formatted(date: .abbreviated, time: .shortened))", systemImage: "clock")
+                    .font(Design.body(23)).foregroundStyle(Design.secondary)
+            }
             if conflict {
                 HStack(spacing: 24) {
                     copyCard(local: true)

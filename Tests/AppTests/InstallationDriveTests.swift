@@ -56,7 +56,7 @@ final class InstallationDriveTests: XCTestCase {
         XCTAssertFalse(model.detailActionEnabled(at: 0))
         XCTAssertTrue(model.installationDriveMessage?.contains("automatically") == true)
         model.perform(.confirm); XCTAssertNil(model.panel)
-        model.perform(.move(.right)); model.perform(.confirm)
+        model.perform(.move(.right)); model.perform(.move(.right)); model.perform(.confirm)
         XCTAssertTrue(model.focusedGame?.isFavorite == true)
         model.show(.context); model.panelIndex = 0; model.perform(.confirm)
         XCTAssertEqual(model.panel, .context)

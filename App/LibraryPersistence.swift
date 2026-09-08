@@ -32,6 +32,9 @@ extension LibraryModel {
             preferredLaunchOptions = Dictionary(uniqueKeysWithValues: snapshot.entries.compactMap { entry in
                 entry.edits.preferredLaunchOption.map { (entry.id, $0) }
             })
+            controllerModes = Dictionary(uniqueKeysWithValues: snapshot.entries.compactMap { entry in
+                entry.edits.controllerMode.map { (entry.id, $0) }
+            })
             updateInstallationDriveTargets(snapshot.entries.compactMap(\.installation))
             gamesNeedingRepair = Set(snapshot.entries.filter { $0.installation?.needsRepair == true }.map(\.id))
             let fixtures = Dictionary(uniqueKeysWithValues: PreviewCatalog.games.map { ($0.id, $0) })
@@ -64,6 +67,7 @@ extension LibraryModel {
     private func edits(for game: Game) -> GameEdits {
         var value = GameEdits(isFavorite: game.isFavorite, isHidden: game.isHidden, compatibility: game.compatibility, note: compatibilityNotes[game.id] ?? "")
         value.preferredLaunchOption = preferredLaunchOptions[game.id]
+        value.controllerMode = controllerModes[game.id]
         return value
     }
     private var preferences: LibraryPreferences {

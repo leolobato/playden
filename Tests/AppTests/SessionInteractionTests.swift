@@ -55,8 +55,9 @@ final class SessionInteractionTests: XCTestCase {
         model.detailID = id
         model.receiveSession(snapshot())
         XCTAssertTrue(model.canShowGameControls)
-        XCTAssertEqual(Array(model.detailActions.prefix(2)), ["Return to game", "Quit game"])
-        model.detailAction = 1; model.activateDetail()
+        XCTAssertEqual(model.detailActions, ["Return to game", "Game settings", "Favorite", "More"])
+        model.detailAction = 3; model.activateDetail()
+        model.panelIndex = try XCTUnwrap(model.contextActions.firstIndex(of: "Quit game")); model.activatePanel()
         XCTAssertTrue(model.exitOverlay); XCTAssertEqual(model.exitIndex, 0)
         model.setExitOverlay(false)
         model.show(.context); model.panelIndex = try XCTUnwrap(model.contextActions.firstIndex(of: "Quit game"))

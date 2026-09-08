@@ -34,6 +34,9 @@ implemented.
   quitting, session playtime and recorded exit results. Downloads can pause while you play.
 - **Sync supported Steam Cloud saves.** Download before playing, upload after exit, review
   conflicts and retry pending transfers. Save support depends on a verified mapping for the game.
+- **Tune each game.** Game settings offers Xbox-compatible controller mapping (the default)
+  or native controller input, applied on the next launch. The More menu holds game management
+  actions, and Cloud saves shows the latest save timestamp when available.
 - **Set up your display.** Choose the preferred monitor for Playden and game placement,
   toggle fullscreen, start in fullscreen, and reduce animation.
 - **Troubleshoot on the TV.** Visible failure stages, Retry controls, scrollable logs, a runtime

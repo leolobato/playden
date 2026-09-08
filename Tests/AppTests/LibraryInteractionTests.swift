@@ -62,12 +62,12 @@ final class LibraryInteractionTests: XCTestCase {
         XCTAssertFalse(model.filteredGames.isEmpty)
         XCTAssertTrue(model.query.isEmpty)
     }
-    @MainActor func testHidingLastFavoriteClampsFocus() {
+    @MainActor func testHidingLastFavoriteClampsFocus() throws {
         let model = LibraryModel()
         model.selectTab(.library); model.filter = .favorites
         model.libraryCursor = GridCursor(index: model.filteredGames.count - 1)
         let hiddenID = model.focusedGame?.id
-        model.show(.context); model.panelIndex = 3; model.activatePanel()
+        model.show(.context); model.panelIndex = try XCTUnwrap(model.contextActions.firstIndex(of: "Hide")); model.activatePanel()
         XCTAssertFalse(model.filteredGames.contains { $0.id == hiddenID })
         XCTAssertNotNil(model.focusedGame)
         model.filter = .hidden

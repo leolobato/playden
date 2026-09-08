@@ -16,7 +16,7 @@ typealias LibraryFilter = LibraryScope
 enum TextPurpose: Equatable { case newCollection(GameID?), renameCollection(UUID), compatibilityNote(GameID), accountName, password, guardCode }
 enum Confirmation: Equatable { case deleteCollection(UUID), uninstall(GameID), install(GameID), cancelDownload(GameID), switchGame(GameID) }
 enum Panel: Equatable {
-    case context, filters, search, compatibility, information(String), persistenceFailure, signOut, controllerTest, resetAppData
+    case context, gameSettings(GameID), filters, search, compatibility, information(String), persistenceFailure, signOut, controllerTest, resetAppData
     case downloadActions(GameID)
     case installOffer(GameID)
     case launchOptions(GameID)
@@ -217,6 +217,9 @@ final class LibraryModel {
     var filterChoiceIndex = 0
     var filterScrollOffset = 0.0
     var expandedGenres = false
+    var controllerModes: [GameID: ControllerMode] = [:]
+    var controllerModeChoice: ControllerMode?
+    var gameSettingsError: String?
     var detailAction = 0
     var reducedMotion = false { didSet { persistPreferences() } }
     var controllerName: String?
@@ -272,7 +275,10 @@ final class LibraryModel {
                 let runner = CrossOverRunner(manager: CrossOverGameBottles(runtime: runtime ?? CrossOverRuntime()),
                     displayHelper: Bundle.main.url(forResource: "PlaydenDisplay", withExtension: "exe"),
                     displayTarget: { @MainActor in GameDisplay.target(preferences: try catalog.preferences()) },
-                    audioDeviceUID: { @MainActor in try catalog.preferences().selectedAudioDeviceUID })
+                    audioDeviceUID: { @MainActor in try catalog.preferences().selectedAudioDeviceUID },
+                    controllerMode: { @MainActor id in
+                        try catalog.snapshot().entries.first { $0.id == id }?.edits.controllerMode ?? ControllerMode.playdenDefault
+                    })
                 self.sessions = try SessionService(catalog: catalog, sources: [source], runner: runner, queue: queue,
                     storage: InstallStorage(volumes: volumeStore ?? GamesVolumeStore()), cloud: self.cloudService)
             }
@@ -375,6 +381,10 @@ final class LibraryModel {
         return rows[safe: homeRow]?.games[safe: homeColumns[homeRow, default: 0]]
     }
     var detailActions: [String] {
+        guard let game = focusedGame, let primary = gameActions.first else { return [] }
+        return [primary, "Game settings", game.isFavorite ? "Favorited" : "Favorite", "More"]
+    }
+    private var gameActions: [String] {
         guard let game = focusedGame else { return [] }
         if !isPreview, let job = liveJob(for: game.id), job.kind == .uninstall, ![.completed, .cancelled].contains(job.state) {
             return ["View removal", game.isFavorite ? "Favorited" : "Favorite", "Add to collection", game.isHidden ? "Unhide" : "Hide", "Set compatibility", "View logs"]
@@ -391,13 +401,21 @@ final class LibraryModel {
         return [primary] + (canShowGameControls && session.session?.gameID == game.id ? ["Quit game"] : []) + [game.isFavorite ? "Favorited" : "Favorite", "Add to collection", game.isHidden ? "Unhide" : "Hide", "Set compatibility"] + (game.status == .installed ? (primary == "Verify files" ? ["Uninstall", "Cloud saves"] : ["Verify files", "Uninstall", "Cloud saves"]) : []) + ["View logs"]
     }
     var contextActions: [String] {
-        [detailActions.first ?? "Open game"] + (detailActions.contains("Quit game") ? ["Quit game"] : []) + [focusedGame?.isFavorite == true ? "Unfavorite" : "Favorite", "Set compatibility", focusedGame?.isHidden == true ? "Unhide" : "Hide", "View logs", "Add to collection"]
-        + (focusedGame.map { (gameLaunchOptions[$0.id]?.count ?? 0) > 1 } == true ? ["Launch options"] : [])
-        + (detailActions.contains("Uninstall") ? ["Uninstall"] : [])
+        let actions = gameActions
+        var result = [actions.first ?? "Open game", "Game settings"]
+        if actions.contains("Quit game") { result.append("Quit game") }
+        result += [focusedGame?.isFavorite == true ? "Unfavorite" : "Favorite", "Set compatibility",
+                   focusedGame?.isHidden == true ? "Unhide" : "Hide", "View logs", "Add to collection"]
+        if let id = focusedGame?.id, (gameLaunchOptions[id]?.count ?? 0) > 1 { result.append("Launch options") }
+        for action in ["Verify files", "Cloud saves", "Uninstall"] where actions.contains(action) && actions.first != action {
+            result.append(action)
+        }
+        return result
     }
     var panelActions: [String] {
         switch panel {
         case .context: contextActions
+        case .gameSettings: ["Use Playden default", "Xbox compatible", "Native controller", "Cancel", "Save"]
         case .launchOptions(let id): (gameLaunchOptions[id] ?? []).map(\.title) + ["Always use this", "Cancel", launchAfterChoosing ? "Play" : "Save"]
         case .downloadActions(let id): downloadActions(for: id)
         case .installOffer: resolvingInstall ? [installOffer == nil ? "Cancel" : "Close"] : installOfferError != nil ? ["Cancel", installOfferRequiresSignIn ? "Sign in" : "Retry"] : installOffer?.canInstall == true ? ["Cancel", "Install"] : ["Cancel", "Check space again"]
@@ -601,7 +619,12 @@ final class LibraryModel {
     }
     func activateDetail() {
         guard let label = detailActions[safe: detailAction] else { return }
+        activateGameAction(label)
+    }
+    func activateGameAction(_ label: String) {
         switch label {
+        case "More": show(.context)
+        case "Game settings": if let id = focusedGame?.id { showGameSettings(id) }
         case "Drive disconnected", "Checking drive…": return
         case "Cloud saves", "Review saves": if let id = focusedGame?.id { showCloud(id) }
         case "Play": if let id = focusedGame?.id { beginPlay(id) }
@@ -629,6 +652,7 @@ final class LibraryModel {
     func activatePanel() {
         guard let label = panelActions[safe: panelIndex] else { return }
         switch panel {
+        case .gameSettings(let id): activateGameSettings(id)
         case .launchOptions(let id): activateLaunchChoice(for: id)
         case .installOffer(let id):
             if panelIndex == 0 { panel = nil }
@@ -642,7 +666,7 @@ final class LibraryModel {
         case .context:
             if !panelActionEnabled(at: panelIndex) { return }
             if panelIndex == 0, let game = focusedGame { openGame(game); activateDetail() }
-            else if label == "Quit game" { showGameControls() }
+            else if ["Game settings", "Verify files", "Cloud saves", "Quit game"].contains(label) { activateGameAction(label) }
             else if label == "Favorite" || label == "Unfavorite" { toggleFavorite(); panel = nil }
             else if label == "Set compatibility" { show(.compatibility) }
             else if label == "Hide" || label == "Unhide" { hideFocused(); panel = nil }

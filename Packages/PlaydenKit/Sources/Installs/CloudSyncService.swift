@@ -318,8 +318,14 @@ public actor CloudSyncService: CloudSyncManaging {
         return value
     }
     private func status(_ operation: CloudSyncOperation, state: CloudSyncStatus.State, message: String) -> CloudSyncStatus {
-        .init(gameID: operation.gameID, state: state, operation: operation, message: message,
-              canPlayOffline: operation.claim == nil && !operation.needsLocalRecovery)
+        let files: [CloudFile]
+        if operation.phase == .completed {
+            let baseline = try? catalog.cloudBaseline(for: operation.gameID, accountKey: operation.accountKey)
+            files = baseline?.installationID == operation.installationID ? baseline?.files ?? [] : []
+        } else { files = operation.remote?.files ?? [] }
+        return .init(gameID: operation.gameID, state: state, operation: operation, message: message,
+              canPlayOffline: operation.claim == nil && !operation.needsLocalRecovery,
+              latestCloudSaveAt: files.filter { $0.state == .present }.map(\.modifiedAt).filter { $0.timeIntervalSince1970 > 0 }.max())
     }
     @discardableResult private func publish(_ value: CloudSyncStatus) -> CloudSyncStatus {
         statuses[value.gameID] = value

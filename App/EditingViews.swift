@@ -4,26 +4,31 @@ import Domain
 struct PanelActionList: View {
     @Bindable var model: LibraryModel
     var body: some View {
-        let offset = max(0, Double(model.panelIndex - 5) * 80)
-        ZStack(alignment: .topLeading) {
-            ForEach(Array(model.panelActions.enumerated()), id: \.offset) { index, title in
-                Button { model.panelIndex = index; model.activatePanel() } label: {
-                    HStack {
-                        if model.panel == .compatibility && index < 4 {
-                            Circle().fill([Design.muted, Design.green, Design.amber, Design.red][index]).frame(width: 12, height: 12)
-                        }
-                        Text(title).font(Design.body(26, weight: "Medium")).lineLimit(1)
-                        Spacer(minLength: 8)
-                        if model.panelItemSelected(at: index) { Image(systemName: "checkmark").foregroundStyle(Design.accent) }
-                    }.padding(.horizontal, 18).frame(width: 520, height: 68)
-                        .background(model.panelIndex == index ? Design.text.opacity(0.1) : .clear, in: RoundedRectangle(cornerRadius: 8))
-                        .focusRing(model.panelIndex == index, compact: true)
-                }.buttonStyle(.plain).disabled(!model.panelActionEnabled(at: index))
-                    .offset(x: 12, y: 12 + Double(index) * 80 - offset)
-            }
-        }.frame(width: 544, height: min(560, Double(model.panelActions.count) * 80 + 24), alignment: .topLeading)
-            .clipped().padding(.leading, -12)
-            .animation(model.reducedMotion ? nil : .easeOut(duration: 0.18), value: offset)
+        ScrollViewReader { proxy in
+            ScrollView(.vertical) {
+                VStack(spacing: 12) {
+                    ForEach(Array(model.panelActions.enumerated()), id: \.offset) { index, title in
+                        Button { model.panelIndex = index; model.activatePanel() } label: {
+                            HStack {
+                                if model.panel == .compatibility && index < 4 {
+                                    Circle().fill([Design.muted, Design.green, Design.amber, Design.red][index]).frame(width: 12, height: 12)
+                                }
+                                Text(title).font(Design.body(26, weight: "Medium")).lineLimit(1)
+                                Spacer(minLength: 8)
+                                if model.panelItemSelected(at: index) { Image(systemName: "checkmark").foregroundStyle(Design.accent) }
+                            }.padding(.horizontal, 18).frame(width: 520, height: 68)
+                                .background(model.panelIndex == index ? Design.text.opacity(0.1) : .clear, in: RoundedRectangle(cornerRadius: 8))
+                                .focusRing(model.panelIndex == index, compact: true)
+                        }.buttonStyle(.plain).disabled(!model.panelActionEnabled(at: index)).id(index)
+                    }
+                }.padding(12)
+            }.scrollIndicators(.visible)
+                .onAppear { proxy.scrollTo(model.panelIndex) }
+                .onChange(of: model.panelIndex) { _, index in
+                    withAnimation(model.reducedMotion ? nil : .easeOut(duration: 0.18)) { proxy.scrollTo(index) }
+                }
+        }.frame(width: 544, height: min(560, Double(model.panelActions.count) * 80 + 12), alignment: .topLeading)
+            .padding(.leading, -12)
     }
 }
 struct ConfirmDialog: View {

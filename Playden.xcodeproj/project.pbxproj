@@ -81,12 +81,14 @@
 		B8600AC5F4858AC14150C91A /* Barlow-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 1F16DDA68F1153FD55BA99A5 /* Barlow-Regular.ttf */; };
 		B9EA423234F340EB08F16DE9 /* AccountModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB966E77513702BD6FA1DBFA /* AccountModel.swift */; };
 		BA8C202C6A96D1F5F85D0B7C /* InstallationDrives.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5D70A7625199E192753461B /* InstallationDrives.swift */; };
+		BB5EE26BC727E9564EFD226B /* GameSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F40504F5382DB54472D4E553 /* GameSettingsTests.swift */; };
 		BBB966DC2DFB3C849E4EFF2D /* PairingControllerArt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DAFDCAA94384452A021D9F7 /* PairingControllerArt.swift */; };
 		BC8485BE2483ED7053677307 /* AmbientBackdrop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 756E4BCC2D87AAF8F4CE916A /* AmbientBackdrop.swift */; };
 		BF13F2404DEA6C10DC485C82 /* SetupLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42BD3A5D84A9CB072E3078B1 /* SetupLifecycleTests.swift */; };
 		BF834C955FE27D51A1E04931 /* SetupInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB3AAA8DAFBFE1E1F465DD6D /* SetupInteractionTests.swift */; };
 		C21BF3F2A608C6A2052F0C06 /* LibraryViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 005845EA0351BEFA06330ED3 /* LibraryViews.swift */; };
 		C2B369F77271C26C00390242 /* ResetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B83656734C6979C7A7C92AC /* ResetView.swift */; };
+		C4F39999104BB15D5EBA34DC /* GameSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61077CF83C96F7F197D9DE68 /* GameSettings.swift */; };
 		C752BAA3A1FE39092B86E1BA /* SessionModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49AF5DA807B11BF304803446 /* SessionModel.swift */; };
 		C9D60D948A4B07A782E2D8CB /* Focus in Frameworks */ = {isa = PBXBuildFile; productRef = 3890CD0C43E5904844B0651B /* Focus */; };
 		CD5F6935A733FC3E601BC33B /* EditingViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE1727776F45FA0C406910E3 /* EditingViews.swift */; };
@@ -162,6 +164,7 @@
 		547E91517ED74DA2720CB50D /* DownloadsStorageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadsStorageTests.swift; sourceTree = "<group>"; };
 		5EA33197C57853C980391B07 /* Barlow-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Barlow-Medium.ttf"; sourceTree = "<group>"; };
 		60100AC4656FB333C5893F1C /* CloudViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudViews.swift; sourceTree = "<group>"; };
+		61077CF83C96F7F197D9DE68 /* GameSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSettings.swift; sourceTree = "<group>"; };
 		61619F47BBBA3B5FFB6F1C71 /* BarlowCondensed-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "BarlowCondensed-Bold.ttf"; sourceTree = "<group>"; };
 		6E097D7F40A722659E457C47 /* ResetModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResetModel.swift; sourceTree = "<group>"; };
 		73A8645818D56BC9F067395B /* DownloadSizeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadSizeTests.swift; sourceTree = "<group>"; };
@@ -210,6 +213,7 @@
 		EEEC0C835F8E848DFE615E9E /* DownloadsStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadsStorage.swift; sourceTree = "<group>"; };
 		F08BC6FFE2256FC7D2668844 /* LauncherQuitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LauncherQuitTests.swift; sourceTree = "<group>"; };
 		F1F057C5A48896F64FADC15C /* RuntimeSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeSettingsView.swift; sourceTree = "<group>"; };
+		F40504F5382DB54472D4E553 /* GameSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSettingsTests.swift; sourceTree = "<group>"; };
 		F4796D6EC1421C89367C816F /* DownloadSize.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadSize.swift; sourceTree = "<group>"; };
 		F4FF352DBF3FCF99F7F06A5E /* GameDisplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameDisplay.swift; sourceTree = "<group>"; };
 		FBFB1A3CEECAED44C3259ADB /* LogInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogInteractionTests.swift; sourceTree = "<group>"; };
@@ -251,6 +255,7 @@
 				DF7C9BEE76958CB42F6BE5D7 /* DownloadTransferTests.swift */,
 				77FAE9304A89DC01A23B32DC /* ExitOverlayLayoutTests.swift */,
 				FD2AC6DC0F5407AE5CEE0BC3 /* GameActivationTests.swift */,
+				F40504F5382DB54472D4E553 /* GameSettingsTests.swift */,
 				4A8CF67EE37DD9076D1196F1 /* HomeNavigationTests.swift */,
 				3D6130A8CDF52CA80FD82B3E /* InstallationDriveTests.swift */,
 				BEE961063B0260AD590FA052 /* InstallInteractionTests.swift */,
@@ -351,6 +356,7 @@
 				82BC80552113D21EFEABAA80 /* GameActivation.swift */,
 				F4FF352DBF3FCF99F7F06A5E /* GameDisplay.swift */,
 				8A89177F00C69DF7D93DFA5C /* GameExitShortcut.swift */,
+				61077CF83C96F7F197D9DE68 /* GameSettings.swift */,
 				51796435F52ABE41CE0D367E /* HomeNavigation.swift */,
 				A5D70A7625199E192753461B /* InstallationDrives.swift */,
 				A98312D21A2A3D3E0663004D /* InstallModel.swift */,
@@ -580,6 +586,7 @@
 				AD93945B671BB4326218F463 /* GameActivation.swift in Sources */,
 				2DD4585248DA3A0DA3A9E4A8 /* GameDisplay.swift in Sources */,
 				9B7683DC613161D68C07A4B9 /* GameExitShortcut.swift in Sources */,
+				C4F39999104BB15D5EBA34DC /* GameSettings.swift in Sources */,
 				1C8BF1E45761B8760E6F08FC /* HomeNavigation.swift in Sources */,
 				EF4C68E0F6E9410A214C9459 /* InstallModel.swift in Sources */,
 				38139DAF04DE03AD1EC1F224 /* InstallSnapshots.swift in Sources */,
@@ -629,6 +636,7 @@
 				5CC14EC02EDE4A9ED7850C26 /* DownloadsStorageTests.swift in Sources */,
 				3666C23591DA6E77B79E0A3E /* ExitOverlayLayoutTests.swift in Sources */,
 				02D50C3EA16BE7D854C91B6F /* GameActivationTests.swift in Sources */,
+				BB5EE26BC727E9564EFD226B /* GameSettingsTests.swift in Sources */,
 				F695AB4F1C639ED514C224D9 /* HomeNavigationTests.swift in Sources */,
 				45A14BF6ED853D533057C505 /* InstallInteractionTests.swift in Sources */,
 				77621C4F69C43E8D36BE7F13 /* InstallationDriveTests.swift in Sources */,

@@ -34,7 +34,9 @@ private actor CloudUIFixture: CloudSyncManaging {
     func testCloudActionAndConflictChoicesAreReachableWithDirectionalInput() throws {
         let (model, _) = model(), id = try XCTUnwrap(model.detailID)
         model.panel = nil
-        model.detailAction = try XCTUnwrap(model.detailActions.firstIndex(of: "Cloud saves"))
+        model.detailAction = try XCTUnwrap(model.detailActions.firstIndex(of: "More"))
+        model.perform(.confirm)
+        model.panelIndex = try XCTUnwrap(model.contextActions.firstIndex(of: "Cloud saves"))
         model.perform(.confirm)
         XCTAssertEqual(model.panel, .cloudSaves(id))
         XCTAssertEqual(model.cloudChoices(id)[model.panelIndex], .close)
