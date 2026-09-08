@@ -119,6 +119,7 @@ final class LibraryModel {
     var downloadHistoryReview: JobRecord?
     var activeInstallID: UUID?
     var installTransfer: InstallTransferMetrics?
+    var installPreparation: InstallPreparationProgress?
     var installPersistenceError: String?
     @ObservationIgnored var setupTask: Task<Void, Never>?
     @ObservationIgnored var setupGeneration = UUID()

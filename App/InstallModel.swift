@@ -13,7 +13,8 @@ extension LibraryModel {
                     self.receiveInstallNotifications(snapshot.jobs)
                     let focusedDownload = self.downloadGames[safe: self.downloadIndex]?.id
                     let completedBefore = Set(self.installJobs.filter { [.completed, .cancelled].contains($0.state) }.map(\.id))
-                    self.installJobs = snapshot.jobs; self.activeInstallID = snapshot.activeJobID; self.installTransfer = snapshot.transfer
+                    self.installJobs = snapshot.jobs; self.activeInstallID = snapshot.activeJobID; self.installTransfer = snapshot.transfer; self.installPreparation = snapshot.preparation
+                    self.reconcileLauncherQuitRequest()
                     self.installPersistenceError = snapshot.persistenceFailure?.reason
                     if Set(snapshot.jobs.filter { [.completed, .cancelled].contains($0.state) }.map(\.id)) != completedBefore { self.reloadCatalog() }
                     self.applyInstallStatuses()

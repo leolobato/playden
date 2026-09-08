@@ -8,8 +8,9 @@ public struct InstallQueueSnapshot: Sendable {
     public let activeJobID: UUID?
     public let persistenceFailure: OperationFailure?
     public let transfer: InstallTransferMetrics?
-    public init(jobs: [JobRecord], activeJobID: UUID? = nil, persistenceFailure: OperationFailure? = nil, transfer: InstallTransferMetrics? = nil) {
-        self.jobs = jobs; self.activeJobID = activeJobID; self.persistenceFailure = persistenceFailure; self.transfer = transfer
+    public let preparation: InstallPreparationProgress?
+    public init(jobs: [JobRecord], activeJobID: UUID? = nil, persistenceFailure: OperationFailure? = nil, transfer: InstallTransferMetrics? = nil, preparation: InstallPreparationProgress? = nil) {
+        self.jobs = jobs; self.activeJobID = activeJobID; self.persistenceFailure = persistenceFailure; self.transfer = transfer; self.preparation = preparation
     }
 }
 public struct InstallOffer: Sendable {
@@ -54,6 +55,7 @@ public actor InstallQueue: InstallQueuing {
     private var progressTime: TimeInterval = 0
     private var progressCompleted: Int64 = 0
     private var progressSequence: UInt64?
+    private var preparationProgress: InstallPreparationProgress?
     private var stageVerification: InstallFileVerification?
     private var transferMeter: TransferRateEstimator?
     private var transferTicker: Task<Void, Never>?
@@ -75,7 +77,7 @@ public actor InstallQueue: InstallQueuing {
             transfer: downloading ? transferMeter?.metrics(now: ProcessInfo.processInfo.systemUptime) :
                 (activeID.flatMap { records[$0] }?.state == .running ? stageVerification.map {
                     InstallTransferMetrics(bytesPerSecond: 0, secondsRemaining: nil, verification: $0)
-                } : nil))
+                } : nil), preparation: activeID.flatMap { records[$0] }.map { $0.stage == .stage && $0.state == .running } == true ? preparationProgress : nil)
     }
     public func updates() -> AsyncStream<InstallQueueSnapshot> {
         let id = UUID()
@@ -209,7 +211,7 @@ public actor InstallQueue: InstallQueuing {
         }; publish()
     }
     private func execute(_ id: UUID, run: UUID) async {
-        defer { transferTicker?.cancel(); transferTicker = nil; transferMeter = nil; stageVerification = nil; activeTask = nil; activeID = nil; activeRun = nil; publish(); pump() }
+        defer { transferTicker?.cancel(); transferTicker = nil; transferMeter = nil; stageVerification = nil; preparationProgress = nil; activeTask = nil; activeID = nil; activeRun = nil; publish(); pump() }
         do {
             if records[id]?.kind == .uninstall { try await executeUninstall(id); return }
             guard let initial = records[id], [.install, .repair].contains(initial.kind), let plan = initial.plan, let volume = initial.volume,
@@ -227,7 +229,7 @@ public actor InstallQueue: InstallQueuing {
                 try checkpoint(id)
                 guard var job = records[id] else { return }
                 if job.completedStages.contains(stage) { continue }
-                stageVerification = nil; progressTime = 0
+                stageVerification = nil; preparationProgress = nil; progressTime = 0
                 job.stage = stage; job.state = .running; try save(job)
                 if [.prerequisites, .stage, .validate, .commit].contains(stage), try await !bottles.isReady(bottle) {
                     try invalidateRuntimeStages(id)
@@ -264,7 +266,9 @@ public actor InstallQueue: InstallQueuing {
                 case .createBottle: try await bottles.prepare(bottle)
                 case .prerequisites: try await installer.preparePrerequisites(plan, at: directory(job), in: bottle)
                 case .stage:
-                    let staging = try await installer.postInstall(plan, at: directory(job), in: bottle)
+                    let staging = try await installer.postInstall(plan, at: directory(job), in: bottle) { value in
+                        Task { await self.preparationProgress(value, id: id, run: run) }
+                    }
                     try update(id) { $0.staging = staging }
                 case .validate:
                     guard let staging = job.staging else { throw Self.failure("Verify", "Game preparation has no saved receipt.") }
@@ -345,6 +349,16 @@ public actor InstallQueue: InstallQueuing {
     private func directory(_ job: JobRecord) async throws -> URL {
         guard let location = job.location else { throw Self.failure("Storage", "The game's folder has not been reserved.") }
         return try await storage.directory(location, gameID: job.gameID, owner: job.ownershipToken)
+    }
+    private func preparationProgress(_ value: InstallPreparationProgress, id: UUID, run: UUID) {
+        guard activeRun == run, let job = records[id], job.stage == .stage, job.state == .running,
+              !job.completedStages.contains(.stage),
+              preparationProgress.map({ value.sequence > $0.sequence }) ?? true else { return }
+        preparationProgress = value
+        switch value.step {
+        case .verifying(let check): verificationProgress(check, id: id, run: run, stage: .stage)
+        default: stageVerification = nil; publish()
+        }
     }
     private func verificationProgress(_ value: InstallFileVerification, id: UUID, run: UUID, stage: JobStage) {
         guard activeRun == run, let job = records[id], job.stage == stage, job.state == .running,

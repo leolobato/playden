@@ -10,7 +10,21 @@
   samples and system input/Bluetooth logs, and compare with Big Screen closed.
   Treat the reported loss of all input as a priority investigation.
 
-## Current priority — monitor, audio and quit controls
+## Latest work — preparation progress and installation quit confirmation
+
+Armored Core VI's “Preparing game” was actively reading/hashing downloaded files
+during inspection. That second original-file check did not report progress.
+Preparation now exposes actual checked bytes, percentage, current file and setup
+steps. Quitting also asks for confirmation when installation work is active,
+explaining downloaded-file preservation and possible repeated checks. See
+[preparation validation](validation/2026-09-08-preparing-progress.md).
+
+At the latest read-only check (about 23:14 local), the installed app was closed
+and Armored Core VI was queued at preparation with 64.97 GB downloaded. Earlier
+running-app statements below are historical. This pass did not replace or launch
+the installed app; live acceptance of the updated progress/quit flow remains open.
+
+## Earlier priority — monitor, audio and quit controls
 
 The user redirected this pass to the Wine monitor issue, then requested a preferred
 output device, a visible Quit game action, and a visible Quit Big Screen action.

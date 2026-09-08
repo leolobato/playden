@@ -168,7 +168,15 @@ final class SteamInstallerTests: XCTestCase {
         XCTAssertEqual(original.values.last?.bytesChecked, 2048)
         XCTAssertTrue(original.values.contains { $0.bytesChecked == 1024 })
         XCTAssertTrue(original.values.allSatisfy { $0.bytesTotal == 2048 && $0.scope == .installation })
-        let staging = try await installer.postInstall(plan, at: directory)
+        let preparation = PreparationSamples()
+        let bottle = GameBottle(gameID: game.id, name: "fixture", ownershipToken: UUID())
+        let staging = try await installer.postInstall(plan, at: directory, in: bottle, progress: preparation.append)
+        let checks = preparation.values.compactMap { if case .verifying(let value) = $0.step { value } else { nil as InstallFileVerification? } }
+        XCTAssertEqual(checks.first?.bytesChecked, 0); XCTAssertEqual(checks.last?.bytesChecked, 2048)
+        XCTAssertTrue(checks.contains { $0.file == "Game.exe" })
+        XCTAssertTrue(preparation.values.contains { $0.step == .preparingExecutable("Game.exe") })
+        XCTAssertEqual(preparation.values.last?.step, .applyingSettings)
+        XCTAssertEqual(preparation.values.map(\.sequence), Array(1...UInt64(preparation.values.count)))
         let final = VerificationSamples()
         _ = try await installer.validate(plan, at: directory, staging: staging, progress: final.append)
         let expected = Int64(2048 + (try Data(contentsOf: directory.appendingPathComponent("steam_api64.dll"))).count)
@@ -460,4 +468,11 @@ private final class VerificationSamples: @unchecked Sendable {
     private var storage: [InstallFileVerification] = []
     func append(_ value: InstallFileVerification) { lock.withLock { storage.append(value) } }
     var values: [InstallFileVerification] { lock.withLock { storage } }
+}
+
+private final class PreparationSamples: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: [InstallPreparationProgress] = []
+    func append(_ value: InstallPreparationProgress) { lock.withLock { storage.append(value) } }
+    var values: [InstallPreparationProgress] { lock.withLock { storage } }
 }

@@ -5,22 +5,37 @@ import Input
 struct LauncherQuitRequest: Equatable {
     var sessionID: UUID?
     var gameID: GameID?
+    var jobIDs: Set<UUID> = []
 }
 
 extension LibraryModel {
+    private var quitWork: [JobRecord] { installJobs.filter { [.running, .queued, .stopping].contains($0.state) } }
+    var requiresLauncherQuitConfirmation: Bool { hasActiveSession || !quitWork.isEmpty }
+    var launcherQuitConsequences: String {
+        hasActiveSession
+            ? "This closes the game and Big Screen. Unsaved progress may be lost. Downloads pause so you can resume them later."
+            : "This pauses downloads and installation work. Downloaded files are kept. File checks may restart when you reopen Big Screen."
+    }
+    var launcherQuitGame: Game? {
+        if hasActiveSession { return sessionGame }
+        let job = quitWork.first { $0.id == activeInstallID } ?? quitWork.first
+        return games.first { $0.id == job?.gameID }
+    }
+
     private var currentLauncherQuitRequest: LauncherQuitRequest {
-        .init(sessionID: session.session?.id, gameID: session.session?.gameID ?? session.game?.id)
+        .init(sessionID: hasActiveSession ? session.session?.id : nil,
+              gameID: hasActiveSession ? session.session?.gameID ?? session.game?.id : nil, jobIDs: Set(quitWork.map(\.id)))
     }
     var isConfirmingLauncherQuit: Bool { launcherQuitRequest != nil }
 
     func quitLauncherFromUI() {
         guard !launcherQuitting else { return }
-        if hasActiveSession { requestLauncherQuit() }
+        if requiresLauncherQuitConfirmation { requestLauncherQuit() }
         else { onLauncherQuit?() }
     }
 
     func requestLauncherQuit() {
-        guard hasActiveSession, !launcherQuitting else { return }
+        guard requiresLauncherQuitConfirmation, !launcherQuitting else { return }
         launcherQuitApproval = nil
         launcherQuitRequest = currentLauncherQuitRequest
         setExitOverlay(true)
@@ -29,24 +44,24 @@ extension LibraryModel {
     func keepLauncherOpen() {
         guard !launcherQuitting else { return }
         launcherQuitRequest = nil; launcherQuitApproval = nil
-        returnToGame()
+        if hasActiveSession { returnToGame() } else { setExitOverlay(false) }
     }
 
     func confirmLauncherQuit() {
         guard !launcherQuitting, !sessionBusy, let request = launcherQuitRequest,
-              hasActiveSession, request == currentLauncherQuitRequest else { return }
+              requiresLauncherQuitConfirmation, request == currentLauncherQuitRequest else { return }
         launcherQuitApproval = request
         onLauncherQuit?()
     }
 
     func consumeLauncherQuitApproval() -> Bool {
         defer { launcherQuitApproval = nil }
-        return hasActiveSession && launcherQuitApproval == currentLauncherQuitRequest
+        return requiresLauncherQuitConfirmation && launcherQuitApproval == currentLauncherQuitRequest
     }
 
     func reconcileLauncherQuitRequest() {
         guard let request = launcherQuitRequest,
-              !hasActiveSession || request != currentLauncherQuitRequest else { return }
+              !requiresLauncherQuitConfirmation || request != currentLauncherQuitRequest else { return }
         launcherQuitRequest = nil; launcherQuitApproval = nil
         if !launcherQuitting { setExitOverlay(false) }
     }

@@ -29,14 +29,14 @@ final class DownloadTransferTests: XCTestCase {
         var job = JobRecord(gameID: .init(source: "fake", value: "test"))
         job.state = .running; job.bytesCompleted = 1000; job.bytesTotal = 1000
         model.activeInstallID = job.id
-        for stage in [JobStage.verifyOriginals, .validate] {
+        for stage in [JobStage.verifyOriginals, .stage, .validate] {
             job.stage = stage; model.installTransfer = nil
             XCTAssertNil(model.downloadPercentage(for: job))
             XCTAssertEqual(model.downloadProgress(for: job), 0)
-            XCTAssertEqual(model.downloadBytesLabel(for: job), "Checking files…")
+            XCTAssertEqual(model.downloadBytesLabel(for: job), stage == .stage ? "Preparing game files…" : "Checking files…")
             model.installTransfer = .init(bytesPerSecond: 0, secondsRemaining: nil,
                 verification: .init(file: "large.bdt", bytesChecked: 500, bytesTotal: 1000, scope: .installation))
-            XCTAssertEqual(model.downloadStatusTitle(for: job), "Verifying files")
+            XCTAssertEqual(model.downloadStatusTitle(for: job), stage == .stage ? "Checking files before setup" : "Verifying files")
             XCTAssertEqual(model.downloadPercentage(for: job), "50%")
             XCTAssertEqual(model.downloadProgress(for: job), 0.5)
             XCTAssertTrue(model.downloadBytesLabel(for: job).hasSuffix(" checked"))

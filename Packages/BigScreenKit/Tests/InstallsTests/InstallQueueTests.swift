@@ -94,6 +94,18 @@ private struct OfflineInstaller: Installer {
         }
         return try await validate(plan, at: directory, staging: staging)
     }
+    func postInstall(_ plan: InstallPlan, at directory: URL, in bottle: GameBottle,
+                     progress: @escaping @Sendable (InstallPreparationProgress) -> Void) async throws -> InstallStaging {
+        if await content.stageVerificationFixture {
+            let check = InstallFileVerification(file: "game.exe", bytesChecked: 6, bytesTotal: 8, scope: .installation)
+            progress(.init(step: .verifying(check), sequence: 1))
+            try await content.wait("stage:" + gameID.value)
+            progress(.init(step: .applyingSettings, sequence: 3))
+            progress(.init(step: .verifying(check), sequence: 2)) // Out-of-order callback must not restore the old phase.
+            try await content.wait("settings:" + gameID.value)
+        }
+        return try await postInstall(plan, at: directory)
+    }
     func postInstall(_ plan: InstallPlan, at directory: URL) async throws -> InstallStaging {
         try await content.record("stage:" + gameID.value)
         try Data("offline-ready".utf8).write(to: directory.appendingPathComponent("offline.recipe"))
@@ -252,11 +264,11 @@ final class InstallQueueTests: XCTestCase {
     func testStageVerificationIsEphemeralAndRejectsCallbacksFromPreviousStage() async throws {
         let root = try root(), catalog = try CatalogStore(), content = OfflineContent(), volumes = FixtureVolumes(root: root)
         await content.enableStageVerificationFixture()
-        await content.hold("verify:checks"); await content.hold("validate:checks")
+        await content.hold("verify:checks"); await content.hold("stage:checks"); await content.hold("settings:checks"); await content.hold("validate:checks")
         let queue = try InstallQueue(catalog: catalog, sources: [OfflineSource(content: content)], storage: InstallStorage(volumes: volumes), bottles: FixtureBottles())
         let id = try await queue.enqueue(queue.offer(for: game("checks"), volume: volumes.selection))
         try await queue.start()
-        for (stage, fraction) in [(JobStage.verifyOriginals, 0.25), (.validate, 0.5)] {
+        for (stage, fraction) in [(JobStage.verifyOriginals, 0.25), (.stage, 0.75), (.validate, 0.5)] {
             let deadline = ContinuousClock.now.advanced(by: .seconds(5))
             while ContinuousClock.now < deadline {
                 let snapshot = await queue.snapshot()
@@ -268,6 +280,17 @@ final class InstallQueueTests: XCTestCase {
             XCTAssertEqual(snapshot.transfer?.verification?.fraction, fraction)
             XCTAssertEqual(snapshot.jobs.first?.bytesCompleted, 8, "Checking must not overwrite downloaded byte counts")
             if stage == .verifyOriginals { await content.release("verify:checks") }
+            if stage == .stage {
+                await content.release("stage:checks")
+                let deadline = ContinuousClock.now + .seconds(2)
+                while await queue.snapshot().preparation?.step != .applyingSettings && ContinuousClock.now < deadline {
+                    try await Task.sleep(for: .milliseconds(10))
+                }
+                let applying = await queue.snapshot()
+                XCTAssertEqual(applying.preparation?.step, .applyingSettings)
+                XCTAssertNil(applying.transfer)
+                await content.release("settings:checks")
+            }
         }
         await content.sendLateReport("verify")
         try await Task.sleep(for: .milliseconds(30))

@@ -45,11 +45,11 @@ struct GameExitOverlay: View {
             Color.black.opacity(0.72)
             VStack(alignment: .leading, spacing: 28) {
                 HStack(spacing: 18) {
-                    Artwork(url: model.sessionGame?.coverURL, title: model.sessionGame?.title ?? "Game")
+                    Artwork(url: (model.isConfirmingLauncherQuit ? model.launcherQuitGame : model.sessionGame)?.coverURL, title: (model.isConfirmingLauncherQuit ? model.launcherQuitGame : model.sessionGame)?.title ?? "Downloads")
                         .frame(width: 64, height: 96).clipShape(RoundedRectangle(cornerRadius: 4))
                     VStack(alignment: .leading, spacing: 2) {
                         Text(model.isConfirmingLauncherQuit ? "Quit Big Screen?" : model.sessionGame?.title ?? "Game").font(Design.condensed(40)).lineLimit(2)
-                        if model.isConfirmingLauncherQuit { Text(model.sessionGame?.title ?? "Game").font(Design.body(24)).foregroundStyle(Design.secondary).lineLimit(1) }
+                        if model.isConfirmingLauncherQuit { Text(model.launcherQuitGame?.title ?? "Downloads").font(Design.body(24)).foregroundStyle(Design.secondary).lineLimit(1) }
                         Text(status).font(Design.body(24)).foregroundStyle(Design.secondary)
                     }
                     Spacer(minLength: 0)
@@ -58,11 +58,11 @@ struct GameExitOverlay: View {
                     exitButton(model.isConfirmingLauncherQuit ? "Keep launcher open" : "Return to game", index: 0) {
                         model.isConfirmingLauncherQuit ? model.keepLauncherOpen() : model.returnToGame()
                     }
-                    exitButton(model.launcherQuitting || model.sessionBusy ? "Quitting…" : model.isConfirmingLauncherQuit ? "Quit game and launcher" : "Quit game", index: 1) {
+                    exitButton(model.launcherQuitting || model.sessionBusy ? "Quitting…" : model.isConfirmingLauncherQuit ? (model.hasActiveSession ? "Quit game and launcher" : "Quit Big Screen") : "Quit game", index: 1) {
                         model.isConfirmingLauncherQuit ? model.confirmLauncherQuit() : model.quitGame()
                     }
                 }
-                Text(model.isConfirmingLauncherQuit ? "This closes the game and Big Screen. Unsaved progress may be lost. Downloads pause so you can resume them later." : "Quit asks the game to close first and forces it after 10 seconds. Unsaved progress may be lost.")
+                Text(model.isConfirmingLauncherQuit ? model.launcherQuitConsequences : "Quit asks the game to close first and forces it after 10 seconds. Unsaved progress may be lost.")
                     .font(Design.body(21)).foregroundStyle(Design.muted)
                     .lineSpacing(5).multilineTextAlignment(.center).frame(maxWidth: .infinity)
                     .fixedSize(horizontal: false, vertical: true)
@@ -84,6 +84,9 @@ struct GameExitOverlay: View {
         }.frame(width: 1920, height: 1080).foregroundStyle(Design.text)
     }
     private var status: String {
+        if model.isConfirmingLauncherQuit && !model.hasActiveSession {
+            return model.launcherQuitting ? "Pausing work and closing…" : "Downloads and installation in progress"
+        }
         if model.launcherQuitting { return "Closing game and saving session…" }
         if model.sessionBusy || model.session.phase == .stopping { return "Stopping game…" }
         if model.isLaunchingGame { return "Launching…" }

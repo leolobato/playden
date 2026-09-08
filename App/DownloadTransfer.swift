@@ -3,16 +3,26 @@ import Domain
 
 extension LibraryModel {
     func fileVerification(for job: JobRecord) -> InstallFileVerification? {
-        guard job.id == activeInstallID, job.state == .running, [.download, .verifyOriginals, .validate].contains(job.stage) else { return nil }
+        guard job.id == activeInstallID, job.state == .running, [.download, .verifyOriginals, .stage, .validate].contains(job.stage) else { return nil }
         return installTransfer?.verification
     }
     func downloadStatusTitle(for job: JobRecord) -> String {
-        guard let check = fileVerification(for: job) else { return job.statusTitle }
+        guard let check = fileVerification(for: job) else {
+            if job.id == activeInstallID, job.state == .running, job.stage == .stage {
+                switch installPreparation?.step {
+                case .preparingExecutable: return "Preparing executable"
+                case .applyingSettings: return "Applying game settings"
+                default: break
+                }
+            }
+            return job.statusTitle
+        }
+        if job.stage == .stage { return "Checking files before setup" }
         return check.scope == .installation ? "Verifying files" : "Verifying file"
     }
     func downloadProgress(for job: JobRecord) -> Double {
         if let check = fileVerification(for: job) { return check.fraction }
-        return job.state == .running && [.verifyOriginals, .validate].contains(job.stage) ? 0 : job.displayProgress
+        return job.state == .running && [.verifyOriginals, .stage, .validate].contains(job.stage) ? 0 : job.displayProgress
     }
     func downloadPercentage(for job: JobRecord) -> String? {
         guard job.id == activeInstallID, job.state == .running else { return nil }
@@ -24,11 +34,25 @@ extension LibraryModel {
     }
     func downloadBytesLabel(for job: JobRecord) -> String {
         guard let check = fileVerification(for: job) else {
-            return job.state == .running && [.verifyOriginals, .validate].contains(job.stage) ? "Checking files…" : job.bytesLabel
+            return job.state == .running && [.verifyOriginals, .stage, .validate].contains(job.stage) ? (job.stage == .stage ? "Preparing game files…" : "Checking files…") : job.bytesLabel
         }
         let formatter = ByteCountFormatter(); formatter.countStyle = .file; formatter.allowsNonnumericFormatting = false
         return formatter.string(fromByteCount: check.bytesChecked) + " of "
             + formatter.string(fromByteCount: check.bytesTotal) + " checked"
+    }
+    func preparationDetail(for job: JobRecord) -> String? {
+        guard job.id == activeInstallID, job.state == .running, job.stage == .stage else { return nil }
+        switch installPreparation?.step {
+        case .verifying(let check): return check.file.isEmpty ? "Checking downloaded files before applying game setup." : check.file
+        case .preparingExecutable(let path): return "Preparing executable · \(path)"
+        case .applyingSettings: return "Applying game settings…"
+        case nil: return "Checking downloaded files before applying game setup…"
+        }
+    }
+    func downloadActivityDetail(for job: JobRecord) -> String {
+        if let detail = preparationDetail(for: job) { return detail }
+        if let file = fileVerification(for: job)?.file, !file.isEmpty { return file }
+        return job.currentFile ?? "Your game will be ready after verification and setup."
     }
     func transferLabel(for job: JobRecord) -> String? {
         guard let speed = transferSpeedLabel(for: job) else { return nil }

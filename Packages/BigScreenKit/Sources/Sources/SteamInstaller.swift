@@ -63,7 +63,14 @@ public struct SteamInstaller: Installer {
         guard bottle.gameID == gameID else { throw SteamPlanBuilder.failure("Prepare", "The game runtime belongs to another installation.") }
         return try await prepare(plan, at: directory, bottle: bottle)
     }
-    private func prepare(_ plan: InstallPlan, at directory: URL, bottle: GameBottle?) async throws -> InstallStaging {
+    public func postInstall(_ plan: InstallPlan, at directory: URL, in bottle: GameBottle,
+        progress: @escaping @Sendable (InstallPreparationProgress) -> Void) async throws -> InstallStaging {
+        guard bottle.gameID == gameID else { throw SteamPlanBuilder.failure("Prepare", "The game runtime belongs to another installation.") }
+        return try await prepare(plan, at: directory, bottle: bottle, progress: progress)
+    }
+    private func prepare(_ plan: InstallPlan, at directory: URL, bottle: GameBottle?,
+        progress: @escaping @Sendable (InstallPreparationProgress) -> Void = { _ in }) async throws -> InstallStaging {
+        let reporter = PreparationReporter(progress)
         let payload = try SteamPlanBuilder.payload(plan, for: gameID)
         try Task.checkCancellation()
         try rejectLinks(in: directory)
@@ -74,12 +81,13 @@ public struct SteamInstaller: Installer {
         let recovered = InstallStaging(mutations: (apis + executables).filter { FileManager.default.fileExists(atPath: directory.appendingPathComponent($0 + ".orig").path) }.map {
             FileMutation(relativePath: $0, originalRelativePath: $0 + ".orig", stagedSHA256: Data(repeating: 0, count: 32))
         }, version: 2)
-        guard try await verifyOriginals(plan, at: directory, staging: recovered).isValid else {
+        guard try await verifyOriginals(plan, at: directory, staging: recovered, progress: { reporter.report(.verifying($0)) }).isValid else {
             throw SteamPlanBuilder.failure("Prepare", "Original game files must be repaired before preparation can continue.")
         }
         var mutations: [FileMutation] = []
         let manifestPaths = Set(try payload.manifests.flatMap(\.files).map { try SteamPlanBuilder.relativePath($0.path).lowercased() })
         for path in executables {
+            reporter.report(.preparingExecutable(path))
             let executable = directory.appendingPathComponent(path), backup = directory.appendingPathComponent(path + ".orig")
             let original = FileManager.default.fileExists(atPath: backup.path) ? backup : executable
             guard try PEInspector.inspect(original).requiresSteamStubRuntime else { continue }
@@ -99,6 +107,7 @@ public struct SteamInstaller: Installer {
             mutations.append(.init(relativePath: path, originalRelativePath: path + ".orig", stagedSHA256: Data(SHA256.hash(data: unpacked))))
         }
         guard !apis.isEmpty else { return InstallStaging(mutations: mutations, version: mutations.isEmpty ? 1 : 2) }
+        reporter.report(.applyingSettings)
         let preparer = try SteamPreparer(assets: GBEAssets.bundled())
         let metadata = PrepareMetadata(installDir: payload.app.installDir, installedDepotIDs: payload.manifests.map(\.depotID),
             dlcAppIDs: payload.ownedDLC, forceDLC: false, ufs: payload.app.ufs)
@@ -275,5 +284,15 @@ public struct SteamInstaller: Installer {
             }
         }
         if let enumerationError { throw enumerationError }
+    }
+}
+
+private final class PreparationReporter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var sequence: UInt64 = 0
+    private let callback: @Sendable (InstallPreparationProgress) -> Void
+    init(_ callback: @escaping @Sendable (InstallPreparationProgress) -> Void) { self.callback = callback }
+    func report(_ step: InstallPreparationProgress.Step) {
+        lock.withLock { sequence += 1; callback(.init(step: step, sequence: sequence)) }
     }
 }

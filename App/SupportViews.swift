@@ -218,6 +218,9 @@ struct DownloadCard: View {
                 Text(row.game.title).font(Design.condensed(active ? 36 : 30)).lineLimit(1)
                 if let job {
                     HStack(spacing: 12) {
+                        if active && job.state == .running && job.stage == .stage && model.fileVerification(for: job) == nil {
+                            ActivitySpinner(reducedMotion: model.reducedMotion, label: "Preparing game files")
+                        }
                         Text(model.downloadStatusTitle(for: job)).foregroundStyle(job.state == .failed ? Design.amber : active ? Design.accent : Design.secondary)
                         if let percentage = model.downloadPercentage(for: job) { Text(percentage).monospacedDigit().foregroundStyle(Design.accent) }
                     }.font(Design.body(active ? 24 : 22, weight: "Medium"))
@@ -231,7 +234,7 @@ struct DownloadCard: View {
                             Text(model.transferSpeedLabel(for: job) ?? "").frame(width: 170, alignment: .leading)
                             Text(model.transferTimeLabel(for: job) ?? "").frame(maxWidth: .infinity, alignment: .leading)
                         }.font(Design.body(22)).monospacedDigit().foregroundStyle(Design.secondary).lineLimit(1)
-                        Text(job.kind == .uninstall ? "Steam Cloud saves and library history are kept." : model.fileVerification(for: job)?.file ?? job.currentFile ?? "Your game will be ready after verification and setup.").font(Design.body(18)).foregroundStyle(Design.muted).lineLimit(1).truncationMode(.middle)
+                        Text(job.kind == .uninstall ? "Steam Cloud saves and library history are kept." : model.downloadActivityDetail(for: job)).font(Design.body(18)).foregroundStyle(Design.muted).lineLimit(1).truncationMode(.middle)
                     }
                 } else if active {
                     Text(model.downloadPaused ? "Paused · 43%" : "Download · 43%").font(Design.body(24, weight: "Medium")).foregroundStyle(Design.accent)

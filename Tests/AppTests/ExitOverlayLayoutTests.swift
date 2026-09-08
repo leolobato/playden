@@ -1,9 +1,38 @@
 import XCTest
 import SwiftUI
 import Vision
+import Domain
 @testable import BigScreen
 
 @MainActor final class ExitOverlayLayoutTests: XCTestCase {
+    func testPreparingFilesAndInstallOnlyQuitShowProgressAndConsequences() throws {
+        Design.registerFonts()
+        for quit in [false, true] {
+            let model = InstallSnapshots.model(for: "install-verifying-all")
+            for index in model.games.indices { model.games[index].coverURL = nil; model.games[index].heroURL = nil }
+            let index = try XCTUnwrap(model.installJobs.firstIndex { $0.id == model.activeInstallID })
+            model.installJobs[index].stage = .stage
+            let check = InstallFileVerification(file: "Game/Data0.bdt", bytesChecked: 32_000_000_000, bytesTotal: 64_000_000_000, scope: .installation)
+            model.installTransfer = .init(bytesPerSecond: 0, secondsRemaining: nil, verification: check)
+            model.installPreparation = .init(step: .verifying(check), sequence: 1)
+            if quit { model.requestLauncherQuit() }
+            let view = quit ? AnyView(GameExitOverlay(model: model)) : AnyView(LauncherView(model: model))
+            let renderer = ImageRenderer(content: view.frame(width: 1920, height: 1080))
+            let image = try XCTUnwrap(renderer.cgImage)
+            let request = VNRecognizeTextRequest(); request.recognitionLevel = .accurate
+            try VNImageRequestHandler(cgImage: image).perform([request])
+            let text = (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }.joined(separator: " ").lowercased()
+            let expected = quit ? ["quit big screen", "keep launcher open", "downloaded files are kept", "file checks may restart"]
+                : ["checking files before setup", "50%", "checked", "game/data", ".bdt"]
+            for value in expected { XCTAssertTrue(text.contains(value), "Missing \(value): \(text)") }
+            XCTAssertFalse(text.contains("quit game and launcher"))
+            let attachment = XCTAttachment(image: NSImage(cgImage: image, size: .zero))
+            let name = quit ? "quit-during-preparation" : "preparation-progress"
+            attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)
+            let path = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(name + ".png")
+            try XCTUnwrap(NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:])).write(to: path)
+        }
+    }
     func testAudioPickerAndVisibleQuitActionsRenderAt1080() async throws {
         Design.registerFonts()
         for screen in ["audio", "about", "quit", "running"] {

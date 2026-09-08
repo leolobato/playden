@@ -43,6 +43,17 @@ public struct InstallFileVerification: Equatable, Sendable {
     }
     public var fraction: Double { bytesTotal > 0 ? min(1, max(0, Double(bytesChecked) / Double(bytesTotal))) : 0 }
 }
+public struct InstallPreparationProgress: Equatable, Sendable {
+    public enum Step: Equatable, Sendable {
+        case verifying(InstallFileVerification)
+        case preparingExecutable(String)
+        case applyingSettings
+    }
+    public let step: Step
+    public let sequence: UInt64
+    public init(step: Step, sequence: UInt64) { self.step = step; self.sequence = sequence }
+}
+
 public struct InstallProgress: Equatable, Sendable {
     public let bytesCompleted: Int64
     public let bytesTotal: Int64
@@ -95,6 +106,8 @@ public protocol Installer: Sendable {
     func postInstall(_ plan: InstallPlan, at directory: URL) async throws -> InstallStaging
     func preparePrerequisites(_ plan: InstallPlan, at directory: URL, in bottle: GameBottle) async throws
     func postInstall(_ plan: InstallPlan, at directory: URL, in bottle: GameBottle) async throws -> InstallStaging
+    func postInstall(_ plan: InstallPlan, at directory: URL, in bottle: GameBottle,
+        progress: @escaping @Sendable (InstallPreparationProgress) -> Void) async throws -> InstallStaging
     func validate(_ plan: InstallPlan, at directory: URL, staging: InstallStaging) async throws -> LaunchSpec
     func validate(_ plan: InstallPlan, at directory: URL, staging: InstallStaging,
         progress: @escaping @Sendable (InstallFileVerification) -> Void) async throws -> LaunchSpec
@@ -103,6 +116,10 @@ public protocol Installer: Sendable {
     func uninstall(_ plan: InstallPlan, at directory: URL) async throws
 }
 public extension Installer {
+    func postInstall(_ plan: InstallPlan, at directory: URL, in bottle: GameBottle,
+        progress: @escaping @Sendable (InstallPreparationProgress) -> Void) async throws -> InstallStaging {
+        try await postInstall(plan, at: directory, in: bottle)
+    }
     func validate(_ plan: InstallPlan, at directory: URL, staging: InstallStaging,
         progress: @escaping @Sendable (InstallFileVerification) -> Void) async throws -> LaunchSpec {
         try await validate(plan, at: directory, staging: staging)

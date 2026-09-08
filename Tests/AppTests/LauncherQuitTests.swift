@@ -9,6 +9,27 @@ import Sessions
         return .init(phase: .running, game: game, session: .init(gameID: game.id, bottleID: "fixture"))
     }
 
+    func testPreparationQuitRequiresConfirmationAndCancelKeepsJobRunning() {
+        let model = LibraryModel()
+        var job = JobRecord(gameID: .init(source: "fixture", value: "install"))
+        job.state = .running; job.stage = .stage
+        model.installJobs = [job]; model.activeInstallID = job.id
+        var requests = 0; model.onLauncherQuit = { requests += 1 }
+        XCTAssertFalse(model.hasActiveSession)
+        model.quitLauncherFromUI()
+        XCTAssertTrue(model.isConfirmingLauncherQuit); XCTAssertEqual(model.exitIndex, 0)
+        XCTAssertTrue(model.launcherQuitConsequences.contains("File checks may restart"))
+        model.perform(.confirm)
+        XCTAssertFalse(model.exitOverlay); XCTAssertEqual(requests, 0)
+        XCTAssertEqual(model.installJobs.first?.state, .running)
+        model.requestLauncherQuit(); model.perform(.move(.down)); model.perform(.confirm)
+        XCTAssertEqual(requests, 1); XCTAssertTrue(model.consumeLauncherQuitApproval())
+        XCTAssertFalse(model.consumeLauncherQuitApproval())
+        model.requestLauncherQuit()
+        model.installJobs[0].state = .completed; model.reconcileLauncherQuitRequest()
+        XCTAssertFalse(model.isConfirmingLauncherQuit); XCTAssertFalse(model.exitOverlay)
+        XCTAssertFalse(model.requiresLauncherQuitConfirmation)
+    }
     func testVisibleAppQuitUsesIdleShutdownAndActiveSessionConfirmation() {
         let model = LibraryModel()
         var requests = 0; model.onLauncherQuit = { requests += 1 }

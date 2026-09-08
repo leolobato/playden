@@ -184,7 +184,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { !Self.isTestProcess }
     func windowShouldClose(_ sender: NSWindow) -> Bool {
-        guard model.hasActiveSession else { return true }
+        guard model.requiresLauncherQuitConfirmation else { return true }
         NSApp.terminate(nil)
         return false
     }
@@ -192,7 +192,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard model.installQueue != nil || model.sessions != nil else { return .terminateNow }
         guard !terminating else { return .terminateLater }
-        if model.hasActiveSession && !model.consumeLauncherQuitApproval() {
+        if model.requiresLauncherQuitConfirmation && !model.consumeLauncherQuitApproval() {
             model.requestLauncherQuit()
             return .terminateCancel
         }
