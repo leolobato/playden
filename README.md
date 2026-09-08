@@ -11,15 +11,15 @@ stores is planned.
 
 *Actual app capture using the sample library. Displayed games are not a compatibility list.*
 
-**Current version: 0.1** (Git tag `v0.1`). Big Screen is in active development.
+**Current version: 0.1**. Big Screen is in active development.
 Installation, play sessions and Steam Cloud sync are
-implemented; final controller/TV acceptance and broader game testing are still in progress.
+implemented.
 
 ## What you can do
 
 - **Browse from the couch.** Cover art, game details, search, sorting and filters, with keyboard
   and mouse support alongside the controller. Recently added follows Steam acquisition dates.
-  Games without Steam portrait covers use cached landscape artwork with a readable title.
+  Games without Steam portrait covers use cached landscape artwork, with titles on highlight.
 - **Pick up where you left off.** Home shows up to 15 Continue Playing games and a Library card,
   plus downloads, recent installs, favorites and pinned collections.
 - **Make the library yours.** Create collections, favorite or hide games, and keep your own
@@ -207,6 +207,7 @@ importing official Steam macOS installations are also not available in v1.
 - **Official Steam macOS integration:** show games already installed by Steam, clearly distinguish
   them from Big Screen-managed installations, and offer the available launch choices.
 - **Per-game properties:** executable, arguments, graphics settings, language and other runtime options.
+- **More controllers support:** Xbox, DualSense
 - **Background helper and game updates:** keep downloads and supervision independent of the UI;
   offer explicit updates and moves between game volumes.
 - **Quick Access:** in-game audio controls, performance information, screenshots and controller battery.
