@@ -45,9 +45,10 @@ brew install xcodegen xz zstd llvm lld
 ./scripts/run.sh --preview
 ```
 
-The build embeds compression libraries and the Windows display helper. The app should not need
-Homebrew library paths when launched from Finder; the final clean-environment acceptance check
-remains in the implementation plan. Preview still requires the sibling package at build time,
+The build embeds compression libraries and the Windows display helper. The staged app passed
+[minimal-environment validation](validation/2026-09-08-minimal-environment.md): Steam Cloud access
+and an A Short Hike launch with no development-shell variables or Homebrew library paths.
+Preview still requires the sibling package at build time,
 but does not use Steam credentials, CrossOver or game files at runtime.
 
 `project.yml` is the project source of truth. Open `BigScreen.xcodeproj` in Xcode; regenerate with

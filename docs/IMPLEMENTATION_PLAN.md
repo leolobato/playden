@@ -107,7 +107,8 @@ M1; record any changed product decision explicitly rather than silently reducing
 
 Additional corrections: pin a concrete macOS/Xcode/Swift/CrossOver baseline during M0; distinguish
 installation failure from the user's Broken compatibility rating; show Verify files in an actual
-controller-accessible action menu; define “recently added” as first observed by this launcher;
+controller-accessible action menu; sort “recently added” by Steam acquisition/activation date,
+newest first, with unknown dates last (corrected per the user's purchase-order request);
 separate imported Steam playtime from locally recorded sessions so sync cannot double-count or
 overwrite local time. Pairing and installing/licensing CrossOver are desk prerequisites; measure
 the two-minute onboarding goal after those prerequisites, under a documented network condition.
@@ -399,7 +400,10 @@ controller reconnect. Measure 600+ title scrolling on the recorded target hardwa
 Dependencies: M0–M5 gates passed.
 
 - [ ] Run the acceptance matrix below and record versions, title/build IDs, outcomes and relevant log locations.
-- [ ] Verify the app can run with its required resources/libraries without relying on the development shell's environment.
+- [x] Verify the app can run with its required resources/libraries without relying on the development shell's environment.
+  The staged app passed a launch with only HOME, system PATH and LANG, a fresh authenticated
+  Cloud read, and an A Short Hike launch/input/clean-exit session. Linked app/compression
+  libraries contain no Homebrew paths. See [minimal-environment evidence](validation/2026-09-08-minimal-environment.md).
 - [ ] Check every v1 requirement against its implementation and evidence; unresolved items are recorded failures or
   explicit scope decisions, not silently marked complete.
 - [ ] Document build/run instructions, required sibling commit, CrossOver/system setup, supported-title results,
