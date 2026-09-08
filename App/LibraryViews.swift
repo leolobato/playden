@@ -64,11 +64,7 @@ struct CanvasView: View {
             if model.setupScreen != nil && model.setupScreen != .account { SetupView(model: model).environment(\.showsFocusRing, model.panel == nil).transition(.opacity).zIndex(4) }
             if model.authScreen != nil { AuthenticationView(model: model).environment(\.showsFocusRing, model.panel == nil).transition(.opacity).zIndex(4) }
             if model.panel != nil { ModalLayer(model: model).transition(.opacity).zIndex(5) }
-            if model.controllerDisconnected && model.panel != .controllerTest {
-                Label("Controller disconnected · reconnect to keep playing", systemImage: "gamecontroller")
-                    .font(Design.body(24)).foregroundStyle(Design.amber).padding(24)
-                    .background(Design.panel, in: RoundedRectangle(cornerRadius: 12)).offset(x: 96, y: 880).zIndex(6)
-            }
+            NotificationToasts(model: model).offset(x: 1264, y: 730).zIndex(6)
             if let issue = model.sessionIssue, model.showsSessionIssue {
                 VStack(alignment: .leading, spacing: 20) {
                     VStack(alignment: .leading, spacing: 4) {

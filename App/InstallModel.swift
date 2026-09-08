@@ -10,6 +10,7 @@ extension LibraryModel {
                 if self?.sessions == nil { try await installQueue.start() }
                 for await snapshot in await installQueue.updates() {
                     guard let self, !Task.isCancelled else { return }
+                    self.receiveInstallNotifications(snapshot.jobs)
                     let focusedDownload = self.downloadGames[safe: self.downloadIndex]?.id
                     let completedBefore = Set(self.installJobs.filter { [.completed, .cancelled].contains($0.state) }.map(\.id))
                     self.installJobs = snapshot.jobs; self.activeInstallID = snapshot.activeJobID; self.installTransfer = snapshot.transfer

@@ -128,10 +128,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 self?.model.receiveControllers(values, at: time)
             }
             controller.onConnection = { [weak self] name, playStation in
-                if self?.model.controllerName != nil && name == nil { self?.model.controllerDisconnected = true }
-                if name != nil { self?.model.controllerDisconnected = false }
-                self?.model.controllerName = name
-                self?.model.playStationGlyphs = name == nil || playStation
+                self?.model.receiveControllerConnection(name: name, playStation: playStation)
             }
             controller.start()
             keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
@@ -185,8 +182,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if let mouseMonitor { NSEvent.removeMonitor(mouseMonitor) }
         restoreCursor()
     }
-    func applicationDidResignActive(_ notification: Notification) { restoreCursor() }
+    func applicationDidResignActive(_ notification: Notification) { model.launcherActive = false; restoreCursor() }
     func applicationDidBecomeActive(_ notification: Notification) {
+        model.launcherActive = true
         restoreCursor()
     }
     func applicationDidChangeScreenParameters(_ notification: Notification) { refreshDisplays() }
@@ -396,7 +394,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let requestedScreens: Set<String>? = arguments.firstIndex(of: "--snapshot-screens").flatMap { index in
                 arguments.indices.contains(index + 1) ? Set(arguments[index + 1].split(separator: ",").map(String.init)) : nil
             }
-            for screen in ["uninstall-confirm", "uninstall-unsynced", "uninstall-checking", "cloud-ready", "cloud-conflict", "cloud-account", "cloud-pending", "cloud-syncing", "cloud-recovery", "home", "home-tabs", "home-library-card", "home-playstation", "home-large-library", "home-large-library-end", "home-collection-end", "library-large", "library-large-end", "library", "library-playstation", "library-paged", "library-return", "game", "game-status-clean", "game-status-crash", "library-running", "context-uninstall", "downloads", "downloads-queued", "settings", "settings-about", "settings-reset", "settings-reset-blocked", "settings-reset-error", "settings-reset-busy", "settings-display", "settings-runtime", "settings-runtime-missing", "settings-runtime-busy", "collections", "keyboard", "keyboard-playstation", "keyboard-generic", "keyboard-space", "keyboard-long", "compatibility", "uninstall", "logs", "logs-retry", "logs-long", "logs-long-end", "logs-long-return", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom", "library-download-glyph", "library-download-focused", "game-unknown-size", "game-favorite", "install-offer", "install-offer-space", "install-queue", "install-history-failed", "install-history-completed", "install-mini-progress", "install-storage-shortage", "install-storage-unavailable", "install-game-progress", "launching", "exit-overlay", "exit-overlay-quit", "notification", "notification-focused"] {
+            for screen in ["toast-complete", "toast-failed", "toast-connected", "toast-disconnected", "uninstall-confirm", "uninstall-unsynced", "uninstall-checking", "cloud-ready", "cloud-conflict", "cloud-account", "cloud-pending", "cloud-syncing", "cloud-recovery", "home", "home-tabs", "home-library-card", "home-playstation", "home-large-library", "home-large-library-end", "home-collection-end", "library-large", "library-large-end", "library", "library-playstation", "library-paged", "library-return", "game", "game-status-clean", "game-status-crash", "library-running", "context-uninstall", "downloads", "downloads-queued", "settings", "settings-about", "settings-reset", "settings-reset-blocked", "settings-reset-error", "settings-reset-busy", "settings-display", "settings-runtime", "settings-runtime-missing", "settings-runtime-busy", "collections", "keyboard", "keyboard-playstation", "keyboard-generic", "keyboard-space", "keyboard-long", "compatibility", "uninstall", "logs", "logs-retry", "logs-long", "logs-long-end", "logs-long-return", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom", "library-download-glyph", "library-download-focused", "game-unknown-size", "game-favorite", "install-offer", "install-offer-space", "install-queue", "install-history-failed", "install-history-completed", "install-mini-progress", "install-storage-shortage", "install-storage-unavailable", "install-game-progress", "launching", "exit-overlay", "exit-overlay-quit", "notification", "notification-focused"] {
                 if let requestedScreens, !requestedScreens.contains(screen) { continue }
                 // Keep each capture independent of the requested screen order.
                 let model = LibraryModel()
@@ -409,6 +407,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 model.uninstallBusy = false; model.uninstallReview = nil; model.uninstallError = nil; model.uninstallPhase = .confirm
                 model.setupBusy = false; model.runtimeChecking = false; model.setupFailure = nil; model.setupIndex = 0; model.onboarding = false
                 switch screen {
+                case "toast-complete", "toast-failed", "toast-connected", "toast-disconnected":
+                    model.selectTab(.library)
+                    model.controllerName = "DUALSHOCK 4"
+                    if screen == "toast-disconnected" {
+                        model.receiveControllerConnection(name: nil, playStation: true)
+                    } else if screen == "toast-connected" {
+                        model.controllerName = nil
+                        model.receiveControllerConnection(name: "DUALSHOCK 4", playStation: true)
+                    } else {
+                        let failed = screen == "toast-failed"
+                        model.enqueueNotification(.init(source: .job(UUID()), tone: failed ? .failure : .success,
+                            title: failed ? "Installation failed" : "Download complete",
+                            detail: failed ? "A Short Hike · The connection was interrupted." : "A Short Hike",
+                            guidance: failed ? "Open Downloads for Retry and View logs" : nil))
+                    }
                 case "game-status-clean", "game-status-crash", "library-running", "context-uninstall": model.configureGameStatusSnapshot(screen)
                 case "uninstall-confirm", "uninstall-unsynced", "uninstall-checking": model.configureUninstallSnapshot(screen)
                 case "cloud-ready", "cloud-conflict", "cloud-account", "cloud-pending", "cloud-syncing", "cloud-recovery": model.configureCloudSnapshot(screen)

@@ -203,7 +203,9 @@ final class LibraryModel {
     var downloadScrollOffset = 0.0
     var queueOrder = PreviewCatalog.games.filter { $0.status == .queued }.map(\.id)
     var completedDownloads = Set(PreviewCatalog.games.filter { $0.title == "Cuphead" }.map(\.id))
-    var toast: String?
+    var notifications: [LauncherNotification] = []
+    @ObservationIgnored var notificationJobs: [UUID: JobState]?
+    var launcherActive = true
     var settingsIndex = 0
     var settingsSection = 1
     var settingsRailFocused = false

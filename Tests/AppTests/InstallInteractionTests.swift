@@ -151,6 +151,42 @@ final class InstallInteractionTests: XCTestCase {
         XCTAssertEqual(model.downloadActions(for: id).first, "Retry")
         XCTAssertEqual(job.statusTitle, "Installation failed")
     }
+    @MainActor func testLiveQueueNotifiesOnceAndKeepsFailureRecoveryInDownloads() async throws {
+        let offer = offer(), queue = InteractionQueue(offer)
+        let model = try model(queue, offer: offer)
+        model.startInstallServices()
+        defer { model.stopServices() }
+        try await eventually { model.notificationJobs != nil }
+        model.openGame(model.games[0]); model.detailAction = 1
+        var job = JobRecord(gameID: id); job.plan = offer.plan; job.state = .running
+        await queue.publish(.init(jobs: [job]))
+        try await eventually { model.installJobs.first?.state == .running }
+        XCTAssertTrue(model.notifications.isEmpty)
+        job.state = .failed; job.failure = .init(stage: "Download", reason: "Connection interrupted", output: "fixture")
+        await queue.publish(.init(jobs: [job]))
+        try await eventually { model.notifications.count == 1 }
+        XCTAssertEqual(model.notifications.first?.title, "Installation failed")
+        XCTAssertTrue(model.notifications.first?.detail.contains("Connection interrupted") == true)
+        XCTAssertEqual(model.detailID, id)
+        XCTAssertEqual(model.detailAction, 1)
+        XCTAssertNil(model.panel)
+        let noticeID = try XCTUnwrap(model.notifications.first?.id)
+        job.bytesCompleted = 50
+        await queue.publish(.init(jobs: [job]))
+        try await eventually { model.installJobs.first?.bytesCompleted == 50 }
+        XCTAssertEqual(model.notifications.map(\.id), [noticeID])
+        model.expireNotification(noticeID)
+        XCTAssertTrue(model.notifications.isEmpty)
+        XCTAssertTrue(model.downloadActions(for: id).contains("Retry"))
+        XCTAssertTrue(model.downloadActions(for: id).contains("View logs"))
+        job.state = .running
+        await queue.publish(.init(jobs: [job]))
+        try await eventually { model.installJobs.first?.state == .running }
+        job.state = .completed
+        await queue.publish(.init(jobs: [job]))
+        try await eventually { model.notifications.first?.title == "Download complete" }
+        XCTAssertEqual(model.notifications.first?.detail, "Fixture game")
+    }
     @MainActor func testRepairHasClearProgressAndNonDestructiveStopConfirmation() throws {
         let offer = offer(), queue = InteractionQueue(offer)
         let model = try model(queue, offer: offer)

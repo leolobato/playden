@@ -388,7 +388,17 @@ Dependencies: M2–M4 services.
 - [x] Settings → About → Reset app data: review consequences, sign out, reset personalization and
   return to setup while preserving installations, saves, paused downloads and recovery journals.
   Transaction/interaction checks pass; physical controller acceptance remains in the v1 gate.
-- [ ] Make transient toasts informational; durable failure actions remain accessible without chasing a disappearing toast.
+- [x] Make transient toasts informational; durable failure actions remain accessible without chasing a disappearing toast.
+  Download/verification/removal outcomes and controller connection events now use the designer's
+  bottom-right toasts. They never take focus, wait behind modals/games, and dismiss after five
+  visible seconds; controller disconnect persists until reconnection. Retry and View logs remain
+  in Downloads. See [notification validation](validation/2026-09-08-transient-notifications.md).
+- [ ] Close the live disconnected-drive gap (FR-STOR-2). Current catalog mapping marks every
+  recorded installation as installed; the disconnected state is only supplied by preview data.
+  Resolve each installation's recorded volume, update on mount/unmount, preserve library focus,
+  and disable Play with a reconnect reason. The current disconnected primary action falls into
+  a placeholder and repair-needed state can override it. Cover reconnect and multiple recorded
+  volumes without changing game files or mounting a different drive under the same path.
 - [ ] Bound/redact per-job/session logs and rotate to the last 10 per game; keep technical names in diagnostics.
 
 Gate: every v1 user journey and error action is reachable from the DS4. Snapshot all screens at 1080p

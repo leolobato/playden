@@ -28,6 +28,7 @@ extension LibraryModel {
         }
     }
     func stopServices() {
+        notifications = []; notificationJobs = nil
         logObserver?.cancel(); logObserver = nil
         cancelAuthentication(); syncTask?.cancel(); periodicSyncTask?.cancel(); setupTask?.cancel()
         installObserver?.cancel(); installOfferTask?.cancel()
