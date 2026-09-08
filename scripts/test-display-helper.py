@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Opt-in Windows argument/exit integration test. Requires an idle, Big Screen-owned bottle."""
+"""Opt-in Windows placement/argument/exit tests. Requires an idle, Big Screen-owned bottle."""
 import argparse
 import json
 import os
@@ -66,3 +66,17 @@ with tempfile.TemporaryDirectory(prefix='BigScreen-display-test-') as temporary:
     assert code == 37, f'Child exit code was lost: {code}'
     assert b'Preferred display unavailable' in output, 'Missing display did not use the fallback'
     print('Passed: exact Windows arguments, child exit status, and disconnected-display fallback.')
+    # Mock only the placement boundary inside the real helper, using virtual 100 ms polls.
+    # This exercises cold starts without opening windows or waiting in real time.
+    subprocess.run([str(compiler), '--target=x86_64-pc-windows-msvc', '-std=c11', '-Os',
+                    '-Wall', '-Wextra', '-Werror', '-ffreestanding', '-fno-builtin',
+                    '-fno-stack-protector', '-c', str(root / 'Native/DisplayHelper/placement-fixture.c'),
+                    '-o', str(work / 'placement.obj')], check=True)
+    placement = work / 'placement.exe'
+    subprocess.run([str(linker), '/nodefaultlib', '/entry:mainCRTStartup', '/subsystem:console',
+                    '/machine:x64', '/timestamp:0', f'/out:{placement}', str(work / 'placement.obj'),
+                    str(imports / 'kernel32.lib'), str(imports / 'user32.lib'),
+                    str(imports / 'shell32.lib')], check=True)
+    subprocess.run(['/Applications/CrossOver.app/Contents/SharedSupport/CrossOver/bin/cxstart',
+                    '--bottle', str(bottle), '--no-gui', '--no-convert', '--wait-children',
+                    windows(placement)], check=True, timeout=20)

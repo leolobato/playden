@@ -99,6 +99,28 @@ static BOOL placeWindow(void) {
     return 0;
 }
 
+static void placeStartupWindows(HANDLE process) {
+    BOOL sawWindow = 0, placed = 0;
+    int remaining = 100;
+    message("[Big Screen display] Waiting for the game's first visible window.\n");
+    // Cold starts can spend longer than ten seconds loading before creating a window.
+    // Begin the movement budget at the first eligible child window, not CreateProcess.
+    // Still stop after startup so a later monitor change by the player is respected.
+    while (remaining > 0 && WaitForSingleObject(process, 100) != 0) {
+        BOOL onTarget = placeWindow();
+        if (candidate && !sawWindow) {
+            sawWindow = 1;
+            message("[Big Screen display] Game window appeared; applying the preferred display.\n");
+        }
+        if (sawWindow) --remaining;
+        if (onTarget) {
+            if (!placed) message("[Big Screen display] Game window reached the preferred display.\n");
+            placed = 1;
+        }
+    }
+    if (sawWindow && !placed) message("[Big Screen display] The game kept its own display setting.\n");
+}
+
 static BOOL readBytes(void *bytes, DWORD count) {
     unsigned char *destination = bytes;
     while (count) {
@@ -159,13 +181,7 @@ void mainCRTStartup(void) {
         message("[Big Screen display] Could not start the game executable.\n"); ExitProcess(3);
     }
     CloseHandle(child.thread); childPID = child.pid;
-    BOOL placed = 0;
-    // Limit automatic movement to startup. Never fight a later monitor change by the player.
-    for (int i = 0; canPlace && i < 100; ++i) {
-        if (WaitForSingleObject(child.process, 100) == 0) break;
-        if (placeWindow()) { if (!placed) message("[Big Screen display] Game window reached the preferred display.\n"); placed = 1; }
-    }
-    if (canPlace && !placed) message("[Big Screen display] The game kept its own display setting.\n");
+    if (canPlace) placeStartupWindows(child.process);
     WaitForSingleObject(child.process, 0xffffffff);
     DWORD code = 1; GetExitCodeProcess(child.process, &code); CloseHandle(child.process);
     ExitProcess(code);
