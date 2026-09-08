@@ -7,13 +7,14 @@ struct SetupView: View {
     var title: String {
         switch model.setupScreen {
         case .controller: "Connect your controller"
+        case .permissions: "Permissions, explained."
         case .display: "Pick your screen."
         case .audio: "Choose your audio output."
         case .volume: "Where should games go?"
         default: model.runtimeInfo?.templateReady == true && !model.setupBusy && model.setupFailure == nil ? "Ready when you are." : "Preparing your Mac"
         }
     }
-    var step: Int { switch model.setupScreen { case .controller, .display: 1; case .account: 2; case .volume: 3; default: 4 } }
+    var step: Int { switch model.setupScreen { case .controller, .display: 1; case .permissions: 2; case .account: 3; case .volume: 4; default: 5 } }
     var body: some View {
         if model.setupScreen == .runtime && !model.onboarding {
             RuntimeSettingsView(model: model)
@@ -31,11 +32,15 @@ struct SetupView: View {
         ZStack(alignment: .topLeading) {
             Design.background
             LinearGradient(colors: [Design.accent.opacity(0.05), .clear], startPoint: .topTrailing, endPoint: .bottomLeading)
-            SectionLabel(text: model.onboarding ? "Set up · Step \(step) of 4" : model.setupScreen == .volume ? "Games volume" : model.setupScreen == .display ? "Display" : model.setupScreen == .audio ? "Audio" : "Game setup")
+            SectionLabel(text: model.onboarding ? "Set up · Step \(step) of 5" : model.setupScreen == .volume ? "Games volume" : model.setupScreen == .display ? "Display" : model.setupScreen == .audio ? "Audio" : "Game setup")
                 .offset(x: 96, y: 60)
             VStack(alignment: .leading, spacing: 34) {
                 Text(title).font(Design.condensed(72)).fixedSize(horizontal: false, vertical: true)
                 if model.setupScreen == .controller { controllerInstructions }
+                else if model.setupScreen == .permissions {
+                    Text("macOS may ask for access when you choose a games drive or prepare a game. You can continue now and grant access when it is needed.")
+                        .font(Design.body(30)).foregroundStyle(Design.secondary).lineSpacing(8)
+                }
                 else {
                     Text(model.setupScreen == .audio ? "Choose where your games play sound. Changes apply on the next launch. If the device is disconnected, games use the system default." : model.setupScreen == .volume ? "Pick a drive with room. You can change it later; games already installed stay where they are." : model.setupScreen == .display ? "Choose the display you’ll play on. Playden will remember it for next time." : "A one-time setup so Windows games can run." + (model.syncing ? " Your library is loading in the meantime." : " You can browse your library when this finishes."))
                         .font(Design.body(30)).foregroundStyle(Design.secondary).lineSpacing(8)
@@ -46,7 +51,7 @@ struct SetupView: View {
                         Text(failure.reason).font(Design.body(25)).foregroundStyle(Design.secondary).lineSpacing(5)
                     }
                 }
-                if model.setupScreen == .controller || model.setupScreen == .runtime {
+                if model.setupScreen == .controller || model.setupScreen == .runtime || model.setupScreen == .permissions {
                     VStack(alignment: .leading, spacing: 20) {
                         ForEach(Array(model.setupActions.enumerated()), id: \.offset) { index, action in
                             ActionButton(title: action, primary: index == 0, focused: model.setupIndex == index, large: index == 0, reducedMotion: model.reducedMotion) { model.setupIndex = index; model.activateSetup() }
@@ -57,6 +62,7 @@ struct SetupView: View {
             Group {
                 if model.setupScreen == .controller { controllerArt }
                 else if model.setupScreen == .runtime { runtimeProgress }
+                else if model.setupScreen == .permissions { permissionInstructions }
                 else { choices }
             }.frame(width: model.setupScreen == .controller ? 700 : 924, height: 690, alignment: .topLeading)
                 .offset(x: model.setupScreen == .controller ? 1120 : 900, y: 250)
@@ -69,9 +75,24 @@ struct SetupView: View {
             }.offset(x: 96, y: 986)
         }.frame(width: 1920, height: 1080).foregroundStyle(Design.text)
     }
+    private var permissionInstructions: some View {
+        VStack(alignment: .leading, spacing: 32) {
+            permissionCard("Games drive", symbol: "externaldrive", text: "Allow access to your chosen drive when macOS asks, so Playden can install, update and remove games. Files & Folders in System Settings lets you review access later.")
+            permissionCard("App Management · if requested", symbol: "app.badge", text: "This allows changes to other apps on your Mac. CrossOver can trigger this request under Playden’s name while running a game. If macOS requests it, review Playden in App Management. It is not controller permission.")
+            Text("Permissions are managed by macOS. Opening Settings does not grant access, and Playden does not verify App Management status here.")
+                .font(Design.body(23)).foregroundStyle(Design.secondary).lineSpacing(5)
+        }.padding(32).frame(width: 924, alignment: .leading)
+            .background(Design.text.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
+    }
+    private func permissionCard(_ title: String, symbol: String, text: String) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Label(title, systemImage: symbol).font(Design.condensed(32))
+            Text(text).font(Design.body(25)).foregroundStyle(Design.secondary).lineSpacing(5)
+        }
+    }
     private var controllerInstructions: some View {
         VStack(alignment: .leading, spacing: 22) {
-            ForEach(Array(["Hold Share and PS on the DualShock until the light bar flashes.", "Pair it in macOS Bluetooth settings. This is the only step that may need a mouse.", "Come back here. We will notice it."].enumerated()), id: \.offset) { index, text in
+            ForEach(Array(["Hold Share and PS on the DualShock until the light bar flashes.", "Pair it in macOS Bluetooth settings. You may need a mouse for this step.", "Come back here. We will notice it."].enumerated()), id: \.offset) { index, text in
                 HStack(alignment: .top, spacing: 20) {
                     Text("\(index + 1)").font(Design.body(24, weight: "SemiBold")).frame(width: 44, height: 44).background(Design.text.opacity(0.12), in: Circle())
                     Text(text).font(Design.body(28)).foregroundStyle(Design.secondary).lineSpacing(6)

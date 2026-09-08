@@ -46,6 +46,12 @@ account with games, and enough space for game files and their CrossOver environm
 targets **macOS 15 or newer**; current live testing uses macOS 26.6.2 and CrossOver 26.2.
 DualShock 4 is the target controller. A keyboard and mouse can also be used throughout setup.
 
+Onboarding explains macOS permissions before sign-in and game setup. Allow access to your
+chosen games drive when prompted. CrossOver may also trigger an **App Management** request
+under Playden’s name; the permissions step links to System Settings for review. This grants
+access to modify other app bundles and is not a controller permission. It is optional during
+onboarding; Playden does not claim to verify its status.
+
 ### Build from source and install
 
 The Steam library is included in `Packages/SteamKit`; no other source checkout is needed.

@@ -4,7 +4,7 @@ import Input
 import Runner
 import AppKit
 
-enum SetupScreen { case controller, display, audio, account, volume, runtime }
+enum SetupScreen { case controller, display, audio, permissions, account, volume, runtime }
 struct DisplayChoice: Identifiable, Equatable {
     var id: UInt32
     var name: String
@@ -15,6 +15,12 @@ struct DisplayChoice: Identifiable, Equatable {
 extension LibraryModel {
     func openBluetoothSettings() {
         if let url = URL(string: "x-apple.systempreferences:com.apple.BluetoothSettings") { NSWorkspace.shared.open(url) }
+    }
+    func openPermissionSettings(appManagement: Bool) {
+        let pane = appManagement ? "Privacy_AppBundles" : "Privacy_FilesAndFolders"
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)") {
+            NSWorkspace.shared.open(url)
+        }
     }
     func startSetupServices() {
         guard !isPreview else { return }
@@ -109,6 +115,7 @@ extension LibraryModel {
     var setupActions: [String] {
         switch setupScreen {
         case .controller: [controllerName == nil ? "Continue with keyboard" : "Continue", "Open Bluetooth settings"]
+        case .permissions: ["Continue", "Open App Management", "Open Files & Folders"]
         case .display: displays.map { $0.name } + ["Back"]
         case .audio: ["System default"] + audioDevices.map(\.name) + ["Back"]
         case .volume:
@@ -133,6 +140,7 @@ extension LibraryModel {
         case .confirm: activateSetup()
         case .back:
             if setupBusy { setupTask?.cancel() }
+            else if setupScreen == .permissions && onboarding { setupScreen = displays.count > 1 ? .display : .controller; setupIndex = 0 }
             else if setupScreen == .display && onboarding { setupScreen = .controller; setupIndex = 0 }
             else { finishSetup() }
         default: break
@@ -144,7 +152,7 @@ extension LibraryModel {
         case .controller:
             if setupIndex == 1 { openBluetoothSettings(); return }
             if displays.count > 1 { setupScreen = .display; setupIndex = 0 }
-            else { advanceToAccount() }
+            else { setupScreen = .permissions; setupIndex = 0 }
         case .display:
             guard let display = displays[safe: setupIndex] else {
                 if onboarding { setupScreen = .controller; setupIndex = 0 } else { finishSetup() }
@@ -156,8 +164,11 @@ extension LibraryModel {
                 }
                 selectedDisplayID = display.id; selectedDisplayUUID = display.uuid; selectedDisplayName = display.name
                 onDisplaySelected?(display.id)
-                if onboarding { advanceToAccount() } else { finishSetup() }
+                if onboarding { setupScreen = .permissions; setupIndex = 0 } else { finishSetup() }
             } catch { setupFailure = setupProblem(error, stage: "Choose display") }
+        case .permissions:
+            if setupIndex == 0 { advanceToAccount() }
+            else { openPermissionSettings(appManagement: setupIndex == 1) }
         case .audio:
             if setupIndex == 0 { selectAudioDevice(nil) }
             else if let device = audioDevices[safe: setupIndex - 1] { selectAudioDevice(device) }

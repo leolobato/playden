@@ -34,6 +34,14 @@ final class SetupInteractionTests: XCTestCase {
         XCTAssertEqual(model.tab, .home)
         model.perform(.confirm)
         await model.setupTask?.value
+        XCTAssertEqual(model.setupScreen, .permissions)
+        XCTAssertFalse(try catalog.preferences().setupCompleted)
+        model.perform(.back)
+        XCTAssertEqual(model.setupScreen, .controller)
+        model.perform(.confirm)
+        XCTAssertEqual(model.setupScreen, .permissions)
+        model.perform(.confirm)
+        await model.setupTask?.value
         XCTAssertEqual(model.setupScreen, .volume)
         model.perform(.confirm)
         await model.setupTask?.value
