@@ -150,7 +150,9 @@ run remains open. Multiplayer, anti-cheat, achievements UI and DLC management ar
 | Controller input seems wrong | Settings → Controller → Button test |
 | Game did not take focus | Return to game; if macOS declines, select the game in the Dock |
 
-Game focus handoff and physical controller reconnect still need final testing. Keep Big Screen
+Automatic game focus and return from the overlay have been checked with A Short Hike using
+keyboard input. Physical controller reconnect and other games' handoff behavior still need final
+testing. Keep Big Screen
 open while downloading or playing: background operation after quitting the launcher is planned
 for v2. Game updates, moving existing installations between drives, native macOS builds and
 importing official Steam macOS installations are also not available in v1.

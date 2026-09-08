@@ -64,6 +64,28 @@ final class SessionInteractionTests: XCTestCase {
         model.receiveSession(running)
         XCTAssertEqual(exits, 1); XCTAssertEqual(model.tab, .home); XCTAssertNil(model.detailID); XCTAssertEqual(model.detailAction, 0)
     }
+    func testStartupWindowReplacementRetriesUntilAcknowledgedWithoutStealingLaterFocus() throws {
+        let model = LibraryModel()
+        var targets: [GameWindow] = []
+        model.onGameWindow = { targets.append($0) }
+        var running = snapshot()
+        let first = try XCTUnwrap(running.session?.runtime?.window)
+        model.receiveSession(running); model.receiveSession(running)
+        XCTAssertEqual(targets, [first])
+        let replacement = GameWindow(id: 2, process: first.process)
+        running.session?.runtime?.window = replacement
+        model.receiveSession(running)
+        XCTAssertEqual(targets, [first, replacement])
+        model.recordGameWindowHandoff(first); XCTAssertFalse(model.gameWindowHandedOff)
+        model.recordGameWindowHandoff(replacement); XCTAssertTrue(model.gameWindowHandedOff)
+        running.session?.runtime?.window = .init(id: 3, process: first.process)
+        model.receiveSession(running)
+        XCTAssertEqual(targets.count, 2)
+        running.phase = .idle; running.session?.endedAt = .now; running.session?.outcome = .clean
+        model.receiveSession(running); XCTAssertFalse(model.gameWindowHandedOff)
+        let next = snapshot()
+        model.receiveSession(next); XCTAssertEqual(targets.count, 3)
+    }
     func testLaunchingTrapsNavigationAndOverlayRemainsEscapeHatch() {
         let model = LibraryModel(); model.session = snapshot(phase: .launching)
         model.tab = .library

@@ -40,5 +40,7 @@ fallback and finalized the session. No new gameplay save was created by this men
 Evidence: `.build/shortcut-current-live/overlay.png` and before/after session records.
 
 This resolves the synthetic-shortcut discrepancy; no shortcut code change was required. The
-game activation warning remained visible, so focus handoff still needs investigation. Physical
+game activation warning remained visible during that check; the subsequent
+[observed focus handoff fix](2026-09-08-game-focus-handoff.md) verified automatic activation,
+Return, and keyboard input with no stale warning. Physical
 DS4/TV hold-Home and gameplay input leakage are not established by this keyboard check.

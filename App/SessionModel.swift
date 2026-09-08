@@ -40,6 +40,7 @@ extension LibraryModel {
     func receiveSession(_ snapshot: SessionSnapshot) {
         let previous = session
         session = snapshot
+        if previous.session?.id != snapshot.session?.id || snapshot.phase == .idle { gameWindowHandedOff = false }
         if let status = snapshot.cloudStatus { cloudStatuses[status.gameID] = status }
         if snapshot.phase == .awaitingCloud, let id = snapshot.session?.gameID {
             setExitOverlay(false)
@@ -55,7 +56,8 @@ extension LibraryModel {
                                recovery: retryable ? snapshot.session.map { .play($0.gameID) } : nil)
         }
         if let window = snapshot.session?.runtime?.window,
-           previous.session?.runtime?.hadWindow != true && snapshot.session?.runtime?.hadWindow == true && !exitOverlay {
+           previous.session?.runtime?.window != window && snapshot.session?.runtime?.hadWindow == true &&
+           !gameWindowHandedOff && !exitOverlay && [.launching, .running].contains(snapshot.phase) {
             onGameWindow?(window)
         }
         if snapshot.phase == .idle && (previous.phase != .idle || (snapshot.session?.endedAt != nil && previous.session?.id != snapshot.session?.id)) {
@@ -82,6 +84,11 @@ extension LibraryModel {
             if previous.phase != .syncingSaves { onGameEnded?() }
             if !uninstallBusy, snapshot.cloudStatus?.state == .conflict, let id = snapshot.session?.gameID { detailID = id; showCloud(id) }
         }
+    }
+    func recordGameWindowHandoff(_ window: GameWindow) {
+        guard hasActiveSession, session.session?.runtime?.window == window else { return }
+        gameWindowHandedOff = true
+        if sessionIssue?.stage == "Return to game" { sessionIssue = nil }
     }
     func beginPlay(_ id: GameID) {
         guard !resetBusy else { return }

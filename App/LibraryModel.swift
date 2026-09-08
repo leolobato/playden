@@ -78,6 +78,7 @@ final class LibraryModel {
     @ObservationIgnored var onExitOverlayChanged: ((Bool) -> Void)?
     var session = SessionSnapshot()
     var sessionReady = false
+    var gameWindowHandedOff = false
     var sessionIssue: OperationFailure? {
         didSet {
             sessionIssueGameID = nil; sessionIssueRecovery = nil

@@ -48,6 +48,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var mouseMonitor: Any?
     private var exitPanel: GameExitPanel?
     private let exitShortcut = GameExitShortcut()
+    private let gameActivation = GameActivationWaiter(system: MacGameActivationSystem())
+    private var gameActivationTask: Task<Void, Never>?
+    private var gameActivationObserver: Any?
     private var pendingDisplayID: UInt32?
     private var resumeFullscreenAfterMove = false
 
@@ -102,11 +105,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             model.onGameWindow = { [weak self] gameWindow in self?.activateGame(gameWindow) }
             model.onGameEnded = { [weak self] in
                 guard let self else { return }
+                self.gameActivationTask?.cancel(); self.gameActivationTask = nil
                 self.exitShortcut.stop(); self.exitPanel?.orderOut(nil)
                 self.restorePreferredDisplay()
                 self.window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
             }
             model.onExitOverlayChanged = { [weak self] visible in self?.presentExitOverlay(visible) }
+            gameActivationObserver = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] _ in
+                Task { @MainActor [weak self] in self?.clearResolvedGameActivationIssue() }
+            }
             if model.shouldStartFullscreen(arguments: args) { setFullscreen(true) }
             model.startServices()
             model.startSetupServices()
@@ -172,6 +179,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         model.stopServices()
         controller.stop()
         exitShortcut.stop()
+        gameActivationTask?.cancel()
+        if let gameActivationObserver { NSWorkspace.shared.notificationCenter.removeObserver(gameActivationObserver) }
         if let keyboardMonitor { NSEvent.removeMonitor(keyboardMonitor) }
         if let mouseMonitor { NSEvent.removeMonitor(mouseMonitor) }
         restoreCursor()
@@ -303,22 +312,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func activateGame(_ gameWindow: GameWindow) {
         restoreCursor()
         exitPanel?.orderOut(nil)
-        if let app = NSRunningApplication(processIdentifier: gameWindow.process.pid) {
-            // Hand over activation before lowering our window. macOS can otherwise activate
-            // an unrelated app as our fullscreen Space disappears and reject the game's request.
-            NSApp.yieldActivation(to: app)
-            if app.activate(options: [.activateAllWindows]) {
-                if model.sessionIssue?.stage == "Return to game" { model.sessionIssue = nil }
+        gameActivationTask?.cancel()
+        gameActivationTask = Task { [weak self] in
+            guard let self else { return }
+            let result = await gameActivation.activate(gameWindow)
+            guard !Task.isCancelled, model.hasActiveSession, !model.exitOverlay,
+                  model.session.session?.runtime?.window == gameWindow else { return }
+            switch result {
+            case .active:
+                model.recordGameWindowHandoff(gameWindow)
                 window.level = .normal; window.orderBack(nil)
-            } else {
-                model.reportSessionIssue(.init(stage: "Return to game", reason: "The game is open, but could not take keyboard focus. Use the Dock to return to it.", output: "Game activation was declined by macOS."), gameID: model.session.session?.gameID)
+            case .timedOut:
+                model.reportSessionIssue(.init(stage: "Return to game", reason: "The game is open, but could not take keyboard focus. Use the Dock to return to it.", output: "The tracked game did not become the foreground app within two seconds."), gameID: model.session.session?.gameID)
+            case .unavailable:
+                // Startup windows can disappear before they become activatable. Session updates
+                // will request handoff for the replacement until one is acknowledged.
+                guard model.gameWindowHandedOff else { return }
+                model.reportSessionIssue(.init(stage: "Return to game", reason: "The game window is no longer available. Wait for the game to finish opening, then try Return to game again.", output: "The tracked game window or process identity is no longer available."), gameID: model.session.session?.gameID)
+            case .cancelled: break
             }
-        } else {
-            model.reportSessionIssue(.init(stage: "Return to game", reason: "The game window could not be activated. Use the Dock to return to it.", output: "No application for the observed game window."), gameID: model.session.session?.gameID)
         }
+    }
+    private func clearResolvedGameActivationIssue() {
+        guard model.sessionIssue?.stage == "Return to game", model.hasActiveSession,
+              let target = model.session.session?.runtime?.window,
+              gameActivation.system.state(of: target) == .active else { return }
+        model.recordGameWindowHandoff(target)
     }
     private func presentExitOverlay(_ visible: Bool) {
         guard visible else { exitPanel?.orderOut(nil); return }
+        // A late activation result must not lower the launcher or replace an opened exit panel.
+        gameActivationTask?.cancel(); gameActivationTask = nil
         var screen = window.screen ?? NSScreen.main
         var gameLevel = NSWindow.Level.normal.rawValue
         if let gameWindow = model.session.session?.runtime?.window,

@@ -334,6 +334,9 @@ Dependencies: M3; M0 process/input validation.
 
 - [ ] Implement Sessions orchestration, installed-state checks, missing-bottle recovery and offline launch.
 - [ ] Implement launch/delayed/error states, window handoff, exit overlay, graceful/forced stop and Home return.
+  Automatic keyboard focus after startup-window replacement, exit overlay Return, subsequent
+  game input and clean Home return passed with A Short Hike on 8 September. Physical DS4/TV
+  acceptance remains open. See [focus handoff evidence](validation/2026-09-08-game-focus-handoff.md).
 - [ ] Implement single-session enforcement, playtime/outcome recording, automatic pause-reason coordination,
   normal app quit, launcher-crash reconciliation and prevention of duplicate sessions after restart.
 - [ ] Implement controller uninstall confirmation with local-save deletion consequences, pending Cloud
