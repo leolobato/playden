@@ -669,3 +669,14 @@ selection and Finder controls; About exposes versions and the logs folder. The f
 preserved operational records; verification preserved all game files and the save. Successful setup
 tool output, pre-launch Cloud phases, live Finder selection and Settings reset remain outstanding.
 See `docs/validation/2026-09-08-diagnostics.md`.
+
+### 8 September — Diagnostic capture checkpoint
+
+Successful and failed finite setup/runtime commands now append scoped, redacted transcripts to
+their job/session logs. Process output retains bounded recent complete lines after redaction;
+quoted credential context survives chunk boundaries. Cloud checks/results and offline choices are
+recorded around launch/exit. Full tests, a real disposable CrossOver command-capture probe, 1080p/4K
+rendering and a clean live A Short Hike launch/quit pass; its save stayed unchanged. Settings reset
+and live Finder acceptance remain. Before the missing-bottle live test, resolve how replacement
+runtime save roots invalidate the old Cloud baseline so missing progress cannot be interpreted as
+a remote deletion. See `docs/validation/2026-09-08-diagnostic-capture.md`.

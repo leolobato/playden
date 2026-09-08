@@ -9,6 +9,26 @@ public struct DiagnosticLogReference: Sendable {
 }
 
 extension CatalogStore {
+    public var diagnosticWriteFailure: OperationFailure? { diagnosticFailure.withLock { $0 } }
+    public func diagnosticSink(for id: UUID) -> @Sendable (DiagnosticCommand) -> Void {
+        { [self] command in mutateDiagnostic(id) { $0.captureCommand(command) } }
+    }
+    public func captureDiagnosticEvent(for id: UUID, message: String, at date: Date = .now) {
+        mutateDiagnostic(id) { $0.record(message, at: date) }
+    }
+    private func mutateDiagnostic(_ id: UUID, _ mutation: (inout DiagnosticLog) -> Void) {
+        do {
+            try database.write { db in
+                let logs: [DiagnosticLog] = try Self.values(db, table: "diagnostic_logs", whereSQL: "id = ?", arguments: [id.uuidString])
+                // A late callback must not resurrect an intentionally rotated diagnostic.
+                guard var log = logs.first else { return }
+                mutation(&log)
+                if log != logs.first { try Self.putDiagnostic(db, log) }
+            }
+        } catch {
+            diagnosticFailure.withLock { $0 = .init(stage: "Save diagnostics", reason: "Some command or stage details could not be saved. New logs are still being recorded.", output: "The diagnostic journal write failed.") }
+        }
+    }
     public func diagnosticReferences() throws -> [DiagnosticLogReference] {
         try database.read { db in
             try Row.fetchAll(db, sql: "SELECT id, source, game, revision FROM diagnostic_logs").map { row in
@@ -56,6 +76,10 @@ extension CatalogStore {
         log.record(signature, at: time)
         if !output.isEmpty { log.capture(output, at: time) }
         guard old.first != log else { return }
+        try putDiagnostic(db, log)
+    }
+    private static func putDiagnostic(_ db: Database, _ log: DiagnosticLog) throws {
+        let id = log.id, gameID = log.gameID
         try db.execute(sql: "INSERT INTO diagnostic_logs (id, source, game, updated, payload) VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET updated = excluded.updated, payload = excluded.payload, revision = diagnostic_logs.revision + 1",
             arguments: [id.uuidString, gameID.source, gameID.value, log.updatedAt.timeIntervalSince1970, try encode(log)])
         try db.execute(sql: "DELETE FROM diagnostic_logs WHERE source = ? AND game = ? AND id NOT IN (SELECT id FROM diagnostic_logs WHERE source = ? AND game = ? ORDER BY updated DESC, id DESC LIMIT 10)",

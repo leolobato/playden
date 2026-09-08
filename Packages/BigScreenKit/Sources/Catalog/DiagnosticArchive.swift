@@ -35,6 +35,7 @@ public actor DiagnosticArchive {
         }
         let retainedIDs = Set(references.map(\.id))
         written = written.filter { retainedIDs.contains($0.key) }
+        if let failure = catalog.diagnosticWriteFailure { throw failure }
     }
 
     public func file(for log: DiagnosticLog) throws -> URL {

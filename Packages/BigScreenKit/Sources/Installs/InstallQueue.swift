@@ -197,7 +197,11 @@ public actor InstallQueue: InstallQueuing {
         guard running, persistenceFailure == nil, activeTask == nil,
               let job = ordered.first(where: { $0.state == .queued && ($0.pauseReasons.isEmpty || $0.cancellationRequested == true) }) else { return }
         let run = UUID(); activeRun = run; activeID = job.id; progressTime = 0
-        activeTask = Task { await self.execute(job.id, run: run) }; publish()
+        activeTask = Task {
+            await DiagnosticOutputContext.$sink.withValue(catalog.diagnosticSink(for: job.id)) {
+                await self.execute(job.id, run: run)
+            }
+        }; publish()
     }
     private func execute(_ id: UUID, run: UUID) async {
         defer { transferTicker?.cancel(); transferTicker = nil; transferMeter = nil; activeTask = nil; activeID = nil; activeRun = nil; publish(); pump() }

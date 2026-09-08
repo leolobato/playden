@@ -85,7 +85,9 @@ public actor SessionService: SessionManaging {
             if active?.id == saved.id { continue }
             let entry = try catalog.snapshot().entries.first { $0.id == saved.gameID }
             if let runtime = saved.runtime {
-                let recovered = try await runner.recover(runtime)
+                let recovered = try await DiagnosticOutputContext.$sink.withValue(catalog.diagnosticSink(for: saved.id)) {
+                    try await runner.recover(runtime)
+                }
                 saved.runtime = recovered
                 if recovered.phase != .exited {
                     guard active == nil else { throw issue("Recover session", "More than one running session needs attention before downloads can resume.") }
@@ -100,7 +102,9 @@ public actor SessionService: SessionManaging {
             } else if let installed = entry?.installation {
                 // An interrupted pre-launch record has no PID receipt. The runner refuses to
                 // prepare a bottle with a live game, so uncertainty cannot restart downloads.
-                _ = try await runner.prepare(bottle(installed))
+                _ = try await DiagnosticOutputContext.$sink.withValue(catalog.diagnosticSink(for: saved.id)) {
+                    try await runner.prepare(bottle(installed))
+                }
             }
             if saved.runtime?.phase == .exited, cloud != nil {
                 // Keep the recovered session reservation until its post-exit Cloud work is durable.
@@ -155,11 +159,18 @@ public actor SessionService: SessionManaging {
         return installed
     }
     private func launch(_ original: InstallationRecord, offline: Bool = false, authorization: CloudSyncAuthorization? = nil) async {
+        guard let id = active?.id else { return }
+        await DiagnosticOutputContext.$sink.withValue(catalog.diagnosticSink(for: id)) {
+            await launchTracked(original, offline: offline, authorization: authorization)
+        }
+    }
+    private func launchTracked(_ original: InstallationRecord, offline: Bool, authorization: CloudSyncAuthorization?) async {
         do {
             try await queue.setGameplayPaused(!downloadWhilePlaying)
             try Task.checkCancellation()
             let directory = try await storage.directory(original.location, gameID: original.gameID, owner: original.ownershipToken)
             var installed = original
+            if let id = active?.id { catalog.captureDiagnosticEvent(for: id, message: "Preparing runtime", at: clock.wallTime) }
             if try await runner.prepare(bottle(installed)) {
                 guard let source = sources[installed.gameID.source], let plan = installed.plan else { throw issue("Prepare game", "The saved install plan is unavailable. Verify or reinstall this game.") }
                 let installer = try source.installer(for: installed.game)
@@ -168,14 +179,20 @@ public actor SessionService: SessionManaging {
                 installed.staging = staging; try catalog.saveInstallation(installed)
             }
             try Task.checkCancellation()
+            if let id = active?.id {
+                catalog.captureDiagnosticEvent(for: id, message: offline ? "Cloud before launch · offline choice" : "Cloud before launch · checking", at: clock.wallTime)
+            }
             if !offline, let cloud, let session = active, let mapping = try mapping(installed) {
                 let result = await cloud.synchronize(installed, mapping: mapping,
                     preparingSessionID: session.id, authorization: authorization)
                 value.cloudStatus = result
+                catalog.captureDiagnosticEvent(for: session.id, message: "Cloud before launch · \(result.state.rawValue)", at: clock.wallTime)
                 try Task.checkCancellation()
                 if result.state != .upToDate {
                     value.phase = .awaitingCloud; worker = nil; publish(); return
                 }
+            } else if !offline, let id = active?.id {
+                catalog.captureDiagnosticEvent(for: id, message: "Cloud before launch · not configured for this game", at: clock.wallTime)
             }
             try Task.checkCancellation()
             let run = try await runner.launch(installed.launchSpec, in: bottle(installed), directory: directory)
@@ -213,6 +230,12 @@ public actor SessionService: SessionManaging {
         }
     }
     public func quit() async throws {
+        guard let id = active?.id else { return }
+        try await DiagnosticOutputContext.$sink.withValue(catalog.diagnosticSink(for: id)) {
+            try await quitTracked()
+        }
+    }
+    private func quitTracked() async throws {
         guard var session = active else { return }
         if finishing {
             let syncing = worker
@@ -286,8 +309,10 @@ public actor SessionService: SessionManaging {
                 if let installed = try catalog.snapshot().entries.first(where: { $0.id == session.gameID })?.installation,
                    let mapping = try mapping(installed) {
                     value.phase = .syncingSaves; value.session = session; publish()
+                    catalog.captureDiagnosticEvent(for: session.id, message: "Cloud after exit · checking", at: clock.wallTime)
                     value.cloudStatus = await cloud.synchronize(installed, mapping: mapping,
                         preparingSessionID: session.id, authorization: nil)
+                    if let status = value.cloudStatus { catalog.captureDiagnosticEvent(for: session.id, message: "Cloud after exit · \(status.state.rawValue)", at: clock.wallTime) }
                 }
             } catch {
                 value.failure = error as? OperationFailure ?? issue("Save session", "Save recovery could not be checkpointed. Retry before leaving.")

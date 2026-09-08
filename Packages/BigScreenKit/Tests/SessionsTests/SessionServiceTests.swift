@@ -267,6 +267,13 @@ final class SessionServiceTests: XCTestCase {
         await runner.emit(exit: 0)
         _ = try await wait(service, phase: .idle)
         ordered = await events.values; XCTAssertTrue(ordered.contains("cloud:exit"))
+        let log = try XCTUnwrap(catalog.diagnosticLog(try XCTUnwrap(waiting.session).id))
+        let messages = log.events.map(\.message)
+        XCTAssertTrue(messages.contains("Cloud before launch · checking"))
+        XCTAssertTrue(messages.contains("Cloud before launch · conflict"))
+        XCTAssertTrue(messages.contains("Cloud before launch · offline choice"))
+        XCTAssertTrue(messages.contains("Cloud after exit · checking"))
+        XCTAssertTrue(messages.contains(where: { $0.hasPrefix("Cloud after exit · ") && $0 != "Cloud after exit · checking" }))
     }
 
     func testCloudRetryForwardsChoiceAndLaunchesOnlyAfterSuccessfulSync() async throws {
@@ -286,6 +293,9 @@ final class SessionServiceTests: XCTestCase {
         let ordered = await events.values
         XCTAssertLessThan(try XCTUnwrap(ordered.lastIndex(of: "cloud:finished")), try XCTUnwrap(ordered.firstIndex(of: "launch:game.exe")))
         try await service.quit()
+        let log = try XCTUnwrap(catalog.diagnosticLog(try XCTUnwrap(waiting.session).id))
+        XCTAssertEqual(log.events.filter { $0.message == "Cloud before launch · checking" }.count, 2)
+        XCTAssertTrue(log.events.contains { $0.message == "Cloud before launch · upToDate" })
     }
 
     func testExitSyncKeepsDurableSessionReservationAndDoesNotCountSyncTime() async throws {

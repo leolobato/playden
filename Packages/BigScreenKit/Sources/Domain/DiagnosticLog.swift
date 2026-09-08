@@ -20,6 +20,8 @@ public struct DiagnosticLog: Codable, Equatable, Sendable, Identifiable {
     public var omittedEvents = 0
     public var output = ""
     public var outputTruncated = false
+    public var commandOutput: String?
+    public var commandOutputTruncated: Bool?
     public init(id: UUID, gameID: GameID, kind: String, startedAt: Date) {
         self.id = id; self.gameID = gameID; self.kind = kind; self.startedAt = startedAt; self.updatedAt = startedAt
     }
@@ -40,11 +42,22 @@ public struct DiagnosticLog: Codable, Equatable, Sendable, Identifiable {
         guard next != output || truncated != outputTruncated else { return }
         output = next; outputTruncated = truncated; updatedAt = max(updatedAt, date)
     }
+    public mutating func captureCommand(_ command: DiagnosticCommand) {
+        let bytes = Array(DiagnosticRedactor.redact((commandOutput ?? "") + command.text).utf8)
+        commandOutputTruncated = commandOutputTruncated == true || bytes.count > 256 * 1024
+        commandOutput = String(decoding: bytes.suffix(256 * 1024).drop(while: { $0 & 0xC0 == 0x80 }), as: UTF8.self)
+        updatedAt = max(updatedAt, command.timestamp)
+    }
     public var text: String {
         let formatter = ISO8601DateFormatter()
         var lines = ["Big Screen · \(kind)", "Operation: \(id.uuidString)", "Started: \(formatter.string(from: startedAt))", "", "Stage history"]
         if omittedEvents > 0 { lines.append("[\(omittedEvents) earlier events omitted]") }
         lines += events.map { "\(formatter.string(from: $0.timestamp))  \($0.message)" }
+        if let commandOutput {
+            lines += ["", "Setup and runtime commands (stdout / stderr)"]
+            if commandOutputTruncated == true { lines.append("[Earlier command output omitted; showing the last 256 KiB]") }
+            lines.append(commandOutput)
+        }
         lines += ["", "Tool output (stdout / stderr)"]
         if outputTruncated { lines.append("[Earlier output omitted; showing the last 256 KiB]") }
         lines.append(output.isEmpty ? "No tool output captured." : output)

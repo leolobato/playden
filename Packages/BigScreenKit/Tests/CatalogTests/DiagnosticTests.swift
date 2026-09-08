@@ -6,6 +6,34 @@ import Domain
 import Catalog
 
 final class DiagnosticTests: XCTestCase {
+    func testCommandTranscriptSurvivesCheckpointsAndMissingLogIsNotResurrected() throws {
+        let catalog = try CatalogStore()
+        var job = JobRecord(gameID: gameID); job.state = .running; try catalog.saveJob(job)
+        let capture = catalog.diagnosticSink(for: job.id)
+        capture(.init(tool: "cxstart", exitCode: 0, output: "stdout: runtime ready\nstderr: warning\naccess_token=EXAMPLE_SECRET"))
+        job.bytesCompleted = 128; try catalog.saveJob(job)
+        job.state = .failed; job.failure = .init(stage: "Verify", reason: "Missing file", output: "Verification details"); try catalog.saveJob(job)
+        let log = try XCTUnwrap(catalog.diagnosticLog(job.id))
+        XCTAssertTrue(log.text.contains("cxstart · exit 0")); XCTAssertTrue(log.text.contains("runtime ready"))
+        XCTAssertTrue(log.text.contains("Verification details")); XCTAssertFalse(log.text.contains("EXAMPLE_SECRET"))
+        XCTAssertEqual(log.events.count, 2, "Commands do not cause repeated progress stage entries")
+        catalog.diagnosticSink(for: UUID())(.init(tool: "late", exitCode: 0, output: "not retained"))
+        XCTAssertEqual(try catalog.diagnosticLogs().count, 1)
+    }
+    func testDiagnosticWriteFailureDoesNotChangeOperationAndRemainsVisible() throws {
+        let root = try temporary(); defer { try? FileManager.default.removeItem(at: root) }
+        let path = root.appendingPathComponent("catalog.sqlite").path, catalog = try CatalogStore(path: root.appendingPathComponent("catalog.sqlite").path)
+        let job = JobRecord(gameID: gameID); try catalog.saveJob(job)
+        let db = try DatabaseQueue(path: path)
+        try db.write { try $0.execute(sql: "CREATE TRIGGER reject_diagnostic BEFORE UPDATE ON diagnostic_logs BEGIN SELECT RAISE(ABORT, 'simulated storage failure'); END") }
+        catalog.diagnosticSink(for: job.id)(.init(tool: "test", exitCode: 0, output: "Completed command"))
+        XCTAssertNotNil(catalog.diagnosticWriteFailure)
+        XCTAssertEqual(try catalog.jobs(), [job])
+        try db.write { try $0.execute(sql: "DROP TRIGGER reject_diagnostic") }
+        catalog.diagnosticSink(for: job.id)(.init(tool: "test", exitCode: 0, output: "New command"))
+        XCTAssertTrue(try XCTUnwrap(catalog.diagnosticLog(job.id)).text.contains("New command"))
+        XCTAssertNotNil(catalog.diagnosticWriteFailure, "A later successful write does not claim lost details were recovered")
+    }
     private let gameID = GameID(source: "steam", value: "1055540")
     private func temporary() throws -> URL {
         let resolved = try XCTUnwrap(realpath(FileManager.default.temporaryDirectory.path, nil))

@@ -479,6 +479,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                             if screen.hasPrefix("logs-long") {
                                 var log = DiagnosticLog(id: UUID(), gameID: game.id, kind: "repair", startedAt: Date(timeIntervalSince1970: 1_788_832_000))
                                 log.record("download · running", at: log.startedAt)
+                                log.captureCommand(.init(tool: "cxstart", timestamp: log.startedAt.addingTimeInterval(8), exitCode: 0, output: "BIGSCREEN_GAME_BOTTLE_READY"))
                                 log.record("stage · failed · Preparation: The runtime could not prepare the game.", at: log.startedAt.addingTimeInterval(15))
                                 log.capture((1...100).map { "Line \($0): Verified game content; preparing the owned runtime and checking the game's launch configuration. Diagnostic output remains selectable and wraps to fit the screen." }.joined(separator: "\n"), at: log.startedAt.addingTimeInterval(15))
                                 model.logDocument = log

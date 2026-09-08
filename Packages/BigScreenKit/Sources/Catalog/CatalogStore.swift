@@ -1,6 +1,7 @@
 import Foundation
 import Domain
 import GRDB
+import Synchronization
 
 public enum CatalogError: Error, Equatable {
     case sourceMismatch, duplicateGame, invalidCollectionName, duplicateCollectionName, identityMismatch, invalidSession
@@ -10,6 +11,7 @@ public enum CatalogError: Error, Equatable {
 /// atomically; callers never maintain a second writable JSON copy beside the database.
 public final class CatalogStore: Sendable {
     let database: DatabaseQueue
+    let diagnosticFailure = Mutex<OperationFailure?>(nil)
     public init(path: String = ":memory:") throws {
         if path != ":memory:" {
             try FileManager.default.createDirectory(at: URL(fileURLWithPath: path).deletingLastPathComponent(), withIntermediateDirectories: true)

@@ -47,6 +47,9 @@ The journal currently captures persisted failures and session runtime output. Su
 setup-command stdout/stderr and the pre-launch Cloud-phase timeline still need explicit collection;
 FR-LOG-1 is not fully closed by this checkpoint. Reset app data also remains outstanding.
 
+The subsequent [command-capture checkpoint](2026-09-08-diagnostic-capture.md) adds successful finite
+command output and Cloud-phase history, with real CrossOver and live A Short Hike validation.
+
 Reveal in Finder is wired to the materialized log and was activated from the live viewer, but
 Finder scripting reported no selected item or matching folder window. A direct `open -R` probe
 gave the same observation. This does not prove the desk-debugging flow worked; keep live Finder

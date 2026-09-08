@@ -123,20 +123,23 @@ public struct OperationFailure: Codable, Equatable, Sendable, Error {
     }
 }
 public enum DiagnosticRedactor {
-    public static func redact(_ text: String) -> String {
+    static let secretKey = #"(?:refresh_?token|access_?token|password|steam_?guard|guard_?code|shared_?secret|identity_?secret|sessionid|ticket|account_?name|username|challenge_?url)"#
+    private static let expressions: [NSRegularExpression] = {
         // Redact headers, structured fields, query parameters, SteamIDs and JWTs before persistence.
-        let secretKey = #"(?:refresh_?token|access_?token|password|steam_?guard|guard_?code|shared_?secret|identity_?secret|sessionid|ticket|account_?name|username|challenge_?url)"#
         let prefix = #"(?i)([\"']?"# + secretKey + #"[\"']?\s*[:=]\s*)"#
         let patterns = [
             #"(?i)(authorization\s*[:=]\s*)(?:bearer\s+)?[^\r\n]+"#,
-            prefix + #"\"(?:\\.|[^\"\\])*\""#,
-            prefix + #"'(?:\\.|[^'\\])*'"#,
+            prefix + #"\"(?:\\.|[^\"\\])*(?:\"|$)"#,
+            prefix + #"'(?:\\.|[^'\\])*(?:'|$)"#,
             prefix + #"[^\s\"'&,}\r\n]+"#,
-            #"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b"#,
+            #"\beyJ[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]*){0,2}\b"#,
             #"\b7656119[0-9]{10}\b"#,
         ]
-        return patterns.enumerated().reduce(text) { result, item in
-            result.replacingOccurrences(of: item.element, with: item.offset < 4 ? "$1[REDACTED]" : "[REDACTED]", options: .regularExpression)
+        return patterns.map { try! NSRegularExpression(pattern: $0) }
+    }()
+    public static func redact(_ text: String) -> String {
+        expressions.enumerated().reduce(text) { result, item in
+            item.element.stringByReplacingMatches(in: result, range: NSRange(result.startIndex..., in: result), withTemplate: item.offset < 4 ? "$1[REDACTED]" : "[REDACTED]")
         }
     }
 }

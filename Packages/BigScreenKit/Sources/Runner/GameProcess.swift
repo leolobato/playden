@@ -44,7 +44,7 @@ private final class ChildProcess: GameProcess, @unchecked Sendable {
     private let descriptor: Int32
     private let lock = NSLock()
     private var status: Int32?
-    private var output = Data()
+    private var output = DiagnosticOutputBuffer()
     init(executable: URL, arguments: [String], environment: [String: String], input: Data?) throws {
         guard executable.isFileURL, !executable.path.utf8.contains(0), arguments.allSatisfy({ !$0.utf8.contains(0) }),
               environment.allSatisfy({ !$0.key.isEmpty && !$0.key.contains("=") && !$0.key.utf8.contains(0) && !$0.value.utf8.contains(0) }) else { throw CocoaError(.fileReadInvalidFileName) }
@@ -118,14 +118,13 @@ private final class ChildProcess: GameProcess, @unchecked Sendable {
             for _ in 0..<32 {
                 let size = read(descriptor, &bytes, bytes.count)
                 if size <= 0 { break }
-                output.append(contentsOf: bytes.prefix(size))
-                if output.count > 256 * 1024 { output.removeFirst(output.count - 256 * 1024) }
+                output.append(Data(bytes.prefix(size)))
             }
             if status == nil {
                 var value: Int32 = 0
                 if waitpid(identity.pid, &value, WNOHANG) == identity.pid { status = (value & 0x7f) == 0 ? ((value >> 8) & 0xff) : 128 + (value & 0x7f) }
             }
-            return .init(exitCode: status, output: DiagnosticRedactor.redact(String(decoding: output, as: UTF8.self)))
+            return .init(exitCode: status, output: output.text)
         }
     }
     func signalGroup(_ signal: Int32) {

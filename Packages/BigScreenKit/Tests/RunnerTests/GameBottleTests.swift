@@ -1,5 +1,6 @@
 import XCTest
 import Darwin
+import Synchronization
 import Domain
 @testable import Runner
 
@@ -152,9 +153,16 @@ final class GameBottleTests: XCTestCase {
         guard ProcessInfo.processInfo.environment["BIGSCREEN_CROSSOVER_BOTTLE_PROBE"] == "1" else { throw XCTSkip("Opt in to a unique owned game-bottle clone/startup/delete probe") }
         let bottle = reference(UUID().uuidString.lowercased())
         let manager = CrossOverGameBottles()
-        try await manager.prepare(bottle)
-        let ready = try await manager.isReady(bottle); XCTAssertTrue(ready)
-        try await manager.remove(bottle)
-        let removed = try await manager.isReady(bottle); XCTAssertFalse(removed)
+        let commands = Mutex<[DiagnosticCommand]>([])
+        try await DiagnosticOutputContext.$sink.withValue({ command in commands.withLock { $0.append(command) } }) {
+            do {
+                try await manager.prepare(bottle)
+                let ready = try await manager.isReady(bottle); XCTAssertTrue(ready)
+                try await manager.remove(bottle)
+                let removed = try await manager.isReady(bottle); XCTAssertFalse(removed)
+            } catch { try? await manager.remove(bottle); throw error }
+        }
+        XCTAssertTrue(commands.withLock { $0.contains { $0.tool == "cxbottle" && $0.exitCode == 0 } })
+        XCTAssertTrue(commands.withLock { $0.contains { $0.tool == "cxstart" && $0.output.contains("BIGSCREEN_GAME_BOTTLE_READY") && $0.exitCode == 0 } })
     }
 }

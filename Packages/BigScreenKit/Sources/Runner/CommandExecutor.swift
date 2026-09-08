@@ -1,5 +1,6 @@
 import Foundation
 import Darwin
+import Domain
 
 public struct CommandResult: Sendable, Equatable {
     public let exitCode: Int32
@@ -19,12 +20,22 @@ public struct CommandExecutor: CommandExecuting {
     public init() {}
     public func run(executable: URL, arguments: [String], timeout: TimeInterval) async throws -> CommandResult {
         let cancellation = CancellationFlag()
-        return try await withTaskCancellationHandler {
-            try Task.checkCancellation()
-            return try await Task.detached(priority: .utility) {
-                try Self.execute(executable: executable, arguments: arguments, timeout: timeout, cancellation: cancellation)
-            }.value
-        } onCancel: { cancellation.cancel() }
+        do {
+            let result = try await withTaskCancellationHandler {
+                try Task.checkCancellation()
+                return try await Task.detached(priority: .utility) {
+                    try Self.execute(executable: executable, arguments: arguments, timeout: timeout, cancellation: cancellation)
+                }.value
+            } onCancel: { cancellation.cancel() }
+            DiagnosticOutputContext.sink?(.init(tool: executable.lastPathComponent, exitCode: result.exitCode,
+                timedOut: result.timedOut, cancelled: result.cancelled, output: result.output))
+            return result
+        } catch {
+            DiagnosticOutputContext.sink?(.init(tool: executable.lastPathComponent, exitCode: nil,
+                cancelled: error is CancellationError || Task.isCancelled,
+                output: error is POSIXError ? error.localizedDescription : "The command could not start."))
+            throw error
+        }
     }
     private static func execute(executable: URL, arguments: [String], timeout: TimeInterval, cancellation: CancellationFlag) throws -> CommandResult {
         guard executable.isFileURL, !executable.path.utf8.contains(0), arguments.allSatisfy({ !$0.utf8.contains(0) }) else {
@@ -68,15 +79,14 @@ public struct CommandExecutor: CommandExecuting {
         let start = ContinuousClock.now
         var stopping: ContinuousClock.Instant?
         var status: Int32 = 0
-        var output = Data(), buffer = [UInt8](repeating: 0, count: 8192)
+        var output = DiagnosticOutputBuffer(), buffer = [UInt8](repeating: 0, count: 8192)
         var timedOut = false, cancelled = false
         func drain() {
             // Bound both memory and work per poll, even if a tool floods its output.
             for _ in 0..<16 {
                 let count = read(descriptors[0], &buffer, buffer.count)
                 guard count > 0 else { break }
-                output.append(contentsOf: buffer.prefix(count))
-                if output.count > 256 * 1024 { output.removeFirst(output.count - 256 * 1024) }
+                output.append(Data(buffer.prefix(count)))
             }
         }
         while true {
@@ -96,7 +106,7 @@ public struct CommandExecutor: CommandExecuting {
         drain()
         let signal = status & 0x7f
         let exitCode = signal == 0 ? (status >> 8) & 0xff : 128 + signal
-        return CommandResult(exitCode: exitCode, output: String(decoding: output, as: UTF8.self), timedOut: timedOut, cancelled: cancelled)
+        return CommandResult(exitCode: exitCode, output: output.text, timedOut: timedOut, cancelled: cancelled)
     }
 }
 private final class CancellationFlag: @unchecked Sendable {
