@@ -102,6 +102,41 @@ final class CloudSyncServiceTests: XCTestCase {
         XCTAssertEqual(try read(game), "more local progress")
     }
 
+    func testRecreatedBottleRestoresCloudWithSameInstallationAfterRestart() async throws {
+        let root = try directory(), bottle = root.appendingPathComponent("bottle")
+        try FileManager.default.createDirectory(at: bottle, withIntermediateDirectories: true)
+        let database = root.appendingPathComponent("catalog.sqlite").path
+        let store = try CatalogStore(path: database), installed = installed(bottle)
+        let saves = SaveStore(root: root.appendingPathComponent("backups"))
+        let mapping = SaveMapping(rules: [.init(root: .bottle, directory: "saves", pattern: "*.mountain",
+            cloudPrefix: "%GameInstall%saves")], coverage: .metadata)
+        try store.saveInstallation(installed)
+        let server = CloudServer(gameID: gameID, catalog: store)
+        let cloud = CloudSyncService(catalog: store, saves: saves, reader: server, writer: server,
+            roots: { _ in [.bottle: bottle] }, validateUploads: { _, _, _ in })
+        await server.replace([payload("preserved Cloud progress")])
+        let initial = await cloud.synchronize(installed, mapping: mapping)
+        XCTAssertEqual(initial.state, .upToDate, initial.message)
+        let remoteBefore = try await server.files(for: gameID)
+
+        // Simulate losing the owned bottle and recreating it, then crashing before the app
+        // can record recovery. Installation ID, path, owner and Cloud baseline are unchanged.
+        let original = root.appendingPathComponent("original-bottle")
+        try FileManager.default.moveItem(at: bottle, to: original)
+        try FileManager.default.createDirectory(at: bottle, withIntermediateDirectories: true)
+        let reopened = try CatalogStore(path: database)
+        let restarted = CloudSyncService(catalog: reopened, saves: saves, reader: server, writer: server,
+            roots: { _ in [.bottle: bottle] }, validateUploads: { _, _, _ in })
+        let restored = await restarted.synchronize(installed, mapping: mapping)
+        XCTAssertEqual(restored.state, .upToDate, restored.message)
+        XCTAssertEqual(try read(bottle), "preserved Cloud progress")
+        XCTAssertEqual(try read(original), "preserved Cloud progress")
+        let remoteAfter = try await server.files(for: gameID), calls = await server.uploadCalls
+        XCTAssertEqual(remoteAfter, remoteBefore)
+        XCTAssertEqual(calls, 0, "A replacement bottle must never authorize remote deletion")
+        XCTAssertEqual(try reopened.snapshot().entries.first?.installation?.id, installed.id)
+    }
+
     func testConflictRequiresExactConsentAndRetainsBothCopies() async throws {
         let root = try directory(), game = try directory(), store = try CatalogStore(), installed = installed(game)
         let saves = SaveStore(root: root); try store.saveInstallation(installed); try put("local progress", at: game)
@@ -120,6 +155,51 @@ final class CloudSyncServiceTests: XCTestCase {
         let oldLocal = try await saves.stagedContents(localID, gameID: gameID, location: location)
         let oldRemote = try await saves.stagedContents(remoteID, gameID: gameID, location: location)
         XCTAssertEqual(oldLocal, Data("local progress".utf8)); XCTAssertEqual(oldRemote, Data("different Cloud progress".utf8))
+    }
+
+    func testReplacingEmptyRootBeforeRemoteDeletionRejectsWriteThenRestoresOnRetry() async throws {
+        let root = try directory(), game = root.appendingPathComponent("game"), store = try CatalogStore()
+        try FileManager.default.createDirectory(at: game, withIntermediateDirectories: true)
+        let installed = installed(game), saves = SaveStore(root: root.appendingPathComponent("backups"))
+        try store.saveInstallation(installed)
+        let server = CloudServer(gameID: gameID, catalog: store)
+        let cloud = service(store, server: server, saves: saves, root: game)
+        await server.replace([payload("remote progress")])
+        let initial = await cloud.synchronize(installed, mapping: mapping)
+        XCTAssertEqual(initial.state, .upToDate)
+        try FileManager.default.removeItem(at: game.appendingPathComponent("saves/GameSaveNew.mountain"))
+        let replacing = service(store, server: server, saves: saves, root: game) { _, uploads, deletes in
+            XCTAssertTrue(uploads.isEmpty); XCTAssertEqual(deletes.count, 1)
+            try FileManager.default.moveItem(at: game, to: root.appendingPathComponent("old-game"))
+            try FileManager.default.createDirectory(at: game, withIntermediateDirectories: true)
+        }
+        let refused = await replacing.synchronize(installed, mapping: mapping)
+        XCTAssertEqual(refused.state, .pendingUpload)
+        XCTAssertTrue(refused.message.contains("save folder changed"), refused.message)
+        let calls = await server.uploadCalls; XCTAssertEqual(calls, 0)
+        let restored = await cloud.synchronize(installed, mapping: mapping)
+        XCTAssertEqual(restored.state, .upToDate, restored.message)
+        XCTAssertEqual(try read(game), "remote progress")
+        let finalCalls = await server.uploadCalls; XCTAssertEqual(finalCalls, 0)
+    }
+
+    func testReplacingRootWithIdenticalFilesInvalidatesExistingConflictConsent() async throws {
+        let root = try directory(), game = root.appendingPathComponent("game"), store = try CatalogStore()
+        let installed = installed(game), saves = SaveStore(root: root.appendingPathComponent("backups"))
+        try store.saveInstallation(installed); try put("local", at: game)
+        let server = CloudServer(gameID: gameID, catalog: store)
+        let cloud = service(store, server: server, saves: saves, root: game)
+        await server.replace([payload("remote")])
+        let initial = await cloud.synchronize(installed, mapping: mapping)
+        let reviewed = try XCTUnwrap(initial.operation)
+        try FileManager.default.moveItem(at: game, to: root.appendingPathComponent("old-game"))
+        try put("local", at: game)
+        let result = await cloud.synchronize(installed, mapping: mapping,
+            authorization: .init(operation: reviewed, conflictChoice: .local, attachAccount: true))
+        XCTAssertEqual(result.state, .conflict, result.message)
+        XCTAssertEqual(try read(game), "local")
+        let calls = await server.uploadCalls; XCTAssertEqual(calls, 0)
+        XCTAssertNil(try store.cloudAttachment(for: gameID, installationID: installed.id))
     }
 
     func testNetworkFailureStagesLatestProgressAndRetriesAfterOfflinePlay() async throws {

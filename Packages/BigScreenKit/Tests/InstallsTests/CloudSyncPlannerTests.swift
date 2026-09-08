@@ -5,6 +5,7 @@ import Domain
 final class CloudSyncPlannerTests: XCTestCase {
     let id = GameID(source: "steam", value: "1055540")
     let installation = UUID()
+    let roots: [SaveRoot: SaveRootIdentity] = [.bottle: .init(device: 1, inode: 42, birthSeconds: 100, birthNanoseconds: 0)]
     let mapping = SaveMapping(rules: [
         .init(root: .bottle, directory: "drive_c/users/crossover/AppData/LocalLow/adamgryu/A Short Hike", pattern: "*.mountain", recursive: false,
               cloudPrefix: "%WinAppDataLocalLow%adamgryu/A Short Hike")
@@ -19,13 +20,27 @@ final class CloudSyncPlannerTests: XCTestCase {
     }
     func baseline(_ hash: UInt8, installationID: UUID? = nil, account: String = "a") -> CloudSyncBaseline {
         .init(gameID: id, installationID: installationID ?? installation, accountKey: account, revision: 1,
-              mapping: mapping, files: [remote(hash)])
+              mapping: mapping, files: [remote(hash)], rootIdentities: roots)
     }
     func plan(_ local: [CloudLocalFile], _ remote: [CloudFile], baseline: CloudSyncBaseline? = nil,
               account: String = "a", attached: String? = "a") throws -> CloudSyncPlan {
         try CloudSyncPlanner.plan(installationID: installation, mapping: mapping, localFiles: local,
             remote: .init(gameID: id, accountKey: account, revision: 2, files: remote), baseline: baseline,
-            attachedAccountKey: attached)
+            attachedAccountKey: attached, rootIdentities: roots)
+    }
+    func testLegacyBaselineAndReusedInodeCannotAuthorizeDeletion() throws {
+        let legacy = CloudSyncBaseline(gameID: id, installationID: installation, accountKey: "a", revision: 1,
+            mapping: mapping, files: [remote(1)])
+        XCTAssertEqual(try plan([], [remote(1)], baseline: legacy).decisions.first?.action, .download)
+        XCTAssertEqual(try plan([local(2)], [remote(1)], baseline: legacy).decisions.first?.action, .conflict)
+        let replacement: [SaveRoot: SaveRootIdentity] = [.bottle: .init(device: 1, inode: 42, birthSeconds: 200, birthNanoseconds: 0)]
+        let result = try CloudSyncPlanner.plan(installationID: installation, mapping: mapping, localFiles: [],
+            remote: .init(gameID: id, accountKey: "a", revision: 2, files: [remote(1)]), baseline: baseline(1),
+            attachedAccountKey: "a", rootIdentities: replacement)
+        XCTAssertEqual(result.decisions.first?.action, .download)
+        // The new optional field must decode from an existing baseline payload.
+        let data = try JSONEncoder().encode(legacy)
+        XCTAssertNil(try JSONDecoder().decode(CloudSyncBaseline.self, from: data).rootIdentities)
     }
     func testThreeWayComparisonNeverUsesTimestampAsConflictWinner() throws {
         let base = baseline(1)
@@ -35,6 +50,24 @@ final class CloudSyncPlannerTests: XCTestCase {
         let conflict = try plan([local(2, time: 2000)], [remote(3, time: 1)], baseline: base)
         XCTAssertTrue(conflict.hasConflicts); XCTAssertFalse(conflict.canApplyAutomatically)
         XCTAssertEqual(try plan([local(2)], [remote(2)], baseline: base).decisions.first?.action, .unchanged)
+    }
+    func testOnlyReplacementRootLosesItsBaseline() throws {
+        let gameIdentity = SaveRootIdentity(device: 1, inode: 8, birthSeconds: 10, birthNanoseconds: 0)
+        let oldRoots = roots.merging([.game: gameIdentity]) { old, _ in old }
+        let newRoots: [SaveRoot: SaveRootIdentity] = [.game: gameIdentity,
+            .bottle: .init(device: 1, inode: 99, birthSeconds: 200, birthNanoseconds: 0)]
+        let mixedMapping = SaveMapping(rules: mapping.rules + [.init(root: .game, directory: "saves",
+            pattern: "*.dat", cloudPrefix: "%GameInstall%saves")], coverage: .metadata)
+        let gameSave = CloudFile(name: "%GameInstall%saves/progress.dat", sha1: Data(repeating: 1, count: 20),
+            bytes: 1, modifiedAt: .now)
+        let files = [remote(1), gameSave]
+        let base = CloudSyncBaseline(gameID: id, installationID: installation, accountKey: "a", revision: 1,
+            mapping: mixedMapping, files: files, rootIdentities: oldRoots)
+        let result = try CloudSyncPlanner.plan(installationID: installation, mapping: mixedMapping, localFiles: [],
+            remote: .init(gameID: id, accountKey: "a", revision: 2, files: files), baseline: base,
+            attachedAccountKey: "a", rootIdentities: newRoots)
+        XCTAssertEqual(result.decisions.first(where: { $0.location?.root == .bottle })?.action, .download)
+        XCTAssertEqual(result.decisions.first(where: { $0.location?.root == .game })?.action, .deleteRemote)
     }
     func testDeletionsRequireAValidBaselineAndDoNotWinAgainstEdits() throws {
         let base = baseline(1)

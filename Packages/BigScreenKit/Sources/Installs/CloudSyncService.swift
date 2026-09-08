@@ -108,7 +108,7 @@ public actor CloudSyncService: CloudSyncManaging {
                 guard let originalLocalID = authorization.operation.localSnapshotID,
                       authorization.operation.remote == remote else { return try await replanChangedReview(installation, mapping: mapping, local: local, remote: remote, sessionID: preparingSessionID) }
                 let reviewed = try await saves.verified(originalLocalID, gameID: gameID)
-                if fingerprints(reviewed) != fingerprints(local) {
+                if fingerprints(reviewed) != fingerprints(local) || reviewed.rootIdentities != local.rootIdentities {
                     return try await replanChangedReview(installation, mapping: mapping, local: local, remote: remote, sessionID: preparingSessionID)
                 }
             }
@@ -145,7 +145,8 @@ public actor CloudSyncService: CloudSyncManaging {
         let attachment = try catalog.cloudAttachment(for: gameID, installationID: installation.id)
         let originalPlan = try CloudSyncPlanner.plan(installationID: installation.id, mapping: mapping,
             localFiles: localFiles(local), remote: remote,
-            baseline: catalog.cloudBaseline(for: gameID, accountKey: remote.accountKey), attachedAccountKey: attachment?.accountKey)
+            baseline: catalog.cloudBaseline(for: gameID, accountKey: remote.accountKey), attachedAccountKey: attachment?.accountKey,
+            rootIdentities: local.rootIdentities)
         if originalPlan.hasUnavailableFiles {
             active[gameID] = try catalog.pauseCloudSync(current(gameID), phase: .unavailable)
             return publish(status(try current(gameID), state: .unavailable, message: "Some Cloud save locations are unsupported. Your local progress has been kept."))
@@ -180,7 +181,9 @@ public actor CloudSyncService: CloudSyncManaging {
         // Recheck ownership/idle writer and the entire local set before any remote write.
         let locations = try await roots(installation)
         let beforeWrite = try await saves.snapshot(gameID: gameID, installationID: installation.id, mapping: mapping, roots: locations)
-        guard fingerprints(beforeWrite) == fingerprints(local) else { throw issue("Local progress changed before upload. Retry to review it.") }
+        guard fingerprints(beforeWrite) == fingerprints(local), beforeWrite.rootIdentities == local.rootIdentities else {
+            throw issue("Local progress or its save folder changed before upload. Retry to review it.")
+        }
         var finalRemote = remote
         if !uploads.isEmpty || !deletes.isEmpty {
             try Task.checkCancellation()
@@ -193,13 +196,15 @@ public actor CloudSyncService: CloudSyncManaging {
         guard try await reader.files(for: gameID) == finalRemote else { throw issue("Cloud progress changed before local saves could be applied. Retry to reconcile it.") }
         try Task.checkCancellation()
         let finalLocations = try await roots(installation)
+        try await saves.verifyCloudRoots(local.id, gameID: gameID, roots: finalLocations)
         active[gameID] = try catalog.markCloudApplying(current(gameID))
         let applied = try await saves.applyCloud(plan, localSnapshotID: local.id, remoteSnapshotID: downloaded.id, roots: finalLocations)
         active[gameID] = try catalog.markCloudLocalApplied(current(gameID))
         guard try await reader.files(for: gameID) == finalRemote, try matchesResult(plan, local: applied, remote: finalRemote, mapping: mapping) else {
             throw issue("Save sync could not verify the final copies. Both backups have been kept; retry to reconcile.")
         }
-        return try finish(gameID, mapping: mapping, remote: finalRemote)
+        try await saves.verifyCloudRoots(local.id, gameID: gameID, roots: roots(installation))
+        return try finish(gameID, mapping: mapping, remote: finalRemote, rootIdentities: local.rootIdentities)
     }
 
     private func resolved(_ plan: CloudSyncPlan, choice: CloudSyncAuthorization.ConflictChoice?) throws -> CloudSyncPlan {
@@ -218,11 +223,13 @@ public actor CloudSyncService: CloudSyncManaging {
         guard operation.id == operationID else { throw CloudJournalError.staleAttempt }
         active[gameID] = try catalog.recordCloudBatch(operation, batch: batch)
     }
-    private func finish(_ gameID: GameID, mapping: SaveMapping, remote: CloudFileList) throws -> CloudSyncStatus {
+    private func finish(_ gameID: GameID, mapping: SaveMapping, remote: CloudFileList,
+                        rootIdentities: [SaveRoot: SaveRootIdentity]?) throws -> CloudSyncStatus {
         let operation = try current(gameID)
         active[gameID] = try catalog.completeCloudSync(operation,
             baseline: .init(gameID: gameID, installationID: operation.installationID, accountKey: operation.accountKey,
-                            revision: remote.revision, mapping: mapping, files: remote.files.filter { $0.state == .present }))
+                            revision: remote.revision, mapping: mapping, files: remote.files.filter { $0.state == .present },
+                            rootIdentities: rootIdentities))
         return publish(status(try current(gameID), state: .upToDate, message: "Up to date"))
     }
     private func fail(_ gameID: GameID, error: Error) -> CloudSyncStatus {

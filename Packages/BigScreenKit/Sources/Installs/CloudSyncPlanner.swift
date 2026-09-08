@@ -7,7 +7,7 @@ import Domain
 public enum CloudSyncPlanner {
     public static func plan(installationID: UUID, mapping: SaveMapping, localFiles: [CloudLocalFile],
                             remote: CloudFileList, baseline: CloudSyncBaseline?,
-                            attachedAccountKey: String?) throws -> CloudSyncPlan {
+                            attachedAccountKey: String?, rootIdentities: [SaveRoot: SaveRootIdentity]? = nil) throws -> CloudSyncPlan {
         let paths = try CloudSavePaths(mapping: mapping)
         if let baseline {
             guard baseline.gameID == remote.gameID, baseline.accountKey == remote.accountKey else {
@@ -55,7 +55,8 @@ public enum CloudSyncPlanner {
                 action = .unavailable
             } else if localHash == remoteHash {
                 action = there?.requiresUpload == true && here != nil ? .upload : .unchanged
-            } else if base != nil {
+            } else if let root = locations[key]?.root, let identity = rootIdentities?[root],
+                      base?.rootIdentities?[root] == identity {
                 if localHash == baseHash { action = there?.state == .present ? .download : .deleteLocal }
                 else if remoteHash == baseHash { action = here == nil ? .deleteRemote : .upload }
                 else { action = .conflict }

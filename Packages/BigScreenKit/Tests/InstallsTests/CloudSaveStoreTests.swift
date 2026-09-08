@@ -35,11 +35,11 @@ final class CloudSaveStoreTests: XCTestCase {
     private func plan(_ local: SaveSnapshot, remote: CloudFileList, baseline: CloudSyncBaseline? = nil) throws -> CloudSyncPlan {
         try CloudSyncPlanner.plan(installationID: local.installationID, mapping: local.mapping,
             localFiles: local.files.map { .init(location: .init(root: $0.root, path: $0.path), sha1: $0.sha1, bytes: $0.bytes, modifiedAt: $0.modifiedAt) },
-            remote: remote, baseline: baseline, attachedAccountKey: remote.accountKey)
+            remote: remote, baseline: baseline, attachedAccountKey: remote.accountKey, rootIdentities: local.rootIdentities)
     }
     private func base(_ local: SaveSnapshot, remote: CloudFileList) -> CloudSyncBaseline {
         .init(gameID: gameID, installationID: local.installationID, accountKey: remote.accountKey,
-              revision: remote.revision, mapping: local.mapping, files: remote.files)
+              revision: remote.revision, mapping: local.mapping, files: remote.files, rootIdentities: local.rootIdentities)
     }
     private func archive(_ root: URL, _ id: UUID) -> URL {
         root.appendingPathComponent(CrossOverGameBottles.name(for: gameID)).appendingPathComponent(id.uuidString)
@@ -184,6 +184,29 @@ final class CloudSaveStoreTests: XCTestCase {
             do { _ = try await store.applyCloud(review, localSnapshotID: local.id, remoteSnapshotID: downloaded.id, roots: [.game: game]); XCTFail("Followed \(kind)") } catch {}
             XCTAssertEqual(try read("GameSaveNew.mountain", at: outside), "unrelated")
         }
+    }
+
+    func testReplacementRootCannotReceiveAnOldPublication() async throws {
+        let root = try directory(), game = root.appendingPathComponent("game")
+        try FileManager.default.createDirectory(at: game, withIntermediateDirectories: true)
+        let store = SaveStore(root: root.appendingPathComponent("backups")), installationID = UUID()
+        let local = try await store.snapshot(gameID: gameID, installationID: installationID, mapping: mapping, roots: [.game: game])
+        let payloads = [upload("remote")], current = remote(payloads)
+        let downloaded = try await store.stageCloud(current, installationID: installationID, mapping: mapping, downloads: payloads)
+        let review = try plan(local, remote: current)
+        let original = root.appendingPathComponent("original")
+        try FileManager.default.moveItem(at: game, to: original)
+        try FileManager.default.createDirectory(at: game, withIntermediateDirectories: true)
+        do {
+            _ = try await store.applyCloud(review, localSnapshotID: local.id, remoteSnapshotID: downloaded.id, roots: [.game: game])
+            XCTFail("Applied a review to a replacement directory")
+        } catch let failure as OperationFailure { XCTAssertTrue(failure.reason.contains("replaced after review")) }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: game.appendingPathComponent("saves").path))
+        let preserved = try await store.verified(local.id, gameID: gameID)
+        XCTAssertEqual(preserved, local)
+        // Renaming the original directory does not change its physical identity.
+        _ = try await store.applyCloud(review, localSnapshotID: local.id, remoteSnapshotID: downloaded.id, roots: [.game: original])
+        XCTAssertEqual(try read("saves/GameSaveNew.mountain", at: original), "remote")
     }
 
     func testPrimitiveRecoversPublishedReplacementAndRemovalTemporaries() throws {

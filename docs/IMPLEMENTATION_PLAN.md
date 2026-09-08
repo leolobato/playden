@@ -680,3 +680,14 @@ rendering and a clean live A Short Hike launch/quit pass; its save stayed unchan
 and live Finder acceptance remain. Before the missing-bottle live test, resolve how replacement
 runtime save roots invalidate the old Cloud baseline so missing progress cannot be interpreted as
 a remote deletion. See `docs/validation/2026-09-08-diagnostic-capture.md`.
+
+### 8 September — Missing-bottle Cloud baseline checkpoint
+
+A real journal/filesystem regression reproduced remote save deletion after a bottle was recreated
+with the same installation ID, including an app restart. Local snapshots and sync baselines now
+record physical root identities; a replacement root restores available Cloud progress instead of
+inheriting deletion history. Identity checks also invalidate stale consent and prevent publication
+into a replaced folder. Legacy baselines migrate conservatively without deleting saves. Full tests
+and the signed build pass. The live A Short Hike test is pending because the desktop is locked;
+its bottle remains untouched. Recovery when the original root is lost during an interrupted local
+publication also remains open. See `docs/validation/2026-09-08-cloud-root-recovery.md`.

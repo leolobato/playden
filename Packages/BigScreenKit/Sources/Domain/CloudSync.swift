@@ -17,6 +17,20 @@ public struct CloudLocalFile: Codable, Equatable, Sendable {
     }
 }
 
+/// Physical directory identity, captured from an opened, owned save root. Creation time also
+/// distinguishes reused inode numbers. A changed identity invalidates deletion inference even
+/// when runtime recreation preserves the logical installation ID and ownership token.
+public struct SaveRootIdentity: Codable, Equatable, Sendable {
+    public let device: Int64
+    public let inode: UInt64
+    public let birthSeconds: Int64
+    public let birthNanoseconds: Int64
+    public init(device: Int64, inode: UInt64, birthSeconds: Int64, birthNanoseconds: Int64) {
+        self.device = device; self.inode = inode
+        self.birthSeconds = birthSeconds; self.birthNanoseconds = birthNanoseconds
+    }
+}
+
 /// Committed only once both sides have been verified equal. Reinstallation and mapping changes
 /// invalidate deletion inference; an old baseline must not turn absent new local files into deletions.
 public struct CloudSyncBaseline: Codable, Equatable, Sendable {
@@ -27,10 +41,13 @@ public struct CloudSyncBaseline: Codable, Equatable, Sendable {
     public let mapping: SaveMapping
     public let files: [CloudFile]
     public let synchronizedAt: Date
+    public let rootIdentities: [SaveRoot: SaveRootIdentity]?
     public init(gameID: GameID, installationID: UUID, accountKey: String, revision: UInt64,
-                mapping: SaveMapping, files: [CloudFile], synchronizedAt: Date = .now) {
+                mapping: SaveMapping, files: [CloudFile], synchronizedAt: Date = .now,
+                rootIdentities: [SaveRoot: SaveRootIdentity]? = nil) {
         self.gameID = gameID; self.installationID = installationID; self.accountKey = accountKey
         self.revision = revision; self.mapping = mapping; self.files = files; self.synchronizedAt = synchronizedAt
+        self.rootIdentities = rootIdentities
     }
 }
 

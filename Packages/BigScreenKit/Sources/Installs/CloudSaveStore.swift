@@ -4,6 +4,19 @@ import CryptoKit
 import Domain
 
 extension SaveStore {
+    public func verifyCloudRoots(_ localSnapshotID: UUID, gameID: GameID, roots: [SaveRoot: URL]) throws {
+        let local = try verified(localSnapshotID, gameID: gameID)
+        try verifyCloudRoots(local, in: open(roots))
+    }
+
+    private func verifyCloudRoots(_ local: SaveSnapshot, in roots: [SaveRoot: SaveDirectory]) throws {
+        // Legacy interrupted publications still use their content preconditions; new reviews
+        // additionally refuse to apply authorization to replacement physical directories.
+        if let expected = local.rootIdentities, try identities(local.mapping, in: roots) != expected {
+            throw saveFailure("The save folder was replaced after review. Both staged copies have been kept.")
+        }
+    }
+
     /// Publish a complete downloaded set under an immutable ID before the journal permits any
     /// replacement. Payloads are rehashed here even when the transport has already verified them.
     public func stageCloud(_ remote: CloudFileList, installationID: UUID, mapping: SaveMapping,
@@ -97,6 +110,7 @@ extension SaveStore {
         let paths = try CloudSavePaths(mapping: local.mapping)
         let operations = try cloudChanges(plan, local: local, downloaded: downloaded, paths: paths)
         let destinations = try open(roots)
+        try verifyCloudRoots(local, in: destinations)
         let cloudMapping = SaveMapping(rules: local.mapping.rules.filter { $0.cloudPrefix != nil }, coverage: local.mapping.coverage)
         func currentFiles() throws -> [String: SaveDigest] {
             var result: [String: SaveDigest] = [:]

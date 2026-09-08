@@ -23,6 +23,9 @@ public struct SaveSnapshot: Codable, Equatable, Sendable, Identifiable {
     /// Present only for a downloaded Cloud staging copy. Local snapshots do not imply account
     /// attachment; the Catalog journal owns that consent and the successful sync baseline.
     public var cloud: CloudFileList? = nil
+    /// Absent on legacy archives and downloaded copies. These identities belong to local roots,
+    /// not to the immutable archive directories that hold the backup bytes.
+    public var rootIdentities: [SaveRoot: SaveRootIdentity]? = nil
     public var retainedBytes: Int64 { files.reduce(0) { $0 + $1.bytes } }
 }
 
@@ -76,8 +79,9 @@ public actor SaveStore {
                 throw saveFailure("A save changed before its backup finished. Close the game and try again.")
             }
         }
-        let snapshot = SaveSnapshot(version: 1, id: id, gameID: gameID, installationID: installationID,
+        var snapshot = SaveSnapshot(version: 1, id: id, gameID: gameID, installationID: installationID,
                                     createdAt: .now, mapping: mapping, files: entries)
+        snapshot.rootIdentities = try identities(mapping, in: sources)
         try staging.write(JSONEncoder().encode(snapshot), to: "manifest.json")
         try verifyFiles(snapshot, in: staging)
         guard fsync(staging.fd) == 0,
@@ -210,6 +214,17 @@ public actor SaveStore {
     func digest(_ entry: SavedFile) -> SaveDigest { .init(bytes: entry.bytes, sha256: entry.sha256, sha1: entry.sha1) }
     func open(_ roots: [SaveRoot: URL]) throws -> [SaveRoot: SaveDirectory] {
         try roots.mapValues { try SaveDirectory(url: $0) }
+    }
+    func identities(_ mapping: SaveMapping, in roots: [SaveRoot: SaveDirectory]) throws -> [SaveRoot: SaveRootIdentity] {
+        var result: [SaveRoot: SaveRootIdentity] = [:]
+        for root in Set(mapping.rules.map(\.root)) {
+            guard let directory = roots[root] else { throw saveFailure("A save source is unavailable.") }
+            var info = stat()
+            guard fstat(directory.fd, &info) == 0 else { throw SaveDirectory.posix() }
+            result[root] = .init(device: Int64(info.st_dev), inode: UInt64(info.st_ino),
+                birthSeconds: Int64(info.st_birthtimespec.tv_sec), birthNanoseconds: Int64(info.st_birthtimespec.tv_nsec))
+        }
+        return result
     }
     func gameDirectory(_ id: GameID, create: Bool = false) throws -> SaveDirectory {
         let parent = try SaveDirectory(url: root, create: create)
