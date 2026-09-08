@@ -649,3 +649,12 @@ outside active downloading. Sibling, package and app checks pass (one corrected 
 expectation), with 1080p/4K UI inspection and a successful live A Short Hike repair transfer. The
 asset was restored exactly and saves stayed unchanged. History dismissal and physical drive
 reconnection acceptance remain next. See `docs/validation/2026-09-08-download-transfer.md`.
+
+### 8 September — Downloads history checkpoint
+
+Completed, cancelled and failed jobs can now be dismissed through the keyboard/controller menu.
+Dismissal persists without changing jobs, installations or logs; game pages retain access to
+failed work, and retries become visible again. Stale menu actions cannot hide a changed job.
+The full suite, 1080p/4K rendering and a live A Short Hike dismissal/restart check pass. All live
+job and installation records remained unchanged. Physical drive/controller and broader release
+acceptance remain open. See `docs/validation/2026-09-08-download-history.md`.

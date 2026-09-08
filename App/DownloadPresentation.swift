@@ -51,7 +51,7 @@ extension LibraryModel {
     }
     func downloadActions(for id: GameID) -> [String] {
         if !isPreview, let job = liveJob(for: id) {
-            let common = ["Open game", "View logs"]
+            let common = ["Open game", "View logs"] + (job.canDismissHistory ? ["Dismiss from history"] : [])
             if job.kind == .uninstall { return (job.state == .failed ? ["Retry"] : []) + common }
             let cancel = job.kind == .repair ? "Stop verifying…" : "Cancel download…"
             if [.completed, .cancelled].contains(job.state) { return common }

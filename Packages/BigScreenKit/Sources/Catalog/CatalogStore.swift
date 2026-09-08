@@ -86,6 +86,12 @@ public final class CatalogStore: Sendable {
                 t.primaryKey(["source", "game"])
             }
         }
+        migrator.registerMigration("v4_job_history") { db in
+            try db.create(table: "job_history_dismissals") { t in
+                t.primaryKey("id", .text).references("jobs", onDelete: .cascade)
+                t.column("payload", .blob).notNull()
+            }
+        }
         try migrator.migrate(database)
     }
 

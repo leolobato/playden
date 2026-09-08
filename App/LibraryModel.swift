@@ -78,6 +78,8 @@ final class LibraryModel {
     var gamesStorage: GamesStorageSnapshot?
     var gamesStorageError: String?
     var installJobs: [JobRecord] = []
+    var downloadDismissals: [UUID: JobHistoryDismissal] = [:]
+    var downloadHistoryReview: JobRecord?
     var activeInstallID: UUID?
     var installTransfer: InstallTransferMetrics?
     var installPersistenceError: String?
@@ -139,6 +141,8 @@ final class LibraryModel {
     var panel: Panel? {
         didSet {
             if case .installOffer = oldValue, panel != oldValue { installOfferTask?.cancel(); resolvingInstall = false }
+            if case .downloadActions(let id) = panel { downloadHistoryReview = liveJob(for: id) }
+            else { downloadHistoryReview = nil }
         }
     }
     var panelIndex = 0
@@ -209,6 +213,7 @@ final class LibraryModel {
             catch { self.sessions = nil; self.sessionIssue = error as? OperationFailure ?? .init(stage: "Start sessions", reason: error.localizedDescription, output: error.localizedDescription) }
         } else { self.sessions = nil }
         if !preview { games = []; collections = []; queueOrder = []; completedDownloads = [] }
+        loadDownloadHistory()
         restoreCatalog()
         refreshCloudAvailability()
         restoringState = false
@@ -504,9 +509,7 @@ final class LibraryModel {
             else if let id = focusedGame?.id { show(.confirmation(.install(id))) }
         case "Pause download", "Resume download": downloadPaused.toggle()
         case "View download", "View verification", "View removal":
-            let id = focusedGame?.id
-            selectTab(.downloads)
-            downloadIndex = downloadGames.firstIndex(where: { $0.id == id }) ?? 0
+            if let id = focusedGame?.id { revealDownloadHistory(for: id) }
         default: show(.information(isPreview ? "This is the design preview. \(label) will connect to the real game service in a later milestone. No game files are changed." : "\(label) is still being implemented. Your game files have been kept."))
         }
     }

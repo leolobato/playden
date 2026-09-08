@@ -68,19 +68,27 @@ extension LibraryModel {
             }
         }
     }
-    var visibleInstallJobs: [JobRecord] {
+    var latestInstallJobs: [JobRecord] {
         var latest: [GameID: JobRecord] = [:]
-        for job in installJobs.sorted(by: { $0.createdAt < $1.createdAt }) { latest[job.gameID] = job }
+        for job in installJobs.sorted(by: { $0.createdAt == $1.createdAt ? $0.id.uuidString < $1.id.uuidString : $0.createdAt < $1.createdAt }) { latest[job.gameID] = job }
         func rank(_ job: JobRecord) -> Int {
             if job.id == activeInstallID { return 0 }
             switch job.state { case .running, .stopping: return 0; case .queued, .paused: return 1; case .failed: return 2; default: return 3 }
         }
-        return latest.values.sorted { rank($0) == rank($1) ? $0.queuePosition < $1.queuePosition : rank($0) < rank($1) }
+        return latest.values.sorted {
+            if rank($0) != rank($1) { return rank($0) < rank($1) }
+            if rank($0) >= 2 && $0.updatedAt != $1.updatedAt { return $0.updatedAt > $1.updatedAt }
+            if $0.queuePosition != $1.queuePosition { return $0.queuePosition < $1.queuePosition }
+            return $0.id.uuidString < $1.id.uuidString
+        }
     }
-    func liveJob(for id: GameID) -> JobRecord? { visibleInstallJobs.first { $0.gameID == id } }
+    var visibleInstallJobs: [JobRecord] {
+        latestInstallJobs.filter { downloadDismissals[$0.id]?.hides($0) != true }
+    }
+    func liveJob(for id: GameID) -> JobRecord? { latestInstallJobs.first { $0.gameID == id } }
     func applyInstallStatuses() {
         guard !isPreview else { return }
-        for job in visibleInstallJobs {
+        for job in latestInstallJobs {
             guard let index = games.firstIndex(where: { $0.id == job.gameID }) else { continue }
             if job.kind == .uninstall {
                 games[index].status = job.state == .completed ? .notInstalled : .installed
@@ -100,10 +108,15 @@ extension LibraryModel {
         return Game(id: job.gameID, title: source?.title ?? "Game", coverURL: source?.coverURL, heroURL: source?.heroURL, logoURL: source?.logoURL)
     }
     func performLiveDownloadAction(_ label: String, id: GameID) {
-        guard let job = liveJob(for: id), let installQueue else { return }
+        guard let job = liveJob(for: id) else { return }
+        if label == "Dismiss from history" {
+            guard let reviewed = downloadHistoryReview, reviewed.id == job.id else { return }
+            dismissDownloadHistory(reviewed); return
+        }
         if label == "Open game" { openGame(game(for: job)); return }
         if label == "View logs" { show(.logs(id)); return }
         if label == "Cancel download…" || label == "Stop verifying…" { show(.confirmation(.cancelDownload(id))); return }
+        guard let installQueue else { return }
         panel = nil
         Task { [weak self] in
             do {

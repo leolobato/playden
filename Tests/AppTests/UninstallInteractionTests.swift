@@ -140,7 +140,7 @@ private actor RemovalCloud: CloudSyncManaging {
         model.installJobs = [job]; model.applyInstallStatuses()
         XCTAssertEqual(model.detailActions.first, "View removal")
         XCTAssertFalse(model.detailActions.contains("Play")); XCTAssertFalse(model.detailActions.contains("Uninstall"))
-        XCTAssertEqual(model.downloadActions(for: id), ["Retry", "Open game", "View logs"])
+        XCTAssertEqual(model.downloadActions(for: id), ["Retry", "Open game", "View logs", "Dismiss from history"])
         XCTAssertEqual(job.statusTitle, "Removal needs attention")
         job.state = .completed; XCTAssertEqual(job.statusTitle, "Uninstalled")
     }

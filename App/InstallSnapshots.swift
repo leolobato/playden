@@ -43,6 +43,15 @@ import Installs
             if screen == "install-game-progress" { model.openGame(model.games.first { $0.id == game.id }!) }
             else if screen == "install-mini-progress" { model.selectTab(.library) }
             else { model.selectTab(.downloads) }
+            if screen == "install-history-failed", let failed = jobs.first(where: { $0.state == .failed }) {
+                model.downloadIndex = model.downloadGames.firstIndex { $0.id == failed.gameID } ?? 0
+                model.show(.downloadActions(failed.gameID)); model.panelIndex = model.panelActions.count - 1
+            }
+            if screen == "install-history-completed" {
+                model.installJobs[0].state = .completed; model.installJobs[0].stage = .finished; model.activeInstallID = nil
+                model.downloadIndex = model.downloadGames.firstIndex { $0.id == active.gameID } ?? 0
+                model.show(.downloadActions(active.gameID)); model.panelIndex = model.panelActions.count - 1
+            }
         }
         return model
     }

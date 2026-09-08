@@ -99,13 +99,14 @@ struct ModalLayer: View {
                     if model.panel == .compatibility { Text(model.isPreview ? "Your rating · preview library" : "Your rating").font(Design.body(22)).foregroundStyle(Design.secondary) }
                     if model.panel == .signOut { Text("Installed games, saves, collections and play history stay on this Mac.").font(Design.body(24)).foregroundStyle(Design.secondary) }
                     PanelActionList(model: model)
+                    if let note = model.downloadHistoryNote { Text(note).font(Design.body(22)).foregroundStyle(Design.secondary).lineSpacing(4) }
                     if model.panel == .compatibility, let id = model.focusedGame?.id {
                         Text(model.compatibilityNotes[id].flatMap { $0.isEmpty ? nil : $0 } ?? "Add a note about settings, controls or anything that needs a workaround.")
                             .font(Design.body(22)).foregroundStyle(Design.secondary).lineLimit(3)
                     }
                     Spacer()
                     if model.panel == .filters { Text("\(model.filteredGames.count) games match").font(Design.body(24)).foregroundStyle(Design.secondary) }
-                    LegendItem(glyph: model.playStationGlyphs ? "○" : "B", title: "Close")
+                    LegendItem(glyph: model.controllerName == nil || model.keyboardNavigation ? "ESC" : model.playStationGlyphs ? "○" : "B", title: "Close")
                 }.padding(.horizontal, 60).padding(.top, 150).padding(.bottom, 70).frame(width: 640, height: 1080).background(Design.panel).shadow(color: .black.opacity(0.5), radius: 40, x: -20)
             }
         }.frame(width: 1920, height: 1080)
@@ -159,8 +160,8 @@ struct DownloadQueue: View {
             }
             if model.downloadRows.isEmpty {
                 VStack(spacing: 24) {
-                    Text("All caught up").font(Design.condensed(56))
-                    Text("Games you install will appear here.").font(Design.body(26)).foregroundStyle(Design.secondary)
+                    Text(model.hasDismissedFailedDownloads ? "No visible jobs" : "All caught up").font(Design.condensed(56))
+                    Text(model.hasDismissedFailedDownloads ? "Open a game page to review dismissed installations." : "Games you install will appear here.").font(Design.body(26)).foregroundStyle(Design.secondary)
                     ActionButton(title: "Browse library", primary: true, focused: true) { model.browseAvailableGames() }
                 }.frame(width: 1188, height: 700)
             }

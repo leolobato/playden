@@ -147,9 +147,10 @@ extension LibraryModel {
         }
         panel = nil; reconcileFocus()
     }
-    func gameName(_ id: GameID) -> String { games.first { $0.id == id }?.title ?? liveJob(for: id)?.plan?.game.title ?? "Game" }
+    func gameName(_ id: GameID) -> String { games.first { $0.id == id }?.title ?? liveJob(for: id)?.plan?.game.title ?? liveJob(for: id)?.originalInstallation?.game.title ?? "Game" }
     var panelTitle: String {
         switch panel {
+        case .downloadActions(let id): gameName(id)
         case .filters: "Sort & filter"
         case .persistenceFailure: "Changes weren’t saved"
         case .signOut: "Sign out of Steam?"
