@@ -691,3 +691,16 @@ into a replaced folder. Legacy baselines migrate conservatively without deleting
 and the signed build pass. The live A Short Hike test is pending because the desktop is locked;
 its bottle remains untouched. Recovery when the original root is lost during an interrupted local
 publication also remains open. See `docs/validation/2026-09-08-cloud-root-recovery.md`.
+
+### 8 September — Interrupted publication recovery checkpoint
+
+Pending local Cloud publication now reconstructs the complete approved result from both staged
+copies, even after its save root is replaced and Steam is offline. Different current progress
+gets a controller review with current/recovered copy choices; both copies and all accepted
+receipts survive further interruptions. Local choices never grant account attachment or advance
+a Cloud baseline. Play can reserve runtime/recipe preparation for a released recovery, but the
+game writer and offline launch remain blocked until local recovery finishes. Tests cover this
+sequence and the account/identity/consent boundaries. The recovery dialog has 1080p/4K offscreen
+layout evidence; live interaction/gameplay is pending on the locked desktop. Settings reset and
+the remaining v1 acceptance gates are still open. See
+`docs/validation/2026-09-08-cloud-publication-recovery.md`.

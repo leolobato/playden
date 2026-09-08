@@ -65,14 +65,22 @@ extension LibraryModel {
         if cloudAvailability[id] == false && session.phase != .awaitingCloud { return [.close] }
         if hasActiveSession, session.session?.gameID == id, session.session?.runtime != nil { return [.close] }
         var choices: [CloudChoice] = []
-        if cloudReview?.gameID == id, let plan = cloudReview?.plan, cloudStatuses[id]?.state == .conflict {
-            if plan.hasConflicts { choices += [.local, .remote] }
+        if cloudReview?.gameID == id, let plan = cloudReview?.reviewPlan, cloudStatuses[id]?.state == .conflict {
+            if plan.hasConflicts || cloudReview?.needsRecoveryReview == true { choices += [.local, .remote] }
             else if plan.requiresAccountConfirmation { choices.append(.attach) }
         }
         choices.append(.retry)
         if session.phase == .awaitingCloud, session.session?.gameID == id, session.cloudStatus?.canPlayOffline == true { choices.append(.offline) }
         choices.append(.close)
         return choices
+    }
+    func cloudChoiceTitle(_ choice: CloudChoice, id: GameID) -> String {
+        guard cloudReview?.gameID == id, cloudReview?.needsRecoveryReview == true else { return choice.rawValue }
+        switch choice {
+        case .local: return "Keep current files"
+        case .remote: return "Restore recovered files"
+        default: return choice.rawValue
+        }
     }
     func cloudMessage(_ id: GameID) -> String {
         if hasActiveSession, session.session?.gameID == id, session.session?.runtime?.phase == .running {
@@ -108,7 +116,7 @@ extension LibraryModel {
         if [.local, .remote, .attach].contains(choice) {
             guard let review = cloudReview, review.gameID == id else { return }
             authorization = .init(operation: review, conflictChoice: choice == .local ? .local : choice == .remote ? .remote : nil,
-                attachAccount: true)
+                attachAccount: !review.needsLocalRecovery)
         } else { authorization = nil }
         if session.phase == .awaitingCloud, session.session?.gameID == id {
             sessionBusy = true; panel = nil

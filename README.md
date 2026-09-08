@@ -108,7 +108,12 @@ Hardware validation of this new diagnostic screen is still pending.
 ./scripts/snapshot.sh
 # Also check scaled window layouts:
 BIGSCREEN_SNAPSHOT_DIR="$PWD/.build/screenshots-720p" ./scripts/snapshot.sh --snapshot-width 1280
+# SwiftUI layout review while the desktop is locked:
+BIGSCREEN_SNAPSHOT_DIR="$PWD/.build/cloud-recovery-ui" ./scripts/snapshot.sh --snapshot-screens cloud-recovery --snapshot-offscreen
 ```
+
+Offscreen rendering checks SwiftUI layout. Use normal window captures for native
+`NSViewRepresentable` content and live interaction checks.
 
 The test suite covers logical grid movement/repeat and native presentation-state interactions
 (modal focus, navigation memory, search, collection/note editing, Unicode text cursors,

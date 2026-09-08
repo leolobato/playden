@@ -7,6 +7,52 @@ public enum CloudJournalError: Error, Equatable {
 }
 
 extension CatalogStore {
+    /// Reserve preparation, not a game writer, while a released Cloud publication needs local
+    /// recovery. This lets SessionService recreate a missing runtime and rerun its recipe before
+    /// resuming that operation. Normal saveSession still rejects unrecovered publications.
+    public func reserveCloudRecoverySession(_ session: PlaySessionRecord, operation: CloudSyncOperation) throws {
+        try database.write { db in
+            let pending = try Self.currentCloud(db, operation)
+            guard pending.needsLocalRecovery, pending.claim == nil, !pending.phase.isTerminal,
+                  session.gameID == pending.gameID, session.runtime == nil, session.endedAt == nil,
+                  session.outcome == nil, session.playedSeconds == 0, session.startedAt == session.lastCheckpointAt else {
+                throw CloudJournalError.invalidTransition
+            }
+            let sessions: [PlaySessionRecord] = try Self.values(db, table: "sessions")
+            guard !sessions.contains(where: { $0.endedAt == nil || $0.id == session.id }) else { throw CloudJournalError.gameBusy }
+            let installed = try Self.requireCloudAccess(db, operation: pending, sessionID: nil)
+            guard installed.bottleID == session.bottleID else { throw CloudJournalError.identityMismatch }
+            try Self.putOperation(db, table: "sessions", id: session.id, gameID: session.gameID, value: session)
+        }
+    }
+
+    /// Only launch/staging metadata may change during recovery preparation. The installation,
+    /// owner, mapping plan, storage and Cloud receipts retain their existing identities.
+    public func saveCloudRecoveryPreparation(_ prepared: InstallationRecord, replacing original: InstallationRecord,
+                                             sessionID: UUID) throws {
+        var allowed = original; allowed.launchSpec = prepared.launchSpec; allowed.staging = prepared.staging
+        guard prepared == allowed else { throw CloudJournalError.identityMismatch }
+        try database.write { db in
+            let operations: [CloudSyncOperation] = try Self.values(db, table: "cloud_operations",
+                whereSQL: "source = ? AND game = ?", arguments: [prepared.gameID.source, prepared.gameID.value])
+            let pending = operations.filter { !$0.phase.isTerminal }
+            guard pending.count == 1, pending[0].needsLocalRecovery, pending[0].claim == nil else { throw CloudJournalError.gameBusy }
+            let installed = try Self.requireCloudAccess(db, operation: pending[0], sessionID: sessionID)
+            let sessions: [PlaySessionRecord] = try Self.values(db, table: "sessions", whereSQL: "id = ?", arguments: [sessionID.uuidString])
+            guard installed == original, sessions.first?.runtime == nil, sessions.first?.endedAt == nil else { throw CloudJournalError.identityMismatch }
+            try Self.putOperation(db, table: "installations", id: prepared.id, gameID: prepared.gameID, value: prepared)
+        }
+    }
+
+    /// Check the durable fence before invoking the runtime, not only after a writer is created.
+    public func checkCloudBeforeLaunch(_ session: PlaySessionRecord) throws {
+        try database.read { db in
+            let sessions: [PlaySessionRecord] = try Self.values(db, table: "sessions", whereSQL: "id = ?", arguments: [session.id.uuidString])
+            guard sessions.first == session, session.runtime == nil, session.endedAt == nil else { throw CloudJournalError.gameBusy }
+            try Self.requireCloudIdle(db, gameID: session.gameID)
+        }
+    }
+
     /// A stable installation-of-Big-Screen identifier, separate from editable library preferences.
     /// Preferences row 1 remains the library model; row 2 is this private Cloud client receipt.
     public func cloudClientID() throws -> UInt64 {
@@ -37,8 +83,45 @@ extension CatalogStore {
     public func markCloudLocalApplied(_ expected: CloudSyncOperation) throws -> CloudSyncOperation {
         try changeCloud(expected) { db, value in
             try Self.requireExecutable(db, value)
-            guard value.phase == .applyingLocal else { throw CloudJournalError.invalidTransition }
+            guard value.phase == .applyingLocal,
+                  value.localRecoveries?.isEmpty != false || value.localRecoveries?.last?.appliedPlan != nil else {
+                throw CloudJournalError.invalidTransition
+            }
             value.needsLocalRecovery = false; value.phase = .verifying
+        }
+    }
+
+    /// The coordinator has staged both the current files and the complete previously authorized
+    /// result. Recovery never changes the original plan, account, batch receipts or baseline.
+    public func stageCloudLocalRecovery(_ expected: CloudSyncOperation, recovery: CloudLocalRecovery) throws -> CloudSyncOperation {
+        try changeCloud(expected) { db, value in
+            try Self.requireExecutable(db, value)
+            guard value.needsLocalRecovery, recovery.appliedPlan == nil,
+                  recovery.localSnapshotID != recovery.remoteSnapshotID,
+                  recovery.plan.gameID == value.gameID, recovery.plan.installationID == value.installationID,
+                  recovery.plan.accountKey == value.accountKey, recovery.plan.remoteRevision == value.plan?.remoteRevision,
+                  !recovery.plan.hasUnavailableFiles, !recovery.plan.requiresAccountConfirmation,
+                  !(value.localRecoveries ?? []).contains(where: { $0.id == recovery.id }) else {
+                throw CloudJournalError.invalidTransition
+            }
+            value.localRecoveries = (value.localRecoveries ?? []) + [recovery]
+            value.phase = recovery.requiresReview ? .conflict : .pending
+        }
+    }
+
+    /// Persist the exact local recovery choice before writing. Automatic recovery is permitted
+    /// only when the staged review contains no unfamiliar current progress.
+    public func authorizeCloudLocalRecovery(_ expected: CloudSyncOperation,
+                                           choice: CloudSyncAuthorization.ConflictChoice? = nil) throws -> CloudSyncOperation {
+        try changeCloud(expected) { db, value in
+            try Self.requireExecutable(db, value)
+            guard value.needsLocalRecovery, var reviews = value.localRecoveries, !reviews.isEmpty,
+                  reviews[reviews.count - 1].appliedPlan == nil,
+                  let plan = reviews.last?.choosing(choice), !plan.hasConflicts, !plan.hasUnavailableFiles else {
+                throw CloudJournalError.invalidTransition
+            }
+            reviews[reviews.count - 1].appliedPlan = plan
+            value.localRecoveries = reviews; value.phase = .applyingLocal
         }
     }
     public func cloudOperations(for gameID: GameID? = nil) throws -> [CloudSyncOperation] {
@@ -130,7 +213,10 @@ extension CatalogStore {
     public func markCloudApplying(_ expected: CloudSyncOperation) throws -> CloudSyncOperation {
         try changeCloud(expected) { db, value in
             try Self.requireExecutable(db, value)
-            guard [.ready, .uploading, .applyingLocal, .pending, .failed].contains(value.phase) else { throw CloudJournalError.invalidTransition }
+            guard [.ready, .uploading, .applyingLocal, .pending, .failed].contains(value.phase),
+                  value.localRecoveries?.isEmpty != false || value.localRecoveries?.last?.appliedPlan != nil else {
+                throw CloudJournalError.invalidTransition
+            }
             value.phase = .applyingLocal; value.needsLocalRecovery = true
         }
     }
@@ -199,7 +285,7 @@ extension CatalogStore {
     public func completeCloudSync(_ expected: CloudSyncOperation, baseline: CloudSyncBaseline) throws -> CloudSyncOperation {
         try changeCloud(expected) { db, value in
             try Self.requireExecutable(db, value)
-            guard value.phase == .verifying, baseline.gameID == value.gameID,
+            guard value.phase == .verifying, value.localRecoveries?.isEmpty != false, baseline.gameID == value.gameID,
                   baseline.installationID == value.installationID, baseline.accountKey == value.accountKey,
                   baseline.mapping == value.mapping, let remote = value.remote, let plan = value.plan,
                   baseline.revision >= remote.revision,

@@ -20,13 +20,14 @@ struct CloudSaveDialog: View {
     let gameID: GameID
     private var choices: [CloudChoice] { model.cloudChoices(gameID) }
     private var review: CloudSyncOperation? { model.cloudReview?.gameID == gameID ? model.cloudReview : nil }
-    private var conflict: Bool { review?.plan?.hasConflicts == true && model.cloudStatuses[gameID]?.state == .conflict }
+    private var recovering: Bool { review?.needsRecoveryReview == true }
+    private var conflict: Bool { (review?.reviewPlan?.hasConflicts == true || recovering) && model.cloudStatuses[gameID]?.state == .conflict }
     var body: some View {
         VStack(alignment: .leading, spacing: 28) {
             HStack(spacing: 22) {
                 Image(systemName: conflict ? "icloud.and.arrow.down" : "icloud").font(.system(size: 36, weight: .light)).foregroundStyle(Design.accent)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(conflict ? "Choose your saved progress" : "Cloud saves").font(Design.condensed(44))
+                    Text(recovering ? "Recover your saved progress" : conflict ? "Choose your saved progress" : "Cloud saves").font(Design.condensed(44))
                     Text(model.gameName(gameID)).font(Design.body(24)).foregroundStyle(Design.secondary)
                 }
                 Spacer()
@@ -44,7 +45,7 @@ struct CloudSaveDialog: View {
                 Label("Both copies are backed up before either is replaced.", systemImage: "checkmark.shield")
                     .font(Design.body(20)).foregroundStyle(Design.secondary)
             }
-            if review?.plan?.requiresAccountConfirmation == true && !model.cloudBusy(gameID) {
+            if review?.reviewPlan?.requiresAccountConfirmation == true && !model.cloudBusy(gameID) {
                 Text("Choosing a copy links this installation’s progress to the Steam account currently signed in\(model.identity.map { " (\($0.displayName))" } ?? "").")
                     .font(Design.body(21)).foregroundStyle(Design.amber).lineSpacing(5)
             }
@@ -72,8 +73,8 @@ struct CloudSaveDialog: View {
     private func copyCard(local: Bool) -> some View {
         let choice: CloudChoice = local ? .local : .remote
         let index = choices.firstIndex(of: choice)
-        let localFiles = review?.plan?.decisions.compactMap(\.local) ?? []
-        let remoteFiles = review?.remote?.files.filter { $0.state == .present } ?? []
+        let localFiles = review?.reviewPlan?.decisions.compactMap(\.local) ?? []
+        let remoteFiles = review?.reviewPlan?.decisions.compactMap(\.remote).filter { $0.state == .present } ?? []
         let dates = local ? localFiles.map(\.modifiedAt) : remoteFiles.map(\.modifiedAt)
         let count = local ? localFiles.count : remoteFiles.count
         let size = local ? localFiles.reduce(Int64(0)) { $0 + $1.bytes } : remoteFiles.reduce(Int64(0)) { $0 + $1.bytes }
@@ -81,7 +82,7 @@ struct CloudSaveDialog: View {
             if let index { model.panelIndex = index; model.activateCloud(choice, id: gameID) }
         } label: {
             VStack(alignment: .leading, spacing: 18) {
-                Label(local ? "On this Mac" : "Steam Cloud", systemImage: local ? "desktopcomputer" : "icloud")
+                Label(local ? "On this Mac" : recovering ? "Recovered copy" : "Steam Cloud", systemImage: local ? "desktopcomputer" : recovering ? "clock.arrow.circlepath" : "icloud")
                     .font(Design.condensed(30)).foregroundStyle(Design.text)
                 VStack(alignment: .leading, spacing: 6) {
                     Text(dates.max().map { $0.formatted(date: .abbreviated, time: .shortened) } ?? "No saved files")
@@ -89,12 +90,13 @@ struct CloudSaveDialog: View {
                     Text("\(count) \(count == 1 ? "file" : "files") · \(ByteCountFormatter.string(fromByteCount: size, countStyle: .file))")
                         .font(Design.body(20)).foregroundStyle(Design.secondary)
                 }
-                Text(local ? "Upload this progress to Steam Cloud." : "Download this progress to this Mac.")
+                Text(recovering ? (local ? "Keep these files. They may include an unfinished save update." : "Restore the complete copy saved before sync was interrupted.") :
+                    local ? "Upload this progress to Steam Cloud." : "Download this progress to this Mac.")
                     .font(Design.body(21)).foregroundStyle(Design.secondary).lineSpacing(5)
                 HStack {
-                    Text(choice.rawValue).font(Design.condensed(27))
+                    Text(model.cloudChoiceTitle(choice, id: gameID)).font(Design.condensed(27))
                     Spacer()
-                    Image(systemName: local ? "arrow.up.to.line" : "arrow.down.to.line").font(.system(size: 20, weight: .medium))
+                    Image(systemName: local ? (recovering ? "checkmark" : "arrow.up.to.line") : "arrow.down.to.line").font(.system(size: 20, weight: .medium))
                 }.foregroundStyle(Design.accent).padding(.top, 4)
             }.padding(28).frame(maxWidth: .infinity, minHeight: 245, alignment: .topLeading)
                 .background(Design.text.opacity(0.045), in: RoundedRectangle(cornerRadius: 10))

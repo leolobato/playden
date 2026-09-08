@@ -134,7 +134,10 @@ public actor SessionService: SessionManaging {
         }
         var session = PlaySessionRecord(gameID: gameID, bottleID: installation.bottleID, startedAt: clock.wallTime)
         session.lastCheckpointAt = session.startedAt
-        try catalog.saveSession(session)
+        if let pending = try catalog.cloudOperations(for: gameID).last(where: { !$0.phase.isTerminal }), pending.needsLocalRecovery {
+            guard cloud != nil, try mapping(installation) == pending.mapping else { throw issue("Cloud saves", "This game's save recovery needs its original save mapping before it can launch.") }
+            try catalog.reserveCloudRecoverySession(session, operation: pending)
+        } else { try catalog.saveSession(session) }
         active = session; value = .init(phase: .preparing, game: installation.game, session: session)
         playAnchor = nil; baseSeconds = 0; lastSave = clock.uptime; lastPublish = clock.uptime
         publish()
@@ -176,7 +179,10 @@ public actor SessionService: SessionManaging {
                 let installer = try source.installer(for: installed.game)
                 let staging = try await installer.postInstall(plan, at: directory)
                 installed.launchSpec = try await installer.validate(plan, at: directory, staging: staging)
-                installed.staging = staging; try catalog.saveInstallation(installed)
+                installed.staging = staging
+                if let session = active, try catalog.cloudOperations(for: installed.gameID).contains(where: { !$0.phase.isTerminal && $0.needsLocalRecovery }) {
+                    try catalog.saveCloudRecoveryPreparation(installed, replacing: original, sessionID: session.id)
+                } else { try catalog.saveInstallation(installed) }
             }
             try Task.checkCancellation()
             if let id = active?.id {
@@ -195,6 +201,8 @@ public actor SessionService: SessionManaging {
                 catalog.captureDiagnosticEvent(for: id, message: "Cloud before launch · not configured for this game", at: clock.wallTime)
             }
             try Task.checkCancellation()
+            guard let preparing = active else { throw CancellationError() }
+            try catalog.checkCloudBeforeLaunch(preparing)
             let run = try await runner.launch(installed.launchSpec, in: bottle(installed), directory: directory)
             guard var session = active else { try await runner.terminate(run, force: true); return }
             session.runtime = .init(run: run)

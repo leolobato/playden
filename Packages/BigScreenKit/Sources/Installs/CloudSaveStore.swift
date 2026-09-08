@@ -98,17 +98,7 @@ extension SaveStore {
     public func applyCloud(_ plan: CloudSyncPlan, localSnapshotID: UUID, remoteSnapshotID: UUID,
                            roots: [SaveRoot: URL],
                            onFileApplied: @Sendable (Int, Int) throws -> Void = { _, _ in }) throws -> [CloudLocalFile] {
-        guard !plan.hasConflicts, !plan.hasUnavailableFiles, localSnapshotID != remoteSnapshotID else {
-            throw saveFailure("Resolve the Cloud save conflict before replacing files.")
-        }
-        let local = try verified(localSnapshotID, gameID: plan.gameID)
-        let downloaded = try verified(remoteSnapshotID, gameID: plan.gameID)
-        guard local.cloud == nil, local.installationID == plan.installationID,
-              downloaded.installationID == plan.installationID, local.mapping == downloaded.mapping,
-              let remote = downloaded.cloud, remote.gameID == plan.gameID, remote.accountKey == plan.accountKey,
-              remote.revision == plan.remoteRevision else { throw saveFailure("The staged saves do not match this account, installation and review.") }
-        let paths = try CloudSavePaths(mapping: local.mapping)
-        let operations = try cloudChanges(plan, local: local, downloaded: downloaded, paths: paths)
+        let (local, operations) = try cloudContext(plan, localSnapshotID: localSnapshotID, remoteSnapshotID: remoteSnapshotID)
         let destinations = try open(roots)
         try verifyCloudRoots(local, in: destinations)
         let cloudMapping = SaveMapping(rules: local.mapping.rules.filter { $0.cloudPrefix != nil }, coverage: local.mapping.coverage)
@@ -159,11 +149,23 @@ extension SaveStore {
         }
     }
 
-    private struct CloudChange {
+    struct CloudChange {
         let location: CloudSavePath
         let before: SavedFile?
         let after: SavedFile?
         let downloadIndex: Int?
+    }
+    func cloudContext(_ plan: CloudSyncPlan, localSnapshotID: UUID, remoteSnapshotID: UUID) throws -> (SaveSnapshot, [CloudChange]) {
+        guard !plan.hasConflicts, !plan.hasUnavailableFiles, localSnapshotID != remoteSnapshotID else {
+            throw saveFailure("Resolve the Cloud save conflict before replacing files.")
+        }
+        let local = try verified(localSnapshotID, gameID: plan.gameID)
+        let downloaded = try verified(remoteSnapshotID, gameID: plan.gameID)
+        guard local.cloud == nil, local.installationID == plan.installationID,
+              downloaded.installationID == plan.installationID, local.mapping == downloaded.mapping,
+              let remote = downloaded.cloud, remote.gameID == plan.gameID, remote.accountKey == plan.accountKey,
+              remote.revision == plan.remoteRevision else { throw saveFailure("The staged saves do not match this account, installation and review.") }
+        return (local, try cloudChanges(plan, local: local, downloaded: downloaded, paths: CloudSavePaths(mapping: local.mapping)))
     }
     private func cloudChanges(_ plan: CloudSyncPlan, local: SaveSnapshot, downloaded: SaveSnapshot,
                               paths: CloudSavePaths) throws -> [CloudChange] {

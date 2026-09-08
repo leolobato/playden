@@ -55,3 +55,7 @@ Hike once the desktop is available, and verify gameplay resumes. Also exercise r
 an already interrupted local publication; the current identity guard retains both copies and
 blocks that old publication, but a user-facing recovery flow for a permanently lost original root
 is not yet verified. These are open M4 acceptance items, not passing claims.
+
+Follow-up: `2026-09-08-cloud-publication-recovery.md` implements and tests recovery into a replacement
+root during an interrupted publication, including explicit choices for different current progress.
+Live CrossOver/gameplay acceptance remains open.

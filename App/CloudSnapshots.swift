@@ -16,9 +16,14 @@ extension LibraryModel {
         operation.remote = .init(gameID: game.id, accountKey: "snapshot", revision: 1, files: [remote])
         operation.plan = .init(gameID: game.id, installationID: installed.id, accountKey: "snapshot", remoteRevision: 1,
             decisions: [.init(name: remote.name, location: local.location, action: .conflict, local: local, remote: remote)], requiresAccountConfirmation: screen == "cloud-account")
+        if screen == "cloud-recovery", let plan = operation.plan {
+            operation.needsLocalRecovery = true
+            operation.localRecoveries = [.init(localSnapshotID: UUID(), remoteSnapshotID: UUID(), plan: plan)]
+        }
         let state: CloudSyncStatus.State = screen == "cloud-pending" ? .pendingUpload : screen == "cloud-ready" ? .upToDate : screen == "cloud-syncing" ? .syncing : .conflict
         let status = CloudSyncStatus(gameID: game.id, state: state, operation: state == .conflict ? operation : nil,
-            message: state == .conflict ? "Local and Cloud progress differ. Choose which copy to use." : state == .pendingUpload ? "Steam could not be reached. Your latest progress is backed up on this Mac. Retry or play offline." : state == .syncing ? "Checking saved progress…" : "Saved progress is up to date.", canPlayOffline: true)
+            message: screen == "cloud-recovery" ? "Saved progress changed during an interrupted sync. Choose the files to keep on this Mac, then Big Screen will check Steam Cloud. Both copies are backed up." :
+                state == .conflict ? "Local and Cloud progress differ. Choose which copy to use." : state == .pendingUpload ? "Steam could not be reached. Your latest progress is backed up on this Mac. Retry or play offline." : state == .syncing ? "Checking saved progress…" : "Saved progress is up to date.", canPlayOffline: screen != "cloud-recovery")
         cloudStatuses = [game.id: status]
         if screen == "cloud-ready" { return }
         if screen == "cloud-syncing" { session = .init(phase: .syncingSaves, game: source, session: .init(gameID: game.id, bottleID: "snapshot-only"), cloudStatus: status); return }

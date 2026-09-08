@@ -370,7 +370,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let requestedScreens: Set<String>? = arguments.firstIndex(of: "--snapshot-screens").flatMap { index in
                 arguments.indices.contains(index + 1) ? Set(arguments[index + 1].split(separator: ",").map(String.init)) : nil
             }
-            for screen in ["uninstall-confirm", "uninstall-unsynced", "uninstall-checking", "cloud-ready", "cloud-conflict", "cloud-account", "cloud-pending", "cloud-syncing", "home", "home-tabs", "home-library-card", "home-playstation", "library", "library-playstation", "library-paged", "library-return", "game", "downloads", "downloads-queued", "settings", "settings-display", "settings-runtime", "settings-runtime-missing", "settings-runtime-busy", "collections", "keyboard", "compatibility", "uninstall", "logs", "logs-long", "logs-long-end", "logs-long-return", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom", "library-download-glyph", "library-download-focused", "game-unknown-size", "game-favorite", "install-offer", "install-offer-space", "install-queue", "install-history-failed", "install-history-completed", "install-mini-progress", "install-storage-shortage", "install-storage-unavailable", "install-game-progress", "launching", "exit-overlay", "exit-overlay-quit", "notification", "notification-focused"] {
+            for screen in ["uninstall-confirm", "uninstall-unsynced", "uninstall-checking", "cloud-ready", "cloud-conflict", "cloud-account", "cloud-pending", "cloud-syncing", "cloud-recovery", "home", "home-tabs", "home-library-card", "home-playstation", "library", "library-playstation", "library-paged", "library-return", "game", "downloads", "downloads-queued", "settings", "settings-display", "settings-runtime", "settings-runtime-missing", "settings-runtime-busy", "collections", "keyboard", "compatibility", "uninstall", "logs", "logs-long", "logs-long-end", "logs-long-return", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom", "library-download-glyph", "library-download-focused", "game-unknown-size", "game-favorite", "install-offer", "install-offer-space", "install-queue", "install-history-failed", "install-history-completed", "install-mini-progress", "install-storage-shortage", "install-storage-unavailable", "install-game-progress", "launching", "exit-overlay", "exit-overlay-quit", "notification", "notification-focused"] {
                 if let requestedScreens, !requestedScreens.contains(screen) { continue }
                 model.panel = nil; model.detailID = nil; model.authScreen = nil; model.setupScreen = nil
                 model.session = .init(); model.exitOverlay = false; model.controllerName = nil
@@ -379,7 +379,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 model.setupBusy = false; model.runtimeChecking = false; model.setupFailure = nil; model.setupIndex = 0; model.onboarding = false
                 switch screen {
                 case "uninstall-confirm", "uninstall-unsynced", "uninstall-checking": model.configureUninstallSnapshot(screen)
-                case "cloud-ready", "cloud-conflict", "cloud-account", "cloud-pending", "cloud-syncing": model.configureCloudSnapshot(screen)
+                case "cloud-ready", "cloud-conflict", "cloud-account", "cloud-pending", "cloud-syncing", "cloud-recovery": model.configureCloudSnapshot(screen)
                 case "launching", "exit-overlay", "exit-overlay-quit", "notification", "notification-focused": model.configureSessionSnapshot(screen)
                 case "library-download-glyph", "library-download-focused":
                     model.selectTab(.library); model.filter = .all
@@ -502,6 +502,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 guard let view = window.contentView else { continue }
                 view.layoutSubtreeIfNeeded()
                 let output = directory.appendingPathComponent("\(screen).png")
+                if arguments.contains("--snapshot-offscreen") {
+                    // Explicit SwiftUI-only rendering for layout review while the desktop is
+                    // locked. Native NSViewRepresentable content still needs a window capture.
+                    let fixture = screen.hasPrefix("install-") ? InstallSnapshots.model(for: screen) : model
+                    let renderer = ImageRenderer(content: LauncherView(model: fixture)
+                        .frame(width: view.bounds.width, height: view.bounds.height))
+                    renderer.scale = 1
+                    guard let bitmap = renderer.cgImage,
+                          let data = NSBitmapImageRep(cgImage: bitmap).representation(using: .png, properties: [:]) else { throw CaptureError.bitmap }
+                    try data.write(to: output, options: .atomic)
+                    print("Rendered offscreen \(output.path)")
+                    continue
+                }
                 guard CGPreflightScreenCaptureAccess() else { throw CaptureError.screenPermission }
                 let capture = Process()
                 capture.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")

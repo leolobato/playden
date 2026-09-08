@@ -69,6 +69,68 @@ final class CloudJournalTests: XCTestCase {
         XCTAssertEqual(try reopened.cloudOperations().first, resumed)
     }
 
+    func testLocalRecoveryReviewIsDurableFencedAndCannotAdvanceCloudBaseline() throws {
+        let database = try path(), installed = installation, store = try CatalogStore(path: database)
+        try store.saveInstallation(installed)
+        var operation = try stage(store, store.beginCloudSync(installation: installed, accountKey: "a", mapping: mapping))
+        operation = try store.markCloudApplying(operation)
+        let initial = operation
+        let location = CloudSavePath(root: .bottle, path: "saves/GameSaveNew.mountain")
+        let local = CloudLocalFile(location: location, sha1: Data(repeating: 2, count: 20), bytes: 200, modifiedAt: .now)
+        let plan = CloudSyncPlan(gameID: gameID, installationID: installed.id, accountKey: "a", remoteRevision: 5,
+            decisions: [.init(name: file.name, location: location, action: .conflict, local: local, remote: file)], requiresAccountConfirmation: false)
+        let review = CloudLocalRecovery(localSnapshotID: UUID(), remoteSnapshotID: UUID(), plan: plan)
+        operation = try store.stageCloudLocalRecovery(operation, recovery: review)
+        XCTAssertThrowsError(try store.authorizeCloudLocalRecovery(operation))
+        XCTAssertThrowsError(try store.markCloudApplying(operation))
+        operation = try store.pauseCloudSync(operation, phase: .conflict)
+        let reopened = try CatalogStore(path: database)
+        XCTAssertEqual(try reopened.cloudOperations().first?.localRecoveries, [review])
+        operation = try reopened.resumeCloudSync(operation)
+        let obsolete = operation
+        operation = try reopened.authorizeCloudLocalRecovery(operation, choice: .remote)
+        XCTAssertThrowsError(try store.authorizeCloudLocalRecovery(obsolete, choice: .local)) {
+            XCTAssertEqual($0 as? CloudJournalError, .staleAttempt)
+        }
+        XCTAssertEqual(operation.localSnapshotID, initial.localSnapshotID)
+        XCTAssertEqual(operation.remoteSnapshotID, initial.remoteSnapshotID)
+        XCTAssertEqual(operation.plan, initial.plan)
+        XCTAssertEqual(operation.localRecoveries?.last?.appliedPlan?.decisions.first?.action, .download)
+        operation = try reopened.markCloudLocalApplied(operation)
+        XCTAssertThrowsError(try reopened.completeCloudSync(operation, baseline: baseline(operation)))
+        XCTAssertNil(try reopened.cloudBaseline(for: gameID, accountKey: "a"))
+        operation = try reopened.supersedeCloudSync(operation)
+        XCTAssertEqual(operation.phase, .superseded)
+        XCTAssertEqual(operation.localRecoveries?.count, 1)
+    }
+
+    func testRecoveryPreparationReservationCannotStartWriterOrChangeInstallationIdentity() throws {
+        let installed = installation, store = try CatalogStore()
+        try store.saveInstallation(installed)
+        var operation = try stage(store, store.beginCloudSync(installation: installed, accountKey: "a", mapping: mapping))
+        operation = try store.markCloudApplying(operation)
+        let preparing = session(installed)
+        XCTAssertThrowsError(try store.reserveCloudRecoverySession(preparing, operation: operation), "A live worker must retain its claim")
+        operation = try store.recoverInterruptedCloudSync(operation)
+        XCTAssertThrowsError(try store.saveSession(preparing))
+        try store.reserveCloudRecoverySession(preparing, operation: operation)
+        XCTAssertThrowsError(try store.reserveCloudRecoverySession(session(installed), operation: operation))
+        XCTAssertThrowsError(try store.checkCloudBeforeLaunch(preparing))
+        var prepared = installed; prepared.launchSpec = .init(executableRelativePath: "rebuilt.exe"); prepared.staging = .init()
+        XCTAssertThrowsError(try store.saveInstallation(prepared))
+        var wrong = prepared; wrong.installedBytes += 1
+        XCTAssertThrowsError(try store.saveCloudRecoveryPreparation(wrong, replacing: installed, sessionID: preparing.id))
+        XCTAssertThrowsError(try store.saveCloudRecoveryPreparation(prepared, replacing: installed, sessionID: UUID()))
+        try store.saveCloudRecoveryPreparation(prepared, replacing: installed, sessionID: preparing.id)
+        XCTAssertEqual(try store.snapshot().entries.first?.installation, prepared)
+        operation = try store.resumeCloudSync(operation, preparingSessionID: preparing.id)
+        XCTAssertThrowsError(try store.saveCloudRecoveryPreparation(prepared, replacing: prepared, sessionID: preparing.id))
+        operation = try store.markCloudApplying(operation)
+        operation = try store.markCloudLocalApplied(operation)
+        _ = try store.supersedeCloudSync(operation)
+        XCTAssertNoThrow(try store.checkCloudBeforeLaunch(preparing))
+    }
+
     func testSessionAndMaintenanceClaimsExcludeCloudInBothDirections() throws {
         let installed = installation, store = try CatalogStore()
         try store.saveInstallation(installed)

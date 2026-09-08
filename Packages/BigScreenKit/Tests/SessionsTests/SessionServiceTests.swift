@@ -142,16 +142,23 @@ private actor SessionCloud: CloudSyncManaging {
             }
             while exiting && holdExit { try await Task.sleep(for: .milliseconds(5)) }
             if exiting || before == .upToDate {
+                if operation?.needsLocalRecovery == true {
+                    operation = try catalog.stageCloudLocalRecovery(XCTUnwrap(operation),
+                        recovery: .init(localSnapshotID: UUID(), remoteSnapshotID: UUID(), plan: XCTUnwrap(operation?.plan)))
+                    operation = try catalog.authorizeCloudLocalRecovery(XCTUnwrap(operation))
+                    operation = try catalog.markCloudLocalApplied(XCTUnwrap(operation))
+                    await events.add("cloud:local-recovery")
+                }
                 operation = try catalog.supersedeCloudSync(XCTUnwrap(operation))
                 await events.add("cloud:finished")
                 return .init(gameID: installed.gameID, state: .upToDate, operation: operation, message: "Up to date")
             }
             operation = try catalog.pauseCloudSync(XCTUnwrap(operation), phase: .conflict)
-            return .init(gameID: installed.gameID, state: before, operation: operation, message: "Review saves", canPlayOffline: true)
+            return .init(gameID: installed.gameID, state: before, operation: operation, message: "Review saves", canPlayOffline: operation?.needsLocalRecovery == false)
         } catch {
             if let current = operation, current.claim != nil { operation = try? catalog.pauseCloudSync(current, phase: .pending) }
             return .init(gameID: installed.gameID, state: .pendingUpload, operation: operation,
-                message: "Sync interrupted", canPlayOffline: operation?.claim == nil)
+                message: "Sync interrupted", canPlayOffline: operation?.claim == nil && operation?.needsLocalRecovery == false)
         }
     }
 }
@@ -385,5 +392,53 @@ final class SessionServiceTests: XCTestCase {
         XCTAssertEqual(Array(ordered.suffix(5)), ["pause:true", "prepare", "stage", "validate", "launch:rebuilt.exe"])
         XCTAssertEqual(try catalog.snapshot().entries.first?.installation?.launchSpec.executableRelativePath, "rebuilt.exe")
         try await service.quit()
+    }
+
+    func testPendingPublicationCanRebuildRecipeButCannotLaunchOrGoOfflineBeforeRecovery() async throws {
+        let catalog = try CatalogStore(), clock = TestClock(), events = Events(), runner = Runner(events), queue = Queue(events)
+        let game = try installed(catalog), cloud = SessionCloud(catalog, events)
+        let mapping = try Content(gameID: game.gameID, events: events).saveMapping(XCTUnwrap(game.plan))
+        var operation = try catalog.beginCloudSync(installation: game, accountKey: "fixture-account", mapping: mapping)
+        let remote = CloudFileList(gameID: game.gameID, accountKey: "fixture-account", revision: 1, files: [])
+        let plan = CloudSyncPlan(gameID: game.gameID, installationID: game.id, accountKey: "fixture-account",
+            remoteRevision: 1, decisions: [], requiresAccountConfirmation: false)
+        operation = try catalog.stageCloudSync(operation, plan: plan, remote: remote, localSnapshotID: UUID(), remoteSnapshotID: UUID())
+        operation = try catalog.markCloudApplying(operation)
+        await runner.configure(changed: true); await cloud.configure(before: .conflict)
+        let service = try make(catalog, runner, queue, clock, events, cloud: cloud)
+        try await service.start(downloadWhilePlaying: false)
+        try await service.play(game.gameID)
+        let waiting = try await wait(service, phase: .awaitingCloud)
+        XCTAssertFalse(waiting.cloudStatus?.canPlayOffline ?? true)
+        XCTAssertEqual(try catalog.snapshot().entries.first?.installation?.launchSpec.executableRelativePath, "rebuilt.exe")
+        let firstEvents = await events.values
+        XCTAssertTrue(firstEvents.contains("stage")); XCTAssertTrue(firstEvents.contains("validate"))
+        XCTAssertFalse(firstEvents.contains(where: { $0.hasPrefix("launch:") }))
+        do { try await service.playOffline(); XCTFail("Launched through incomplete local recovery") } catch {}
+        await cloud.configure()
+        try await service.retryCloud()
+        _ = try await wait(service, phase: .launching)
+        let ordered = await events.values
+        XCTAssertLessThan(try XCTUnwrap(ordered.firstIndex(of: "cloud:local-recovery")), try XCTUnwrap(ordered.firstIndex(of: "launch:rebuilt.exe")))
+        try await service.quit()
+    }
+
+    func testChangedRecoveryMappingCannotPrepareRuntime() async throws {
+        let catalog = try CatalogStore(), clock = TestClock(), events = Events(), runner = Runner(events), queue = Queue(events)
+        let game = try installed(catalog), cloud = SessionCloud(catalog, events)
+        var operation = try catalog.beginCloudSync(installation: game, accountKey: "fixture-account", mapping: .init())
+        let remote = CloudFileList(gameID: game.gameID, accountKey: "fixture-account", revision: 1, files: [])
+        let plan = CloudSyncPlan(gameID: game.gameID, installationID: game.id, accountKey: "fixture-account",
+            remoteRevision: 1, decisions: [], requiresAccountConfirmation: false)
+        operation = try catalog.stageCloudSync(operation, plan: plan, remote: remote, localSnapshotID: UUID(), remoteSnapshotID: UUID())
+        _ = try catalog.markCloudApplying(operation)
+        let service = try make(catalog, runner, queue, clock, events, cloud: cloud)
+        try await service.start(downloadWhilePlaying: false)
+        do { try await service.play(game.gameID); XCTFail("Prepared a runtime using a different save mapping") }
+        catch let failure as OperationFailure { XCTAssertTrue(failure.reason.contains("original save mapping")) }
+        let ordered = await events.values
+        XCTAssertFalse(ordered.contains("prepare"))
+        XCTAssertTrue(try catalog.unfinishedSessions().isEmpty)
+        try await service.shutdown()
     }
 }

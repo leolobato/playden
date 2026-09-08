@@ -316,6 +316,49 @@ final class CloudSyncServiceTests: XCTestCase {
         XCTAssertNoThrow(try store.saveSession(.init(gameID: gameID, bottleID: installed.bottleID)))
     }
 
+    func testInterruptedPublicationRecoversIntoReplacementRootWhileOffline() async throws {
+        let root = try directory(), game = root.appendingPathComponent("game")
+        try FileManager.default.createDirectory(at: game, withIntermediateDirectories: true)
+        let database = root.appendingPathComponent("catalog.sqlite").path
+        let store = try CatalogStore(path: database), installed = installed(game)
+        let saves = SaveStore(root: root.appendingPathComponent("backups")); try store.saveInstallation(installed)
+        let server = CloudServer(gameID: gameID, catalog: store)
+        let payloads = [payload("progress a", name: "a.mountain"), payload("progress z", name: "z.mountain")]
+        await server.replace(payloads)
+        let remote = try await server.files(for: gameID)
+        let local = try await saves.snapshot(gameID: gameID, installationID: installed.id, mapping: mapping, roots: [.game: game])
+        let downloaded = try await saves.stageCloud(remote, installationID: installed.id, mapping: mapping, downloads: payloads)
+        let plan = try CloudSyncPlanner.plan(installationID: installed.id, mapping: mapping,
+            localFiles: [], remote: remote, baseline: nil, attachedAccountKey: nil, rootIdentities: local.rootIdentities)
+        var operation = try store.beginCloudSync(installation: installed, accountKey: remote.accountKey, mapping: mapping)
+        operation = try store.stageCloudSync(operation, plan: plan, remote: remote,
+            localSnapshotID: local.id, remoteSnapshotID: downloaded.id)
+        operation = try store.markCloudApplying(operation)
+        do {
+            _ = try await saves.applyCloud(plan, localSnapshotID: local.id, remoteSnapshotID: downloaded.id, roots: [.game: game]) { _, _ in
+                throw SourceFailure.network
+            }
+            XCTFail("Expected interruption")
+        } catch SourceFailure.network {}
+        let original = root.appendingPathComponent("original")
+        try FileManager.default.moveItem(at: game, to: original)
+        try FileManager.default.createDirectory(at: game, withIntermediateDirectories: true)
+        await server.setOffline(true)
+        let reopened = try CatalogStore(path: database)
+        let restarted = service(reopened, server: server, saves: saves, root: game)
+        try await restarted.recoverInterruptedOperations()
+        let recovered = await restarted.synchronize(installed, mapping: mapping)
+        XCTAssertEqual(recovered.state, .pendingUpload, recovered.message)
+        XCTAssertTrue(recovered.canPlayOffline, recovered.message)
+        XCTAssertEqual(try read(game, name: "a.mountain"), "progress a")
+        XCTAssertEqual(try read(game, name: "z.mountain"), "progress z")
+        XCTAssertEqual(try read(original, name: "a.mountain"), "progress a")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: original.appendingPathComponent("saves/z.mountain").path))
+        XCTAssertNil(try reopened.cloudBaseline(for: gameID, accountKey: remote.accountKey))
+        XCTAssertNoThrow(try reopened.saveSession(.init(gameID: gameID, bottleID: installed.bottleID)))
+        let calls = await server.uploadCalls; XCTAssertEqual(calls, 0)
+    }
+
     func testRemoteDeletionRequiresUploadValidationEvenWithoutUploadBytes() async throws {
         let root = try directory(), game = try directory(), store = try CatalogStore(), installed = installed(game)
         let saves = SaveStore(root: root); try store.saveInstallation(installed)
@@ -339,6 +382,142 @@ final class CloudSyncServiceTests: XCTestCase {
         let deleted = try await server.files(for: gameID)
         XCTAssertTrue(deleted.files.isEmpty)
         XCTAssertEqual(try store.cloudBaseline(for: gameID, accountKey: "account-a")?.files, [])
+    }
+
+    private func mixedPublication() async throws -> (root: URL, game: URL, store: CatalogStore, installed: InstallationRecord,
+                                                     saves: SaveStore, server: CloudServer, operation: CloudSyncOperation) {
+        let root = try directory(), game = root.appendingPathComponent("game"), store = try CatalogStore()
+        let installed = installed(game), saves = SaveStore(root: root.appendingPathComponent("backups"))
+        try store.saveInstallation(installed)
+        try put("local awaiting upload", at: game, name: "local.mountain")
+        try put("old deleted save", at: game, name: "removed.mountain")
+        let server = CloudServer(gameID: gameID, catalog: store)
+        let payloads = [payload("recovered a", name: "a.mountain"), payload("recovered z", name: "z.mountain")]
+        await server.replace(payloads)
+        let remote = try await server.files(for: gameID)
+        let local = try await saves.snapshot(gameID: gameID, installationID: installed.id, mapping: mapping, roots: [.game: game])
+        let downloaded = try await saves.stageCloud(remote, installationID: installed.id, mapping: mapping, downloads: payloads)
+        let paths = try CloudSavePaths(mapping: mapping)
+        var decisions: [CloudSyncDecision] = try remote.files.map {
+            .init(name: $0.name, location: try paths.localPath(for: $0.name), action: .download, local: nil, remote: $0)
+        }
+        for file in local.files {
+            let location = CloudSavePath(root: file.root, path: file.path)
+            decisions.append(.init(name: try XCTUnwrap(paths.remoteName(for: location)), location: location,
+                action: file.path.contains("removed") ? .deleteLocal : .upload,
+                local: .init(location: location, sha1: file.sha1, bytes: file.bytes, modifiedAt: file.modifiedAt), remote: nil))
+        }
+        let plan = CloudSyncPlan(gameID: gameID, installationID: installed.id, accountKey: remote.accountKey,
+            remoteRevision: remote.revision, decisions: decisions, requiresAccountConfirmation: true)
+        var operation = try store.beginCloudSync(installation: installed, accountKey: remote.accountKey, mapping: mapping)
+        operation = try store.stageCloudSync(operation, plan: plan, remote: remote,
+            localSnapshotID: local.id, remoteSnapshotID: downloaded.id)
+        operation = try store.confirmCloudAccount(operation)
+        operation = try store.markCloudApplying(operation)
+        do {
+            _ = try await saves.applyCloud(plan, localSnapshotID: local.id, remoteSnapshotID: downloaded.id, roots: [.game: game]) { _, _ in
+                throw SourceFailure.network
+            }
+            XCTFail("Expected interruption")
+        } catch SourceFailure.network {}
+        return (root, game, store, installed, saves, server, operation)
+    }
+
+    func testRecoveryRestoresUploadsDownloadsAndDeletionsFromStagedCopiesOffline() async throws {
+        let f = try await mixedPublication()
+        try FileManager.default.moveItem(at: f.game, to: f.root.appendingPathComponent("original"))
+        try FileManager.default.createDirectory(at: f.game, withIntermediateDirectories: true)
+        await f.server.setOffline(true)
+        let cloud = service(f.store, server: f.server, saves: f.saves, root: f.game)
+        try await cloud.recoverInterruptedOperations()
+        let result = await cloud.synchronize(f.installed, mapping: mapping)
+        XCTAssertTrue(result.canPlayOffline, result.message)
+        XCTAssertEqual(try read(f.game, name: "local.mountain"), "local awaiting upload")
+        XCTAssertEqual(try read(f.game, name: "a.mountain"), "recovered a")
+        XCTAssertEqual(try read(f.game, name: "z.mountain"), "recovered z")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: f.game.appendingPathComponent("saves/removed.mountain").path))
+        let archived = try XCTUnwrap(f.store.cloudOperations().first { $0.id == f.operation.id })
+        XCTAssertEqual(archived.phase, .superseded)
+        XCTAssertEqual(archived.localRecoveries?.count, 1)
+        XCTAssertNotNil(archived.localRecoveries?.last?.appliedPlan)
+        XCTAssertEqual(archived.localSnapshotID, f.operation.localSnapshotID)
+        XCTAssertEqual(archived.remoteSnapshotID, f.operation.remoteSnapshotID)
+        let calls = await f.server.uploadCalls; XCTAssertEqual(calls, 0)
+    }
+
+    func testDifferentReplacementProgressRequiresCompleteCopyChoiceWhileOffline() async throws {
+        for choice in [CloudSyncAuthorization.ConflictChoice.local, .remote] {
+            let f = try await mixedPublication()
+            try FileManager.default.moveItem(at: f.game, to: f.root.appendingPathComponent("original"))
+            try put("new current progress", at: f.game, name: "a.mountain")
+            try put("new extra slot", at: f.game, name: "extra.mountain")
+            await f.server.setOffline(true)
+            let cloud = service(f.store, server: f.server, saves: f.saves, root: f.game)
+            try await cloud.recoverInterruptedOperations()
+            let review = await cloud.synchronize(f.installed, mapping: mapping)
+            XCTAssertEqual(review.state, .conflict, review.message); XCTAssertFalse(review.canPlayOffline)
+            let operation = try XCTUnwrap(review.operation)
+            XCTAssertTrue(operation.needsRecoveryReview)
+            XCTAssertEqual(try read(f.game, name: "a.mountain"), "new current progress")
+            XCTAssertThrowsError(try f.store.saveSession(.init(gameID: gameID, bottleID: f.installed.bottleID)))
+            let chosen = await cloud.synchronize(f.installed, mapping: mapping,
+                authorization: .init(operation: operation, conflictChoice: choice))
+            XCTAssertTrue(chosen.canPlayOffline, chosen.message)
+            XCTAssertEqual(try read(f.game, name: "a.mountain"), choice == .local ? "new current progress" : "recovered a")
+            let names = try FileManager.default.contentsOfDirectory(atPath: f.game.appendingPathComponent("saves").path)
+            XCTAssertEqual(Set(names), choice == .local ? ["a.mountain", "extra.mountain"] : ["a.mountain", "z.mountain", "local.mountain"])
+            let localCopy = try XCTUnwrap(operation.localRecoveries?.last?.localSnapshotID)
+            let preserved = try await f.saves.stagedContents(localCopy, gameID: gameID, location: .init(root: .game, path: "saves/extra.mountain"))
+            XCTAssertEqual(preserved, Data("new extra slot".utf8))
+            let calls = await f.server.uploadCalls; XCTAssertEqual(calls, 0)
+        }
+    }
+
+    func testChangedRecoveryReviewCannotReuseConsentOrAttachAnotherAccount() async throws {
+        let f = try await mixedPublication()
+        try FileManager.default.moveItem(at: f.game, to: f.root.appendingPathComponent("original"))
+        try put("current", at: f.game, name: "a.mountain")
+        let cloud = service(f.store, server: f.server, saves: f.saves, root: f.game)
+        try await cloud.recoverInterruptedOperations()
+        let first = await cloud.synchronize(f.installed, mapping: mapping)
+        try put("newer", at: f.game, name: "a.mountain")
+        let stale = await cloud.synchronize(f.installed, mapping: mapping,
+            authorization: .init(operation: try XCTUnwrap(first.operation), conflictChoice: .remote, attachAccount: true))
+        XCTAssertEqual(stale.state, .conflict); XCTAssertTrue(stale.operation?.needsRecoveryReview == true)
+        XCTAssertEqual(try read(f.game, name: "a.mountain"), "newer")
+        await f.server.replace([], account: "account-b")
+        let fresh = await cloud.synchronize(f.installed, mapping: mapping,
+            authorization: .init(operation: try XCTUnwrap(stale.operation), conflictChoice: .remote, attachAccount: true))
+        XCTAssertEqual(fresh.state, .conflict, fresh.message)
+        XCTAssertFalse(fresh.operation?.needsLocalRecovery ?? true)
+        XCTAssertTrue(fresh.operation?.plan?.requiresAccountConfirmation == true)
+        XCTAssertEqual(try f.store.cloudAttachment(for: gameID, installationID: f.installed.id)?.accountKey, "account-a")
+        XCTAssertEqual(try read(f.game, name: "a.mountain"), "recovered a")
+        let calls = await f.server.uploadCalls; XCTAssertEqual(calls, 0)
+    }
+
+    func testRepeatedRecoveryUsesLastAcceptedCopyAfterAnotherReplacement() async throws {
+        let f = try await mixedPublication()
+        try FileManager.default.moveItem(at: f.game, to: f.root.appendingPathComponent("original"))
+        try put("accepted current save", at: f.game, name: "a.mountain")
+        var operation = try f.store.recoverInterruptedCloudSync(f.operation)
+        operation = try f.store.resumeCloudSync(operation)
+        let review = try await f.saves.stageLocalRecovery(XCTUnwrap(operation.plan),
+            localSnapshotID: XCTUnwrap(operation.localSnapshotID), remoteSnapshotID: XCTUnwrap(operation.remoteSnapshotID), roots: [.game: f.game])
+        operation = try f.store.stageCloudLocalRecovery(operation, recovery: review)
+        operation = try f.store.authorizeCloudLocalRecovery(operation, choice: .local)
+        // Crash after publishing the accepted receipt; then lose the replacement folder too.
+        try FileManager.default.moveItem(at: f.game, to: f.root.appendingPathComponent("second-original"))
+        try FileManager.default.createDirectory(at: f.game, withIntermediateDirectories: true)
+        await f.server.setOffline(true)
+        let cloud = service(f.store, server: f.server, saves: f.saves, root: f.game)
+        try await cloud.recoverInterruptedOperations()
+        let result = await cloud.synchronize(f.installed, mapping: mapping)
+        XCTAssertTrue(result.canPlayOffline, result.message)
+        XCTAssertEqual(try read(f.game, name: "a.mountain"), "accepted current save")
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: f.game.appendingPathComponent("saves").path), ["a.mountain"])
+        let history = try XCTUnwrap(f.store.cloudOperations().first { $0.id == f.operation.id })
+        XCTAssertEqual(history.localRecoveries?.count, 2)
     }
 
     func testActiveSessionRejectsBackgroundSyncButAllowsItsOwnPrelaunchClaim() async throws {

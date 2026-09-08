@@ -68,6 +68,23 @@ private actor CloudUIFixture: CloudSyncManaging {
         model.activateCloud(.offline, id: id)
         let unchanged = await sessions.offlineCount; XCTAssertEqual(unchanged, 1)
     }
+    func testLocalRecoveryChoicesUseExactReviewAndDoNotAttachSteamAccount() async throws {
+        let (model, sessions) = model()
+        model.configureCloudSnapshot("cloud-recovery")
+        let id = try XCTUnwrap(model.detailID), review = try XCTUnwrap(model.cloudReview)
+        XCTAssertEqual(model.cloudChoices(id), [.local, .remote, .retry, .close])
+        XCTAssertEqual(model.cloudChoiceTitle(.local, id: id), "Keep current files")
+        XCTAssertEqual(model.cloudChoiceTitle(.remote, id: id), "Restore recovered files")
+        for _ in 0..<10 { model.perform(.move(.left)) }
+        model.perform(.move(.right)); model.perform(.confirm)
+        await model.sessionCommand?.value
+        let sent = await sessions.reviews
+        XCTAssertEqual(sent.count, 1)
+        XCTAssertEqual(sent[0]?.operation, review)
+        XCTAssertEqual(sent[0]?.conflictChoice, .remote)
+        XCTAssertEqual(sent[0]?.attachAccount, false)
+        let offline = await sessions.offlineCount; XCTAssertEqual(offline, 0)
+    }
     func testBackCancelsWaitingLaunchAndCannotLeaveAnInvisibleReservation() async throws {
         let (model, sessions) = model()
         model.perform(.back); await model.sessionCommand?.value

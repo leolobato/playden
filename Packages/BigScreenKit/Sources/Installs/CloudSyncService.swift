@@ -64,6 +64,9 @@ public actor CloudSyncService: CloudSyncManaging {
             _ = try CloudSavePaths(mapping: mapping)
             let previous = try catalog.cloudOperations(for: gameID).last { !$0.phase.isTerminal }
             if let authorization, authorization.operation != previous { throw CloudJournalError.staleAttempt }
+            // A local recovery choice is consumed locally. It never authorizes a subsequent
+            // account attachment or resolves a new disagreement with the live Steam account.
+            let consent = previous?.needsLocalRecovery == true ? nil : authorization
             let attachment = try catalog.cloudAttachment(for: gameID, installationID: installation.id)
             if let previous {
                 guard previous.installationID == installation.id, previous.mapping == mapping else {
@@ -80,11 +83,7 @@ public actor CloudSyncService: CloudSyncManaging {
             // Complete an interrupted local publication using its already authorized, verified
             // copies before interpreting a changed remote list or accepting an offline launch.
             if let pending = active[gameID], pending.needsLocalRecovery {
-                guard let plan = pending.plan, let localID = pending.localSnapshotID,
-                      let remoteID = pending.remoteSnapshotID else { throw issue("The interrupted save review is incomplete. Existing files have been kept.") }
-                active[gameID] = try catalog.markCloudApplying(pending)
-                _ = try await saves.applyCloud(plan, localSnapshotID: localID, remoteSnapshotID: remoteID, roots: locations)
-                active[gameID] = try catalog.markCloudLocalApplied(current(gameID))
+                if let review = try await recoverLocal(installation, locations: locations, authorization: authorization) { return review }
             }
             if previous != nil {
                 let priorAccount = try current(gameID).accountKey
@@ -104,7 +103,7 @@ public actor CloudSyncService: CloudSyncManaging {
             guard remote.gameID == gameID else { throw issue("Steam returned saves for a different game.") }
             try Task.checkCancellation()
 
-            if let authorization {
+            if let authorization = consent {
                 guard let originalLocalID = authorization.operation.localSnapshotID,
                       authorization.operation.remote == remote else { return try await replanChangedReview(installation, mapping: mapping, local: local, remote: remote, sessionID: preparingSessionID) }
                 let reviewed = try await saves.verified(originalLocalID, gameID: gameID)
@@ -120,10 +119,48 @@ public actor CloudSyncService: CloudSyncManaging {
                 active[gameID] = try catalog.recordCloudLocalSnapshot(current(gameID), snapshotID: local.id)
             }
             return try await stageAndExecute(installation, mapping: mapping, local: local,
-                                              remote: remote, consent: authorization)
+                                              remote: remote, consent: consent)
         } catch {
             return fail(gameID, error: error)
         }
+    }
+
+    private func recoverLocal(_ installation: InstallationRecord, locations: [SaveRoot: URL],
+                              authorization: CloudSyncAuthorization?) async throws -> CloudSyncStatus? {
+        let gameID = installation.gameID, pending = try current(gameID)
+        let accepted = pending.localRecoveries?.last(where: { $0.appliedPlan != nil })
+        guard let plan = accepted?.appliedPlan ?? pending.plan,
+              let localID = accepted?.localSnapshotID ?? pending.localSnapshotID,
+              let remoteID = accepted?.remoteSnapshotID ?? pending.remoteSnapshotID else {
+            throw issue("The interrupted save review is incomplete. Existing files have been kept.")
+        }
+        var recovery = try await saves.stageLocalRecovery(plan, localSnapshotID: localID, remoteSnapshotID: remoteID, roots: locations)
+        var choice: CloudSyncAuthorization.ConflictChoice?
+        if let authorization, let requested = authorization.conflictChoice,
+           let reviewed = authorization.operation.localRecoveries?.last, reviewed.requiresReview, reviewed.appliedPlan == nil {
+            let before = try await saves.verified(reviewed.localSnapshotID, gameID: gameID)
+            let now = try await saves.verified(recovery.localSnapshotID, gameID: gameID)
+            if reviewed.plan == recovery.plan && fingerprints(before) == fingerprints(now) && before.rootIdentities == now.rootIdentities {
+                choice = requested
+            } else {
+                recovery = .init(localSnapshotID: recovery.localSnapshotID, remoteSnapshotID: recovery.remoteSnapshotID,
+                    plan: recovery.plan, requiresReview: true)
+            }
+        }
+        active[gameID] = try catalog.stageCloudLocalRecovery(current(gameID), recovery: recovery)
+        if recovery.requiresReview && choice == nil {
+            active[gameID] = try catalog.pauseCloudSync(current(gameID), phase: .conflict)
+            return publish(status(try current(gameID), state: .conflict,
+                message: "Saved progress changed during an interrupted sync. Choose the files to keep on this Mac, then Big Screen will check Steam Cloud. Both copies are backed up."))
+        }
+        active[gameID] = try catalog.authorizeCloudLocalRecovery(current(gameID), choice: choice)
+        guard let execution = try current(gameID).localRecoveries?.last?.appliedPlan else { throw CloudJournalError.invalidTransition }
+        let destinations = try await roots(installation)
+        _ = try await saves.applyCloud(execution, localSnapshotID: recovery.localSnapshotID,
+            remoteSnapshotID: recovery.remoteSnapshotID, roots: destinations)
+        try await saves.verifyCloudRoots(recovery.localSnapshotID, gameID: gameID, roots: roots(installation))
+        active[gameID] = try catalog.markCloudLocalApplied(current(gameID))
+        return nil
     }
 
     private func replanChangedReview(_ installation: InstallationRecord, mapping: SaveMapping,
