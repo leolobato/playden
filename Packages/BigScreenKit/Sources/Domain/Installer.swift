@@ -18,14 +18,17 @@ public struct InstallPlan: Codable, Equatable, Sendable, Identifiable {
     public let manifestIDs: [String: String]
     public let estimate: InstallEstimate
     public let launchSpec: LaunchSpec
+    public let launchOptions: [LaunchOption]?
     public let sourcePayload: Data
     public let recipeVersion: Int
     public let resolvedAt: Date
     public init(id: UUID = UUID(), game: SourceGameRecord, language: String = "english", manifestIDs: [String: String],
-                estimate: InstallEstimate, launchSpec: LaunchSpec, sourcePayload: Data, recipeVersion: Int = 1, resolvedAt: Date = .now) {
+                estimate: InstallEstimate, launchSpec: LaunchSpec, sourcePayload: Data, recipeVersion: Int = 1, resolvedAt: Date = .now,
+                launchOptions: [LaunchOption]? = nil) {
         self.id = id; self.game = game; self.language = language; self.manifestIDs = manifestIDs
         self.estimate = estimate; self.launchSpec = launchSpec; self.sourcePayload = sourcePayload
         self.recipeVersion = recipeVersion; self.resolvedAt = resolvedAt
+        self.launchOptions = launchOptions
     }
 }
 public struct InstallProgress: Equatable, Sendable {
@@ -66,6 +69,7 @@ public struct VerificationResult: Equatable, Sendable {
 public protocol Installer: Sendable {
     var gameID: GameID { get }
     func resolve() async throws -> InstallPlan
+    func launchOptions(_ plan: InstallPlan) throws -> [LaunchOption]
     func download(_ plan: InstallPlan, to directory: URL,
                   progress: @escaping @Sendable (InstallProgress) -> Void) async throws
     func verifyOriginals(_ plan: InstallPlan, at directory: URL, staging: InstallStaging?) async throws -> VerificationResult
@@ -80,6 +84,7 @@ public protocol Installer: Sendable {
     func uninstall(_ plan: InstallPlan, at directory: URL) async throws
 }
 public extension Installer {
+    func launchOptions(_ plan: InstallPlan) throws -> [LaunchOption] { plan.launchOptions ?? [] }
     func preparePrerequisites(_ plan: InstallPlan, at directory: URL, in bottle: GameBottle) async throws {}
     func postInstall(_ plan: InstallPlan, at directory: URL, in bottle: GameBottle) async throws -> InstallStaging {
         try await postInstall(plan, at: directory)

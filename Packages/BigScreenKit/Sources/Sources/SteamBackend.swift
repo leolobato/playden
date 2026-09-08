@@ -25,7 +25,14 @@ struct LiveSteamBackend: SteamBackend {
         var renewed = auth
         // Renewal is staged in memory. SteamAccount commits to Keychain only after checking that
         // sign-out/account replacement did not happen while this request was suspended.
-        _ = try await SteamAuth.validAccessToken(&renewed, store: MemoryCredentials())
+        do {
+            _ = try await SteamAuth.validAccessToken(&renewed, store: MemoryCredentials())
+        } catch {
+            // Only an authentication endpoint rejecting renewal implies an invalid session.
+            // A content/depot AccessDenied response must not send users through sign-in again.
+            if sourceFailure(error) == .accessDenied || sourceFailure(error) == .credentialsRejected { throw SourceFailure.expired }
+            throw error
+        }
         return renewed
     }
     func ownedGames(_ auth: StoredAuth) async throws -> [SourceGameRecord] {
@@ -80,9 +87,10 @@ func sourceFailure(_ error: Error) -> SourceFailure {
         case .notLoggedIn: return .signedOut
         case .authFailed: return .credentialsRejected
         case .protocolError: return .malformedResponse
-        case .http(let status, _): return status == 429 ? .throttled : [401, 403].contains(status) ? .expired : .unavailable
+        case .http(let status, _): return status == 429 ? .throttled : status == 401 ? .expired : status == 403 ? .accessDenied : .unavailable
         case .eresult(let result, _):
-            if [.expired, .accessDenied].contains(result) { return .expired }
+            if result == .expired { return .expired }
+            if result == .accessDenied { return .accessDenied }
             if [.invalidPassword, .invalidParam].contains(result) { return .credentialsRejected }
             if [.rateLimitExceeded, .accountLoginDeniedThrottle].contains(result) { return .throttled }
             return .unavailable

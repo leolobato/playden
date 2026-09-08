@@ -8,14 +8,17 @@ struct SteamInstallPayload: Codable, Equatable, Sendable {
     let app: AppInfo
     let manifests: [DepotManifest]
     let ownedDLC: [UInt32]
+    // Absent in older plans, which selected every eligible depot. New plans pin only
+    // the eligible depots granted by the account's packages (including regional editions).
+    var authorizedDepotIDs: [UInt32]? = nil
 }
 
 enum SteamPlanBuilder {
-    static func build(game: SourceGameRecord, app: AppInfo, manifests: [DepotManifest], ownedApps: Set<UInt32>, recipeVersion: Int? = nil) throws -> InstallPlan {
+    static func build(game: SourceGameRecord, app: AppInfo, manifests: [DepotManifest], ownedApps: Set<UInt32>, ownedDepots: Set<UInt32>? = nil, recipeVersion: Int? = nil) throws -> InstallPlan {
         guard game.id.source == "steam", UInt32(game.id.value) == app.appID, ownedApps.contains(app.appID) else {
             throw failure("Resolve", "This account does not own the selected game.")
         }
-        let expected = try selectedDepots(app, ownedApps: ownedApps)
+        let expected = try selectedDepots(app, ownedApps: ownedApps, ownedDepots: ownedDepots)
         guard !manifests.isEmpty, Set(manifests.map(\.depotID)).count == manifests.count,
               Set(manifests.map(\.depotID)) == Set(expected.map(\.id)),
               manifests.allSatisfy({ manifest in expected.contains { $0.id == manifest.depotID && $0.manifestGID == manifest.gid } }) else {
@@ -44,21 +47,24 @@ enum SteamPlanBuilder {
         }
         // Also catch collisions between a file in one depot and a child path in another.
         try ResumableDepotDownload.validateManifest(DepotManifest(depotID: 0, gid: 0, files: normalized.flatMap(\.files), totalSize: installed))
-        let launch = try launchSpec(app, files: Array(paths.values), ownedApps: ownedApps)
+        let launches = try launchOptions(app, files: Array(paths.values), ownedApps: ownedApps)
+        let launch = launches[0].spec
         let recipeVersion = recipeVersion ?? SteamRecipes.latestVersion(for: game.id)
         for step in try SteamRecipes.steps(for: game.id, version: recipeVersion) { _ = try SteamRecipes.inputs(step, files: normalized.flatMap(\.files)) }
         let required = try sum(sum(sum(installed, installed), largest), 256 * 1024 * 1024)
         guard required <= UInt64(Int64.max), downloaded <= UInt64(Int64.max) else { throw failure("Estimate", "The game size exceeds supported storage limits.") }
-        let dlc = Set(app.dlcAppIDs + app.depots.compactMap(\.dlcAppID)).intersection(ownedApps).sorted()
-        let payload = SteamInstallPayload(app: app, manifests: normalized, ownedDLC: dlc)
+        let dlc = Set(app.dlcAppIDs + app.depots.compactMap(\.dlcAppID) + app.launches.compactMap(\.requiredDLC)).intersection(ownedApps).sorted()
+        let payload = SteamInstallPayload(app: app, manifests: normalized, ownedDLC: dlc,
+            authorizedDepotIDs: ownedDepots.map { _ in expected.map(\.id) })
         let encoder = JSONEncoder(); encoder.outputFormatting = .sortedKeys
         return InstallPlan(game: game, manifestIDs: Dictionary(uniqueKeysWithValues: manifests.map { (String($0.depotID), String($0.gid)) }),
             estimate: InstallEstimate(downloadBytes: Int64(downloaded), installedBytes: Int64(installed), requiredBytes: Int64(required)),
-            launchSpec: launch, sourcePayload: try encoder.encode(payload), recipeVersion: recipeVersion)
+            launchSpec: launch, sourcePayload: try encoder.encode(payload), recipeVersion: recipeVersion, launchOptions: launches)
     }
-    static func selectedDepots(_ app: AppInfo, ownedApps: Set<UInt32>) throws -> [DepotInfo] {
+    static func selectedDepots(_ app: AppInfo, ownedApps: Set<UInt32>, ownedDepots: Set<UInt32>? = nil) throws -> [DepotInfo] {
         let selected = app.depots.filter { depot in
             depot.isWindows && depot.isEnglishOrAll && !depot.isSharedInstall
+                && (ownedDepots?.contains(depot.id) ?? true)
                 && ((!depot.isDLC && depot.dlcAppID == nil) || depot.dlcAppID.map { ownedApps.contains($0) } == true)
         }
         guard !selected.isEmpty else { throw failure("Resolve", "This game has no downloadable Windows content for English.") }
@@ -66,13 +72,28 @@ enum SteamPlanBuilder {
               selected.allSatisfy({ $0.manifestGID != nil && $0.manifestGID != 0 }) else { throw failure("Resolve", "The game’s Windows content is not available on its public branch.") }
         return selected.sorted { $0.id < $1.id }
     }
-    static func launchSpec(_ app: AppInfo, files: [DepotManifest.File], ownedApps: Set<UInt32>) throws -> LaunchSpec {
-        let eligible = app.launches.filter { $0.isWindows && ($0.requiredDLC == nil || $0.requiredDLC == 0 || ownedApps.contains($0.requiredDLC!)) }
-        let primary = eligible.filter { $0.type.lowercased() == "default" }
-        let candidates = primary.count == 1 ? primary : eligible
-        guard candidates.count == 1, let launch = candidates.first else {
-            throw failure("Resolve", candidates.isEmpty ? "The game has no Windows launch configuration." : "The game has multiple Windows launch options and needs a launch recipe.")
+    static func launchOptions(_ app: AppInfo, files: [DepotManifest.File], ownedApps: Set<UInt32>) throws -> [LaunchOption] {
+        // Manifests above are resolved from the public branch. Developer/beta-only
+        // launch entries can point to executables absent from that content.
+        let eligible = app.launches.filter {
+            $0.isWindows && ($0.betaKey == nil || $0.betaKey == "" || $0.betaKey == "public")
+                && ($0.requiredDLC == nil || $0.requiredDLC == 0 || ownedApps.contains($0.requiredDLC!))
         }
+        guard !eligible.isEmpty, Set(eligible.map(\.id)).count == eligible.count else {
+            throw failure("Resolve", "The game has no valid Windows launch configuration.")
+        }
+        let sorted = eligible.sorted {
+            if ($0.type.lowercased() == "default") != ($1.type.lowercased() == "default") { return $0.type.lowercased() == "default" }
+            return $0.id.localizedStandardCompare($1.id) == .orderedAscending
+        }
+        return try sorted.map { launch in
+            let spec = try launchSpec(launch, files: files)
+            let description = launch.description?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let title = description.isEmpty ? spec.executableRelativePath : description
+            return LaunchOption(id: launch.id, title: title, spec: spec)
+        }
+    }
+    private static func launchSpec(_ launch: AppLaunch, files: [DepotManifest.File]) throws -> LaunchSpec {
         let path = try relativePath(launch.executable)
         guard path.lowercased().hasSuffix(".exe"), let file = files.first(where: {
             !$0.isDirectory && !$0.isSymlink && (try? relativePath($0.path).lowercased()) == path.lowercased()
@@ -93,8 +114,10 @@ enum SteamPlanBuilder {
         guard value.version == 1, gameID.source == "steam", String(value.app.appID) == gameID.value else {
             throw failure("Resolve", "The saved install manifest is invalid.")
         }
-        let rebuilt = try build(game: plan.game, app: value.app, manifests: value.manifests, ownedApps: Set(value.ownedDLC + [value.app.appID]), recipeVersion: plan.recipeVersion)
+        let rebuilt = try build(game: plan.game, app: value.app, manifests: value.manifests, ownedApps: Set(value.ownedDLC + [value.app.appID]),
+            ownedDepots: value.authorizedDepotIDs.map(Set.init), recipeVersion: plan.recipeVersion)
         guard rebuilt.manifestIDs == plan.manifestIDs, rebuilt.estimate == plan.estimate, rebuilt.launchSpec == plan.launchSpec,
+              plan.launchOptions == nil || rebuilt.launchOptions == plan.launchOptions,
               try JSONDecoder().decode(SteamInstallPayload.self, from: rebuilt.sourcePayload) == value else {
             throw failure("Resolve", "The saved install plan has inconsistent content or launch settings.")
         }

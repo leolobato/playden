@@ -114,8 +114,8 @@ final class InstallInteractionTests: XCTestCase {
         XCTAssertNil(model.panel)
         XCTAssertNil(model.installOffer)
     }
-    @MainActor func testNetworkAndKeychainFailuresKeepRetryInsteadOfSignIn() async throws {
-        for failure in [SourceFailure.network, .storage("test-status")] {
+    @MainActor func testNonAuthenticationFailuresKeepRetryInsteadOfSignIn() async throws {
+        for failure in [SourceFailure.accessDenied, .network, .storage("test-status")] {
             let offer = offer(), queue = InteractionQueue(offer)
             await queue.failOffer(failure)
             let model = try model(queue, offer: offer)

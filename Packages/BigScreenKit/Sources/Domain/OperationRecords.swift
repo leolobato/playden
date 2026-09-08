@@ -11,6 +11,14 @@ public struct GameLocation: Codable, Equatable, Sendable {
         self.volumeID = volumeID; self.rootBookmark = rootBookmark; self.lastKnownRoot = lastKnownRoot; self.relativePath = relativePath
     }
 }
+public struct LaunchOption: Codable, Equatable, Sendable, Identifiable {
+    public let id: String
+    public let title: String
+    public let spec: LaunchSpec
+    public init(id: String, title: String, spec: LaunchSpec) {
+        self.id = id; self.title = title; self.spec = spec
+    }
+}
 public struct LaunchSpec: Codable, Equatable, Sendable {
     public var executableRelativePath: String
     public var workingDirectoryRelativePath: String

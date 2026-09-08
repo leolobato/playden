@@ -164,7 +164,13 @@ final class SteamAccountTests: XCTestCase {
     func testFailureMappingDoesNotExposeCredentialURLs() {
         let error = SteamError.http(status: 403, url: "https://fixture.invalid?access_token=do-not-display")
         let failure = sourceFailure(error)
-        XCTAssertEqual(failure, .expired)
+        XCTAssertEqual(failure, .accessDenied)
         XCTAssertFalse(failure.localizedDescription.contains("do-not-display"))
+    }
+    func testContentAccessDenialIsNotExpiredAuthentication() {
+        XCTAssertEqual(sourceFailure(SteamError.eresult(.accessDenied, context: "depot key")), .accessDenied)
+        XCTAssertEqual(sourceFailure(SteamError.eresult(.expired, context: "session")), .expired)
+        XCTAssertEqual(sourceFailure(SteamError.authSessionExpired), .expired)
+        XCTAssertEqual(sourceFailure(SteamError.http(status: 401, url: "https://fixture.invalid")), .expired)
     }
 }

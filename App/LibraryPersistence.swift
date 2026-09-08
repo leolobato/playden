@@ -22,6 +22,16 @@ extension LibraryModel {
                     collections: collections, preferences: try catalog.preferences())
             }
             let snapshot = try catalog.snapshot()
+            gameLaunchOptions = Dictionary(uniqueKeysWithValues: snapshot.entries.compactMap { entry in
+                guard let installed = entry.installation, let plan = installed.plan else { return nil }
+                if let options = plan.launchOptions { return (entry.id, options) }
+                // Older installs retain Steam metadata, so choices can be recovered offline.
+                guard let source, let options = try? source.installer(for: installed.game).launchOptions(plan) else { return nil }
+                return (entry.id, options)
+            })
+            preferredLaunchOptions = Dictionary(uniqueKeysWithValues: snapshot.entries.compactMap { entry in
+                entry.edits.preferredLaunchOption.map { (entry.id, $0) }
+            })
             updateInstallationDriveTargets(snapshot.entries.compactMap(\.installation))
             gamesNeedingRepair = Set(snapshot.entries.filter { $0.installation?.needsRepair == true }.map(\.id))
             let fixtures = Dictionary(uniqueKeysWithValues: PreviewCatalog.games.map { ($0.id, $0) })
@@ -51,7 +61,9 @@ extension LibraryModel {
         } catch { recordPersistenceError(error) }
     }
     private func edits(for game: Game) -> GameEdits {
-        GameEdits(isFavorite: game.isFavorite, isHidden: game.isHidden, compatibility: game.compatibility, note: compatibilityNotes[game.id] ?? "")
+        var value = GameEdits(isFavorite: game.isFavorite, isHidden: game.isHidden, compatibility: game.compatibility, note: compatibilityNotes[game.id] ?? "")
+        value.preferredLaunchOption = preferredLaunchOptions[game.id]
+        return value
     }
     private var preferences: LibraryPreferences {
         var value = LibraryPreferences()

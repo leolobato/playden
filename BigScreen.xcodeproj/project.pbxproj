@@ -48,6 +48,7 @@
 		764655582701C0B1C2F9BA54 /* SupportViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0ABE6CC32C22767FC77D4D03 /* SupportViews.swift */; };
 		7C334DEF7D550877108D36C6 /* SetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E9A8D8C39868D9CD1F07282 /* SetupView.swift */; };
 		7F11D8D0F5DACFF3126D308D /* SessionRecovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 492442CD44DAD6E000A14989 /* SessionRecovery.swift */; };
+		7F6EEB3C47460BED7E224540 /* LaunchOptionsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4939357B590C10B1AAF20F9F /* LaunchOptionsTests.swift */; };
 		7F96A26586E28F9E769DE73C /* ResetInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0E83CFC6AB17E9B61ACC5A /* ResetInteractionTests.swift */; };
 		85893C2ABE20A3E103B5225D /* DownloadTransferTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 825D548FA12B76980D9AE991 /* DownloadTransferTests.swift */; };
 		8898C23653880E5196312E05 /* DisplayInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCEE46DE0C8F1B560E954F47 /* DisplayInteractionTests.swift */; };
@@ -86,6 +87,7 @@
 		CC095A8EDAF0E84A70F765E7 /* PairingControllerArt.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB83A4AB9B30E5196BC6109C /* PairingControllerArt.swift */; };
 		D084C6C050979536666D0562 /* InstallationDriveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B45A0E1DFA770018CBA9711 /* InstallationDriveTests.swift */; };
 		D4018573EFE69AF20732859B /* DownloadHistoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3547F87915CA6A6B8343BBC8 /* DownloadHistoryTests.swift */; };
+		D7C636C4ECE8E44611F9F183 /* LaunchOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F75AA6F0E5C4432CA470CA6 /* LaunchOptions.swift */; };
 		E108FAB25FA90058BE9F3817 /* LogInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8EF3BC8EB5579E9F0CD05B8 /* LogInteractionTests.swift */; };
 		E212FB90F85E26DF6504930A /* ResetModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55F98FF85521FE1A2C0FE973 /* ResetModel.swift */; };
 		E300DF2DD1D21F5FB5FAE32A /* DownloadTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90B31D8170237DFF98E1AF7E /* DownloadTransfer.swift */; };
@@ -137,8 +139,10 @@
 		4622DF2E186C3B6F638C30B1 /* Barlow-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Barlow-Regular.ttf"; sourceTree = "<group>"; };
 		46AAFB1CC7B0350A0887992E /* UninstallViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UninstallViews.swift; sourceTree = "<group>"; };
 		492442CD44DAD6E000A14989 /* SessionRecovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRecovery.swift; sourceTree = "<group>"; };
+		4939357B590C10B1AAF20F9F /* LaunchOptionsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchOptionsTests.swift; sourceTree = "<group>"; };
 		4B6D81D2657F90DB3876B61C /* LibraryNavigationPerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryNavigationPerformanceTests.swift; sourceTree = "<group>"; };
 		4C9C86672EFCA75AD8158EA9 /* LibraryFilterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryFilterTests.swift; sourceTree = "<group>"; };
+		4F75AA6F0E5C4432CA470CA6 /* LaunchOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchOptions.swift; sourceTree = "<group>"; };
 		5036277590D70F7B4EDB65E7 /* BigScreenKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = BigScreenKit; path = Packages/BigScreenKit; sourceTree = SOURCE_ROOT; };
 		55F98FF85521FE1A2C0FE973 /* ResetModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResetModel.swift; sourceTree = "<group>"; };
 		5B2BFD1CFF9C87356CDEE098 /* DisplayModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayModel.swift; sourceTree = "<group>"; };
@@ -235,6 +239,7 @@
 				1B45A0E1DFA770018CBA9711 /* InstallationDriveTests.swift */,
 				766C5E1AA303977304DFD467 /* InstallInteractionTests.swift */,
 				5B78D60EBB0202EF68C9C101 /* LauncherQuitTests.swift */,
+				4939357B590C10B1AAF20F9F /* LaunchOptionsTests.swift */,
 				BAA058B561808E36274C4A53 /* LibraryEditingTests.swift */,
 				4C9C86672EFCA75AD8158EA9 /* LibraryFilterTests.swift */,
 				99B69173E3CBF5EC838826D5 /* LibraryInteractionTests.swift */,
@@ -298,6 +303,7 @@
 				290BD195A4CE920AC4FD05D0 /* InstallModel.swift */,
 				2282843F7F4162EBF4E8583C /* InstallSnapshots.swift */,
 				D9BE9FA9F791A3DA5EA8A238 /* LauncherQuit.swift */,
+				4F75AA6F0E5C4432CA470CA6 /* LaunchOptions.swift */,
 				2ABB68A7CE89083ACCBE20BC /* LibraryEditing.swift */,
 				BD033BB2ED7ABC84DF20A75D /* LibraryFilters.swift */,
 				A7E1299E802C11E73F8A1EDA /* LibraryModel.swift */,
@@ -554,6 +560,7 @@
 				38E2837AB3519707459E65EF /* InstallModel.swift in Sources */,
 				3D06C7DD0B318C2EDB32000C /* InstallSnapshots.swift in Sources */,
 				E577CDE12288AD594BF92EFF /* InstallationDrives.swift in Sources */,
+				D7C636C4ECE8E44611F9F183 /* LaunchOptions.swift in Sources */,
 				B398EF240526079E2B8B7FA5 /* LauncherQuit.swift in Sources */,
 				026CD25A5A7A4881AC6252AE /* LibraryEditing.swift in Sources */,
 				8F6786AF7BABC6BECC836D3F /* LibraryFilters.swift in Sources */,
@@ -598,6 +605,7 @@
 				89F0722369DD8D572D97E15F /* HomeNavigationTests.swift in Sources */,
 				A87C77D05E6DD17B5E85C9BD /* InstallInteractionTests.swift in Sources */,
 				D084C6C050979536666D0562 /* InstallationDriveTests.swift in Sources */,
+				7F6EEB3C47460BED7E224540 /* LaunchOptionsTests.swift in Sources */,
 				10C1A35DD55C3B6F8BDA39D6 /* LauncherQuitTests.swift in Sources */,
 				F97B357CF2C84140B4D6FD9C /* LibraryEditingTests.swift in Sources */,
 				47D3331506D352A34D2918D0 /* LibraryFilterTests.swift in Sources */,

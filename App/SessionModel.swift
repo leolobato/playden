@@ -91,7 +91,7 @@ extension LibraryModel {
         gameWindowHandedOff = true
         if sessionIssue?.stage == "Return to game" { sessionIssue = nil }
     }
-    func beginPlay(_ id: GameID) {
+    func beginPlay(_ id: GameID, launchOption: LaunchOption? = nil) {
         guard !resetBusy, !launcherQuitting else { return }
         guard !sessionBusy else { return }
         if (!hasActiveSession || session.session?.gameID != id), installationDriveBlocked(id) {
@@ -110,9 +110,17 @@ extension LibraryModel {
             else { show(.confirmation(.switchGame(id))) }
             return
         }
+        let options = gameLaunchOptions[id] ?? []
+        let chosen = launchOption ?? preferredLaunchOptions[id].flatMap { options.contains($0) ? $0 : nil }
+        if options.count > 1 && chosen == nil { showLaunchOptions(for: id, play: true); return }
+        if let chosen, !options.contains(chosen) { showLaunchOptions(for: id, play: true); return }
+        panel = nil
         sessionOrigin = tab; sessionIssue = nil; sessionBusy = true
         sessionCommand = Task { [weak self] in
-            do { try await sessions.play(id) }
+            do {
+                if let chosen { try await sessions.play(id, launchOptionID: chosen.id) }
+                else { try await sessions.play(id) }
+            }
             catch { if let self { self.reportSessionIssue(self.sessionFailure(error, stage: "Launch game"), gameID: id, recovery: .play(id)) } }
             self?.sessionBusy = false
         }

@@ -104,6 +104,11 @@ Maintainers can build a signed, notarized DMG with `scripts/distribute.sh`; see
 5. Open a game, select **Install**, then **Play** when installation finishes. A Short Hike is the
    most thoroughly exercised title so far.
 
+If a game has multiple launch options, **Play** asks which one to use. Select **Always use this**
+to remember your choice for that game. Open the game's **More → Launch options** menu to change
+it, or clear **Always use this** to be asked each time. Only options for the installed public
+branch and included DLC are offered.
+
 macOS may ask for access to the Steam sign-in item in Keychain. Big Screen stores sign-in tokens
 there; it does not store your Mac password. See [signing and permissions](docs/DEVELOPMENT.md#signing-and-permissions)
 if rebuilding repeatedly causes permission prompts.

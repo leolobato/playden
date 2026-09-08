@@ -18,7 +18,7 @@ struct LiveSteamInstallBackend: SteamInstallBackend {
             let app = try await cm.appInfo(appID: appID)
             let owned = try await cm.ownedEntitlements()
             guard owned.appIDs.contains(appID) else { throw SteamPlanBuilder.failure("Resolve", "This account does not own the selected game.") }
-            let depots = try SteamPlanBuilder.selectedDepots(app, ownedApps: owned.appIDs)
+            let depots = try SteamPlanBuilder.selectedDepots(app, ownedApps: owned.appIDs, ownedDepots: owned.depotIDs)
             let servers = try await CDNClient.contentServers(cellID: cm.cellID)
             // Manifest resolution does not create or write a destination directory.
             let engine = DownloadEngine(cm: cm, appID: appID, destination: URL(fileURLWithPath: "/"))
@@ -35,6 +35,9 @@ struct LiveSteamInstallBackend: SteamInstallBackend {
             let owned = try await cm.ownedEntitlements()
             guard owned.appIDs.contains(payload.app.appID), Set(payload.ownedDLC).isSubset(of: owned.appIDs) else {
                 throw SteamPlanBuilder.failure("Download", "The signed-in account no longer owns all content in this install plan.")
+            }
+            guard Set(payload.manifests.map(\.depotID)).isSubset(of: owned.depotIDs) else {
+                throw SteamPlanBuilder.failure("Download", "This account no longer has access to all depots in the saved install plan. Resolve the installation again with an account that owns this edition.")
             }
             let servers = try await CDNClient.contentServers(cellID: cm.cellID)
             let total = payload.manifests.reduce(Int64(0)) { $0 + Int64($1.totalSize) }

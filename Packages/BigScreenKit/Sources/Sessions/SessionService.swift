@@ -27,11 +27,17 @@ public protocol SessionManaging: Sendable {
     func start(downloadWhilePlaying: Bool) async throws
     func updates() async -> AsyncStream<SessionSnapshot>
     func play(_ gameID: GameID) async throws
+    func play(_ gameID: GameID, launchOptionID: String) async throws
     func retryCloud(authorization: CloudSyncAuthorization?) async throws
     func playOffline() async throws
     func quit() async throws
     func setDownloadWhilePlaying(_ enabled: Bool) async throws
     func shutdown() async throws
+}
+public extension SessionManaging {
+    func play(_ gameID: GameID, launchOptionID: String) async throws {
+        throw OperationFailure(stage: "Launch game", reason: "This game service does not support launch options.", output: "")
+    }
 }
 /// Coordinates source preparation, runner lifetime and catalog checkpoints. UI subscriptions do
 /// not own the session. Recovery finishes before the install queue is allowed to start.
@@ -50,6 +56,7 @@ public actor SessionService: SessionManaging {
     private var downloadWhilePlaying = false
     private var value = SessionSnapshot()
     private var active: PlaySessionRecord?
+    private var activeLaunchOption: LaunchOption?
     private var worker: Task<Void, Never>?
     private var observers: [UUID: AsyncStream<SessionSnapshot>.Continuation] = [:]
     private var playAnchor: TimeInterval?
@@ -127,10 +134,20 @@ public actor SessionService: SessionManaging {
         try await queue.start(); started = true
     }
     public func play(_ gameID: GameID) async throws {
+        try await beginPlay(gameID, launchOptionID: nil)
+    }
+    public func play(_ gameID: GameID, launchOptionID: String) async throws {
+        try await beginPlay(gameID, launchOptionID: launchOptionID)
+    }
+    private func beginPlay(_ gameID: GameID, launchOptionID: String?) async throws {
         guard started, !shuttingDown else { throw issue("Launch game", "Session recovery must finish before a game can start.") }
         guard active == nil else { throw issue("Launch game", "Quit the current game before starting another one.") }
         guard let installation = try catalog.snapshot().entries.first(where: { $0.id == gameID })?.installation else {
             throw issue("Launch game", "This game is not installed. Install it from your library first.")
+        }
+        let option = try launchOptions(for: installation).first { $0.id == launchOptionID }
+        guard launchOptionID == nil || option != nil else {
+            throw issue("Launch game", "The selected launch option is no longer available. Choose another option.")
         }
         var session = PlaySessionRecord(gameID: gameID, bottleID: installation.bottleID, startedAt: clock.wallTime)
         session.lastCheckpointAt = session.startedAt
@@ -138,6 +155,7 @@ public actor SessionService: SessionManaging {
             guard cloud != nil, try mapping(installation) == pending.mapping else { throw issue("Cloud saves", "This game's save recovery needs its original save mapping before it can launch.") }
             try catalog.reserveCloudRecoverySession(session, operation: pending)
         } else { try catalog.saveSession(session) }
+        activeLaunchOption = option
         active = session; value = .init(phase: .preparing, game: installation.game, session: session)
         playAnchor = nil; baseSeconds = 0; lastSave = clock.uptime; lastPublish = clock.uptime
         publish()
@@ -160,6 +178,13 @@ public actor SessionService: SessionManaging {
             throw issue("Cloud saves", "There is no game waiting for a save-sync choice.")
         }
         return installed
+    }
+    private func launchOptions(for installed: InstallationRecord) throws -> [LaunchOption] {
+        guard let plan = installed.plan else { return [] }
+        if let source = sources[installed.gameID.source] {
+            return try source.installer(for: installed.game).launchOptions(plan)
+        }
+        return plan.launchOptions ?? []
     }
     private func launch(_ original: InstallationRecord, offline: Bool = false, authorization: CloudSyncAuthorization? = nil) async {
         guard let id = active?.id else { return }
@@ -210,7 +235,16 @@ public actor SessionService: SessionManaging {
             try Task.checkCancellation()
             guard let preparing = active else { throw CancellationError() }
             try catalog.checkCloudBeforeLaunch(preparing)
-            let run = try await runner.launch(installed.launchSpec, in: bottle(installed), directory: directory)
+            var spec = installed.launchSpec
+            if let option = activeLaunchOption {
+                guard try launchOptions(for: installed).contains(option) else {
+                    throw issue("Launch game", "The selected launch option changed. Choose another option.")
+                }
+                spec = option.spec
+                // Preparation applies to every executable in the installation.
+                spec.dllOverrides = installed.launchSpec.dllOverrides
+            }
+            let run = try await runner.launch(spec, in: bottle(installed), directory: directory)
             guard var session = active else { try await runner.terminate(run, force: true); return }
             session.runtime = .init(run: run)
             session.lastCheckpointAt = max(clock.wallTime, session.lastCheckpointAt)

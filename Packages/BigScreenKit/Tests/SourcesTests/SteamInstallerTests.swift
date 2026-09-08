@@ -38,6 +38,42 @@ final class SteamInstallerTests: XCTestCase {
         XCTAssertGreaterThan(result.estimate.requiredBytes, 16)
         XCTAssertThrowsError(try SteamPlanBuilder.build(game: game, app: info, manifests: [], ownedApps: [200]))
     }
+    func testRegionalDepotRequiresPackageEntitlementEvenWhenBaseAppIsOwned() async throws {
+        // The same base app can list mutually exclusive regional depots with no dlcappid.
+        let info = app(depots: [.init(id: 101, osList: "windows", manifestGID: 7),
+                                .init(id: 102, osList: "windows", manifestGID: 8),
+                                .init(id: 103, osList: "windows")])
+        let content = ResolvedSteamContent(app: info, manifests: [manifest([file("Game.exe")])],
+                                          entitlements: .init(appIDs: [100], depotIDs: [101]))
+        let installer = SteamInstaller(game: game, backend: FixtureContentBackend(content: content, chunks: [:]))
+        let resolved = try await installer.resolve()
+        XCTAssertEqual(resolved.manifestIDs, ["101": "7"])
+        let payload = try SteamPlanBuilder.payload(resolved, for: game.id)
+        XCTAssertEqual(payload.authorizedDepotIDs, [101])
+        XCTAssertEqual(payload.app.depots.count, 3, "Keep original metadata while pinning the entitled subset")
+        XCTAssertEqual(try SteamPlanBuilder.selectedDepots(info, ownedApps: [100], ownedDepots: [101]).map(\.id), [101])
+        XCTAssertThrowsError(try SteamPlanBuilder.selectedDepots(info, ownedApps: [100], ownedDepots: []))
+        XCTAssertThrowsError(try SteamPlanBuilder.build(game: game, app: info,
+            manifests: [manifest([file("Game.exe")]), manifest([file("other.exe")], depotID: 102, gid: 8)],
+            ownedApps: [100], ownedDepots: [101]))
+    }
+    func testLegacyPlansRemainReadableAndEntitlementPinsCannotBeRemovedFromSubsetPlans() throws {
+        let legacy = try plan([file("Game.exe")])
+        XCTAssertNil(try SteamPlanBuilder.payload(legacy, for: game.id).authorizedDepotIDs)
+        let info = app(depots: [.init(id: 101, manifestGID: 7), .init(id: 102, manifestGID: 8)])
+        let resolved = try SteamPlanBuilder.build(game: game, app: info,
+            manifests: [manifest([file("Game.exe")])], ownedApps: [100], ownedDepots: [101])
+        var payload = try SteamPlanBuilder.payload(resolved, for: game.id)
+        payload.authorizedDepotIDs = nil
+        let altered = InstallPlan(game: game, manifestIDs: resolved.manifestIDs, estimate: resolved.estimate,
+            launchSpec: resolved.launchSpec, sourcePayload: try JSONEncoder().encode(payload))
+        XCTAssertThrowsError(try SteamPlanBuilder.payload(altered, for: game.id))
+    }
+    func testInstallDiagnosticReportsCodesWithoutSecretsOrSignedURLs() {
+        XCTAssertEqual(SteamInstallDiagnostics.code(for: SteamError.http(status: 403, url: "https://fixture.invalid/secret")), "HTTP 403")
+        XCTAssertEqual(SteamInstallDiagnostics.code(for: SteamError.eresult(.accessDenied, context: "private context")), "Steam EResult 15")
+        XCTAssertEqual(SteamInstallDiagnostics.code(for: SteamError.download("private request")), "Content verification failed")
+    }
     func testPlanRejectsMissingManifestConflictsTraversalAndIncompleteChunks() throws {
         XCTAssertThrowsError(try plan([file("Game.exe")], app: app(depots: [.init(id: 101)])))
         XCTAssertThrowsError(try plan([file("Game.exe"), file("../outside")]))
@@ -62,8 +98,39 @@ final class SteamInstallerTests: XCTestCase {
         XCTAssertEqual(result.launchSpec.executableRelativePath, "Bin/Game.exe")
         XCTAssertEqual(result.launchSpec.workingDirectoryRelativePath, "Bin")
         XCTAssertEqual(result.launchSpec.arguments, ["--name", "two words"])
-        XCTAssertThrowsError(try plan([file("Game.exe")], app: app(launches: [.init(id: "0", executable: "Game.exe"), .init(id: "1", executable: "Game.exe")])))
+        XCTAssertEqual(result.launchOptions?.map(\.id), ["0", "1"])
+        let legacy = InstallPlan(game: game, manifestIDs: result.manifestIDs, estimate: result.estimate,
+            launchSpec: result.launchSpec, sourcePayload: result.sourcePayload)
+        let offline = SteamInstaller(game: game, backend: FixtureContentBackend(content: .init(app: app(), manifests: [], entitlements: .init(appIDs: [], depotIDs: [])), chunks: [:]))
+        XCTAssertEqual(try offline.launchOptions(legacy), result.launchOptions, "Recover older installations' choices without resolving online")
+        let modes = try plan([file("Game.exe")], app: app(launches: [
+            .init(id: "0", executable: "Game.exe", arguments: "-dx11", description: "Play with DirectX 11"),
+            .init(id: "1", executable: "Game.exe", arguments: "-dx12", description: "Play with DirectX 12")]))
+        XCTAssertEqual(modes.launchOptions?.map(\.title), ["Play with DirectX 11", "Play with DirectX 12"])
+        XCTAssertEqual(modes.launchOptions?.last?.spec.arguments, ["-dx12"])
+        XCTAssertNoThrow(try SteamPlanBuilder.payload(modes, for: game.id))
+        let altered = InstallPlan(game: game, manifestIDs: modes.manifestIDs, estimate: modes.estimate,
+            launchSpec: modes.launchSpec, sourcePayload: modes.sourcePayload,
+            launchOptions: [.init(id: "1", title: "Other", spec: .init(executableRelativePath: "Other.exe"))])
+        XCTAssertThrowsError(try SteamPlanBuilder.payload(altered, for: game.id))
         XCTAssertThrowsError(try plan([file("Game.exe")], app: app(launches: [.init(id: "0", executable: "../Game.exe")])))
+    }
+    func testPublicInstallExcludesDeveloperBranchLaunchAndUnownedArtbook() throws {
+        // Armored Core VI advertises a dev-debug executable beside its public launcher.
+        let options = [AppLaunch(id: "0", executable: "Game/start_protected_game.exe"),
+                       AppLaunch(id: "1", executable: "Artbook/Artbook.exe", requiredDLC: 200),
+                       AppLaunch(id: "2", executable: "Game/Debug.exe", betaKey: "dev-debug")]
+        let result = try plan([file("Game/start_protected_game.exe")], app: app(launches: options))
+        XCTAssertEqual(result.launchSpec.executableRelativePath, "Game/start_protected_game.exe")
+        XCTAssertEqual(try SteamPlanBuilder.payload(result, for: game.id).app.launches, options)
+        XCTAssertThrowsError(try plan([file("Game/Debug.exe")], app: app(launches: [options[2]])))
+        for branch in ["", "public"] {
+            XCTAssertNoThrow(try plan([file("Game.exe")], app: app(launches: [.init(id: "0", executable: "Game.exe", betaKey: branch)])))
+        }
+        let gated = AppInfo(appID: 100, name: "Fixture", depots: [.init(id: 101, manifestGID: 7)],
+            launches: [.init(id: "0", executable: "Game.exe", requiredDLC: 900)])
+        let ownedMode = try SteamPlanBuilder.build(game: game, app: gated, manifests: [manifest([file("Game.exe")])], ownedApps: [100, 900])
+        XCTAssertEqual(try SteamPlanBuilder.payload(ownedMode, for: game.id).ownedDLC, [900], "Keep launch-only DLC gates when revalidating an offline plan")
     }
     func testWindowsArgumentsKeepQuotesBackslashesEmptyValuesAndShellSyntaxLiteral() throws {
         XCTAssertEqual(try WindowsArguments.parse(#"one "two three" "" four" five""#), ["one", "two three", "", "four five"])

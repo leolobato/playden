@@ -84,6 +84,8 @@ struct ModalLayer: View {
                 ConfirmDialog(model: model, intent: intent).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if case .installOffer(let gameID) = model.panel {
                 InstallOfferDialog(model: model, gameID: gameID).frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if case .launchOptions(let gameID) = model.panel {
+                LaunchOptionsDialog(model: model, gameID: gameID).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if case .logs(let gameID) = model.panel {
                 LogViewer(model: model, gameID: gameID).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if case .cloudSaves(let gameID) = model.panel {

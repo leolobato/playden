@@ -19,6 +19,7 @@ enum Panel: Equatable {
     case context, filters, search, compatibility, information(String), persistenceFailure, signOut, controllerTest, resetAppData
     case downloadActions(GameID)
     case installOffer(GameID)
+    case launchOptions(GameID)
     case cloudSaves(GameID)
     case uninstall(GameID)
     case textEditor(TextPurpose), collections(GameID), collectionOptions(UUID), confirmation(Confirmation), logs(GameID)
@@ -78,6 +79,12 @@ final class LibraryModel {
     @ObservationIgnored var onExitOverlayChanged: ((Bool) -> Void)?
     var session = SessionSnapshot()
     var sessionReady = false
+    var gameLaunchOptions: [GameID: [LaunchOption]] = [:]
+    var preferredLaunchOptions: [GameID: LaunchOption] = [:]
+    var launchChoiceIndex = 0
+    var launchAlwaysUse = false
+    var launchAfterChoosing = false
+    var launchChoiceError: String?
     var gameWindowHandedOff = false
     var sessionIssue: OperationFailure? {
         didSet {
@@ -376,11 +383,13 @@ final class LibraryModel {
     }
     var contextActions: [String] {
         [detailActions.first ?? "Open game", focusedGame?.isFavorite == true ? "Unfavorite" : "Favorite", "Set compatibility", focusedGame?.isHidden == true ? "Unhide" : "Hide", "View logs", "Add to collection"]
+        + (focusedGame.map { (gameLaunchOptions[$0.id]?.count ?? 0) > 1 } == true ? ["Launch options"] : [])
         + (detailActions.contains("Uninstall") ? ["Uninstall"] : [])
     }
     var panelActions: [String] {
         switch panel {
         case .context: contextActions
+        case .launchOptions(let id): (gameLaunchOptions[id] ?? []).map(\.title) + ["Always use this", "Cancel", launchAfterChoosing ? "Play" : "Save"]
         case .downloadActions(let id): downloadActions(for: id)
         case .installOffer: resolvingInstall ? [installOffer == nil ? "Cancel" : "Close"] : installOfferError != nil ? ["Cancel", installOfferRequiresSignIn ? "Sign in" : "Retry"] : installOffer?.canInstall == true ? ["Cancel", "Install"] : ["Cancel", "Check space again"]
         case .filters: []
@@ -610,6 +619,7 @@ final class LibraryModel {
     func activatePanel() {
         guard let label = panelActions[safe: panelIndex] else { return }
         switch panel {
+        case .launchOptions(let id): activateLaunchChoice(for: id)
         case .installOffer(let id):
             if panelIndex == 0 { panel = nil }
             else if installOfferRequiresSignIn { beginSignIn(resumingInstall: id) }
@@ -627,6 +637,7 @@ final class LibraryModel {
             else if label == "Hide" || label == "Unhide" { hideFocused(); panel = nil }
             else if label == "Add to collection", let id = focusedGame?.id { show(.collections(id)) }
             else if label == "Uninstall", let id = focusedGame?.id { beginUninstall(id) }
+            else if label == "Launch options", let id = focusedGame?.id { showLaunchOptions(for: id, play: false) }
             else if let id = focusedGame?.id { show(.logs(id)) }
         case .compatibility:
             if label == "Edit note", let id = focusedGame?.id { beginText(.compatibilityNote(id)) }

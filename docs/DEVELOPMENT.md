@@ -195,6 +195,25 @@ remaining acceptance checks are separate release requirements.
 
 ## Tests and visual review
 
+To trace an installation failure with the installed Release app, quit Big Screen, then run
+the diagnostic with the game's Steam app ID:
+
+```sh
+"/Applications/Big Screen.app/Contents/MacOS/Big Screen" --diagnose-install 1888160
+```
+
+It uses the app's saved sign-in to check authentication, package/depot entitlements and manifest
+resolution without installing or launching a game. Output contains stages and numeric error
+codes, not credentials, account identifiers, depot keys or signed URLs. An access-denied content
+response is distinct from expired authentication and should not trigger another sign-in loop.
+
+Steam install plans retain all eligible launch options, including descriptions, arguments and
+working directories. Non-public `betakey` entries and unowned DLC options are excluded.
+The per-game **Always use this** preference is stored in catalog edits; changing launch metadata
+invalidates a remembered choice. Existing installations recover options from their saved Steam
+metadata without a network request. A one-time choice remains active through runtime preparation
+and Cloud review without replacing the installation's default launch spec.
+
 ```sh
 python3 scripts/test-release.py
 ./scripts/test.sh

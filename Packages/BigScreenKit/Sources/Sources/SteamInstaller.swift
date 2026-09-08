@@ -18,7 +18,8 @@ public struct SteamInstaller: Installer {
     public func resolve() async throws -> InstallPlan {
         guard gameID.source == "steam", let appID = UInt32(gameID.value) else { throw SourceFailure.malformedResponse }
         let resolved = try await backend.resolve(appID: appID)
-        return try SteamPlanBuilder.build(game: game, app: resolved.app, manifests: resolved.manifests, ownedApps: resolved.entitlements.appIDs)
+        return try SteamPlanBuilder.build(game: game, app: resolved.app, manifests: resolved.manifests,
+            ownedApps: resolved.entitlements.appIDs, ownedDepots: resolved.entitlements.depotIDs)
     }
     public func download(_ plan: InstallPlan, to directory: URL, progress: @escaping @Sendable (InstallProgress) -> Void) async throws {
         try await backend.download(SteamPlanBuilder.payload(plan, for: gameID), to: directory, progress: progress)
@@ -128,8 +129,14 @@ public struct SteamInstaller: Installer {
             }
             return DepotManifest(depotID: manifest.depotID, gid: manifest.gid, files: files, totalSize: manifest.totalSize)
         }
-        try await backend.download(SteamInstallPayload(app: payload.app, manifests: manifests, ownedDLC: payload.ownedDLC),
+        try await backend.download(SteamInstallPayload(app: payload.app, manifests: manifests, ownedDLC: payload.ownedDLC,
+                                   authorizedDepotIDs: payload.authorizedDepotIDs),
                                    to: directory, progress: progress)
+    }
+    public func launchOptions(_ plan: InstallPlan) throws -> [LaunchOption] {
+        let payload = try SteamPlanBuilder.payload(plan, for: gameID)
+        return try SteamPlanBuilder.launchOptions(payload.app, files: payload.manifests.flatMap(\.files),
+            ownedApps: Set(payload.ownedDLC + [payload.app.appID]))
     }
     public func validate(_ plan: InstallPlan, at directory: URL, staging: InstallStaging) async throws -> LaunchSpec {
         let payload = try SteamPlanBuilder.payload(plan, for: gameID)

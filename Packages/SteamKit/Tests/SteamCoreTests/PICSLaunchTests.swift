@@ -12,8 +12,8 @@ final class PICSLaunchTests: XCTestCase {
             "launch" {
               "10" { "executable" "Mac.app" "config" { "oslist" "macos" } }
               "2" { "executable" "bin\\Game.exe" "workingdir" "bin\\" "arguments" "-windowed \"two words\""
-                      "type" "default" "config" { "oslist" " windows,linux " "osarch" "64" "ownsdlc" "200" } }
-              "0" { "executable" "Launcher.exe" }
+                      "type" "default" "config" { "oslist" " windows,linux " "osarch" "64" "ownsdlc" "200" "betakey" "dev-debug" } }
+              "0" { "executable" "Launcher.exe" "description" "Play the game" }
             }
           }
         }
@@ -25,6 +25,9 @@ final class PICSLaunchTests: XCTestCase {
         XCTAssertTrue(app.launches[1].isWindows)
         XCTAssertFalse(app.launches[2].isWindows)
         XCTAssertEqual(app.launches[1].requiredDLC, 200)
+        XCTAssertEqual(app.launches[1].betaKey, "dev-debug")
+        XCTAssertNil(app.launches[0].betaKey)
+        XCTAssertEqual(app.launches[0].description, "Play the game")
         XCTAssertEqual(app.launches[1].workingDirectory, "bin\\")
         XCTAssertEqual(app.launches[1].arguments, "-windowed \"two words\"")
         XCTAssertEqual(try JSONDecoder().decode(AppInfo.self, from: JSONEncoder().encode(app)), app)
@@ -35,5 +38,9 @@ final class PICSLaunchTests: XCTestCase {
         let app = CMClient.parseAppInfo(appID: 100, root: try VDF.parse("\"common\" { \"name\" \"Fixture\" }") )
         XCTAssertTrue(app.launches.isEmpty)
         XCTAssertTrue(app.controllerSupport.isEmpty)
+    }
+    func testLaunchWithoutBranchRestrictionRemainsDecodable() throws {
+        let data = Data(#"{"id":"0","executable":"Game.exe","arguments":"","workingDirectory":"","osList":"","osArch":"","type":""}"#.utf8)
+        XCTAssertNil(try JSONDecoder().decode(AppLaunch.self, from: data).betaKey)
     }
 }

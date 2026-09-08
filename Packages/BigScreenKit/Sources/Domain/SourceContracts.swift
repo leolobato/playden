@@ -13,11 +13,12 @@ public enum AuthenticationEvent: Equatable, Sendable {
     case expired
 }
 public enum SourceFailure: Error, Equatable, Sendable, LocalizedError {
-    case signedOut, expired, network, throttled, credentialsRejected, cancelled, unavailable, malformedResponse, storage(String)
+    case signedOut, expired, accessDenied, network, throttled, credentialsRejected, cancelled, unavailable, malformedResponse, storage(String)
     public var errorDescription: String? {
         switch self {
         case .signedOut: "Sign in to refresh your library."
         case .expired: "Your sign-in has expired. Sign in again to continue."
+        case .accessDenied: "Steam denied access to the requested content. Retry, or check that your account owns this edition."
         case .network: "The store can’t be reached. Check your connection and try again."
         case .throttled: "The store is receiving too many requests. Wait a moment, then retry."
         case .credentialsRejected: "The store couldn’t verify those details. Check your account name, password or code."

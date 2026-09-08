@@ -71,6 +71,7 @@ private actor Runner: GameRunner {
     var snapshot: RunSnapshot?
     var listener: AsyncStream<RunSnapshot>.Continuation?
     var changed = false, held = false, graceful = true
+    var lastLaunchSpec: LaunchSpec?
     init(_ events: Events) { self.events = events }
     func configure(changed: Bool = false, held: Bool = false, graceful: Bool = true) { self.changed = changed; self.held = held; self.graceful = graceful }
     func prepare(_ bottle: GameBottle) async throws -> Bool {
@@ -80,6 +81,7 @@ private actor Runner: GameRunner {
     }
     func completePreparation(_ bottle: GameBottle) async throws { try await events.preparationStep("acknowledge") }
     func launch(_ spec: LaunchSpec, in bottle: GameBottle, directory: URL) async throws -> RunningGame {
+        lastLaunchSpec = spec
         await events.add("launch:" + spec.executableRelativePath)
         let run = RunningGame(bottle: bottle, launcher: .init(pid: 99999, startSeconds: 1, startMicroseconds: 0))
         snapshot = .init(run: run)
@@ -191,6 +193,34 @@ private actor SessionCloud: CloudSyncManaging {
 }
 @MainActor
 final class SessionServiceTests: XCTestCase {
+    func testSelectedLaunchOptionSurvivesRuntimePreparationAndCloudPrompt() async throws {
+        let catalog = try CatalogStore(), clock = TestClock(), events = Events(), runner = Runner(events), queue = Queue(events)
+        var game = try installed(catalog)
+        let selected = LaunchOption(id: "dx11", title: "DirectX 11", spec: .init(executableRelativePath: "Alternate.exe", workingDirectoryRelativePath: "Bin", arguments: ["-dx11"]))
+        game.plan = .init(game: game.game, manifestIDs: [:], estimate: .init(downloadBytes: 1, installedBytes: 1, requiredBytes: 1),
+            launchSpec: game.launchSpec, sourcePayload: Data(), launchOptions: [selected])
+        try catalog.saveInstallation(game)
+        let cloud = SessionCloud(catalog, events)
+        await cloud.configure(before: .conflict); await runner.configure(changed: true)
+        let service = try make(catalog, runner, queue, clock, events, cloud: cloud)
+        try await service.start(downloadWhilePlaying: false)
+        do { try await service.play(game.gameID, launchOptionID: "missing"); XCTFail("Unknown choice must fail before starting a session") } catch {}
+        XCTAssertTrue(try catalog.unfinishedSessions().isEmpty)
+        try await service.play(game.gameID, launchOptionID: "dx11")
+        _ = try await wait(service, phase: .awaitingCloud)
+        try await service.playOffline()
+        _ = try await wait(service, phase: .launching)
+        let actual = await runner.lastLaunchSpec
+        XCTAssertEqual(actual, selected.spec)
+        XCTAssertEqual(try catalog.snapshot().entries.first?.installation?.launchSpec.executableRelativePath, "rebuilt.exe", "One-time selection must not replace the prepared default")
+        await runner.emit(exit: 0); _ = try await wait(service, phase: .idle)
+        await cloud.configure(before: .upToDate); await runner.configure(changed: false)
+        try await service.play(game.gameID)
+        _ = try await wait(service, phase: .launching)
+        let next = await runner.lastLaunchSpec
+        XCTAssertEqual(next?.executableRelativePath, "rebuilt.exe", "One-time selection must not leak to the next session")
+        await runner.emit(exit: 0); _ = try await wait(service, phase: .idle)
+    }
     private func installed(_ catalog: CatalogStore, id: String = "one") throws -> InstallationRecord {
         let game = SourceGameRecord(id: GameID(source: "fixture", value: id), title: id)
         var installation = InstallationRecord(game: game, location: .init(volumeID: "fixture", lastKnownRoot: URL(fileURLWithPath: "/fixture"), relativePath: "game"), bottleID: "gn-fixture-" + id, manifestIDs: [:], templateVersion: "1", launchSpec: .init(executableRelativePath: "game.exe"), installedBytes: 100)

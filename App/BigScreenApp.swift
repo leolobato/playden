@@ -27,7 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let args = ProcessInfo.processInfo.arguments
         let isTest = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil || args.contains("-XCTest") || args.contains("-NSTreatUnknownArgumentsAsOpen")
         // Keep tests and visual fixtures deterministic and separate from the interactive profile.
-        if args.contains("--snapshot") || args.contains("--cloud-read-check") || isTest { model = LibraryModel() }
+        if args.contains("--snapshot") || args.contains("--cloud-read-check") || args.contains("--diagnose-install") || isTest { model = LibraryModel() }
         else {
             let preview = args.contains("--preview")
             do {
@@ -57,6 +57,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let args = ProcessInfo.processInfo.arguments
+        if let index = args.firstIndex(of: "--diagnose-install") {
+            NSApp.setActivationPolicy(.prohibited)
+            guard args.indices.contains(index + 1), let appID = UInt32(args[index + 1]) else {
+                fputs("Usage: Big Screen --diagnose-install STEAM_APP_ID\n", stderr); exit(2)
+            }
+            Task {
+                let succeeded = await SteamInstallDiagnostics.inspect(appID: appID) { message in
+                    FileHandle.standardOutput.write(Data((message + "\n").utf8))
+                }
+                exit(succeeded ? 0 : 1)
+            }
+            return
+        }
         #if DEBUG
         if let index = args.firstIndex(of: "--cloud-read-check"), args.indices.contains(index + 1) {
             NSApp.setActivationPolicy(.accessory)
@@ -415,7 +428,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let requestedScreens: Set<String>? = arguments.firstIndex(of: "--snapshot-screens").flatMap { index in
                 arguments.indices.contains(index + 1) ? Set(arguments[index + 1].split(separator: ",").map(String.init)) : nil
             }
-            for screen in ["launcher-quit", "launcher-quitting", "game-drive-disconnected", "game-drive-checking", "context-drive-disconnected", "library-drive-disconnected", "toast-complete", "toast-failed", "toast-connected", "toast-disconnected", "uninstall-confirm", "uninstall-unsynced", "uninstall-checking", "cloud-ready", "cloud-conflict", "cloud-account", "cloud-pending", "cloud-syncing", "cloud-recovery", "home", "home-tabs", "home-library-card", "home-playstation", "home-large-library", "home-large-library-end", "home-collection-end", "library-large", "library-large-end", "library", "library-playstation", "library-paged", "library-return", "game", "game-status-clean", "game-status-crash", "library-running", "context-uninstall", "downloads", "downloads-queued", "settings", "settings-about", "settings-reset", "settings-reset-blocked", "settings-reset-error", "settings-reset-busy", "settings-display", "settings-runtime", "settings-runtime-missing", "settings-runtime-busy", "collections", "keyboard", "keyboard-playstation", "keyboard-generic", "keyboard-space", "keyboard-long", "compatibility", "uninstall", "logs", "logs-retry", "logs-long", "logs-long-end", "logs-long-return", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom", "library-download-glyph", "library-download-focused", "game-unknown-size", "game-favorite", "install-offer", "install-offer-space", "install-queue", "install-history-failed", "install-history-completed", "install-mini-progress", "install-storage-shortage", "install-storage-unavailable", "install-game-progress", "launching", "exit-overlay", "exit-overlay-quit", "notification", "notification-focused"] {
+            for screen in ["launch-options", "launcher-quit", "launcher-quitting", "game-drive-disconnected", "game-drive-checking", "context-drive-disconnected", "library-drive-disconnected", "toast-complete", "toast-failed", "toast-connected", "toast-disconnected", "uninstall-confirm", "uninstall-unsynced", "uninstall-checking", "cloud-ready", "cloud-conflict", "cloud-account", "cloud-pending", "cloud-syncing", "cloud-recovery", "home", "home-tabs", "home-library-card", "home-playstation", "home-large-library", "home-large-library-end", "home-collection-end", "library-large", "library-large-end", "library", "library-playstation", "library-paged", "library-return", "game", "game-status-clean", "game-status-crash", "library-running", "context-uninstall", "downloads", "downloads-queued", "settings", "settings-about", "settings-reset", "settings-reset-blocked", "settings-reset-error", "settings-reset-busy", "settings-display", "settings-runtime", "settings-runtime-missing", "settings-runtime-busy", "collections", "keyboard", "keyboard-playstation", "keyboard-generic", "keyboard-space", "keyboard-long", "compatibility", "uninstall", "logs", "logs-retry", "logs-long", "logs-long-end", "logs-long-return", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom", "library-download-glyph", "library-download-focused", "game-unknown-size", "game-favorite", "install-offer", "install-offer-space", "install-queue", "install-history-failed", "install-history-completed", "install-mini-progress", "install-storage-shortage", "install-storage-unavailable", "install-game-progress", "launching", "exit-overlay", "exit-overlay-quit", "notification", "notification-focused"] {
                 if let requestedScreens, !requestedScreens.contains(screen) { continue }
                 // Keep each capture independent of the requested screen order.
                 let model = LibraryModel()
@@ -428,6 +441,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 model.uninstallBusy = false; model.uninstallReview = nil; model.uninstallError = nil; model.uninstallPhase = .confirm
                 model.setupBusy = false; model.runtimeChecking = false; model.setupFailure = nil; model.setupIndex = 0; model.onboarding = false
                 switch screen {
+                case "launch-options":
+                    if let game = model.games.first {
+                        model.openGame(game)
+                        model.gameLaunchOptions[game.id] = [
+                            .init(id: "0", title: "Play", spec: .init(executableRelativePath: "Game.exe")),
+                            .init(id: "1", title: "Play with DirectX 11", spec: .init(executableRelativePath: "Game.exe", arguments: ["-dx11"]))]
+                        model.showLaunchOptions(for: game.id, play: true)
+                        model.launchChoiceIndex = 1; model.launchAlwaysUse = true; model.panelIndex = 4
+                    }
                 case "game-drive-disconnected", "game-drive-checking", "context-drive-disconnected", "library-drive-disconnected":
                     model.selectTab(.library)
                     model.controllerName = "DUALSHOCK 4"

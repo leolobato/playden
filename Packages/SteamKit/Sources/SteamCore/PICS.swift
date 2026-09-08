@@ -124,10 +124,15 @@ public struct AppLaunch: Codable, Equatable, Sendable {
     public let osArch: String
     public let type: String
     public let requiredDLC: UInt32?
+    public let betaKey: String?
+    public let description: String?
     public init(id: String, executable: String, arguments: String = "", workingDirectory: String = "",
-                osList: String = "", osArch: String = "", type: String = "", requiredDLC: UInt32? = nil) {
+                osList: String = "", osArch: String = "", type: String = "", requiredDLC: UInt32? = nil, betaKey: String? = nil,
+                description: String? = nil) {
         self.id = id; self.executable = executable; self.arguments = arguments; self.workingDirectory = workingDirectory
         self.osList = osList; self.osArch = osArch; self.type = type; self.requiredDLC = requiredDLC
+        self.betaKey = betaKey
+        self.description = description
     }
     public var isWindows: Bool { osList.isEmpty || osList.split(separator: ",").contains { $0.trimmingCharacters(in: .whitespaces).lowercased() == "windows" } }
 }
@@ -188,7 +193,8 @@ public extension CMClient {
             AppLaunch(id: id, executable: value["executable"]?.stringValue ?? "",
                 arguments: value["arguments"]?.stringValue ?? "", workingDirectory: value["workingdir"]?.stringValue ?? "",
                 osList: value["config"]?["oslist"]?.stringValue ?? "", osArch: value["config"]?["osarch"]?.stringValue ?? "",
-                type: value["type"]?.stringValue ?? "", requiredDLC: value["config"]?["ownsdlc"]?.stringValue.flatMap(UInt32.init))
+                type: value["type"]?.stringValue ?? "", requiredDLC: value["config"]?["ownsdlc"]?.stringValue.flatMap(UInt32.init),
+                betaKey: value["config"]?["betakey"]?.stringValue, description: value["description"]?.stringValue)
         }.sorted { $0.id.localizedStandardCompare($1.id) == .orderedAscending } ?? []
         var depots: [DepotInfo] = []
         var branches: [String: UInt64] = [:]
