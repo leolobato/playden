@@ -63,6 +63,7 @@ extension LibraryModel {
         }
     }
     func beginPlay(_ id: GameID) {
+        guard !resetBusy else { return }
         guard !sessionBusy else { return }
         guard let sessions else {
             show(.information(isPreview ? "Play is available in the live app." : "The game service is unavailable. Restart Big Screen to try again.")); return

@@ -11,7 +11,7 @@ struct LaunchingGameView: View {
                 Artwork(url: model.sessionGame?.coverURL, title: model.sessionGame?.title ?? "Game")
                     .frame(width: 240, height: 360).clipShape(RoundedRectangle(cornerRadius: 8))
                 HStack(spacing: 20) {
-                    SessionSpinner(reducedMotion: model.reducedMotion)
+                    ActivitySpinner(reducedMotion: model.reducedMotion, label: "Launching")
                     Text(model.session.phase == .syncingSaves ? "Syncing saves for \(model.sessionGame?.title ?? "game")…" : "Launching \(model.sessionGame?.title ?? "game")…").font(Design.condensed(44))
                         .lineLimit(2).multilineTextAlignment(.center)
                 }.frame(maxWidth: 1300)
@@ -27,14 +27,15 @@ struct LaunchingGameView: View {
         }.frame(width: 1920, height: 1080).foregroundStyle(Design.text)
     }
 }
-private struct SessionSpinner: View {
+struct ActivitySpinner: View {
     var reducedMotion: Bool
+    var label: String
     @State private var spinning = false
     var body: some View {
         Circle().trim(from: 0.12, to: 0.88).stroke(Design.accent, style: StrokeStyle(lineWidth: 4, lineCap: .round))
             .frame(width: 32, height: 32).rotationEffect(.degrees(spinning ? 360 : 0))
             .onAppear { if !reducedMotion { withAnimation(.linear(duration: 1).repeatForever(autoreverses: false)) { spinning = true } } }
-            .accessibilityLabel("Launching")
+            .accessibilityLabel(label)
     }
 }
 struct GameExitOverlay: View {

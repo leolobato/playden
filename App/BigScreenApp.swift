@@ -150,6 +150,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         guard !terminating else { return .terminateLater }
         terminating = true
         Task {
+            await model.resetTask?.value
             await model.sessionStartup?.value
             await model.sessionCommand?.value
             do {
@@ -370,8 +371,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let requestedScreens: Set<String>? = arguments.firstIndex(of: "--snapshot-screens").flatMap { index in
                 arguments.indices.contains(index + 1) ? Set(arguments[index + 1].split(separator: ",").map(String.init)) : nil
             }
-            for screen in ["uninstall-confirm", "uninstall-unsynced", "uninstall-checking", "cloud-ready", "cloud-conflict", "cloud-account", "cloud-pending", "cloud-syncing", "cloud-recovery", "home", "home-tabs", "home-library-card", "home-playstation", "library", "library-playstation", "library-paged", "library-return", "game", "downloads", "downloads-queued", "settings", "settings-display", "settings-runtime", "settings-runtime-missing", "settings-runtime-busy", "collections", "keyboard", "compatibility", "uninstall", "logs", "logs-long", "logs-long-end", "logs-long-return", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom", "library-download-glyph", "library-download-focused", "game-unknown-size", "game-favorite", "install-offer", "install-offer-space", "install-queue", "install-history-failed", "install-history-completed", "install-mini-progress", "install-storage-shortage", "install-storage-unavailable", "install-game-progress", "launching", "exit-overlay", "exit-overlay-quit", "notification", "notification-focused"] {
+            for screen in ["uninstall-confirm", "uninstall-unsynced", "uninstall-checking", "cloud-ready", "cloud-conflict", "cloud-account", "cloud-pending", "cloud-syncing", "cloud-recovery", "home", "home-tabs", "home-library-card", "home-playstation", "library", "library-playstation", "library-paged", "library-return", "game", "downloads", "downloads-queued", "settings", "settings-about", "settings-reset", "settings-reset-blocked", "settings-reset-error", "settings-reset-busy", "settings-display", "settings-runtime", "settings-runtime-missing", "settings-runtime-busy", "collections", "keyboard", "compatibility", "uninstall", "logs", "logs-long", "logs-long-end", "logs-long-return", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom", "library-download-glyph", "library-download-focused", "game-unknown-size", "game-favorite", "install-offer", "install-offer-space", "install-queue", "install-history-failed", "install-history-completed", "install-mini-progress", "install-storage-shortage", "install-storage-unavailable", "install-game-progress", "launching", "exit-overlay", "exit-overlay-quit", "notification", "notification-focused"] {
                 if let requestedScreens, !requestedScreens.contains(screen) { continue }
+                model.resetBusy = false; model.resetError = nil; model.resetBlocker = nil
                 model.panel = nil; model.detailID = nil; model.authScreen = nil; model.setupScreen = nil
                 model.session = .init(); model.exitOverlay = false; model.controllerName = nil
                 model.cloudStatuses = [:]; model.cloudReview = nil
@@ -451,6 +453,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                         model.receiveControllers([ControllerSnapshot(id: idle.id, name: idle.name, playStation: true, buttons: pressed,
                             leftStick: .init(x: 0.62, y: 0.4), rightStick: .init(x: -0.2, y: -0.7))], at: ProcessInfo.processInfo.systemUptime)
                     }
+                case "settings-about", "settings-reset", "settings-reset-blocked", "settings-reset-error", "settings-reset-busy": model.configureResetSnapshot(screen)
                 case "settings": model.selectTab(.settings)
                 case "settings-display":
                     model.selectTab(.settings); model.settingsSection = 2; model.settingsRailFocused = false; model.settingsIndex = 1

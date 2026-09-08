@@ -27,7 +27,8 @@ struct SettingsScreen: View {
         ]
         case 3: [("Connected controllers", model.connectedControllers.isEmpty ? "No controller connected · keyboard navigation available" : model.connectedControllers.map(\.name).joined(separator: " · "), "Button test")]
         default: [("Big Screen", model.runtimeInfo.map { "CrossOver \($0.version ?? "not detected") · Template \($0.templateVersion)" } ?? "Your living-room game library", "v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1")"),
-            ("Logs folder", model.logArchiveError ?? "Install and play-session diagnostics · last 10 per game", "Open in Finder")]
+            ("Logs folder", model.logArchiveError ?? "Install and play-session diagnostics · last 10 per game", "Open in Finder"),
+            ("Reset app data", "Start setup again · installed games and saves are kept", "Review reset")]
         }
     }
     var body: some View {
@@ -66,11 +67,14 @@ struct ModalLayer: View {
     var body: some View {
         ZStack(alignment: .trailing) {
             Design.background.opacity(0.72).onTapGesture {
-                if case .uninstall(let id) = model.panel { model.activateUninstall(.cancel, id: id) }
+                if model.panel == .resetAppData { model.closeResetAppData() }
+                else if case .uninstall(let id) = model.panel { model.activateUninstall(.cancel, id: id) }
                 else if case .cloudSaves(let id) = model.panel { model.activateCloud(.close, id: id) }
                 else { model.panel = nil }
             }
-            if model.panel == .filters {
+            if model.panel == .resetAppData {
+                ResetAppDataDialog(model: model).frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if model.panel == .filters {
                 LibraryFilterSheet(model: model)
             } else if model.panel == .controllerTest {
                 ControllerTestView(model: model).frame(maxWidth: .infinity, maxHeight: .infinity)

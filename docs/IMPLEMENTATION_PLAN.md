@@ -374,6 +374,9 @@ Dependencies: M2–M4 services.
 - [ ] Finish keyboard shortcuts/password masking, contextual actions, confirmations and controller glyph legends.
 - [ ] Finish Settings: account/refresh, download toggle, volume/display/reduced motion, button test, versions,
   log viewer/Finder action and reset. Reset preserves games/saves by default and requires explicit consequences.
+- [x] Settings → About → Reset app data: review consequences, sign out, reset personalization and
+  return to setup while preserving installations, saves, paused downloads and recovery journals.
+  Transaction/interaction checks pass; physical controller acceptance remains in the v1 gate.
 - [ ] Make transient toasts informational; durable failure actions remain accessible without chasing a disappearing toast.
 - [ ] Bound/redact per-job/session logs and rotate to the last 10 per game; keep technical names in diagnostics.
 
@@ -704,3 +707,13 @@ sequence and the account/identity/consent boundaries. The recovery dialog has 10
 layout evidence; live interaction/gameplay is pending on the locked desktop. Settings reset and
 the remaining v1 acceptance gates are still open. See
 `docs/validation/2026-09-08-cloud-publication-recovery.md`.
+
+### 8 September — Settings reset checkpoint
+
+About now offers a controller-accessible reset review with Cancel focused by default. Reset clears
+the cached owned library, customization and preferences after joining refresh/authentication tasks
+and signing out. Games, saves, install ownership, download progress, play history, Cloud recovery
+and diagnostics remain intact. Active games, workers and unfinished removals block reset. Keychain
+failure leaves local data intact; database failure rolls back customization and reports sign-out
+honestly. The full regression suite and signed build pass. See
+`docs/validation/2026-09-08-settings-reset.md` for coverage and live acceptance limits.

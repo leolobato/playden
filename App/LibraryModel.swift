@@ -16,7 +16,7 @@ typealias LibraryFilter = LibraryScope
 enum TextPurpose: Equatable { case newCollection(GameID?), renameCollection(UUID), compatibilityNote(GameID), accountName, password, guardCode }
 enum Confirmation: Equatable { case deleteCollection(UUID), uninstall(GameID), install(GameID), cancelDownload(GameID), switchGame(GameID) }
 enum Panel: Equatable {
-    case context, filters, search, compatibility, information(String), persistenceFailure, signOut, controllerTest
+    case context, filters, search, compatibility, information(String), persistenceFailure, signOut, controllerTest, resetAppData
     case downloadActions(GameID)
     case installOffer(GameID)
     case cloudSaves(GameID)
@@ -185,6 +185,10 @@ final class LibraryModel {
     var settingsIndex = 0
     var settingsSection = 1
     var settingsRailFocused = false
+    var resetBusy = false
+    var resetError: String?
+    var resetBlocker: String?
+    @ObservationIgnored var resetTask: Task<Void, Never>?
     var fixedClock = false
     var keyRow = 1
     var keyColumn = 0
@@ -351,8 +355,9 @@ final class LibraryModel {
         filter = !games.isEmpty && games.allSatisfy(\.isHidden) ? .hidden : .all
         updateQuery("")
     }
-    func selectTab(_ value: AppTab, focusTabs: Bool = false) { tabsFocused = focusTabs; tab = value; detailID = nil; panel = nil; railFocused = false }
+    func selectTab(_ value: AppTab, focusTabs: Bool = false) { guard !resetBusy else { return }; tabsFocused = focusTabs; tab = value; detailID = nil; panel = nil; railFocused = false }
     func show(_ value: Panel) {
+        guard !resetBusy else { return }
         panel = value; panelIndex = 0
         if value == .filters { filterChoiceIndex = 0; filterScrollOffset = 0; expandedGenres = false }
         if value == .search { textEditor = TextEditorState(query); keyboardError = nil }
@@ -370,6 +375,7 @@ final class LibraryModel {
         for (i, row) in rows.enumerated() { homeColumns[i] = min(homeColumns[i, default: 0], max(0, row.itemCount - 1)) }
     }
     func perform(_ action: InputAction) {
+        if performResetInput(action) { return }
         if performUninstallInput(action) { return }
         if performCloudInput(action) { return }
         if performSessionInput(action) { return }
@@ -492,7 +498,7 @@ final class LibraryModel {
             if direction == .left { settingsRailFocused = true }
             else if direction == .right { settingsRailFocused = false }
             else if settingsRailFocused { settingsSection = min(max(0, settingsSection + (direction == .up ? -1 : 1)), 4); settingsIndex = 0 }
-            else { settingsIndex = min(max(0, settingsIndex + (direction == .up ? -1 : 1)), settingsSection == 1 || settingsSection == 2 ? 3 : settingsSection == 4 ? 1 : 0) }
+            else { settingsIndex = min(max(0, settingsIndex + (direction == .up ? -1 : 1)), settingsSection == 1 || settingsSection == 2 ? 3 : settingsSection == 4 ? 2 : 0) }
         }
     }
     func activateDetail() {
@@ -578,6 +584,7 @@ final class LibraryModel {
         else if settingsSection == 1 && settingsIndex == 2 { downloadWhilePlaying.toggle() }
         else if settingsSection == 3 { openControllerTest() }
         else if settingsSection == 4 && settingsIndex == 1 { revealLogsFolder() }
+        else if settingsSection == 4 && settingsIndex == 2 { showResetAppData() }
         else if settingsSection == 4 { show(.information("Big Screen \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1")\n\nCrossOver \(runtimeInfo?.version ?? "not detected") · Template \(runtimeInfo?.templateVersion ?? "not prepared")")) }
         else { show(.information(isPreview ? "The design preview uses sample games. Launch without --preview to connect your account and set up your Mac." : "This setting is still being implemented.")) }
     }

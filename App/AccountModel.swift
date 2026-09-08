@@ -12,6 +12,10 @@ extension LibraryModel {
         startInstallServices()
         startCloudServices()
         startSessionServices()
+        startAccountPolling()
+    }
+    func startAccountPolling() {
+        guard !isPreview, periodicSyncTask == nil, let source else { return }
         periodicSyncTask = Task { [weak self] in
             guard let self else { return }
             do { identity = try await source.auth.identity() }
@@ -32,6 +36,7 @@ extension LibraryModel {
         uninstallTask?.cancel()
     }
     func beginSignIn() {
+        guard !resetBusy else { return }
         guard source != nil else {
             show(.information("Steam sign-in is available in the live app. Launch without --preview to connect your account.")); return
         }
@@ -146,6 +151,7 @@ extension LibraryModel {
         if setupScreen == .account { openVolumeSetup(firstRun: true) }
     }
     func refreshLibrary() {
+        guard !resetBusy else { return }
         guard let source, let syncCoordinator else { return }
         syncTask?.cancel(); syncError = nil; syncing = true
         syncTask = Task { [weak self] in
@@ -162,6 +168,7 @@ extension LibraryModel {
         }
     }
     func signOut() {
+        guard !resetBusy else { return }
         guard let source, let catalog else { return }
         cancelAuthentication(); syncTask?.cancel(); panel = nil
         Task { [weak self] in
