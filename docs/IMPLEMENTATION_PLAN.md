@@ -573,8 +573,22 @@ See `docs/validation/2026-09-08-save-validation.md`.
   preparation path, and verify all 17 interfaces including `STEAMUSERSTATS_INTERFACE_VERSION011`.
   The real Verify files job completed; only the four interface files changed/appeared. Originals,
   app settings and saves retained identical hashes. See `docs/validation/2026-09-08-steam-interfaces.md`.
-- [ ] Preserve app settings, original DLLs and saves; replay Oniken's Store User Data action and
-  record the live result. The supplied worktree validation used disposable DLL copies only.
-  Preservation and real launch/menu/clean game exit are verified. The exact crash-triggering UI
+- [x] Preserve app settings, original DLLs and saves during live preparation and validation;
+  before/after hashes match for every existing non-interface file.
+- [ ] Replay Oniken's Store User Data action and record the live result.
+  Real launch/menu/clean game exit are verified. The exact crash-triggering UI
   action remains unconfirmed; asked the user. Submit Score leads to a separate leaderboard/name
   entry flow and was cancelled before submitting anything.
+
+### 8 September — Cloud UI and production wiring checkpoint
+
+The live app now connects the Cloud coordinator, owned save access and upload validator to
+session launch/exit. Game details expose Cloud status and a controller-accessible Cloud saves
+action. Conflict review shows local/remote dates and sizes with explicit upload/download choices;
+retry, safe offline play, account attachment and cancel-launch controls are connected. Post-exit
+sync returns focus to Big Screen and does not offer controls for an already stopped game.
+
+Regression tests pass, and conflict/account/status screens were rendered and inspected at 1080p
+and 4K. Live upload/readback, restore and offline/account-switch acceptance remain outstanding;
+this checkpoint does not declare Cloud sync or v1 complete.
+See `docs/validation/2026-09-08-cloud-ui.md`.

@@ -12,7 +12,7 @@ extension LibraryModel {
         } else { sessionIssue = nil }
     }
     var hasActiveSession: Bool { session.phase != .idle }
-    var isLaunchingGame: Bool { session.phase == .preparing || session.phase == .launching }
+    var isLaunchingGame: Bool { session.phase == .preparing || session.phase == .launching || session.phase == .syncingSaves }
     var sessionGame: Game? {
         guard let record = session.game else { return nil }
         return games.first { $0.id == record.id } ?? Game(id: record.id, title: record.title, coverURL: record.coverURL, heroURL: record.heroURL, logoURL: record.logoURL)
@@ -34,6 +34,14 @@ extension LibraryModel {
     func receiveSession(_ snapshot: SessionSnapshot) {
         let previous = session
         session = snapshot
+        if let status = snapshot.cloudStatus { cloudStatuses[status.gameID] = status }
+        if snapshot.phase == .awaitingCloud, let id = snapshot.session?.gameID {
+            setExitOverlay(false)
+            detailID = id; showCloud(id)
+        }
+        if snapshot.phase == .syncingSaves, previous.phase != .syncingSaves {
+            setExitOverlay(false); onGameEnded?()
+        }
         if previous.phase == .idle && snapshot.phase != .idle { onGameStarted?() }
         if let failure = snapshot.failure { sessionIssue = failure }
         if let window = snapshot.session?.runtime?.window,
@@ -50,7 +58,8 @@ extension LibraryModel {
             if snapshot.session?.outcome == .crash && sessionIssue == nil {
                 sessionIssue = .init(stage: "Game closed unexpectedly", reason: "\(snapshot.game?.title ?? "The game") closed unexpectedly. View logs for details.", output: snapshot.session?.runtime?.output ?? "")
             }
-            onGameEnded?()
+            if previous.phase != .syncingSaves { onGameEnded?() }
+            if snapshot.cloudStatus?.state == .conflict, let id = snapshot.session?.gameID { detailID = id; showCloud(id) }
         }
     }
     func beginPlay(_ id: GameID) {
@@ -62,7 +71,8 @@ extension LibraryModel {
             sessionIssue = sessionIssue ?? .init(stage: "Recover session", reason: "Finishing session recovery. Try Play again in a moment.", output: ""); return
         }
         if hasActiveSession {
-            if session.session?.gameID == id { returnToGame() }
+            if session.phase == .awaitingCloud, session.session?.gameID == id { showCloud(id) }
+            else if session.session?.gameID == id { returnToGame() }
             else { show(.confirmation(.switchGame(id))) }
             return
         }
@@ -108,6 +118,13 @@ extension LibraryModel {
         }
     }
     func performSessionInput(_ action: InputAction) -> Bool {
+        if session.phase == .syncingSaves {
+            switch action {
+            case .back, .holdHome: if let id = session.session?.gameID { showCloud(id) }
+            default: break
+            }
+            return true
+        }
         if case .holdHome = action {
             if hasActiveSession { exitOverlay ? returnToGame() : setExitOverlay(true) }
             return true

@@ -9,6 +9,7 @@ extension LibraryModel {
     func startServices() {
         guard !isPreview, let source else { return }
         startInstallServices()
+        startCloudServices()
         startSessionServices()
         periodicSyncTask = Task { [weak self] in
             guard let self else { return }
@@ -25,6 +26,7 @@ extension LibraryModel {
         cancelAuthentication(); syncTask?.cancel(); periodicSyncTask?.cancel(); setupTask?.cancel()
         installObserver?.cancel(); installOfferTask?.cancel()
         sessionObserver?.cancel()
+        cloudObserver?.cancel()
     }
     func beginSignIn() {
         guard source != nil else {
@@ -163,9 +165,10 @@ extension LibraryModel {
             guard let self else { return }
             do {
                 await syncCoordinator?.cancel()
+                await stopCloudCommands()
                 try await source.auth.signOut()
                 try catalog.clearSourceCatalog(source.id)
-                identity = nil; syncError = nil; syncing = false; reloadCatalog()
+                identity = nil; syncError = nil; syncing = false; cloudStatuses.removeAll(); reloadCatalog()
             } catch { show(.information(error.localizedDescription)) }
         }
     }
@@ -173,6 +176,7 @@ extension LibraryModel {
         let focusedID = focusedGame?.id
         let selectedRowName = rows[safe: homeRow]?.name
         restoringState = true; restoreCatalog(); restoringState = false
+        refreshCloudAvailability()
         if let focusedID, let index = filteredGames.firstIndex(where: { $0.id == focusedID }) { libraryCursor = GridCursor(index: index) }
         if let selectedRowName, let index = rows.firstIndex(where: { $0.name == selectedRowName }) {
             homeRow = index

@@ -99,6 +99,8 @@ struct ModalLayer: View {
                 InstallOfferDialog(model: model, gameID: gameID).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if case .logs(let gameID) = model.panel {
                 LogViewer(model: model, gameID: gameID).frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if case .cloudSaves(let gameID) = model.panel {
+                CloudSaveDialog(model: model, gameID: gameID).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if case .information(let message) = model.panel {
                 VStack(alignment: .leading, spacing: 30) {
                     Text(model.isPreview ? "Design preview" : "Big Screen").font(Design.condensed(48))

@@ -7,6 +7,7 @@ import Catalog
 import Runner
 import Installs
 import Sessions
+import Sources
 
 enum AppTab: String, CaseIterable { case home = "Home", library = "Library", downloads = "Downloads", settings = "Settings"
     var symbol: String { switch self { case .home: "house"; case .library: "square.grid.2x2"; case .downloads: "arrow.down.to.line"; case .settings: "gearshape" } }
@@ -18,6 +19,7 @@ enum Panel: Equatable {
     case context, filters, search, compatibility, information(String), persistenceFailure, signOut, controllerTest
     case downloadActions(GameID)
     case installOffer(GameID)
+    case cloudSaves(GameID)
     case textEditor(TextPurpose), collections(GameID), collectionOptions(UUID), confirmation(Confirmation), logs(GameID)
 }
 
@@ -37,6 +39,12 @@ final class LibraryModel {
     @ObservationIgnored let volumeStore: (any VolumeManaging)?
     @ObservationIgnored let installQueue: (any InstallQueuing)?
     @ObservationIgnored let sessions: (any SessionManaging)?
+    @ObservationIgnored let cloudService: (any CloudSyncManaging)?
+    @ObservationIgnored var cloudObserver: Task<Void, Never>?
+    @ObservationIgnored var cloudCommands: [GameID: Task<Void, Never>] = [:]
+    var cloudStatuses: [GameID: CloudSyncStatus] = [:]
+    var cloudAvailability: [GameID: Bool] = [:]
+    var cloudReview: CloudSyncOperation?
     @ObservationIgnored var sessionObserver: Task<Void, Never>?
     @ObservationIgnored var sessionStartup: Task<Void, Never>?
     @ObservationIgnored var sessionCommand: Task<Void, Never>?
@@ -156,7 +164,7 @@ final class LibraryModel {
     var keyRow = 1
     var keyColumn = 0
     var uppercase = false
-    init(catalog: CatalogStore? = nil, preview: Bool = true, source: (any GameSource)? = nil, runtime: (any BottleManaging)? = nil, volumeStore: (any VolumeManaging)? = nil, installQueue: (any InstallQueuing)? = nil, sessions: (any SessionManaging)? = nil) {
+    init(catalog: CatalogStore? = nil, preview: Bool = true, source: (any GameSource)? = nil, runtime: (any BottleManaging)? = nil, volumeStore: (any VolumeManaging)? = nil, installQueue: (any InstallQueuing)? = nil, sessions: (any SessionManaging)? = nil, cloud: (any CloudSyncManaging)? = nil) {
         self.catalog = catalog; self.isPreview = preview; self.source = source
         self.runtime = runtime; self.volumeStore = volumeStore
         self.syncCoordinator = catalog.map { LibrarySyncCoordinator(catalog: $0) }
@@ -165,6 +173,17 @@ final class LibraryModel {
             do { self.installQueue = try InstallQueue(catalog: catalog, sources: [source], storage: InstallStorage(volumes: volumeStore ?? GamesVolumeStore()), bottles: CrossOverGameBottles(runtime: runtime ?? CrossOverRuntime())) }
             catch { self.installQueue = nil; self.installPersistenceError = error.localizedDescription }
         } else { self.installQueue = nil }
+        if let cloud { self.cloudService = cloud }
+        else if !preview, let catalog, let steam = source as? SteamSource {
+            let access = CloudSaveAccess(catalog: catalog, storage: InstallStorage(volumes: volumeStore ?? GamesVolumeStore()),
+                bottles: CrossOverGameBottles(runtime: runtime ?? CrossOverRuntime()))
+            self.cloudService = CloudSyncService(catalog: catalog, reader: SteamCloudReader(account: steam.account),
+                writer: SteamCloudUploader(account: steam.account), roots: { try await access.roots(for: $0) },
+                validateUploads: { installed, uploads, deleting in
+                    try SteamSaveValidation.validate(installed, uploads: uploads, deleting: deleting,
+                        previousSession: catalog.latestRuntimeSession(for: installed.gameID))
+                })
+        } else { self.cloudService = nil }
         if let sessions { self.sessions = sessions }
         else if !preview, installQueue == nil, let catalog, let source, let queue = self.installQueue {
             do {
@@ -172,12 +191,13 @@ final class LibraryModel {
                     displayHelper: Bundle.main.url(forResource: "BigScreenDisplay", withExtension: "exe"),
                     displayTarget: { @MainActor in GameDisplay.target(preferences: try catalog.preferences()) })
                 self.sessions = try SessionService(catalog: catalog, sources: [source], runner: runner, queue: queue,
-                    storage: InstallStorage(volumes: volumeStore ?? GamesVolumeStore()))
+                    storage: InstallStorage(volumes: volumeStore ?? GamesVolumeStore()), cloud: self.cloudService)
             }
             catch { self.sessions = nil; self.sessionIssue = error as? OperationFailure ?? .init(stage: "Start sessions", reason: error.localizedDescription, output: error.localizedDescription) }
         } else { self.sessions = nil }
         if !preview { games = []; collections = []; queueOrder = []; completedDownloads = [] }
         restoreCatalog()
+        refreshCloudAvailability()
         restoringState = false
     }
     var searchKeys: [[String]] {
@@ -245,11 +265,13 @@ final class LibraryModel {
     var detailActions: [String] {
         guard let game = focusedGame else { return [] }
         let primary: String
-        if hasActiveSession, session.session?.gameID == game.id { primary = "Return to game" }
+        if session.phase == .awaitingCloud, session.session?.gameID == game.id { primary = "Review saves" }
+        else if hasActiveSession, session.session?.gameID == game.id { primary = "Return to game" }
+        else if cloudBusy(game.id) { primary = "Cloud saves" }
         else if !isPreview, let job = liveJob(for: game.id), ![.completed, .cancelled].contains(job.state) { primary = job.kind == .repair ? "View verification" : "View download" }
         else if gamesNeedingRepair.contains(game.id) { primary = "Verify files" }
         else { primary = switch game.status { case .installed: "Play"; case .downloading: downloadPaused ? "Resume download" : "Pause download"; case .queued: "View download"; case .driveDisconnected: "Drive disconnected"; case .notInstalled: "Install" } }
-        return [primary, game.isFavorite ? "Favorited" : "Favorite", "Add to collection", game.isHidden ? "Unhide" : "Hide", "Set compatibility"] + (game.status == .installed ? (primary == "Verify files" ? ["Uninstall"] : ["Verify files", "Uninstall"]) : []) + ["View logs"]
+        return [primary, game.isFavorite ? "Favorited" : "Favorite", "Add to collection", game.isHidden ? "Unhide" : "Hide", "Set compatibility"] + (game.status == .installed ? (primary == "Verify files" ? ["Uninstall", "Cloud saves"] : ["Verify files", "Uninstall", "Cloud saves"]) : []) + ["View logs"]
     }
     var contextActions: [String] { ["Open game", focusedGame?.isFavorite == true ? "Unfavorite" : "Favorite", "Set compatibility", focusedGame?.isHidden == true ? "Unhide" : "Hide", "View logs", "Add to collection"] }
     var panelActions: [String] {
@@ -317,6 +339,7 @@ final class LibraryModel {
         for (i, row) in rows.enumerated() { homeColumns[i] = min(homeColumns[i, default: 0], max(0, row.itemCount - 1)) }
     }
     func perform(_ action: InputAction) {
+        if performCloudInput(action) { return }
         if performSessionInput(action) { return }
         if panel == .controllerTest {
             if case .back = action { panel = nil }
@@ -446,6 +469,7 @@ final class LibraryModel {
     func activateDetail() {
         guard let label = detailActions[safe: detailAction] else { return }
         switch label {
+        case "Cloud saves", "Review saves": if let id = focusedGame?.id { showCloud(id) }
         case "Play": if let id = focusedGame?.id { beginPlay(id) }
         case "Return to game": returnToGame()
         case "Favorite", "Favorited": toggleFavorite()

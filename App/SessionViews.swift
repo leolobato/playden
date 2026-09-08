@@ -12,13 +12,17 @@ struct LaunchingGameView: View {
                     .frame(width: 240, height: 360).clipShape(RoundedRectangle(cornerRadius: 8))
                 HStack(spacing: 20) {
                     SessionSpinner(reducedMotion: model.reducedMotion)
-                    Text("Launching \(model.sessionGame?.title ?? "game")…").font(Design.condensed(44))
+                    Text(model.session.phase == .syncingSaves ? "Syncing saves for \(model.sessionGame?.title ?? "game")…" : "Launching \(model.sessionGame?.title ?? "game")…").font(Design.condensed(44))
                         .lineLimit(2).multilineTextAlignment(.center)
                 }.frame(maxWidth: 1300)
             }.offset(y: 318)
             HStack(spacing: 14) {
+                if model.session.phase == .syncingSaves {
+                    LegendItem(glyph: model.controllerName == nil || model.keyboardNavigation ? "ESC" : model.playStationGlyphs ? "○" : "B", title: "Save sync")
+                } else {
                 LegendItem(glyph: model.controllerName == nil || model.keyboardNavigation ? "⇧ HOME" : model.playStationGlyphs ? "PS" : "HOME",
                            title: model.controllerName == nil || model.keyboardNavigation ? "Game controls" : "Hold for one second to quit")
+                }
             }.foregroundStyle(Design.secondary).offset(y: 986)
         }.frame(width: 1920, height: 1080).foregroundStyle(Design.text)
     }

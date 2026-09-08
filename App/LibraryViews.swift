@@ -34,13 +34,13 @@ struct CanvasView: View {
                 .simultaneousGesture(TapGesture().onEnded { model.tabsFocused = false })
                 TopBar(model: model).frame(width: 1728, height: 56).offset(x: 96, y: 54)
             }.frame(width: 1920, height: 1080, alignment: .topLeading)
-                .environment(\.showsFocusRing, !model.sessionIssueFocused)
+                .environment(\.showsFocusRing, !model.sessionIssueFocused && model.panel == nil)
                 .opacity(model.detailID == nil ? 1 : 0)
                 .allowsHitTesting(model.detailID == nil)
                 .accessibilityHidden(model.detailID != nil)
             if model.detailID != nil, let game = model.focusedGame {
                 GamePage(model: model, game: game)
-                    .environment(\.showsFocusRing, !model.sessionIssueFocused)
+                    .environment(\.showsFocusRing, !model.sessionIssueFocused && model.panel == nil)
                     .transition(model.reducedMotion ? .identity : .opacity.combined(with: .offset(y: 24)))
                     .zIndex(1)
             }
@@ -86,7 +86,7 @@ struct CanvasView: View {
                     }
                 }.padding(24).frame(width: 1100).background(Design.panel, in: RoundedRectangle(cornerRadius: 12)).offset(x: 96, y: 750).zIndex(6)
             }
-            if model.isLaunchingGame { LaunchingGameView(model: model).transition(.opacity).zIndex(7) }
+            if model.isLaunchingGame && model.panel == nil { LaunchingGameView(model: model).transition(.opacity).zIndex(7) }
             if model.exitOverlay && model.fixedClock { GameExitOverlay(model: model).zIndex(8) }
         }.frame(width: 1920, height: 1080).clipped().foregroundStyle(Design.text)
             .environment(\.colorScheme, .dark)
@@ -169,6 +169,7 @@ struct BottomBar: View {
             }
             }
             Spacer(minLength: 0)
+            if model.detailID != nil, let game = model.focusedGame, game.status == .installed { CloudStatusLabel(model: model, gameID: game.id) }
             if model.detailID == nil && model.tab != .downloads && model.tab != .settings, let download = model.activeDownload {
                 HStack(spacing: 16) {
                     Image(systemName: model.downloadPaused ? "pause.fill" : "arrow.down.to.line").foregroundStyle(Design.accent)
@@ -281,7 +282,6 @@ struct GamePage: View {
                         metadata("Controller", model.isPreview ? "Full support" : game.controllerSupport == .full ? "Full support" : game.controllerSupport == .partial ? "Partial support" : "Unknown")
                         if let date = game.lastPlayedAt { metadata("Last played", date.formatted(.dateTime.month(.abbreviated).day())) }
                     }
-                    if game.status == .installed && (model.isPreview || game.lastSessionOutcome == .clean) { HStack(spacing: 8) { Circle().fill(Design.green).frame(width: 8, height: 8); Text("Last session ended cleanly").font(Design.body(18)).foregroundStyle(Design.secondary) } }
                 }.frame(width: 520)
             }.offset(x: 96, y: 754)
         }
