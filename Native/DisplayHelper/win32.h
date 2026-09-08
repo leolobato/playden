@@ -1,6 +1,6 @@
 // Minimal x64 Windows ABI declarations. The helper uses OS DLLs and no C runtime.
-#ifndef BIGSCREEN_WIN32_H
-#define BIGSCREEN_WIN32_H
+#ifndef PLAYDEN_WIN32_H
+#define PLAYDEN_WIN32_H
 #if !defined(_WIN64)
 #error Build this helper for 64-bit Windows.
 #endif

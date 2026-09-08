@@ -2,7 +2,7 @@ import XCTest
 import AppKit
 import Domain
 import Catalog
-@testable import BigScreen
+@testable import Playden
 
 final class LogInteractionTests: XCTestCase {
     @MainActor func testDirectionalAndPageInputScrollsWithoutEscapingModal() throws {

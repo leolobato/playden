@@ -9,7 +9,7 @@ import subprocess
 import sys
 import ssl
 
-override = os.environ.get("BIGSCREEN_CODE_SIGN_IDENTITY")
+override = os.environ.get("PLAYDEN_CODE_SIGN_IDENTITY")
 if override == "-":
     print(override)
     sys.exit(0)
@@ -17,10 +17,10 @@ if override == "-":
 root = Path(__file__).resolve().parent.parent
 configuration = sys.argv[1] if len(sys.argv) > 1 else "Debug"
 derived_data = sys.argv[2] if len(sys.argv) > 2 else "DerivedData"
-settings = subprocess.run(["xcodebuild", "-project", "BigScreen.xcodeproj", "-scheme", "BigScreen",
+settings = subprocess.run(["xcodebuild", "-project", "Playden.xcodeproj", "-scheme", "Playden",
                            "-configuration", configuration, "-derivedDataPath", derived_data,
                            "-showBuildSettings", "-json"], cwd=root, check=True, capture_output=True, text=True)
-app_settings = next(item["buildSettings"] for item in json.loads(settings.stdout) if item["target"] == "BigScreen")
+app_settings = next(item["buildSettings"] for item in json.loads(settings.stdout) if item["target"] == "Playden")
 team = app_settings.get("DEVELOPMENT_TEAM", "").strip()
 cache = root / ".build" / "signing-identity"
 result = subprocess.run(["security", "find-identity", "-v", "-p", "codesigning"],
@@ -65,6 +65,6 @@ elif development:
     print(chosen)
 else:
     if team:
-        sys.exit(f"No Apple Development certificate found for DEVELOPMENT_TEAM {team}. Install one, or explicitly use BIGSCREEN_CODE_SIGN_IDENTITY=- for a local ad-hoc build.")
+        sys.exit(f"No Apple Development certificate found for DEVELOPMENT_TEAM {team}. Install one, or explicitly use PLAYDEN_CODE_SIGN_IDENTITY=- for a local ad-hoc build.")
     print("No Apple Development certificate found; using ad-hoc signing. Keychain may ask for approval after rebuilds.", file=sys.stderr)
     print("-")

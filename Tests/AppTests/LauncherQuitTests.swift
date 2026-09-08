@@ -1,7 +1,7 @@
 import XCTest
 import Domain
 import Sessions
-@testable import BigScreen
+@testable import Playden
 
 @MainActor final class LauncherQuitTests: XCTestCase {
     private func running() -> SessionSnapshot {

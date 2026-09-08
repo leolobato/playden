@@ -2,7 +2,7 @@ import XCTest
 import Catalog
 import Domain
 import Input
-@testable import BigScreen
+@testable import Playden
 
 final class LibraryPersistenceTests: XCTestCase {
     @MainActor func testPreviewEditsCollectionsAndPreferencesSurviveRecreation() throws {

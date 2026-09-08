@@ -2,7 +2,7 @@ import XCTest
 import Domain
 import Runner
 import Catalog
-@testable import BigScreen
+@testable import Playden
 
 /// Deliberately ignores cancellation to exercise late replies from external runtime work.
 private actor DelayedSetupRuntime: BottleManaging {

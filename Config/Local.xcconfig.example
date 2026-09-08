@@ -1,3 +1,3 @@
 // Copy to Local.xcconfig (ignored by Git).
-BIGSCREEN_BUNDLE_IDENTIFIER = com.yourcompany.bigscreen
+PLAYDEN_BUNDLE_IDENTIFIER = com.yourcompany.playden
 DEVELOPMENT_TEAM = YOURTEAMID

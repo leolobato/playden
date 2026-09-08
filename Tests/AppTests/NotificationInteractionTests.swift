@@ -1,7 +1,7 @@
 import XCTest
 import SwiftUI
 import Domain
-@testable import BigScreen
+@testable import Playden
 
 final class NotificationInteractionTests: XCTestCase {
     @MainActor func testRenderedToastWaitsForModalThenAutomaticallyDismisses() async throws {

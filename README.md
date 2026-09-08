@@ -1,17 +1,17 @@
-# Big Screen
+# Playden
 
-Your Steam library, on the TV. Big Screen is a native Mac app for browsing, installing and
+Your Steam library, on the TV. Playden is a native Mac app for browsing, installing and
 playing Windows games from the couch with a controller.
 
-**The current focus is Steam and CrossOver on Apple Silicon.** Big Screen downloads your games
+**The current focus is Steam and CrossOver on Apple Silicon.** Playden downloads your games
 and prepares an isolated CrossOver environment for each one. Support for other engines and
 stores is planned.
 
-![Big Screen Library with sample games](docs/images/library.png)
+![Playden Library with sample games](docs/images/library.png)
 
 *Actual app capture using the sample library. Displayed games are not a compatibility list.*
 
-**Current version: 0.1**. Big Screen is in active development.
+**Current version: 0.1**. Playden is in active development.
 Installation, play sessions and Steam Cloud sync are
 implemented.
 
@@ -34,7 +34,7 @@ implemented.
   quitting, session playtime and recorded exit results. Downloads can pause while you play.
 - **Sync supported Steam Cloud saves.** Download before playing, upload after exit, review
   conflicts and retry pending transfers. Save support depends on a verified mapping for the game.
-- **Set up your display.** Choose the preferred monitor for Big Screen and game placement,
+- **Set up your display.** Choose the preferred monitor for Playden and game placement,
   toggle fullscreen, start in fullscreen, and reduce animation.
 - **Troubleshoot on the TV.** Visible failure stages, Retry controls, scrollable logs, a runtime
   status screen and a controller button test.
@@ -57,8 +57,8 @@ brew install xcodegen xz zstd llvm lld
 ```
 
 This creates an optimized **Release** build and reveals it in Finder. Quit any running copy
-of Big Screen, then drag **Big Screen.app** into **Applications** (replace the existing app
-when updating). Launch `/Applications/Big Screen.app` from Finder or Spotlight.
+of Playden, then drag **Playden.app** into **Applications** (replace the existing app
+when updating). Launch `/Applications/Playden.app` from Finder or Spotlight.
 
 The app includes its compression libraries and Windows display helper; the source checkout
 and build tools are only needed to build or update it. CrossOver is still required to play games.
@@ -67,9 +67,9 @@ certificate or falls back to ad-hoc signing. This is a local source build, not a
 distribution. Build and signing options are in [Development](docs/DEVELOPMENT.md).
 
 To update, update your source checkout, rerun the release build, quit
-Big Screen and replace the app in Applications. Your library, settings and credentials are
+Playden and replace the app in Applications. Your library, settings and credentials are
 stored separately from the app bundle. The build output is
-`DerivedData/Build/Products/Release/Big Screen.app`.
+`DerivedData/Build/Products/Release/Playden.app`.
 
 ### Development builds
 
@@ -81,7 +81,7 @@ build and builds it if missing:
 ./scripts/run.sh
 ```
 
-The run script places the app in `~/Library/Application Support/Big Screen/Run/Big Screen.app`.
+The run script places the app in `~/Library/Application Support/Playden/Run/Playden.app`.
 You can open that copy from Finder for subsequent launches. It also keeps the running app
 separate from Xcode's build output.
 
@@ -91,8 +91,8 @@ To look around with sample games and without signing in:
 ./scripts/run.sh --preview
 ```
 
-Preview uses separate sample data; it does not install or launch games. With Big Screen closed,
-preview the installed release build using `open "/Applications/Big Screen.app" --args --preview`.
+Preview uses separate sample data; it does not install or launch games. With Playden closed,
+preview the installed release build using `open "/Applications/Playden.app" --args --preview`.
 
 Maintainers can build a signed, notarized DMG with `scripts/distribute.sh`; see
 [distribution builds](docs/DEVELOPMENT.md#distribution-builds).
@@ -102,9 +102,9 @@ Maintainers can build a signed, notarized DMG with `scripts/distribute.sh`; see
 1. Install and open CrossOver once to finish its setup and license/trial activation.
 2. Connect your controller. For a DualShock 4, hold **Share + PS** until the light flashes,
    then pair it in macOS Bluetooth settings. The app includes pairing guidance.
-3. Follow Big Screen's setup to choose your display, sign into Steam and select a games volume.
+3. Follow Playden's setup to choose your display, sign into Steam and select a games volume.
    Scan the QR code with the Steam mobile app, or use the password and Steam Guard option.
-4. Let Big Screen prepare its game runtime. You can browse while setup is incomplete and return
+4. Let Playden prepare its game runtime. You can browse while setup is incomplete and return
    to **Settings → Library → Runtime** to check or retry it.
 5. Open a game, select **Install**, then **Play** when installation finishes. A Short Hike is the
    most thoroughly exercised title so far.
@@ -114,13 +114,13 @@ to remember your choice for that game. Open the game's **More → Launch options
 it, or clear **Always use this** to be asked each time. Only options for the installed public
 branch and included DLC are offered.
 
-macOS may ask for access to the Steam sign-in item in Keychain. Big Screen stores sign-in tokens
+macOS may ask for access to the Steam sign-in item in Keychain. Playden stores sign-in tokens
 there; it does not store your Mac password. See [signing and permissions](docs/DEVELOPMENT.md#signing-and-permissions)
 if rebuilding repeatedly causes permission prompts.
 
 Under **Settings → Display**, choose your preferred monitor and **Start in fullscreen**.
-The **Fullscreen** control changes the current window mode. With Big Screen closed,
-`open "/Applications/Big Screen.app" --args --windowed` overrides fullscreen for that launch.
+The **Fullscreen** control changes the current window mode. With Playden closed,
+`open "/Applications/Playden.app" --args --windowed` overrides fullscreen for that launch.
 
 ## Controls
 
@@ -154,7 +154,7 @@ for Retry or View logs. Controller disconnect warnings remain until reconnection
 
 ## Saves and offline play
 
-The game page shows Cloud status. For supported games, Big Screen checks saves before launch
+The game page shows Cloud status. For supported games, Playden checks saves before launch
 and syncs after the game closes. **Up to date** means the sync completed. **Pending upload** or
 **Failed** needs attention; open Cloud saves for details and Retry. If both local and remote
 progress changed, choose which copy to use in the conflict screen.
@@ -185,7 +185,7 @@ run remains open. Multiplayer, anti-cheat, achievements UI and DLC management ar
 | CrossOver setup failed | Settings → Library → Runtime, then Check again or Retry setup |
 | Download or installation failed | Downloads → More → Retry or View logs |
 | Installation asks you to sign in again | Select Sign in in the install dialog; after signing in, review and confirm the installation |
-| Game shows Drive disconnected | Reconnect its drive and allow access; Big Screen checks it automatically |
+| Game shows Drive disconnected | Reconnect its drive and allow access; Playden checks it automatically |
 | Game fails to launch | Retry on the failure notification; game page → View logs or Verify files |
 | Cloud sync needs attention | Game page → Cloud saves |
 | Controller input seems wrong | Settings → Controller → Button test |
@@ -193,7 +193,7 @@ run remains open. Multiplayer, anti-cheat, achievements UI and DLC management ar
 
 Automatic game focus and return from the overlay have passed A Short Hike keyboard checks,
 but a later interrupted run showed the focus warning again. Focus reliability, physical
-controller reconnect and other games' handoff behavior still need final testing. Keep Big Screen
+controller reconnect and other games' handoff behavior still need final testing. Keep Playden
 open while downloading or playing: background operation after quitting the launcher is planned
 for v2. Game updates, moving existing installations between drives, native macOS builds and
 importing official Steam macOS installations are also not available in v1.
@@ -205,7 +205,7 @@ importing official Steam macOS installations are also not available in v1.
 - **Optional native macOS games:** choose a Mac build when available, while retaining the option
   to use the Windows build through CrossOver.
 - **Official Steam macOS integration:** show games already installed by Steam, clearly distinguish
-  them from Big Screen-managed installations, and offer the available launch choices.
+  them from Playden-managed installations, and offer the available launch choices.
 - **Per-game properties:** executable, arguments, graphics settings, language and other runtime options.
 - **More controllers support:** Xbox, DualSense
 - **Background helper and game updates:** keep downloads and supervision independent of the UI;

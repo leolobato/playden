@@ -1,6 +1,6 @@
-# Big Screen — designer prompt
+# Playden — designer prompt
 
-Design the TV interface for **Big Screen**, a macOS launcher that lives on a television
+Design the TV interface for **Playden**, a macOS launcher that lives on a television
 and is driven entirely by a game controller. It shows the user's game libraries, installs Windows
 games and plays them. Think Steam Deck's gaming mode, PlayStation's home, or Apple TV, not a desktop
 app: no mouse, no keyboard, no windows.

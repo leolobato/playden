@@ -7,15 +7,15 @@ usage() {
   cat <<'EOF'
 Usage: ./scripts/distribute.sh VERSION BUILD_NUMBER
 
-Build, Developer ID sign, and notarize Big Screen, then create a signed and
+Build, Developer ID sign, and notarize Playden, then create a signed and
 notarized drag-to-Applications DMG in dist/. Signing environment variable:
-  BIGSCREEN_DEVELOPER_ID       Developer ID Application certificate name or SHA-1
+  PLAYDEN_DEVELOPER_ID       Developer ID Application certificate name or SHA-1
 
 Notarization credentials (choose one):
-  BIGSCREEN_NOTARY_PROFILE     Existing notarytool Keychain profile name
-  BIGSCREEN_NOTARY_KEY_PATH    App Store Connect API private key (.p8) path
-  BIGSCREEN_NOTARY_KEY_ID      API key ID (required with KEY_PATH)
-  BIGSCREEN_NOTARY_ISSUER_ID   Issuer UUID (required for a team API key)
+  PLAYDEN_NOTARY_PROFILE     Existing notarytool Keychain profile name
+  PLAYDEN_NOTARY_KEY_PATH    App Store Connect API private key (.p8) path
+  PLAYDEN_NOTARY_KEY_ID      API key ID (required with KEY_PATH)
+  PLAYDEN_NOTARY_ISSUER_ID   Issuer UUID (required for a team API key)
 
 Example: ./scripts/distribute.sh 0.1 1
 See docs/DEVELOPMENT.md for credential setup. Nothing is published to GitHub.
@@ -35,21 +35,21 @@ if [[ ! "$version" =~ '^[0-9]+\.[0-9]+(\.[0-9]+)?$' || ! "$build_number" =~ '^[1
   printf 'Use a numeric version (e.g. 0.1 or 0.1.0) and a positive integer build number.\n' >&2
   exit 1
 fi
-: "${BIGSCREEN_DEVELOPER_ID:?Set BIGSCREEN_DEVELOPER_ID to a Developer ID Application identity.}"
-if [[ -n "${BIGSCREEN_NOTARY_PROFILE:-}" ]]; then
-  notary_args=(--keychain-profile "$BIGSCREEN_NOTARY_PROFILE")
-elif [[ -n "${BIGSCREEN_NOTARY_KEY_PATH:-}" ]]; then
-  : "${BIGSCREEN_NOTARY_KEY_ID:?Set BIGSCREEN_NOTARY_KEY_ID for the API key.}"
-  if [[ ! -f "$BIGSCREEN_NOTARY_KEY_PATH" ]]; then
+: "${PLAYDEN_DEVELOPER_ID:?Set PLAYDEN_DEVELOPER_ID to a Developer ID Application identity.}"
+if [[ -n "${PLAYDEN_NOTARY_PROFILE:-}" ]]; then
+  notary_args=(--keychain-profile "$PLAYDEN_NOTARY_PROFILE")
+elif [[ -n "${PLAYDEN_NOTARY_KEY_PATH:-}" ]]; then
+  : "${PLAYDEN_NOTARY_KEY_ID:?Set PLAYDEN_NOTARY_KEY_ID for the API key.}"
+  if [[ ! -f "$PLAYDEN_NOTARY_KEY_PATH" ]]; then
     printf 'Notarization API key file does not exist.\n' >&2
     exit 1
   fi
-  notary_args=(--key "$BIGSCREEN_NOTARY_KEY_PATH" --key-id "$BIGSCREEN_NOTARY_KEY_ID")
-  if [[ -n "${BIGSCREEN_NOTARY_ISSUER_ID:-}" ]]; then
-    notary_args+=(--issuer "$BIGSCREEN_NOTARY_ISSUER_ID")
+  notary_args=(--key "$PLAYDEN_NOTARY_KEY_PATH" --key-id "$PLAYDEN_NOTARY_KEY_ID")
+  if [[ -n "${PLAYDEN_NOTARY_ISSUER_ID:-}" ]]; then
+    notary_args+=(--issuer "$PLAYDEN_NOTARY_ISSUER_ID")
   fi
 else
-  printf 'Set BIGSCREEN_NOTARY_PROFILE or BIGSCREEN_NOTARY_KEY_PATH and BIGSCREEN_NOTARY_KEY_ID.\n' >&2
+  printf 'Set PLAYDEN_NOTARY_PROFILE or PLAYDEN_NOTARY_KEY_PATH and PLAYDEN_NOTARY_KEY_ID.\n' >&2
   exit 1
 fi
 
@@ -60,7 +60,7 @@ import re
 import subprocess
 import sys
 
-requested = os.environ["BIGSCREEN_DEVELOPER_ID"]
+requested = os.environ["PLAYDEN_DEVELOPER_ID"]
 result = subprocess.run(["security", "find-identity", "-v", "-p", "codesigning"],
                         check=True, capture_output=True, text=True)
 identities = re.findall(r'\d+\) ([0-9A-F]{40}) "([^"]+)"', result.stdout)
@@ -74,8 +74,8 @@ PY
 # Validate stored credentials before spending time building; never read passwords into the shell.
 xcrun notarytool history "${notary_args[@]}" --output-format json >/dev/null
 
-export BIGSCREEN_DERIVED_DATA_PATH="$PWD/.build/distribution/DerivedData"
-BIGSCREEN_CODE_SIGN_IDENTITY="$signing_identity" ./scripts/build.sh --release \
+export PLAYDEN_DERIVED_DATA_PATH="$PWD/.build/distribution/DerivedData"
+PLAYDEN_CODE_SIGN_IDENTITY="$signing_identity" ./scripts/build.sh --release \
   ENABLE_HARDENED_RUNTIME=YES CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO \
   OTHER_CODE_SIGN_FLAGS=--timestamp MARKETING_VERSION="$version" CURRENT_PROJECT_VERSION="$build_number"
 
@@ -86,8 +86,8 @@ trap 'rm -rf -- "$staging_root"' EXIT ZERR
 log_root=$(mktemp -d "$PWD/.build/distribution/notarization.XXXXXX")
 printf 'Notarization results and Apple logs: %s\n' "$log_root"
 mkdir "$staging_root/payload"
-app="$staging_root/payload/Big Screen.app"
-ditto "$BIGSCREEN_DERIVED_DATA_PATH/Build/Products/Release/Big Screen.app" "$app"
+app="$staging_root/payload/Playden.app"
+ditto "$PLAYDEN_DERIVED_DATA_PATH/Build/Products/Release/Playden.app" "$app"
 bundle_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")
 
 # Sign nested native libraries before the app so hardened runtime library validation
@@ -118,15 +118,15 @@ notarize() {
 }
 
 # Notarize a ZIP, then staple the app before placing it in the read-only DMG.
-ditto -c -k --keepParent "$app" "$staging_root/Big Screen.zip"
-notarize "$staging_root/Big Screen.zip" app "$app"
+ditto -c -k --keepParent "$app" "$staging_root/Playden.zip"
+notarize "$staging_root/Playden.zip" app "$app"
 codesign --verify --deep --strict "$app"
 spctl --assess --type execute --verbose=2 "$app"
 
 ln -s /Applications "$staging_root/payload/Applications"
-dmg_name="Big-Screen-$version-$build_number-arm64.dmg"
+dmg_name="Playden-$version-$build_number-arm64.dmg"
 dmg="$staging_root/$dmg_name"
-hdiutil create -volname 'Big Screen' -srcfolder "$staging_root/payload" -fs HFS+ -format UDZO "$dmg"
+hdiutil create -volname 'Playden' -srcfolder "$staging_root/payload" -fs HFS+ -format UDZO "$dmg"
 codesign --sign "$signing_identity" --timestamp --identifier "$bundle_id.dmg" "$dmg"
 notarize "$dmg" dmg "$dmg"
 codesign --verify --strict "$dmg"

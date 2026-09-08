@@ -138,7 +138,7 @@ struct TopBar: View {
                     Image(systemName: "power").font(.system(size: 26)).foregroundStyle(Design.secondary)
                         .frame(width: 52, height: 52)
                         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Design.text.opacity(0.2), lineWidth: 2))
-                }.buttonStyle(.plain).help("Quit Big Screen").accessibilityLabel("Quit Big Screen")
+                }.buttonStyle(.plain).help("Quit Playden").accessibilityLabel("Quit Playden")
                     .disabled(model.launcherQuitting)
             }
         }
@@ -253,7 +253,7 @@ struct LibraryScreen: View {
             if model.filteredGames.isEmpty {
                 VStack(spacing: 24) {
                     Text(!model.isPreview && model.identity == nil && model.games.isEmpty && model.query.isEmpty ? "Your Steam library starts here" : model.refinements.isActive ? "No games match these filters" : model.query.isEmpty ? "Nothing here yet" : "No games match ‘\(model.query)’").font(Design.condensed(56))
-                    Text(!model.isPreview && model.identity == nil && model.games.isEmpty && model.query.isEmpty ? "Sign in to bring your games to Big Screen." : model.refinements.isActive ? "Reset your filters, or browse all your games." : "Try another collection or clear your search.").font(Design.body(26)).foregroundStyle(Design.secondary)
+                    Text(!model.isPreview && model.identity == nil && model.games.isEmpty && model.query.isEmpty ? "Sign in to bring your games to Playden." : model.refinements.isActive ? "Reset your filters, or browse all your games." : "Try another collection or clear your search.").font(Design.body(26)).foregroundStyle(Design.secondary)
                     ActionButton(title: !model.isPreview && model.identity == nil && model.games.isEmpty && model.query.isEmpty ? "Sign in to Steam" : "Browse all games", primary: true, focused: !model.railFocused) {
                         if !model.isPreview && model.identity == nil && model.games.isEmpty && model.query.isEmpty { model.beginSignIn() } else { model.browseAvailableGames() }
                     }

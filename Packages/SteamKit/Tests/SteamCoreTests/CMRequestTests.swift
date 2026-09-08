@@ -5,8 +5,8 @@ import SwiftProtobuf
 
 final class CMRequestTests: XCTestCase {
     func testLiveCMHelloWhenRequested() async throws {
-        guard ProcessInfo.processInfo.environment["BIGSCREEN_CM_NETWORK_PROBE"] == "1" else {
-            throw XCTSkip("Set BIGSCREEN_CM_NETWORK_PROBE=1 for an unauthenticated CM handshake")
+        guard ProcessInfo.processInfo.environment["PLAYDEN_CM_NETWORK_PROBE"] == "1" else {
+            throw XCTSkip("Set PLAYDEN_CM_NETWORK_PROBE=1 for an unauthenticated CM handshake")
         }
         let cm = client(timeout: 10)
         do {

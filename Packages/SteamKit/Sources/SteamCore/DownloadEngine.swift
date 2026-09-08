@@ -39,13 +39,13 @@ public struct DownloadEngine {
         self.destination = destination
     }
 
-    /// Default games dir, mirroring fetch-depots.sh: $BIGSCREEN_GAMES_DIR,
+    /// Default games dir, mirroring fetch-depots.sh: $PLAYDEN_GAMES_DIR,
     /// else the external disk, else ./games.
     public static func defaultGamesDir() -> URL {
-        if let env = ProcessInfo.processInfo.environment["BIGSCREEN_GAMES_DIR"], !env.isEmpty {
+        if let env = ProcessInfo.processInfo.environment["PLAYDEN_GAMES_DIR"], !env.isEmpty {
             return URL(fileURLWithPath: env)
         }
-        let external = "/Volumes/VM/Big Screen/games"
+        let external = "/Volumes/VM/Playden/games"
         if FileManager.default.fileExists(atPath: external) {
             return URL(fileURLWithPath: external)
         }

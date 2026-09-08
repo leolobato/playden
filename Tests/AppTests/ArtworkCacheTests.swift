@@ -3,7 +3,7 @@ import AppKit
 import ImageIO
 import Artwork
 import Domain
-@testable import BigScreen
+@testable import Playden
 
 private actor ArtworkTransport {
     let data: Data

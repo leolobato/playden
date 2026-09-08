@@ -4,7 +4,7 @@ import Domain
 import Catalog
 import Installs
 import Input
-@testable import BigScreen
+@testable import Playden
 
 private actor ResetAuth: SourceAuth {
     var signedIn = true, failSignOut = false, holdSignOut = false

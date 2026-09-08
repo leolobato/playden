@@ -1,7 +1,7 @@
 import XCTest
 import Domain
 import Installs
-@testable import BigScreen
+@testable import Playden
 
 final class DownloadTransferTests: XCTestCase {
     @MainActor func testFileVerificationReplacesDownloadLabelsAndProgress() {

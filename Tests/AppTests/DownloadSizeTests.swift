@@ -1,7 +1,7 @@
 import XCTest
 import Domain
 import Catalog
-@testable import BigScreen
+@testable import Playden
 
 private actor SizeSource: GameSource, SourceAuth {
     nonisolated let id = "fixture", displayName = "Fixture"

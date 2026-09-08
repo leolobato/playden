@@ -1,7 +1,7 @@
 import XCTest
 import Domain
 import Installs
-@testable import BigScreen
+@testable import Playden
 
 final class DownloadsStorageTests: XCTestCase {
     @MainActor func testVolumeChangeRejectsOldReadAndFailureClearsPreviousFigures() async throws {

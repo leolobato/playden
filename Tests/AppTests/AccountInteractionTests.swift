@@ -1,7 +1,7 @@
 import XCTest
 import Domain
 import Catalog
-@testable import BigScreen
+@testable import Playden
 
 private actor FixtureAuth: SourceAuth {
     func identity() async throws -> SourceIdentity? { nil }

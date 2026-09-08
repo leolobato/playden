@@ -2,7 +2,7 @@ import XCTest
 import Domain
 import Sessions
 import Input
-@testable import BigScreen
+@testable import Playden
 
 private actor CloudSessionFixture: SessionManaging {
     var reviews: [CloudSyncAuthorization?] = []

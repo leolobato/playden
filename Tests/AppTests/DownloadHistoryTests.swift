@@ -1,7 +1,7 @@
 import XCTest
 import Domain
 import Catalog
-@testable import BigScreen
+@testable import Playden
 
 final class DownloadHistoryTests: XCTestCase {
     private func job(_ title: String, state: JobState, time: TimeInterval) -> JobRecord {

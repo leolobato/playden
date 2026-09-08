@@ -2,7 +2,7 @@ import XCTest
 import Domain
 import Focus
 import Catalog
-@testable import BigScreen
+@testable import Playden
 
 final class LibraryInteractionTests: XCTestCase {
     @MainActor func testContextInstallAndUninstallUseExistingConfirmationFlows() throws {

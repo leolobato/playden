@@ -1,7 +1,7 @@
 import XCTest
 import Domain
 import Input
-@testable import BigScreen
+@testable import Playden
 
 final class LibraryEditingTests: XCTestCase {
     @MainActor func testKeyboardMovesByKeyCentersAndKeepsItsColumnThroughWideKeys() {

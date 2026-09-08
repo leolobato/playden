@@ -3,7 +3,7 @@ import Domain
 import Catalog
 import Sessions
 import Input
-@testable import BigScreen
+@testable import Playden
 
 private actor SessionFixture: SessionManaging {
     func retryCloud(authorization: CloudSyncAuthorization?) async throws { throw SourceFailure.unavailable }

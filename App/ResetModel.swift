@@ -13,7 +13,7 @@ extension LibraryModel {
     func closeResetAppData() { guard !resetBusy else { return }; panel = nil }
     var resetActions: [ResetAction] { resetBusy ? [] : resetBlocker == nil ? [.cancel, .reset] : [.cancel, .checkAgain] }
     func resetActionTitle(_ action: ResetAction) -> String {
-        switch action { case .cancel: "Cancel"; case .reset: resetError == nil ? "Reset Big Screen" : "Retry reset"; case .checkAgain: "Check again" }
+        switch action { case .cancel: "Cancel"; case .reset: resetError == nil ? "Reset Playden" : "Retry reset"; case .checkAgain: "Check again" }
     }
     func checkResetReview() {
         resetBlocker = nil
@@ -23,13 +23,13 @@ extension LibraryModel {
     }
     private func checkResetAvailability() throws {
         if hasActiveSession || sessionBusy || (sessions != nil && !sessionReady) {
-            throw resetIssue("Close the game and let session recovery finish before resetting Big Screen.")
+            throw resetIssue("Close the game and let session recovery finish before resetting Playden.")
         }
         if setupBusy || uninstallBusy || !cloudCommands.isEmpty {
-            throw resetIssue("Let game setup, removal or save sync finish before resetting Big Screen.")
+            throw resetIssue("Let game setup, removal or save sync finish before resetting Playden.")
         }
         if let catalog { try catalog.checkAppReset() }
-        else if !isPreview { throw resetIssue("The app database is unavailable. Restart Big Screen before resetting it.") }
+        else if !isPreview { throw resetIssue("The app database is unavailable. Restart Playden before resetting it.") }
     }
     func performResetInput(_ action: InputAction) -> Bool {
         guard panel == .resetAppData || resetBusy else { return false }
@@ -75,7 +75,7 @@ extension LibraryModel {
                     persistenceError = nil
                     if catalog != nil { if isPreview { resetPreviewState() }; reloadCatalog() }
                     else { resetPreviewState() }
-                    guard persistenceError == nil else { throw resetIssue("The reset completed, but the library could not be reloaded. Restart Big Screen.") }
+                    guard persistenceError == nil else { throw resetIssue("The reset completed, but the library could not be reloaded. Restart Playden.") }
                     loadDownloadHistory()
                     try await sessions?.setDownloadWhilePlaying(false)
                     query = ""; textEditor = .init(); symbols = false; uppercase = false
@@ -87,7 +87,7 @@ extension LibraryModel {
                     onboarding = true; setupScreen = .controller; setupIndex = 0
                     setupFailure = nil; runtimeChecking = false
                 } catch {
-                    resetError = committed ? "The reset completed, but Big Screen could not finish reloading. Restart the app." :
+                    resetError = committed ? "The reset completed, but Playden could not finish reloading. Restart the app." :
                         signedOut ? "You’re signed out, but app data could not be reset. Your settings and library customizations are still kept. Try again." :
                         (error as? OperationFailure)?.reason ?? "Could not sign out. Your app data was not reset. Try again."
                     panel = .resetAppData; panelIndex = 0
@@ -104,7 +104,7 @@ extension LibraryModel {
         gamesVolume = nil; selectedDisplayID = nil; selectedDisplayUUID = nil; selectedDisplayName = nil; startInFullscreen = true
         restoringState = false
     }
-    private func resetIssue(_ reason: String) -> OperationFailure { .init(stage: "Reset Big Screen", reason: reason, output: "") }
+    private func resetIssue(_ reason: String) -> OperationFailure { .init(stage: "Reset Playden", reason: reason, output: "") }
 
     func configureResetSnapshot(_ screen: String) {
         guard fixedClock else { return }
@@ -112,7 +112,7 @@ extension LibraryModel {
         controllerName = "DUALSHOCK 4"; keyboardNavigation = false
         if screen == "settings-about" { return }
         showResetAppData()
-        if screen == "settings-reset-blocked" { resetBlocker = "Pause each download or file verification in Downloads before resetting Big Screen." }
+        if screen == "settings-reset-blocked" { resetBlocker = "Pause each download or file verification in Downloads before resetting Playden." }
         if screen == "settings-reset-error" { resetError = "Could not sign out. Your app data was not reset. Try again." }
         if screen == "settings-reset-busy" { resetBusy = true }
     }

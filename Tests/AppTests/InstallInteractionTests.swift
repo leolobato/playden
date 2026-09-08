@@ -2,7 +2,7 @@ import XCTest
 import Domain
 import Catalog
 import Installs
-@testable import BigScreen
+@testable import Playden
 
 private actor InteractionQueue: InstallQueuing {
     let result: InstallOffer

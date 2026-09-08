@@ -2,7 +2,7 @@ import XCTest
 import Domain
 import Runner
 import Catalog
-@testable import BigScreen
+@testable import Playden
 
 private actor SetupVolumes: VolumeManaging {
     func availableVolumes() async throws -> [GamesVolume] {

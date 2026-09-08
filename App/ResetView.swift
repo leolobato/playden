@@ -7,7 +7,7 @@ struct ResetAppDataDialog: View {
             HStack(spacing: 22) {
                 Image(systemName: "arrow.counterclockwise").font(.system(size: 38, weight: .light)).foregroundStyle(Design.accent)
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Reset Big Screen?").font(Design.condensed(46))
+                    Text("Reset Playden?").font(Design.condensed(46))
                     Text("Sign out and start setup again.").font(Design.body(25)).foregroundStyle(Design.secondary)
                 }
             }

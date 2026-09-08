@@ -270,7 +270,7 @@ final class LibraryModel {
         else if !preview, installQueue == nil, let catalog, let source, let queue = self.installQueue {
             do {
                 let runner = CrossOverRunner(manager: CrossOverGameBottles(runtime: runtime ?? CrossOverRuntime()),
-                    displayHelper: Bundle.main.url(forResource: "BigScreenDisplay", withExtension: "exe"),
+                    displayHelper: Bundle.main.url(forResource: "PlaydenDisplay", withExtension: "exe"),
                     displayTarget: { @MainActor in GameDisplay.target(preferences: try catalog.preferences()) },
                     audioDeviceUID: { @MainActor in try catalog.preferences().selectedAudioDeviceUID })
                 self.sessions = try SessionService(catalog: catalog, sources: [source], runner: runner, queue: queue,
@@ -693,7 +693,7 @@ final class LibraryModel {
         else if settingsSection == 4 { openControllerTest() }
         else if settingsSection == 5 && settingsIndex == 1 { revealLogsFolder() }
         else if settingsSection == 5 && settingsIndex == 2 { showResetAppData() }
-        else if settingsSection == 5 { show(.information("Big Screen \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1")\n\nCrossOver \(runtimeInfo?.version ?? "not detected") · Template \(runtimeInfo?.templateVersion ?? "not prepared")")) }
+        else if settingsSection == 5 { show(.information("Playden \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1")\n\nCrossOver \(runtimeInfo?.version ?? "not detected") · Template \(runtimeInfo?.templateVersion ?? "not prepared")")) }
         else { show(.information(isPreview ? "The design preview uses sample games. Launch without --preview to connect your account and set up your Mac." : "This setting is still being implemented.")) }
     }
     func openControllerTest() {

@@ -26,7 +26,7 @@ struct RuntimeSettingsView: View {
         if model.setupBusy { return "This can take a moment. You can stop setup and continue browsing your library." }
         if let failure = model.setupFailure { return failure.reason }
         if ready { return "CrossOver and your game setup are available. You can install and play Windows games." }
-        return "Prepare the shared setup that Big Screen uses for new Windows game installations."
+        return "Prepare the shared setup that Playden uses for new Windows game installations."
     }
     var body: some View {
         ZStack(alignment: .topLeading) {

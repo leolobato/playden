@@ -22,7 +22,7 @@ extension LibraryModel {
         }
         let state: CloudSyncStatus.State = screen == "cloud-pending" ? .pendingUpload : screen == "cloud-ready" ? .upToDate : screen == "cloud-syncing" ? .syncing : .conflict
         let status = CloudSyncStatus(gameID: game.id, state: state, operation: state == .conflict ? operation : nil,
-            message: screen == "cloud-recovery" ? "Saved progress changed during an interrupted sync. Choose the files to keep on this Mac, then Big Screen will check Steam Cloud. Both copies are backed up." :
+            message: screen == "cloud-recovery" ? "Saved progress changed during an interrupted sync. Choose the files to keep on this Mac, then Playden will check Steam Cloud. Both copies are backed up." :
                 state == .conflict ? "Local and Cloud progress differ. Choose which copy to use." : state == .pendingUpload ? "Steam could not be reached. Your latest progress is backed up on this Mac. Retry or play offline." : state == .syncing ? "Checking saved progress…" : "Saved progress is up to date.", canPlayOffline: screen != "cloud-recovery")
         cloudStatuses = [game.id: status]
         if screen == "cloud-ready" { return }

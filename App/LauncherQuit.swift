@@ -13,8 +13,8 @@ extension LibraryModel {
     var requiresLauncherQuitConfirmation: Bool { hasActiveSession || !quitWork.isEmpty }
     var launcherQuitConsequences: String {
         hasActiveSession
-            ? "This closes the game and Big Screen. Unsaved progress may be lost. Downloads pause so you can resume them later."
-            : "This pauses downloads and installation work. Downloaded files are kept. File checks may restart when you reopen Big Screen."
+            ? "This closes the game and Playden. Unsaved progress may be lost. Downloads pause so you can resume them later."
+            : "This pauses downloads and installation work. Downloaded files are kept. File checks may restart when you reopen Playden."
     }
     var launcherQuitGame: Game? {
         if hasActiveSession { return sessionGame }

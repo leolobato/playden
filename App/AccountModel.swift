@@ -63,7 +63,7 @@ extension LibraryModel {
                     guard let self, self.authAttempt == attempt, self.authScreen != nil else { return }
                     switch event {
                     case .qrChallenge(let url, let expiry): self.authQR = url; self.authExpiresAt = expiry; self.authMessage = "Waiting for your phone"
-                    case .awaitingApproval: self.authScreen = .approval; self.authMessage = "Approve Big Screen in the Steam app on your phone."
+                    case .awaitingApproval: self.authScreen = .approval; self.authMessage = "Approve Playden in the Steam app on your phone."
                     case .expired: self.authQR = nil; self.authMessage = "Code expired · getting a new one…"
                     }
                 }

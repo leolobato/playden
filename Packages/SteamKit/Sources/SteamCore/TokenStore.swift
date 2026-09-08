@@ -1,7 +1,7 @@
 import Foundation
 
 /// Persisted login state. PoC storage is a 0600 JSON file under
-/// ~/Library/Application Support/Big Screen/; the final app should use the Keychain.
+/// ~/Library/Application Support/Playden/; the final app should use the Keychain.
 public struct StoredAuth: Codable, Sendable {
     public var accountName: String
     public var steamID: UInt64
@@ -25,7 +25,7 @@ public struct StoredAuth: Codable, Sendable {
 public enum TokenStore {
     public static var directory: URL = FileManager.default
         .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        .appendingPathComponent("Big Screen")
+        .appendingPathComponent("Playden")
 
     static var authFile: URL { directory.appendingPathComponent("auth.json") }
     static var depotKeysFile: URL { directory.appendingPathComponent("depot-keys.json") }

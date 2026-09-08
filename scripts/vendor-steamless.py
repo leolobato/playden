@@ -11,7 +11,7 @@ VERSION = "3.1.0.5"
 COMMIT = "cd770bf9749d3e4f438d23ac643917ad1a804257"
 ARCHIVE_SHA256 = "e3e2d22e098ff3fb359b2876aa2bed9596f0501e6ff588cbffae90a76d2dc4f5"
 MANIFEST_SHA256 = "817b6edd5c8adaba777eb4d1a4f88ccbe01a5460bd3919260ba6327ebd6fbdef"
-root = Path(__file__).resolve().parents[1] / "Packages/BigScreenKit/Sources/Sources/Resources/Steamless"
+root = Path(__file__).resolve().parents[1] / "Packages/PlaydenKit/Sources/Sources/Resources/Steamless"
 url = f"https://github.com/atom0s/Steamless/releases/download/v{VERSION}/Steamless.v{VERSION}.-.by.atom0s.zip"
 archive = urllib.request.urlopen(url, timeout=30).read()
 assert hashlib.sha256(archive).hexdigest() == ARCHIVE_SHA256, "Release archive changed"

@@ -1,4 +1,4 @@
-name: BigScreen
+name: Playden
 options:
   deploymentTarget:
     macOS: '15.0'
@@ -10,10 +10,10 @@ configFiles:
   Debug: Config/Build.xcconfig
   Release: Config/Build.xcconfig
 packages:
-  BigScreenKit:
-    path: Packages/BigScreenKit
+  PlaydenKit:
+    path: Packages/PlaydenKit
 targets:
-  BigScreen:
+  Playden:
     type: application
     platform: macOS
     sources:
@@ -23,7 +23,7 @@ targets:
         name: Build Windows display helper
         basedOnDependencyAnalysis: false
         outputFiles:
-          - '$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/BigScreenDisplay.exe'
+          - '$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/PlaydenDisplay.exe'
       - path: scripts/embed-runtime.sh
         name: Embed Steam runtime libraries
         basedOnDependencyAnalysis: false
@@ -33,57 +33,57 @@ targets:
           - '$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Licenses/liblzma.txt'
           - '$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Licenses/zstd.txt'
     dependencies:
-      - package: BigScreenKit
+      - package: PlaydenKit
         product: Artwork
-      - package: BigScreenKit
+      - package: PlaydenKit
         product: Domain
-      - package: BigScreenKit
+      - package: PlaydenKit
         product: Focus
-      - package: BigScreenKit
+      - package: PlaydenKit
         product: Input
-      - package: BigScreenKit
+      - package: PlaydenKit
         product: Catalog
-      - package: BigScreenKit
+      - package: PlaydenKit
         product: Sources
-      - package: BigScreenKit
+      - package: PlaydenKit
         product: Runner
-      - package: BigScreenKit
+      - package: PlaydenKit
         product: Installs
-      - package: BigScreenKit
+      - package: PlaydenKit
         product: Sessions
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: $(BIGSCREEN_BUNDLE_IDENTIFIER)
-        PRODUCT_NAME: Big Screen
-        PRODUCT_MODULE_NAME: BigScreen
+        PRODUCT_BUNDLE_IDENTIFIER: $(PLAYDEN_BUNDLE_IDENTIFIER)
+        PRODUCT_NAME: Playden
+        PRODUCT_MODULE_NAME: Playden
         MARKETING_VERSION: '0.1'
         CURRENT_PROJECT_VERSION: '1'
         HEADER_SEARCH_PATHS: ['$(inherited)', /opt/homebrew/include]
         LIBRARY_SEARCH_PATHS: ['$(inherited)', /opt/homebrew/lib]
         LD_RUNPATH_SEARCH_PATHS: ['$(inherited)', '@executable_path/../Frameworks', '@loader_path/../Frameworks']
         GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: Big Screen
+        INFOPLIST_KEY_CFBundleDisplayName: Playden
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.games
-        INFOPLIST_KEY_NSRemovableVolumesUsageDescription: 'Big Screen installs and plays games on the drive you choose.'
+        INFOPLIST_KEY_NSRemovableVolumesUsageDescription: 'Playden installs and plays games on the drive you choose.'
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: '-'
         ENABLE_APP_SANDBOX: NO
-  BigScreenTests:
+  PlaydenTests:
     type: bundle.unit-test
     platform: macOS
     sources: [Tests/AppTests]
     dependencies:
-      - target: BigScreen
+      - target: Playden
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: $(BIGSCREEN_BUNDLE_IDENTIFIER).tests
+        PRODUCT_BUNDLE_IDENTIFIER: $(PLAYDEN_BUNDLE_IDENTIFIER).tests
         GENERATE_INFOPLIST_FILE: YES
         CODE_SIGN_IDENTITY: '-'
-        TEST_HOST: '$(BUILT_PRODUCTS_DIR)/Big Screen.app/Contents/MacOS/Big Screen'
+        TEST_HOST: '$(BUILT_PRODUCTS_DIR)/Playden.app/Contents/MacOS/Playden'
 schemes:
-  BigScreen:
+  Playden:
     build:
       targets:
-        BigScreen: all
+        Playden: all
     test:
-      targets: [BigScreenTests]
+      targets: [PlaydenTests]

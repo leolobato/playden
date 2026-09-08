@@ -2,7 +2,7 @@ import XCTest
 import QuartzCore
 import Domain
 import Observation
-@testable import BigScreen
+@testable import Playden
 
 final class LibraryNavigationPerformanceTests: XCTestCase {
     @MainActor func testWarmDerivedListsStillNotifyViewsAndUpdateAfterEdits() {

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Opt-in Windows placement/argument/exit tests. Requires an idle, Big Screen-owned bottle."""
+"""Opt-in Windows placement/argument/exit tests. Requires an idle, Playden-owned bottle."""
 import argparse
 import json
 import os
@@ -14,15 +14,15 @@ parser.add_argument('--bottle', type=Path, required=True)
 options = parser.parse_args()
 bottle = options.bottle.resolve(strict=True)
 receipt = json.loads((bottle / '.bigscreen-game-owner.json').read_text())
-assert receipt['bottle']['name'] == bottle.name, 'Expected a Big Screen-owned bottle'
+assert receipt['bottle']['name'] == bottle.name, 'Expected a Playden-owned bottle'
 root = Path(__file__).resolve().parent.parent
-compiler = Path(os.environ.get('BIGSCREEN_LLVM_ROOT', '/opt/homebrew/opt/llvm')) / 'bin/clang'
-linker = Path(os.environ.get('BIGSCREEN_LLD_ROOT', '/opt/homebrew/opt/lld')) / 'bin/lld-link'
+compiler = Path(os.environ.get('PLAYDEN_LLVM_ROOT', '/opt/homebrew/opt/llvm')) / 'bin/clang'
+linker = Path(os.environ.get('PLAYDEN_LLD_ROOT', '/opt/homebrew/opt/lld')) / 'bin/lld-link'
 
 def windows(path):
     return 'Z:' + str(path.resolve()).replace('/', '\\')
 
-with tempfile.TemporaryDirectory(prefix='BigScreen-display-test-') as temporary:
+with tempfile.TemporaryDirectory(prefix='Playden-display-test-') as temporary:
     work = Path(temporary)
     environment = os.environ | {'SRCROOT': str(root), 'DERIVED_FILE_DIR': str(work / 'build'),
                                 'TARGET_BUILD_DIR': str(work), 'UNLOCALIZED_RESOURCES_FOLDER_PATH': 'resources'}
@@ -47,7 +47,7 @@ with tempfile.TemporaryDirectory(prefix='BigScreen-display-test-') as temporary:
         input_file.write(request); input_file.seek(0)
         process = subprocess.Popen(['/Applications/CrossOver.app/Contents/SharedSupport/CrossOver/bin/cxstart',
             '--bottle', str(bottle), '--no-gui', '--no-convert', '--wait-children',
-            windows(work / 'resources/BigScreenDisplay.exe')], stdin=input_file,
+            windows(work / 'resources/PlaydenDisplay.exe')], stdin=input_file,
             stdout=output_file, stderr=output_file, start_new_session=True)
         try:
             code = process.wait(timeout=20)

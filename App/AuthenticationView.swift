@@ -10,7 +10,7 @@ struct AuthenticationView: View {
             SectionLabel(text: model.onboarding ? "Set up · Step 2 of 4" : "Your Steam library").offset(x: 96, y: 60)
             VStack(alignment: .leading, spacing: 34) {
                 Text(model.authScreen == .qr ? "Your games.\nReady for the big screen." : model.authScreen == .credentials ? "Sign in to Steam" : "One more step").font(Design.condensed(72))
-                Text(model.authScreen == .qr ? "Scan the code with Steam on your phone, then approve Big Screen to bring your library here." : model.authScreen == .credentials ? "Use your Steam account name and password. You may also need a Steam Guard code." : model.authMessage)
+                Text(model.authScreen == .qr ? "Scan the code with Steam on your phone, then approve Playden to bring your library here." : model.authScreen == .credentials ? "Use your Steam account name and password. You may also need a Steam Guard code." : model.authMessage)
                     .font(Design.body(30)).foregroundStyle(Design.secondary).lineSpacing(8)
                 if let error = model.authError {
                     Label(error, systemImage: "exclamationmark.circle").font(Design.body(24)).foregroundStyle(Design.amber).fixedSize(horizontal: false, vertical: true)

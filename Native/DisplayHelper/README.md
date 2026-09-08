@@ -1,6 +1,6 @@
 # Windows display helper
 
-`BigScreenDisplay.exe` starts the selected executable in its existing CrossOver bottle, positions
+`PlaydenDisplay.exe` starts the selected executable in its existing CrossOver bottle, positions
 its visible window on the preferred monitor during startup, and forwards its exit code. It uses
 only Windows system DLLs. It does not change macOS display arrangement, ask for Accessibility
 access, inject code, or edit game files. The helper only moves windows whose process ID matches
@@ -9,7 +9,7 @@ the child it created; retaining that process handle prevents PID reuse during ob
 The Xcode post-build phase compiles `main.c` with Homebrew LLVM/LLD, then includes the result in the
 signed app resources. No Windows SDK or C runtime is needed; `win32.h` declares the small x64 ABI
 surface, with layout assertions. The helper also launches 32-bit games through CrossOver's WOW64
-support. Set `BIGSCREEN_LLVM_ROOT` / `BIGSCREEN_LLD_ROOT` for other compiler installations.
+support. Set `PLAYDEN_LLVM_ROOT` / `PLAYDEN_LLD_ROOT` for other compiler installations.
 
 The app sends a binary request on stdin through an unlinked temporary file descriptor. All fields
 are little-endian: six int32 values (display x/y/width/height and primary width/height), uint32
@@ -30,7 +30,7 @@ The opt-in integration test compiles a tiny Windows argument fixture, checks Uni
 quoted / trailing-backslash arguments, exit-code propagation and missing-monitor fallback:
 
 ```sh
-./scripts/test-display-helper.py --bottle '/path/to/an/idle/Big Screen-owned/bottle'
+./scripts/test-display-helper.py --bottle '/path/to/an/idle/Playden-owned/bottle'
 ```
 
 Run it only while that bottle has no game running. The fixture exits immediately and does not

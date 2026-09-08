@@ -182,7 +182,7 @@ final class PrepareTests: XCTestCase {
         }
         XCTAssertEqual(storedAuthLoadCount, 0)
         XCTAssertNil(identity.storedAuth)
-        XCTAssertEqual(identity.account.accountName, "Big Screen")
+        XCTAssertEqual(identity.account.accountName, "Playden")
         XCTAssertEqual(identity.account.steamID, 0)
         XCTAssertEqual(identity.account.accountID, 0)
 
@@ -191,7 +191,7 @@ final class PrepareTests: XCTestCase {
                                  account: identity.account, metadata: PrepareMetadata(), offline: true)
 
         let userINI = try String(contentsOf: game.appendingPathComponent("steam_settings/configs.user.ini"))
-        XCTAssertTrue(userINI.contains("account_name=Big Screen"))
+        XCTAssertTrue(userINI.contains("account_name=Playden"))
         XCTAssertTrue(userINI.contains("account_steamid=0"))
         XCTAssertTrue(userINI.contains("userdata\\0"))
         XCTAssertFalse(userINI.contains(storedAuth.accountName))

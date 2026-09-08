@@ -107,8 +107,8 @@ Scope changed by the user on 7 September 2026: cloud save sync is required for v
 - **FR-MAC-2 (v2):** Discover installed games in the official Steam macOS client’s configured library
   folders, including libraries on other volumes. Merge by Steam app ID without duplicate library
   tiles, show their installed state and launch through the appropriate Steam/native path.
-- **FR-MAC-3 (v2):** Distinguish Big Screen-managed installs from Steam-managed installs. Do not
-  adopt, rewrite or remove the official client’s files as owned Big Screen storage. Disconnected
+- **FR-MAC-3 (v2):** Distinguish Playden-managed installs from Steam-managed installs. Do not
+  adopt, rewrite or remove the official client’s files as owned Playden storage. Disconnected
   Steam library volumes retain their installed identity and show their unavailable status.
 - **FR-MAC-4 (v2):** Allow multiple installation/runtime choices per game in Catalog and the game
   page. Add a native/Steam runner behind the runner boundary; all native installation, discovery

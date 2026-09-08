@@ -14,21 +14,21 @@ struct DownloadsScreen: View {
 
 struct SettingsScreen: View {
     @Bindable var model: LibraryModel
-    let sections = ["Account", "Library", "Display", "Audio", "Controller", "About", "Quit Big Screen"]
+    let sections = ["Account", "Library", "Display", "Audio", "Controller", "About", "Quit Playden"]
     var settings: [(String, String, String)] {
         switch model.settingsSection {
         case 0: [("Steam", model.isPreview ? "Using designer preview data" : model.identity.map { "Signed in as \($0.displayName)" } ?? "Sign in to see your games", model.identity == nil ? "Sign in" : "Sign out")]
-        case 1: [("Refresh library", model.syncError ?? (model.syncing ? "Loading your library…" : "Refresh your games and artwork"), model.syncing ? "Refreshing" : "Refresh"), ("Games volume", model.gamesVolume?.lastKnownRoot.path ?? (model.isPreview ? "/Volumes/VM/Big Screen/games" : "Not configured"), "Change ›"), ("Download while playing", "Downloads pause automatically when a game starts", model.downloadWhilePlaying ? "On" : "Off"), ("Runtime", model.runtimeInfo.map { "CrossOver \($0.version ?? "not found") · Template \($0.templateVersion)" } ?? "Checking game setup", model.runtimeInfo?.templateReady == true && model.runtimeInfo?.failure == nil ? "Ready ›" : "Review ›")]
+        case 1: [("Refresh library", model.syncError ?? (model.syncing ? "Loading your library…" : "Refresh your games and artwork"), model.syncing ? "Refreshing" : "Refresh"), ("Games volume", model.gamesVolume?.lastKnownRoot.path ?? (model.isPreview ? "/Volumes/VM/Playden/games" : "Not configured"), "Change ›"), ("Download while playing", "Downloads pause automatically when a game starts", model.downloadWhilePlaying ? "On" : "Off"), ("Runtime", model.runtimeInfo.map { "CrossOver \($0.version ?? "not found") · Template \($0.templateVersion)" } ?? "Checking game setup", model.runtimeInfo?.templateReady == true && model.runtimeInfo?.failure == nil ? "Ready ›" : "Review ›")]
         case 2: [
             ("Preferred display", model.displaySummary, "Change ›"),
             ("Fullscreen", model.fullscreenTransitioning ? "Switching window mode…" : "Fill the display · Control–Command–F", model.isFullscreen ? "On" : "Off"),
-            ("Start in fullscreen", "Open Big Screen in fullscreen on your preferred display", model.startInFullscreen ? "On" : "Off"),
+            ("Start in fullscreen", "Open Playden in fullscreen on your preferred display", model.startInFullscreen ? "On" : "Off"),
             ("Reduced motion", "Keep the focus ring; turn off scaling and transitions", model.reducedMotion ? "On" : "Off")
         ]
         case 3: [("Preferred audio device", model.audioSummary, "Change ›")]
         case 4: [("Connected controllers", model.connectedControllers.isEmpty ? "No controller connected · keyboard navigation available" : model.connectedControllers.map(\.name).joined(separator: " · "), "Button test")]
         case 6: []
-        default: [("Big Screen", model.runtimeInfo.map { "CrossOver \($0.version ?? "not detected") · Template \($0.templateVersion)" } ?? "Your living-room game library", "v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1")"),
+        default: [("Playden", model.runtimeInfo.map { "CrossOver \($0.version ?? "not detected") · Template \($0.templateVersion)" } ?? "Your living-room game library", "v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1")"),
             ("Logs folder", model.logArchiveError ?? "Install and play-session diagnostics · last 10 per game", "Open in Finder"),
             ("Reset app data", "Start setup again · installed games and saves are kept", "Review reset")]
         }
@@ -109,7 +109,7 @@ struct ModalLayer: View {
                 UninstallDialog(model: model, gameID: gameID).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if case .information(let message) = model.panel {
                 VStack(alignment: .leading, spacing: 30) {
-                    Text(model.isPreview ? "Design preview" : "Big Screen").font(Design.condensed(48))
+                    Text(model.isPreview ? "Design preview" : "Playden").font(Design.condensed(48))
                     Text(message).font(Design.body(26)).foregroundStyle(Design.secondary).lineSpacing(8)
                     ActionButton(title: "Got it", primary: true, focused: true, reducedMotion: model.reducedMotion) { model.panel = nil }
                 }.padding(44).frame(width: 720).background(Design.panel, in: RoundedRectangle(cornerRadius: 12)).shadow(color: .black.opacity(0.7), radius: 50, y: 40).frame(maxWidth: .infinity, maxHeight: .infinity)

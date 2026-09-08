@@ -21,7 +21,7 @@ local edits. Nothing here names Steam except the artwork endpoint.
 - **FR-LIB-2 (v1):** Sort (Options): name, recently played, playtime, recently added. Filters
   (Options): installed state, source (when >1), genre, controller support, compatibility rating.
   Recently added uses the source account's acquisition date (Steam purchases/activations), newest
-  first, rather than when Big Screen first discovered the game. Unknown acquisition dates sort last.
+  first, rather than when Playden first discovered the game. Unknown acquisition dates sort last.
 - **FR-LIB-3 (v1):** Search (touchpad or `search`): live filter across titles; results replace the
   grid; `back` clears.
 - **FR-LIB-4 (v1):** Cover states are visible on the tile: not installed (full-color cover with

@@ -1,7 +1,7 @@
 import XCTest
 import Domain
 import Catalog
-@testable import BigScreen
+@testable import Playden
 
 final class LibraryFilterTests: XCTestCase {
     @MainActor func testRecentlyAddedSortUsesAccountAcquisitionInsteadOfLocalDiscovery() throws {

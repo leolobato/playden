@@ -37,7 +37,7 @@ struct SetupView: View {
                 Text(title).font(Design.condensed(72)).fixedSize(horizontal: false, vertical: true)
                 if model.setupScreen == .controller { controllerInstructions }
                 else {
-                    Text(model.setupScreen == .audio ? "Choose where your games play sound. Changes apply on the next launch. If the device is disconnected, games use the system default." : model.setupScreen == .volume ? "Pick a drive with room. You can change it later; games already installed stay where they are." : model.setupScreen == .display ? "Choose the display you’ll play on. Big Screen will remember it for next time." : "A one-time setup so Windows games can run." + (model.syncing ? " Your library is loading in the meantime." : " You can browse your library when this finishes."))
+                    Text(model.setupScreen == .audio ? "Choose where your games play sound. Changes apply on the next launch. If the device is disconnected, games use the system default." : model.setupScreen == .volume ? "Pick a drive with room. You can change it later; games already installed stay where they are." : model.setupScreen == .display ? "Choose the display you’ll play on. Playden will remember it for next time." : "A one-time setup so Windows games can run." + (model.syncing ? " Your library is loading in the meantime." : " You can browse your library when this finishes."))
                         .font(Design.body(30)).foregroundStyle(Design.secondary).lineSpacing(8)
                 }
                 if let failure = model.setupFailure {
@@ -120,7 +120,7 @@ struct SetupView: View {
             if model.setupBusy {
                 VStack(alignment: .leading, spacing: 20) {
                     HStack(spacing: 20) { ProgressView().tint(Design.accent); Text(model.volumeSaving ? "Checking access to this drive…" : "Looking for your games drives…").font(Design.body(28)) }
-                    if model.volumeSaving { Text("If macOS asks, allow Big Screen to access the drive.").font(Design.body(24)).foregroundStyle(Design.secondary) }
+                    if model.volumeSaving { Text("If macOS asks, allow Playden to access the drive.").font(Design.body(24)).foregroundStyle(Design.secondary) }
                 }.padding(32)
             }
             ScrollViewReader { proxy in

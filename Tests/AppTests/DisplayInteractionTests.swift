@@ -1,7 +1,7 @@
 import XCTest
 import Catalog
 import Domain
-@testable import BigScreen
+@testable import Playden
 
 final class DisplayInteractionTests: XCTestCase {
     @MainActor func testAudioSelectionPersistsAndDisconnectedDeviceFallsBackWithoutLosingPreference() throws {

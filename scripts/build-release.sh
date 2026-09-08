@@ -16,7 +16,7 @@ if (( $# != 0 )); then
 fi
 
 ./scripts/build.sh --release
-derived_data="${BIGSCREEN_DERIVED_DATA_PATH:-DerivedData}"
+derived_data="${PLAYDEN_DERIVED_DATA_PATH:-DerivedData}"
 if $reveal; then
-  open -R "$derived_data/Build/Products/Release/Big Screen.app"
+  open -R "$derived_data/Build/Products/Release/Playden.app"
 fi

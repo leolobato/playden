@@ -56,7 +56,7 @@ static BOOL chooseMonitor(const int *geometry) {
     }
     // A display can disconnect between clicking Play and starting Windows. Keep playing.
     target = origin;
-    message("[Big Screen display] Preferred display unavailable; using the main display.\n");
+    message("[Playden display] Preferred display unavailable; using the main display.\n");
     return 1;
 }
 
@@ -96,7 +96,7 @@ static BOOL placeWindow(void) {
     if (fullscreen || height > targetHeight) height = targetHeight;
     int x = target.left + (targetWidth - width) / 2, y = target.top + (targetHeight - height) / 2;
     // Asynchronous: a game that is loading or not pumping messages cannot block this helper.
-    // Preserve activation and Z order; Big Screen owns the foreground handoff.
+    // Preserve activation and Z order; Playden owns the foreground handoff.
     SetWindowPos(candidate, 0, x, y, width, height, 0x4000 | 0x0004 | 0x0010 | 0x0200);
     return 0;
 }
@@ -104,7 +104,7 @@ static BOOL placeWindow(void) {
 static void placeStartupWindows(HANDLE process) {
     BOOL sawWindow = 0, placed = 0;
     int remaining = 100;
-    message("[Big Screen display] Waiting for the game's first visible window.\n");
+    message("[Playden display] Waiting for the game's first visible window.\n");
     // Cold starts can spend longer than ten seconds loading before creating a window.
     // Begin the movement budget at the first eligible child window, not CreateProcess.
     // Still stop after startup so a later monitor change by the player is respected.
@@ -112,15 +112,15 @@ static void placeStartupWindows(HANDLE process) {
         BOOL onTarget = placeWindow();
         if (candidate && !sawWindow) {
             sawWindow = 1;
-            message("[Big Screen display] Game window appeared; applying the preferred display.\n");
+            message("[Playden display] Game window appeared; applying the preferred display.\n");
         }
         if (sawWindow) --remaining;
         if (onTarget) {
-            if (!placed) message("[Big Screen display] Game window reached the preferred display.\n");
+            if (!placed) message("[Playden display] Game window reached the preferred display.\n");
             placed = 1;
         }
     }
-    if (sawWindow && !placed) message("[Big Screen display] The game kept its own display setting.\n");
+    if (sawWindow && !placed) message("[Playden display] The game kept its own display setting.\n");
 }
 
 static BOOL readBytes(void *bytes, DWORD count) {
@@ -135,7 +135,7 @@ static BOOL readBytes(void *bytes, DWORD count) {
 
 static void append(WCHAR value) {
     if (commandLength >= 32767) {
-        message("[Big Screen display] Game arguments exceed the Windows command-line limit.\n"); ExitProcess(2);
+        message("[Playden display] Game arguments exceed the Windows command-line limit.\n"); ExitProcess(2);
     }
     commandLine[commandLength++] = value;
 }
@@ -178,12 +178,12 @@ void mainCRTStartup(void) {
     if ((hasDisplay && (geometry[2] <= 0 || geometry[3] <= 0 || geometry[4] <= 0 || geometry[5] <= 0)) || !readArguments()) ExitProcess(2);
     configureAudio();
     BOOL canPlace = hasDisplay && EnumDisplayMonitors(0, 0, enumerateMonitor, 0) && chooseMonitor(geometry);
-    if (hasDisplay && !canPlace) message("[Big Screen display] Display lookup unavailable; using the game's display.\n");
+    if (hasDisplay && !canPlace) message("[Playden display] Display lookup unavailable; using the game's display.\n");
     STARTUPINFOW startup = {0}; startup.cb = sizeof(startup);
     if (canPlace) { startup.flags = 4; startup.x = target.left; startup.y = target.top; }
     PROCESS_INFORMATION child = {0};
     if (!CreateProcessW(executable, commandLine, 0, 0, 1, 0, 0, 0, &startup, &child)) {
-        message("[Big Screen display] Could not start the game executable.\n"); ExitProcess(3);
+        message("[Playden display] Could not start the game executable.\n"); ExitProcess(3);
     }
     CloseHandle(child.thread); childPID = child.pid;
     if (canPlace) placeStartupWindows(child.process);

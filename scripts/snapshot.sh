@@ -1,8 +1,8 @@
 #!/bin/zsh
 set -eu
 cd "$(dirname "$0")/.."
-app='DerivedData/Build/Products/Debug/Big Screen.app/Contents/MacOS/Big Screen'
+app='DerivedData/Build/Products/Debug/Playden.app/Contents/MacOS/Playden'
 if [[ ! -x "$app" ]]; then
   ./scripts/build.sh
 fi
-"$app" --snapshot "${BIGSCREEN_SNAPSHOT_DIR:-$PWD/.build/screenshots}" "$@"
+"$app" --snapshot "${PLAYDEN_SNAPSHOT_DIR:-$PWD/.build/screenshots}" "$@"

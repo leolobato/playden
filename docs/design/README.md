@@ -1,10 +1,10 @@
-# Handoff: Big Screen — TV interface
+# Handoff: Playden — TV interface
 
 ## Overview
-Controller-only, fullscreen launcher UI for macOS (SwiftUI/AppKit, `BigScreenApp` module per PRD 01). Covers every v1 screen in `GUI_DESIGN_BRIEF.md`: first run, Home, Library, game page, Downloads, in-game overlays, Settings, and shared components. Dark theme only (light variant not designed yet). Designed at 1920 × 1080; all values below are 1080p px and scale ×2 at 4K (FR-DISP-2).
+Controller-only, fullscreen launcher UI for macOS (SwiftUI/AppKit, `PlaydenApp` module per PRD 01). Covers every v1 screen in `GUI_DESIGN_BRIEF.md`: first run, Home, Library, game page, Downloads, in-game overlays, Settings, and shared components. Dark theme only (light variant not designed yet). Designed at 1920 × 1080; all values below are 1080p px and scale ×2 at 4K (FR-DISP-2).
 
 ## About the design files
-`Big Screen.dc.html` is a **design reference built in HTML**. It is a static canvas of artboards, not code to ship. Recreate the screens in the SwiftUI/AppKit app using its `Focus`, `Input`, `Catalog`, `Installs` and `Artwork` modules. Open the HTML in a browser to inspect exact values; every style is inline on the element.
+`Playden.dc.html` is a **design reference built in HTML**. It is a static canvas of artboards, not code to ship. Recreate the screens in the SwiftUI/AppKit app using its `Focus`, `Input`, `Catalog`, `Installs` and `Artwork` modules. Open the HTML in a browser to inspect exact values; every style is inline on the element.
 
 Chosen directions (user-approved): **focus ring B** (accent ring + glow) and **game page composition 1e** (hero top, solid panel below). Boards 1a, 1d, 1f, 1g are earlier explorations kept for reference only; 1g's content (installed state) still applies, re-laid-out on 1e.
 
@@ -117,5 +117,5 @@ Covers are never dimmed. State is carried by a small mark in the bottom-right co
 
 ## Files
 - `screenshots/` — one PNG per artboard at 1920×1080 (components sheet is taller). Files named `<board>-<screen>.png`; `-reference` suffix marks rejected explorations kept for context.
-- `Big Screen.dc.html` — all artboards. Turn 2 (top): 2a–2l. Turn 1 (below): 1a–1g. Ids are anchors (`#2d`).
+- `Playden.dc.html` — all artboards. Turn 2 (top): 2a–2l. Turn 1 (below): 1a–1g. Ids are anchors (`#2d`).
 - `prd/` — the PRD and `GUI_DESIGN_BRIEF.md` these screens implement.

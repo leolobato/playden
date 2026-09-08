@@ -1,4 +1,4 @@
-# Big Screen — v1 implementation plan
+# Playden — v1 implementation plan
 
 ## Current checkpoint — resumed 8 September 2026
 
@@ -142,7 +142,7 @@ Source references: [Package.swift](../Packages/SteamKit/Package.swift),
 [DownloadEngine.swift](../Packages/SteamKit/Sources/SteamCore/DownloadEngine.swift),
 [PICS.swift](../Packages/SteamKit/Sources/SteamCore/PICS.swift),
 [SteamAuth.swift](../Packages/SteamKit/Sources/SteamCore/SteamAuth.swift),
-[Prepare.swift](../Packages/SteamKit/Sources/SteamCore/Prepare.swift), with orchestration owned by Big Screen.
+[Prepare.swift](../Packages/SteamKit/Sources/SteamCore/Prepare.swift), with orchestration owned by Playden.
 
 SteamCore changes live in `Packages/SteamKit` in this repository, with targeted
 regression tests. Keep the local package dependency within this repository and record source
@@ -166,7 +166,7 @@ first real implementation rather than populating an empty framework in advance.
 | Installs | Install/repair/uninstall job scheduling and recovery | Domain, Catalog, Sources, Runner |
 | Sessions | Launch orchestration, session persistence, download pause coordination, post-exit recovery | Domain, Catalog, Sources, Runner, Installs |
 | Artwork | Fetch, bounded disk/memory cache, cancellation and placeholders | Domain, Foundation |
-| BigScreenApp | Views, AppKit presentation, dependency wiring, input-mode coordination | Targets above |
+| PlaydenApp | Views, AppKit presentation, dependency wiring, input-mode coordination | Targets above |
 
 `Sessions` owns the ordering between installer preparation and runner launch; Runner never calls
 back into a source. UI commands go through injected install/session service protocols. Use
@@ -522,7 +522,7 @@ delegate callback returns; the live check caught and fixed a stranded fullscreen
 the monitor preference to CrossOver game launches is still outstanding; launcher placement
 alone does not satisfy that request.
 
-2026-09-07 permission follow-up: confirmed Big Screen is already unsandboxed. Removed emulator
+2026-09-07 permission follow-up: confirmed Playden is already unsandboxed. Removed emulator
 LAN discovery from offline preparation and updated existing generated configs after checking
 installation ownership and idle sessions. This reduces an unnecessary permission trigger;
 macOS privacy grants remain separate from App Sandbox and are not bypassed.
@@ -608,9 +608,9 @@ The fix is now included in the in-repository `Packages/SteamKit` dependency. The
 worktree and commit references below record the original investigation.
 
 - [x] Cherry-pick `c5dfc3f289acb5097e31d2fea4045e19095a2ca2` into GameNative-macos main and
-  ensure the active sibling checkout used by Big Screen includes it, preserving existing work.
+  ensure the active sibling checkout used by Playden includes it, preserving existing work.
   Main: `9ce9f16`; active `investigation/ios-runtime` checkout: `13312ff`. User changes are intact.
-- [x] Rebuild Big Screen, regenerate Oniken's existing interface configuration through its real
+- [x] Rebuild Playden, regenerate Oniken's existing interface configuration through its real
   preparation path, and verify all 17 interfaces including `STEAMUSERSTATS_INTERFACE_VERSION011`.
   The real Verify files job completed; only the four interface files changed/appeared. Originals,
   app settings and saves retained identical hashes.
@@ -618,7 +618,7 @@ worktree and commit references below record the original investigation.
   before/after hashes match for every existing non-interface file.
 - [x] Preserve custom `configs.user.ini`, `configs.app.ini` and `configs.main.ini` options on
   future preparation/repair runs. Follow-up dependency commits: main `c9f6c22`, active sibling
-  `dd1b307`. Big Screen now merges its offline connectivity policy. Regression tests cover
+  `dd1b307`. Playden now merges its offline connectivity policy. Regression tests cover
   custom settings, original DLLs and saves through preparation retry and repair.
 - [x] Replay Oniken's reported Store User Data crash trigger and record the live result.
   The user clarified that it was starting the game from its Windows launcher. The new run reached
@@ -632,7 +632,7 @@ The live app now connects the Cloud coordinator, owned save access and upload va
 session launch/exit. Game details expose Cloud status and a controller-accessible Cloud saves
 action. Conflict review shows local/remote dates and sizes with explicit upload/download choices;
 retry, safe offline play, account attachment and cancel-launch controls are connected. Post-exit
-sync returns focus to Big Screen and does not offer controls for an already stopped game.
+sync returns focus to Playden and does not offer controls for an already stopped game.
 
 Regression tests pass, and conflict/account/status screens were rendered and inspected at 1080p
 and 4K. Live upload/readback, restore and offline/account-switch acceptance remain outstanding;
@@ -855,9 +855,9 @@ All 108 app tests, signed build and 1080p/4K layout checks pass.
 
 ### 8 September — Recently added follows Steam acquisition dates
 
-Corrected the user-reported sort bug: the import previously used Big Screen's first-observed
+Corrected the user-reported sort bug: the import previously used Playden's first-observed
 timestamp. SteamCore `608a619` now exposes each app's earliest active owned-license acquisition;
-Big Screen stores that separately and sorts by it. Unknown dates sort last, and cached dates
+Playden stores that separately and sorts by it. Unknown dates sort last, and cached dates
 survive temporary metadata failures and older catalog upgrades. The live refresh populated dates
 for all 538 Steam games, and the actual Library's order matches them. All 109 app tests and 243
 package XCTest tests pass (6 existing integration skips, plus 5 Swift Testing tests).

@@ -90,7 +90,7 @@ extension LibraryModel {
     var installationDriveMessage: String? {
         guard let game = focusedGame else { return nil }
         if game.status == .driveDisconnected {
-            return "Reconnect this game’s drive and allow Big Screen access. Play will return automatically."
+            return "Reconnect this game’s drive and allow Playden access. Play will return automatically."
         }
         if isCheckingInstallationDrive(game.id) { return "Checking this game’s saved drive before playing…" }
         return nil

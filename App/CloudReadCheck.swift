@@ -24,8 +24,7 @@ enum CloudReadCheck {
     }
     static func run(game: String) async {
         let gameID = GameID(source: "steam", value: game)
-        let root = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/Big Screen/Diagnostics")
+        let root = AppPaths.supportRoot().appendingPathComponent("Diagnostics")
         let directory = root.appendingPathComponent("cloud-read-\(UUID().uuidString)")
         do {
             try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true,

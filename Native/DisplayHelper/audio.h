@@ -48,7 +48,7 @@ static void clearManagedAudio(void) {
         // Do not remove a later override made directly in Wine's audio settings.
         if (readAudioString(key, L"DefaultOutput", current) && sameAudioString(managed, current)) {
             if (RegDeleteValueW(key, L"DefaultOutput"))
-                message("[Big Screen audio] Could not restore the system-default output.\n");
+                message("[Playden audio] Could not restore the system-default output.\n");
         }
         RegDeleteValueW(key, L"BigScreenOutput");
     }
@@ -96,14 +96,14 @@ static BOOL selectAudioOutput(const WCHAR *uid) {
 }
 static void configureAudio(void) {
     WCHAR uid[512];
-    DWORD size = GetEnvironmentVariableW(L"BIGSCREEN_AUDIO_DEVICE_UID", uid, 512);
+    DWORD size = GetEnvironmentVariableW(L"PLAYDEN_AUDIO_DEVICE_UID", uid, 512);
     if (!size) { clearManagedAudio(); return; }
     LONG initialized = CoInitializeEx(0, 0);
     BOOL selected = initialized >= 0 && size < 512 && selectAudioOutput(uid);
     if (initialized >= 0) CoUninitialize();
-    if (selected) message("[Big Screen audio] Preferred output selected for this game.\n");
+    if (selected) message("[Playden audio] Preferred output selected for this game.\n");
     else {
         clearManagedAudio();
-        message("[Big Screen audio] Preferred output unavailable; using the default output.\n");
+        message("[Playden audio] Preferred output unavailable; using the default output.\n");
     }
 }

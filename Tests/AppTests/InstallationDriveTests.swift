@@ -2,7 +2,7 @@ import XCTest
 import Catalog
 import Domain
 import Installs
-@testable import BigScreen
+@testable import Playden
 
 private actor FixtureDrives: VolumeManaging {
     var disconnected: Set<String> = []
@@ -117,7 +117,7 @@ final class InstallationDriveTests: XCTestCase {
     }
 
     @MainActor func testRealResolverRejectsAnotherVolumeAtTheRecordedPath() async throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("BigScreen-drive-read-\(UUID())")
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("Playden-drive-read-\(UUID())")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         let store = GamesVolumeStore(home: folder)

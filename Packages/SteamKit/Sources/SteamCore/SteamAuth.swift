@@ -15,7 +15,7 @@ public enum AuthEvent: Sendable {
 /// Login flows against IAuthenticationService (plain HTTPS + protobuf).
 /// Both yield a refresh token usable for CM logon and an access token for web calls.
 public enum SteamAuth {
-    static let platformDeviceName = "Big Screen (macOS)"
+    static let platformDeviceName = "Playden (macOS)"
 
     static func deviceDetails(named name: String) -> CAuthentication_DeviceDetails {
         var d = CAuthentication_DeviceDetails()
@@ -31,7 +31,7 @@ public enum SteamAuth {
         accountName: String,
         password: String,
         guardData: String? = nil,
-        deviceName: String = "Big Screen (macOS)",
+        deviceName: String = "Playden (macOS)",
         codeProvider: @escaping @Sendable (GuardPrompt) async throws -> String,
         onEvent: @escaping @Sendable (AuthEvent) -> Void = { _ in }
     ) async throws -> StoredAuth {
@@ -97,7 +97,7 @@ public enum SteamAuth {
     // MARK: QR
 
     public static func loginWithQR(
-        deviceName: String = "Big Screen (macOS)",
+        deviceName: String = "Playden (macOS)",
         onEvent: @escaping @Sendable (AuthEvent) -> Void
     ) async throws -> StoredAuth {
         var begin = CAuthentication_BeginAuthSessionViaQR_Request()

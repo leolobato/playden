@@ -19,7 +19,7 @@ One Xcode app target plus SwiftPM library modules. Each module is testable witho
 
 | Module | Responsibility | Depends on |
 |---|---|---|
-| `BigScreenApp` | SwiftUI views, AppKit window management (fullscreen borderless window on the chosen display, cursor hidden), wiring | everything below |
+| `PlaydenApp` | SwiftUI views, AppKit window management (fullscreen borderless window on the chosen display, cursor hidden), wiring | everything below |
 | `Input` | GameController framework wrapper. Emits semantic `InputAction`s (see 03 §1), hold-repeat, stick deadzone, connect/disconnect events, per-pad glyph names | Foundation, GameController |
 | `Focus` | Spatial focus engine: containers (rail, grid, row, menu), per-container last-focused memory, directional resolution, edge hand-off | Foundation only |
 | `Catalog` | The library model and its persistence: `Game`, `InstallState`, `Collection`, `PlaySession`, `CompatRating`, user edits (favorite, hidden, note) | GRDB (SQLite) |
@@ -78,9 +78,9 @@ protocol GameRunner {                       // where a game runs
 
 | What | Where |
 |---|---|
-| Database, artwork cache, per-game config JSON, job state, logs | `~/Library/Application Support/Big Screen/` |
+| Database, artwork cache, per-game config JSON, job state, logs | `~/Library/Application Support/Playden/` |
 | Steam tokens | Keychain (v1). `SteamCore`'s file `TokenStore` is acceptable only while the Keychain adapter is unbuilt. |
-| Game files | User-chosen games volume, default `/Volumes/VM/Big Screen/games` if present, else `~/Games/Big Screen`. Layout `<source>/<gameId>/<Name>/`, compatible with `SteamCore`'s `app_<appid>/<Name>/` for Steam. |
+| Game files | User-chosen games volume, default `/Volumes/VM/Playden/games` if present, else `~/Games/Playden`. Layout `<source>/<gameId>/<Name>/`, compatible with `SteamCore`'s `app_<appid>/<Name>/` for Steam. |
 | Bottles | CrossOver's private bottle directory, named `gn-<source>-<gameId>`, so they are visible and deletable in CrossOver's own UI. |
 | Bottle template | Bottle `gn-template-<version>`; see 02 §4. |
 

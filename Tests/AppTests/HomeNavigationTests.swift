@@ -1,7 +1,7 @@
 import XCTest
 import Domain
 import Catalog
-@testable import BigScreen
+@testable import Playden
 
 final class HomeNavigationTests: XCTestCase {
     @MainActor private func fixture() -> LibraryModel {

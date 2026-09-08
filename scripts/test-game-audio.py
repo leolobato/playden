@@ -20,15 +20,15 @@ assert receipt['bottle']['name'] == bottle.name
 registry = (bottle / 'user.reg').read_text()
 assert not re.search(r'^"(?:DefaultOutput|BigScreenOutput)"=', registry, re.M), 'Use a bottle with default audio'
 root = Path(__file__).resolve().parent.parent
-compiler = Path(os.environ.get('BIGSCREEN_LLVM_ROOT', '/opt/homebrew/opt/llvm')) / 'bin/clang'
-linker = Path(os.environ.get('BIGSCREEN_LLD_ROOT', '/opt/homebrew/opt/lld')) / 'bin/lld-link'
+compiler = Path(os.environ.get('PLAYDEN_LLVM_ROOT', '/opt/homebrew/opt/llvm')) / 'bin/clang'
+linker = Path(os.environ.get('PLAYDEN_LLD_ROOT', '/opt/homebrew/opt/lld')) / 'bin/lld-link'
 def windows(path):
     return 'Z:' + str(path.resolve()).replace('/', '\\')
-with tempfile.TemporaryDirectory(prefix='BigScreen-audio-test-') as temporary:
+with tempfile.TemporaryDirectory(prefix='Playden-audio-test-') as temporary:
     work = Path(temporary)
     environment = os.environ | {'SRCROOT': str(root), 'DERIVED_FILE_DIR': str(work / 'build'),
         'TARGET_BUILD_DIR': str(work), 'UNLOCALIZED_RESOURCES_FOLDER_PATH': 'resources'}
-    environment.pop('BIGSCREEN_AUDIO_DEVICE_UID', None)
+    environment.pop('PLAYDEN_AUDIO_DEVICE_UID', None)
     subprocess.run(['sh', str(root / 'scripts/embed-display-helper.sh')], env=environment, check=True)
     subprocess.run([str(compiler), '--target=x86_64-pc-windows-msvc', '-std=c11', '-Os',
         '-ffreestanding', '-fno-builtin', '-fno-stack-protector', '-c',
@@ -43,12 +43,12 @@ with tempfile.TemporaryDirectory(prefix='BigScreen-audio-test-') as temporary:
     def run(uid=None):
         env = environment.copy()
         if uid is not None:
-            env['BIGSCREEN_AUDIO_DEVICE_UID'] = uid
+            env['PLAYDEN_AUDIO_DEVICE_UID'] = uid
         with tempfile.TemporaryFile() as input_file:
             input_file.write(request); input_file.seek(0)
             result = subprocess.run(['/Applications/CrossOver.app/Contents/SharedSupport/CrossOver/bin/cxstart',
                 '--bottle', str(bottle), '--no-gui', '--no-convert', '--wait-children',
-                windows(work / 'resources/BigScreenDisplay.exe')], env=env, stdin=input_file,
+                windows(work / 'resources/PlaydenDisplay.exe')], env=env, stdin=input_file,
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=True, timeout=30)
         output = result.stdout.decode(errors='replace')
         print(output, end='', flush=True)
@@ -57,7 +57,7 @@ with tempfile.TemporaryDirectory(prefix='BigScreen-audio-test-') as temporary:
     try:
         selected, output = run(args.device_uid)
         assert 'Preferred output selected' in output and 'BSMANAGED=1' in output
-        fallback, output = run('BigScreen-nonexistent-test-output')
+        fallback, output = run('Playden-nonexistent-test-output')
         assert 'Preferred output unavailable' in output and 'BSMANAGED=1' not in output
         assert fallback == baseline, (fallback, baseline)
         run(args.device_uid)

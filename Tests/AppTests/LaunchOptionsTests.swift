@@ -3,7 +3,7 @@ import Domain
 import Catalog
 import Sessions
 import Input
-@testable import BigScreen
+@testable import Playden
 
 private actor LaunchChoiceSession: SessionManaging {
     var choices: [String?] = []

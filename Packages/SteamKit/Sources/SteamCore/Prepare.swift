@@ -58,7 +58,7 @@ public struct PrepareIdentity: Sendable {
                                loadStoredAuth: () -> StoredAuth?) throws -> PrepareIdentity {
         if offline {
             return PrepareIdentity(
-                account: PrepareAccount(accountName: "Big Screen", steamID: 0, language: language),
+                account: PrepareAccount(accountName: "Playden", steamID: 0, language: language),
                 storedAuth: nil)
         }
         guard let storedAuth = loadStoredAuth() else { throw SteamError.notLoggedIn }

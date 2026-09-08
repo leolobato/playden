@@ -1,7 +1,7 @@
 import XCTest
 import Domain
 import Runner
-@testable import BigScreen
+@testable import Playden
 
 @MainActor
 private final class ActivationFixture: GameActivationSystem {

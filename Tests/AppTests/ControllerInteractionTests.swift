@@ -1,6 +1,6 @@
 import XCTest
 import Input
-@testable import BigScreen
+@testable import Playden
 
 final class ControllerInteractionTests: XCTestCase {
     @MainActor func testButtonTestTrapsControllerActionsAndRestoresSettings() {

@@ -21,7 +21,7 @@ struct UninstallDialog: View {
                 summary(title: "Removed from this Mac", icon: "minus.circle", lines: [size + " of game files", "Game runtime and local saves"], color: Design.red)
                 summary(title: "Kept in your library", icon: "checkmark.circle", lines: ["Collections, favorites and rating", "Playtime and Steam Cloud saves"], color: Design.green)
             }
-            Text(model.uninstallBusy ? "Closing this game if needed and checking saved progress before removal…" : warning ? "Only saves already uploaded to Steam Cloud can be restored after reinstalling. Discarding removes this Mac’s unsynced progress." : "Big Screen checks Steam Cloud before removing local saves. You’ll be asked again if any progress could not be synced.")
+            Text(model.uninstallBusy ? "Closing this game if needed and checking saved progress before removal…" : warning ? "Only saves already uploaded to Steam Cloud can be restored after reinstalling. Discarding removes this Mac’s unsynced progress." : "Playden checks Steam Cloud before removing local saves. You’ll be asked again if any progress could not be synced.")
                 .font(Design.body(24)).foregroundStyle(Design.secondary).lineSpacing(6).fixedSize(horizontal: false, vertical: true)
             if let message = model.uninstallError {
                 Text(message).font(Design.body(21)).foregroundStyle(warning ? Design.amber : Design.red).lineSpacing(5)

@@ -31,14 +31,14 @@ elif name == "openssl":
     print("subject=\n    OU=TESTTEAM\n")
 elif name == "xcodebuild":
     if "-showBuildSettings" in args:
-        print(json.dumps([{"target": "BigScreen", "buildSettings": {"DEVELOPMENT_TEAM": os.environ.get("RELEASE_TEST_TEAM", "")}}]))
+        print(json.dumps([{"target": "Playden", "buildSettings": {"DEVELOPMENT_TEAM": os.environ.get("RELEASE_TEST_TEAM", "")}}]))
         sys.exit(0)
     output = pathlib.Path(args[args.index("-derivedDataPath") + 1])
     config = args[args.index("-configuration") + 1]
-    app = output / "Build/Products" / config / "Big Screen.app"
+    app = output / "Build/Products" / config / "Playden.app"
     (app / "Contents/Frameworks").mkdir(parents=True, exist_ok=True)
     (app / "Contents/Frameworks/libtest.dylib").write_text("library")
-    (app / "Contents/Info.plist").write_bytes(plistlib.dumps({"CFBundleIdentifier": "org.release-test.bigscreen"}))
+    (app / "Contents/Info.plist").write_bytes(plistlib.dumps({"CFBundleIdentifier": "org.release-test.playden"}))
 elif name == "xcrun":
     if args[:2] == ["notarytool", "submit"]:
         label = "dmg" if args[2].endswith(".dmg") else "app"
@@ -54,7 +54,7 @@ elif name == "hdiutil" and args[0] == "create":
     payload = pathlib.Path(args[args.index("-srcfolder") + 1])
     assert (payload / "Applications").is_symlink()
     assert os.readlink(payload / "Applications") == "/Applications"
-    assert (payload / "Big Screen.app/test-ticket").exists()
+    assert (payload / "Playden.app/test-ticket").exists()
     pathlib.Path(args[-1]).write_text("verified test image")
 elif name == "spctl" and failure == "gatekeeper":
     sys.exit(1)
@@ -65,7 +65,7 @@ elif name == "codesign" and "--force" in args and failure == "signing":
 
 class ReleaseScriptsTests(unittest.TestCase):
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory(prefix="Big Screen release test ")
+        self.temp = tempfile.TemporaryDirectory(prefix="Playden release test ")
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         scripts = self.root / "scripts"
@@ -78,11 +78,11 @@ class ReleaseScriptsTests(unittest.TestCase):
             path = bin_dir / name
             path.write_text(STUB)
             path.chmod(0o755)
-        self.env = {key: value for key, value in os.environ.items() if not key.startswith("BIGSCREEN_")}
+        self.env = {key: value for key, value in os.environ.items() if not key.startswith("PLAYDEN_")}
         self.env.update(PATH=f"{bin_dir}:{os.environ['PATH']}", RELEASE_TEST_ROOT=str(self.root),
-                        BIGSCREEN_DEVELOPER_ID=IDENTITY, BIGSCREEN_NOTARY_PROFILE="test-profile",
-                        BIGSCREEN_CODE_SIGN_IDENTITY="-")
-        self.output = self.root / "dist/Big-Screen-0.1-1-arm64.dmg"
+                        PLAYDEN_DEVELOPER_ID=IDENTITY, PLAYDEN_NOTARY_PROFILE="test-profile",
+                        PLAYDEN_CODE_SIGN_IDENTITY="-")
+        self.output = self.root / "dist/Playden-0.1-1-arm64.dmg"
 
     def run_script(self, script="distribute.sh", args=("0.1", "1")):
         return subprocess.run(["/bin/zsh", str(self.root / "scripts" / script), *args],
@@ -95,7 +95,7 @@ class ReleaseScriptsTests(unittest.TestCase):
     def test_local_build_reveals_release_and_can_suppress_finder(self):
         result = self.run_script("build-release.sh", ())
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertTrue(any(call[0] == "open" and "/Release/Big Screen.app" in call[-1]
+        self.assertTrue(any(call[0] == "open" and "/Release/Playden.app" in call[-1]
                             for call in self.calls()))
         (self.root / "calls.jsonl").unlink()
         result = self.run_script("build-release.sh", ("--no-open",))
@@ -106,25 +106,25 @@ class ReleaseScriptsTests(unittest.TestCase):
         for auth in ("profile", "api"):
             with self.subTest(auth=auth):
                 if auth == "api":
-                    del self.env["BIGSCREEN_NOTARY_PROFILE"]
+                    del self.env["PLAYDEN_NOTARY_PROFILE"]
                     key = self.root / "test-key.p8"
                     key.touch()
-                    self.env.update(BIGSCREEN_NOTARY_KEY_PATH=str(key),
-                                    BIGSCREEN_NOTARY_KEY_ID="test-key", BIGSCREEN_NOTARY_ISSUER_ID="test-issuer")
+                    self.env.update(PLAYDEN_NOTARY_KEY_PATH=str(key),
+                                    PLAYDEN_NOTARY_KEY_ID="test-key", PLAYDEN_NOTARY_ISSUER_ID="test-issuer")
                 result = self.run_script()
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 self.assertEqual(self.output.read_text(), "verified test image")
                 submits = [call for call in self.calls() if call[:3] == ["xcrun", "notarytool", "submit"]]
                 self.assertEqual(len(submits), 2)
                 self.assertTrue(all(("--keychain-profile" if auth == "profile" else "--key") in call for call in submits))
-                self.assertTrue(any("org.release-test.bigscreen.dmg" in call for call in self.calls()))
+                self.assertTrue(any("org.release-test.playden.dmg" in call for call in self.calls()))
                 self.assertFalse(list((self.root / "dist").glob(".distribution.*")))
                 (self.root / "calls.jsonl").unlink()
 
     def test_distribution_also_accepts_three_component_versions(self):
         result = self.run_script(args=("0.1.1", "2"))
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertTrue((self.root / "dist/Big-Screen-0.1.1-2-arm64.dmg").exists())
+        self.assertTrue((self.root / "dist/Playden-0.1.1-2-arm64.dmg").exists())
 
     def test_failures_preserve_existing_artifact_and_clean_staging(self):
         self.output.parent.mkdir()
@@ -141,8 +141,8 @@ class ReleaseScriptsTests(unittest.TestCase):
                     self.assertTrue(list((self.root / ".build/distribution").glob(f"notarization.*/{label}-log.json")))
 
     def test_missing_credentials_invalid_version_and_development_identity_fail_before_build(self):
-        for setting, value in (("BIGSCREEN_NOTARY_PROFILE", ""),
-                               ("BIGSCREEN_DEVELOPER_ID", "Apple Development: Test")):
+        for setting, value in (("PLAYDEN_NOTARY_PROFILE", ""),
+                               ("PLAYDEN_DEVELOPER_ID", "Apple Development: Test")):
             original = self.env[setting]
             self.env[setting] = value
             self.assertNotEqual(self.run_script().returncode, 0)
@@ -151,7 +151,7 @@ class ReleaseScriptsTests(unittest.TestCase):
         self.assertFalse(any(call[0] == "xcodebuild" for call in self.calls()))
 
     def test_signing_respects_resolved_xcconfig_team(self):
-        del self.env["BIGSCREEN_CODE_SIGN_IDENTITY"]
+        del self.env["PLAYDEN_CODE_SIGN_IDENTITY"]
         self.env["RELEASE_TEST_TEAM"] = "TESTTEAM"
         result = subprocess.run(
             ["python3", str(self.root / "scripts/signing-identity.py")], env=self.env,

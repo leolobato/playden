@@ -2,7 +2,7 @@ import XCTest
 import SwiftUI
 import Vision
 import Domain
-@testable import BigScreen
+@testable import Playden
 
 @MainActor final class ExitOverlayLayoutTests: XCTestCase {
     func testPreparingFilesAndInstallOnlyQuitShowProgressAndConsequences() throws {
@@ -22,7 +22,7 @@ import Domain
             let request = VNRecognizeTextRequest(); request.recognitionLevel = .accurate
             try VNImageRequestHandler(cgImage: image).perform([request])
             let text = (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }.joined(separator: " ").lowercased()
-            let expected = quit ? ["quit big screen", "keep launcher open", "downloaded files are kept", "file checks may restart"]
+            let expected = quit ? ["quit playden", "keep launcher open", "downloaded files are kept", "file checks may restart"]
                 : ["checking files before setup", "50%", "checked", "game/data", ".bdt"]
             for value in expected { XCTAssertTrue(text.contains(value), "Missing \(value): \(text)") }
             XCTAssertFalse(text.contains("quit game and launcher"))
@@ -48,10 +48,10 @@ import Domain
                 content = AnyView(SetupView(model: model)); expected = ["choose your audio output", "system default", "living room speakers", "next launch"]
             } else if screen == "about" {
                 model.selectTab(.settings); model.settingsSection = 5; model.settingsIndex = 0
-                content = AnyView(LauncherView(model: model)); expected = ["quit big screen", "reset app data"]
+                content = AnyView(LauncherView(model: model)); expected = ["quit playden", "reset app data"]
             } else if screen == "quit" {
                 model.selectTab(.settings); model.settingsSection = 6; model.settingsRailFocused = true
-                content = AnyView(LauncherView(model: model)); expected = ["quit big screen", "downloads pause"]
+                content = AnyView(LauncherView(model: model)); expected = ["quit playden", "downloads pause"]
             } else {
                 model.configureSessionSnapshot("exit-overlay"); model.exitOverlay = false
                 model.detailID = model.sessionGame?.id
@@ -75,7 +75,7 @@ import Domain
             try VNImageRequestHandler(cgImage: image).perform([request])
             let text = (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }.joined(separator: " ").lowercased()
             for value in expected { XCTAssertTrue(text.contains(value), "Missing \(value): \(text)") }
-            let directory = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("bigscreen-audio-quit-review")
+            let directory = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("playden-audio-quit-review")
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             try XCTUnwrap(NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]))
                 .write(to: directory.appendingPathComponent("\(screen).png"))
@@ -129,7 +129,7 @@ import Domain
                                  screen.hasPrefix("launcher") ? "downloads pause" : "forces it after 10 seconds"] {
                     XCTAssertTrue(text.contains(expected), "Missing '\(expected)' in \(screen) at \(width): \(text)")
                 }
-                if let path = ProcessInfo.processInfo.environment["BIGSCREEN_TEST_SNAPSHOT_DIR"] {
+                if let path = ProcessInfo.processInfo.environment["PLAYDEN_TEST_SNAPSHOT_DIR"] {
                     let directory = URL(fileURLWithPath: path, isDirectory: true)
                     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
                     let bitmap = NSBitmapImageRep(cgImage: image)

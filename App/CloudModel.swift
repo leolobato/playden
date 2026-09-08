@@ -86,7 +86,7 @@ extension LibraryModel {
         if hasActiveSession, session.session?.gameID == id, session.session?.runtime?.phase == .running {
             return "Save sync resumes when the game closes."
         }
-        return cloudStatuses[id]?.message ?? (cloudAvailability[id] == false ? "Cloud save locations for this game are not supported yet. Its local saves stay on this Mac." : "Big Screen checks Steam Cloud before you play and syncs changes after the game closes.")
+        return cloudStatuses[id]?.message ?? (cloudAvailability[id] == false ? "Cloud save locations for this game are not supported yet. Its local saves stay on this Mac." : "Playden checks Steam Cloud before you play and syncs changes after the game closes.")
     }
     func performCloudInput(_ action: InputAction) -> Bool {
         guard case .cloudSaves(let id) = panel else { return false }

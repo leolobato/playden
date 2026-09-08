@@ -105,7 +105,7 @@ extension LibraryModel {
             return
         }
         guard let sessions else {
-            show(.information(isPreview ? "Play is available in the live app." : "The game service is unavailable. Restart Big Screen to try again.")); return
+            show(.information(isPreview ? "Play is available in the live app." : "The game service is unavailable. Restart Playden to try again.")); return
         }
         guard sessionReady else {
             sessionIssue = sessionIssue ?? .init(stage: "Recover session", reason: "Finishing session recovery. Try Play again in a moment.", output: ""); return

@@ -1,6 +1,6 @@
 # SteamKit
 
-Big Screen's in-repository Steam library. The `SteamCore` product provides authentication,
+Playden's in-repository Steam library. The `SteamCore` product provides authentication,
 library metadata, entitlement lookup, downloads, Steam Cloud primitives and game preparation.
 `SteamProto` contains generated protocol messages; `CLzma` and `CZstd` bind the compression
 libraries installed with `brew install xz zstd`.

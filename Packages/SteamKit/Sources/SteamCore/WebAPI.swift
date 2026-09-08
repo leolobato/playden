@@ -38,7 +38,7 @@ public enum SteamWebAPI {
             urlString += "?" + queryParts.joined(separator: "&")
             req = URLRequest(url: URL(string: urlString)!)
         }
-        req.setValue("Big Screen/1.0", forHTTPHeaderField: "User-Agent")
+        req.setValue("Playden/1.0", forHTTPHeaderField: "User-Agent")
 
         let (data, response) = try await session.data(for: req)
         guard let http = response as? HTTPURLResponse else { throw SteamError.protocolError("no HTTP response") }
@@ -57,7 +57,7 @@ public enum SteamWebAPI {
         parts.append("format=json")
         let urlString = "\(base)/\(interface)/\(method)/v\(version)/?" + parts.joined(separator: "&")
         var req = URLRequest(url: URL(string: urlString)!)
-        req.setValue("Big Screen/1.0", forHTTPHeaderField: "User-Agent")
+        req.setValue("Playden/1.0", forHTTPHeaderField: "User-Agent")
         let (data, response) = try await session.data(for: req)
         guard let http = response as? HTTPURLResponse else { throw SteamError.protocolError("no HTTP response") }
         guard http.statusCode == 200 else { throw SteamError.http(status: http.statusCode, url: "\(base)/\(interface)/\(method)/v\(version)/") }

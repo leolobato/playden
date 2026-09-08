@@ -1,4 +1,4 @@
-# Big Screen — PRD
+# Playden — PRD
 
 Product requirements for a couch-first game launcher on macOS. This folder is the contract for
 *what the product is*, split by user journey. Engineering detail lives in

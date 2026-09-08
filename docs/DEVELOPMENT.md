@@ -1,23 +1,34 @@
-# Developing Big Screen
+# Developing Playden
 
 The [root README](../README.md) covers player setup, controls, current features and the roadmap.
-Run the commands below from the `big-screen` repository root.
+Run the commands below from the `playden` repository root.
 
 Build and packaging checks do not replace gameplay and controller acceptance checks.
 Avoid tests that take over the desktop while someone is using the Mac.
 
 ## Source layout
 
+The app, Xcode scheme and module are `Playden`; the shared package is `PlaydenKit`.
+The default bundle identifier is `org.lobato.playden`. Script configuration uses
+the `PLAYDEN_` environment-variable prefix.
+
+Fresh profiles use `~/Library/Application Support/Playden`. Existing Big Screen
+profiles continue using their original support directory so catalogs, runtime
+receipts and pending save journals stay together. Existing game paths and ownership
+markers remain valid. The default app identity imports earlier Steam Keychain
+credentials; custom bundle IDs keep separate sign-ins. Quit the older app before
+opening Playden against the same profile.
+
 ```text
-big-screen/
+playden/
 ├── App/
 ├── Config/
 └── Packages/
-    ├── BigScreenKit/
+    ├── PlaydenKit/
     └── SteamKit/
 ```
 
-All application and Steam library source is in this repository. `BigScreenKit` depends on
+All application and Steam library source is in this repository. `PlaydenKit` depends on
 `../SteamKit`, whose `SteamCore` product includes authentication, entitlement lookup, metadata,
 Cloud primitives, downloads and game preparation. No sibling checkout is required.
 See [SteamKit](../Packages/SteamKit/README.md) for its tests, protocol generation and source provenance.
@@ -39,7 +50,7 @@ brew install xcodegen xz zstd llvm lld
 
 `build.sh` defaults to Debug, and `run.sh` always uses the Debug build. For an optimized local
 Release build, run `./scripts/build-release.sh`. The verified bundle is revealed in Finder at
-`DerivedData/Build/Products/Release/Big Screen.app`; quit Big Screen before copying it into
+`DerivedData/Build/Products/Release/Playden.app`; quit Playden before copying it into
 `/Applications`. See the [source installation instructions](../README.md#build-from-source-and-install).
 Both configurations use the same signing selection and embed the runtime dependencies.
 Use `./scripts/build-release.sh --no-open` to build without opening Finder.
@@ -50,10 +61,10 @@ and an A Short Hike launch with no development-shell variables or Homebrew libra
 Preview uses the same in-repository packages,
 but does not use Steam credentials, CrossOver or game files at runtime.
 
-`project.yml` is the project source of truth. Open `BigScreen.xcodeproj` in Xcode; regenerate with
+`project.yml` is the project source of truth. Open `Playden.xcodeproj` in Xcode; regenerate with
 `xcodegen generate` after adding files or changing targets/resources. Build and test scripts do this.
 
-`run.sh` stages a verified copy at `~/Library/Application Support/Big Screen/Run/Big Screen.app`.
+`run.sh` stages a verified copy at `~/Library/Application Support/Playden/Run/Playden.app`.
 It requests a normal quit before replacing that copy and refuses replacement if shutdown does
 not complete. Never replace the signed bundle under a running game or force-quit the launcher
 just to stage a build. Downloads and sessions currently run in-process.
@@ -70,34 +81,34 @@ cp Config/Local.xcconfig.example Config/Local.xcconfig
 Edit `Config/Local.xcconfig` (ignored by Git):
 
 ```xcconfig
-BIGSCREEN_BUNDLE_IDENTIFIER = com.yourcompany.bigscreen
+PLAYDEN_BUNDLE_IDENTIFIER = com.yourcompany.playden
 DEVELOPMENT_TEAM = YOURTEAMID
 ```
 
-The default bundle ID is `com.bigscreen.app` and the default team is empty. Both Debug and
+The default bundle ID is `org.lobato.playden` and the default team is empty. Both Debug and
 Release use this configuration. The test bundle appends `.tests`; the run script reads the
 built app's ID, and the distribution script derives the DMG signing identifier from it.
 The scripts resolve `DEVELOPMENT_TEAM` through Xcode and select a matching local development
 certificate. An explicit signing certificate must also match the configured team. A distribution
-build still requires `BIGSCREEN_DEVELOPER_ID` to select its Developer ID Application certificate.
+build still requires `PLAYDEN_DEVELOPER_ID` to select its Developer ID Application certificate.
 Command-line Xcode build settings can override xcconfig values when building directly with Xcode.
 
 Changing bundle ID creates a separate Keychain service (`<bundle-id>.steam`) and can cause an
-initial macOS credential-access prompt. The default Big Screen identity migrates the research
+initial macOS credential-access prompt. The default Playden identity migrates the research
 build's saved Steam credentials once; custom bundle IDs require their own Steam sign-in.
 Existing catalog/settings storage, recorded game paths and CrossOver bottles are retained.
 The legacy `.gn-download` checkpoint and `gn-template-1` bottle names remain on-disk compatibility
-identifiers, not product branding. New games folders and the artwork cache use Big Screen names.
+identifiers, not product branding. New games folders and the artwork cache use Playden names.
 
 ## Signing and permissions
 
 Scripts reuse an available Apple Development certificate for the configured team and cache the selection in
-`.build/signing-identity`. Set `BIGSCREEN_CODE_SIGN_IDENTITY` to select another existing identity;
+`.build/signing-identity`. Set `PLAYDEN_CODE_SIGN_IDENTITY` to select another existing identity;
 `-` selects ad-hoc signing. No certificate is created or imported by these scripts.
 
 With no team configured and no Apple Development certificate, scripts fall back to ad-hoc signing.
 If a team is configured but its certificate is missing, the build reports an error; explicitly
-set `BIGSCREEN_CODE_SIGN_IDENTITY=-` to opt into a local ad-hoc build. Rebuilds can
+set `PLAYDEN_CODE_SIGN_IDENTITY=-` to opt into a local ad-hoc build. Rebuilds can
 then require Keychain approval again. Moving an existing sign-in to development signing can
 also require an initial approval. The app never asks for or stores the Mac login password.
 
@@ -117,7 +128,7 @@ For local releases, store notarization credentials in macOS Keychain once. This 
 for the required values; do not put passwords in scripts or commit them:
 
 ```sh
-xcrun notarytool store-credentials "big-screen-notary"
+xcrun notarytool store-credentials "playden-notary"
 security find-identity -v -p codesigning
 ```
 
@@ -127,8 +138,8 @@ explicit marketing version and positive integer build number. Source builds defa
 `project.yml`:
 
 ```sh
-export BIGSCREEN_DEVELOPER_ID="Developer ID Application: Your Name (TEAMID)"
-export BIGSCREEN_NOTARY_PROFILE="big-screen-notary"
+export PLAYDEN_DEVELOPER_ID="Developer ID Application: Your Name (TEAMID)"
+export PLAYDEN_NOTARY_PROFILE="playden-notary"
 ./scripts/distribute.sh 0.1 1
 ```
 
@@ -137,10 +148,10 @@ certificate into the runner's Keychain first, and supply the private `.p8` file 
 store. The script accepts these variables instead of a Keychain profile:
 
 ```sh
-unset BIGSCREEN_NOTARY_PROFILE
-export BIGSCREEN_NOTARY_KEY_PATH="/path/to/AuthKey.p8"
-export BIGSCREEN_NOTARY_KEY_ID="YOUR_KEY_ID"
-export BIGSCREEN_NOTARY_ISSUER_ID="YOUR_ISSUER_UUID"
+unset PLAYDEN_NOTARY_PROFILE
+export PLAYDEN_NOTARY_KEY_PATH="/path/to/AuthKey.p8"
+export PLAYDEN_NOTARY_KEY_ID="YOUR_KEY_ID"
+export PLAYDEN_NOTARY_ISSUER_ID="YOUR_ISSUER_UUID"
 ./scripts/distribute.sh 0.1 1
 ```
 
@@ -155,33 +166,33 @@ verifies signatures and tickets, and checks both the app and DMG with Gatekeeper
 Apple's [signing](https://developer.apple.com/documentation/xcode/creating-distribution-signed-code-for-the-mac)
 and [notarization workflow](https://developer.apple.com/documentation/security/customizing-the-notarization-workflow).
 
-Only after every check succeeds does it place `dist/Big-Screen-0.1-1-arm64.dmg` at the final
+Only after every check succeeds does it place `dist/Playden-0.1-1-arm64.dmg` at the final
 output path. Upload that DMG to the GitHub release; the script does not publish it. Open the DMG
-to install by dragging Big Screen into Applications, after quitting any running copy.
+to install by dragging Playden into Applications, after quitting any running copy.
 Notarization responses and Apple logs are retained under `.build/distribution/notarization.*`,
 including on rejection. Review the logs for warnings and test the downloaded DMG on a clean Mac
 before publishing a release. Increase the build number for subsequent builds of the same version.
 
 ## Runtime and storage
 
-CrossOver 26.x supplies the runtime. Big Screen prepares an owned `gn-template-1` Windows 10
+CrossOver 26.x supplies the runtime. Playden prepares an owned `gn-template-1` Windows 10
 64-bit template with MSync and D3DMetal, then clones an owned bottle for each game. It rejects
 unowned/conflicting runtime locations. A missing per-game bottle is recreated and source
 preparation must finish before launch; supported Cloud saves are then restored.
 
 | Data | Location |
 |---|---|
-| Live catalog | `~/Library/Application Support/Big Screen/catalog.sqlite` |
-| Preview catalog | `~/Library/Application Support/Big Screen/Preview/catalog.sqlite` |
-| Per-game logs | `~/Library/Application Support/Big Screen/logs/` |
+| Live catalog | `~/Library/Application Support/Playden/catalog.sqlite` |
+| Preview catalog | `~/Library/Application Support/Playden/Preview/catalog.sqlite` |
+| Per-game logs | `~/Library/Application Support/Playden/logs/` |
 | Setup progress and errors | Live profile's `runtime/` directory |
-| Artwork | `~/Library/Caches/Big Screen/artwork/` |
+| Artwork | `~/Library/Caches/Playden/artwork/` |
 | CrossOver bottles | `~/Library/Application Support/CrossOver/Bottles/` |
 | Game files | Selected writable games volume |
-| Steam credentials | Keychain service `<bundle-id>.steam` (default `com.bigscreen.app.steam`) |
+| Steam credentials | Keychain service `<bundle-id>.steam` (default `org.lobato.playden.steam`) |
 
-Games-volume selection defaults to `/Volumes/VM/Big Screen/games` when writable and present,
-otherwise `~/Games/Big Screen`. The choice stores volume identity and a bookmark. Changing the
+Games-volume selection defaults to `/Volumes/VM/Playden/games` when writable and present,
+otherwise `~/Games/Playden`. The choice stores volume identity and a bookmark. Changing the
 preference affects new installs; it does not move existing games. Runtime space and games-drive
 space are checked separately.
 
@@ -196,11 +207,11 @@ remaining acceptance checks are separate release requirements.
 
 ## Tests and visual review
 
-To trace an installation failure with the installed Release app, quit Big Screen, then run
+To trace an installation failure with the installed Release app, quit Playden, then run
 the diagnostic with the game's Steam app ID:
 
 ```sh
-"/Applications/Big Screen.app/Contents/MacOS/Big Screen" --diagnose-install 1888160
+"/Applications/Playden.app/Contents/MacOS/Playden" --diagnose-install 1888160
 ```
 
 It uses the app's saved sign-in to check authentication, package/depot entitlements and manifest
@@ -255,11 +266,11 @@ and Cloud review without replacing the installation's default launch spec.
 python3 scripts/test-release.py
 ./scripts/test.sh
 ./scripts/snapshot.sh --snapshot-reduced-motion
-BIGSCREEN_SNAPSHOT_DIR="$PWD/.build/screenshots-4k" ./scripts/snapshot.sh --snapshot-width 3840 --snapshot-reduced-motion
+PLAYDEN_SNAPSHOT_DIR="$PWD/.build/screenshots-4k" ./scripts/snapshot.sh --snapshot-width 3840 --snapshot-reduced-motion
 # A focused capture:
-BIGSCREEN_SNAPSHOT_DIR="$PWD/.build/retry-ui" ./scripts/snapshot.sh --snapshot-screens notification-focused,logs-retry --snapshot-reduced-motion
+PLAYDEN_SNAPSHOT_DIR="$PWD/.build/retry-ui" ./scripts/snapshot.sh --snapshot-screens notification-focused,logs-retry --snapshot-reduced-motion
 # SwiftUI-only review when window capture is unavailable:
-BIGSCREEN_SNAPSHOT_DIR="$PWD/.build/offscreen" ./scripts/snapshot.sh --snapshot-offscreen --snapshot-screens home,library --snapshot-reduced-motion
+PLAYDEN_SNAPSHOT_DIR="$PWD/.build/offscreen" ./scripts/snapshot.sh --snapshot-offscreen --snapshot-screens home,library --snapshot-reduced-motion
 ```
 
 Snapshots use sample data and isolated catalogs. Authentication fixtures contain a non-authenticating

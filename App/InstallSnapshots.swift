@@ -12,7 +12,7 @@ import Installs
         let game = model.games.first { $0.title == "TUNIC" }!
         let source = SourceGameRecord(id: game.id, title: game.title, coverURL: game.coverURL, heroURL: game.heroURL, logoURL: game.logoURL)
         let plan = InstallPlan(game: source, manifestIDs: [:], estimate: .init(downloadBytes: 2_100_000_000, installedBytes: 3_500_000_000, requiredBytes: 7_300_000_000), launchSpec: .init(executableRelativePath: "TUNIC.exe"), sourcePayload: Data())
-        let volume = GamesVolumeSelection(volumeID: "screenshot-only", rootBookmark: Data(), lastKnownRoot: URL(fileURLWithPath: "/Volumes/Games/Big Screen"), relativeRoot: "Big Screen")
+        let volume = GamesVolumeSelection(volumeID: "screenshot-only", rootBookmark: Data(), lastKnownRoot: URL(fileURLWithPath: "/Volumes/Games/Playden"), relativeRoot: "Playden")
         model.gamesVolume = volume
         model.gamesStorage = .init(volumeID: volume.volumeID, name: "Games", root: volume.lastKnownRoot,
             totalBytes: 2_000_000_000_000, freeBytes: screen == "install-storage-shortage" ? 9_000_000_000 : 1_350_000_000_000,

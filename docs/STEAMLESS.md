@@ -1,6 +1,6 @@
 # Steamless preparation dependency
 
-Big Screen bundles the unmodified [Steamless v3.1.0.5 release by atom0s](https://github.com/atom0s/Steamless/releases/tag/v3.1.0.5).
+Playden bundles the unmodified [Steamless v3.1.0.5 release by atom0s](https://github.com/atom0s/Steamless/releases/tag/v3.1.0.5).
 It invokes the CLI for SteamStub executables downloaded through the authenticated, owned-depot
 install path. A disposable input copy and the game's owned CrossOver bottle are used. The tool
 does not launch the game. Original game bytes are retained and verified against pinned manifests.

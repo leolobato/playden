@@ -18,7 +18,7 @@ extension LibraryModel {
     }
     var downloadStorage: GamesStorageSnapshot? {
         if isPreview {
-            return .init(volumeID: "preview", name: "VM", root: URL(fileURLWithPath: "/Volumes/VM/Big Screen/games"),
+            return .init(volumeID: "preview", name: "VM", root: URL(fileURLWithPath: "/Volumes/VM/Playden/games"),
                 totalBytes: 2_000_000_000_000, freeBytes: 1_350_000_000_000, gamesBytes: 640_000_000_000, reservedBytes: 13_900_000_000)
         }
         guard let value = gamesStorage, value.volumeID == gamesVolume?.volumeID else { return nil }

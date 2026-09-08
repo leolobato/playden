@@ -48,7 +48,7 @@ struct GameExitOverlay: View {
                     Artwork(url: (model.isConfirmingLauncherQuit ? model.launcherQuitGame : model.sessionGame)?.coverURL, title: (model.isConfirmingLauncherQuit ? model.launcherQuitGame : model.sessionGame)?.title ?? "Downloads")
                         .frame(width: 64, height: 96).clipShape(RoundedRectangle(cornerRadius: 4))
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(model.isConfirmingLauncherQuit ? "Quit Big Screen?" : model.sessionGame?.title ?? "Game").font(Design.condensed(40)).lineLimit(2)
+                        Text(model.isConfirmingLauncherQuit ? "Quit Playden?" : model.sessionGame?.title ?? "Game").font(Design.condensed(40)).lineLimit(2)
                         if model.isConfirmingLauncherQuit { Text(model.launcherQuitGame?.title ?? "Downloads").font(Design.body(24)).foregroundStyle(Design.secondary).lineLimit(1) }
                         Text(status).font(Design.body(24)).foregroundStyle(Design.secondary)
                     }
@@ -58,7 +58,7 @@ struct GameExitOverlay: View {
                     exitButton(model.isConfirmingLauncherQuit ? "Keep launcher open" : "Return to game", index: 0) {
                         model.isConfirmingLauncherQuit ? model.keepLauncherOpen() : model.returnToGame()
                     }
-                    exitButton(model.launcherQuitting || model.sessionBusy ? "Quitting…" : model.isConfirmingLauncherQuit ? (model.hasActiveSession ? "Quit game and launcher" : "Quit Big Screen") : "Quit game", index: 1) {
+                    exitButton(model.launcherQuitting || model.sessionBusy ? "Quitting…" : model.isConfirmingLauncherQuit ? (model.hasActiveSession ? "Quit game and launcher" : "Quit Playden") : "Quit game", index: 1) {
                         model.isConfirmingLauncherQuit ? model.confirmLauncherQuit() : model.quitGame()
                     }
                 }
