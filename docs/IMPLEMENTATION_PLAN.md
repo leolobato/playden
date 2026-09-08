@@ -339,6 +339,10 @@ Dependencies: M3; M0 process/input validation.
 - [ ] Implement controller uninstall confirmation with local-save deletion consequences, pending Cloud
   upload handling and partial-removal recovery. Local save retention is deferred.
 - [ ] Ensure missing-bottle recreation reapplies the recorded recipe and synchronizes available Cloud saves.
+  Keyboard-driven A Short Hike recreation, source preparation, restored gameplay, clean quit,
+  upload and independent remote readback passed on 8 September; original bottle retained.
+  Physical controller acceptance remains open. See
+  [live recovery evidence](validation/2026-09-08-live-runtime-cloud-recovery.md).
 - [ ] Implement Steam Cloud metadata/transfer adapters, verified save-path mapping, account-scoped
   sync journals, pre-launch pull, post-exit push, offline retry and controller conflict resolution.
 - [ ] Verify cloud roundtrip, concurrent edits, interrupted transfer/restart, account switching and

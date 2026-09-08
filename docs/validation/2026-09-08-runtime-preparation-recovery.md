@@ -45,7 +45,10 @@ runtime readiness, and uses the same atomic, synchronized ownership-marker write
   or active Cloud claim. `/tmp/bigscreen-preparation-ack-build.log` and
   `/tmp/bigscreen-preparation-ack-run.log`.
 
-The live probe did not remove or recreate any user game runtime. Full physical missing-bottle →
-Cloud restore → gameplay acceptance remains open. Separately, recovery of an archived unsynced
+The disposable probe above did not remove or recreate any user game runtime. A subsequent
+[live A Short Hike check](2026-09-08-live-runtime-cloud-recovery.md) verified missing-bottle →
+Cloud restore → restored gameplay → clean quit → upload and independent remote readback,
+using keyboard input and preserving the old bottle intact. Physical controller acceptance
+remains open. Separately, recovery of an archived unsynced
 upload after losing its runtime, before local publication begins, still needs focused validation;
 this checkpoint does not establish that Cloud scenario.
