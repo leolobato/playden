@@ -34,7 +34,8 @@ More menu. Keyboard/controller navigation reaches the same confirmation overlay;
 its default action returns to the game. Confirmation retains the existing request
 to close gracefully, followed by force after ten seconds, and the displayed warning.
 
-Quit Big Screen is available as a top-bar power button and Settings → About action.
+Quit Big Screen is available as a top-bar power button and a Settings left-menu
+action directly below About. Audio appears directly below Display.
 These use the existing lifecycle: active sessions require confirmation; otherwise
 normal shutdown pauses downloads and flushes state. Confirmation is bound to the
 current session, cannot be reused, and does not bypass save synchronization.
@@ -44,7 +45,7 @@ Validation: all 151 app interaction tests passed before the final render check;
 test verifies UID transport, audio-only requests, System default helper use and
 rejection of source-provided audio overrides. The existing native placement/argument
 suite also passes with the extended helper. Render tests cover the audio picker,
-About quit action and running-game quit action at 1080p; full overlay consequence
+Settings left-menu quit action and running-game quit action at 1080p; full overlay consequence
 renders retain 1080p/4K coverage. See the test logs under `/tmp/bigscreen-audio-*` and
 ignored `.build/wine-monitor-investigation/` for runtime evidence.
 

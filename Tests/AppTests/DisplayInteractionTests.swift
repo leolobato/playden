@@ -25,8 +25,8 @@ final class DisplayInteractionTests: XCTestCase {
     }
     @MainActor func testAudioSettingsAreReachableWithControllerAndBackDoesNotChangeSelection() {
         let model = LibraryModel()
-        model.selectTab(.settings); model.settingsRailFocused = true; model.settingsSection = 4
-        model.perform(.move(.down)); XCTAssertEqual(model.settingsSection, 5)
+        model.selectTab(.settings); model.settingsRailFocused = true; model.settingsSection = 2
+        model.perform(.move(.down)); XCTAssertEqual(model.settingsSection, 3)
         model.perform(.confirm); model.perform(.confirm)
         XCTAssertEqual(model.setupScreen, .audio)
         model.perform(.back)

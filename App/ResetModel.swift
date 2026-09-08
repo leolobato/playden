@@ -108,7 +108,7 @@ extension LibraryModel {
 
     func configureResetSnapshot(_ screen: String) {
         guard fixedClock else { return }
-        selectTab(.settings); settingsSection = 4; settingsIndex = 2; settingsRailFocused = false
+        selectTab(.settings); settingsSection = 5; settingsIndex = 2; settingsRailFocused = false
         controllerName = "DUALSHOCK 4"; keyboardNavigation = false
         if screen == "settings-about" { return }
         showResetAppData()

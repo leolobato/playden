@@ -12,9 +12,11 @@ import Sessions
     func testVisibleAppQuitUsesIdleShutdownAndActiveSessionConfirmation() {
         let model = LibraryModel()
         var requests = 0; model.onLauncherQuit = { requests += 1 }
-        model.selectTab(.settings); model.settingsSection = 4; model.settingsRailFocused = false
-        model.settingsIndex = 2; model.perform(.move(.down)); model.perform(.confirm)
-        XCTAssertEqual(model.settingsIndex, 3); XCTAssertEqual(requests, 1)
+        model.selectTab(.settings); model.settingsSection = 5; model.settingsRailFocused = true
+        model.perform(.move(.down))
+        XCTAssertEqual(model.settingsSection, 6); XCTAssertEqual(requests, 0)
+        model.perform(.move(.right)); XCTAssertTrue(model.settingsRailFocused)
+        model.perform(.confirm); XCTAssertEqual(requests, 1)
         model.session = running()
         model.quitLauncherFromUI()
         XCTAssertEqual(requests, 1); XCTAssertTrue(model.isConfirmingLauncherQuit)

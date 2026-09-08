@@ -558,7 +558,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                         model.filterChoiceIndex = max(0, model.filterLayout.chips.count - 1); model.revealFilterFocus()
                     }
                 case "controller-test", "controller-waiting":
-                    model.selectTab(.settings); model.settingsSection = 3
+                    model.selectTab(.settings); model.settingsSection = 4
                     let buttons = Dictionary(uniqueKeysWithValues: ControllerControl.allCases.map { ($0, Float(0)) })
                     let idle = ControllerSnapshot(id: "fixture-ds4", name: "DUALSHOCK 4 Wireless Controller", playStation: true, buttons: buttons)
                     model.connectedControllers = screen == "controller-test" ? [idle] : []

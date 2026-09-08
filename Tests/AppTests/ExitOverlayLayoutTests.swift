@@ -6,7 +6,7 @@ import Vision
 @MainActor final class ExitOverlayLayoutTests: XCTestCase {
     func testAudioPickerAndVisibleQuitActionsRenderAt1080() async throws {
         Design.registerFonts()
-        for screen in ["audio", "about", "running"] {
+        for screen in ["audio", "about", "quit", "running"] {
             let model = LibraryModel(); model.fixedClock = true; model.reducedMotion = true
             for index in model.games.indices {
                 model.games[index].coverURL = nil; model.games[index].heroURL = nil; model.games[index].logoURL = nil
@@ -18,7 +18,10 @@ import Vision
                 model.selectedAudioDeviceUID = "tv"; model.setupScreen = .audio; model.setupIndex = 1
                 content = AnyView(SetupView(model: model)); expected = ["choose your audio output", "system default", "living room speakers", "next launch"]
             } else if screen == "about" {
-                model.selectTab(.settings); model.settingsSection = 4; model.settingsIndex = 3
+                model.selectTab(.settings); model.settingsSection = 5; model.settingsIndex = 0
+                content = AnyView(LauncherView(model: model)); expected = ["quit big screen", "reset app data"]
+            } else if screen == "quit" {
+                model.selectTab(.settings); model.settingsSection = 6; model.settingsRailFocused = true
                 content = AnyView(LauncherView(model: model)); expected = ["quit big screen", "downloads pause"]
             } else {
                 model.configureSessionSnapshot("exit-overlay"); model.exitOverlay = false

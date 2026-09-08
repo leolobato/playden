@@ -14,7 +14,7 @@ struct DownloadsScreen: View {
 
 struct SettingsScreen: View {
     @Bindable var model: LibraryModel
-    let sections = ["Account", "Library", "Display", "Controller", "About", "Audio"]
+    let sections = ["Account", "Library", "Display", "Audio", "Controller", "About", "Quit Big Screen"]
     var settings: [(String, String, String)] {
         switch model.settingsSection {
         case 0: [("Steam", model.isPreview ? "Using designer preview data" : model.identity.map { "Signed in as \($0.displayName)" } ?? "Sign in to see your games", model.identity == nil ? "Sign in" : "Sign out")]
@@ -25,12 +25,12 @@ struct SettingsScreen: View {
             ("Start in fullscreen", "Open Big Screen in fullscreen on your preferred display", model.startInFullscreen ? "On" : "Off"),
             ("Reduced motion", "Keep the focus ring; turn off scaling and transitions", model.reducedMotion ? "On" : "Off")
         ]
-        case 5: [("Preferred audio device", model.audioSummary, "Change ›")]
-        case 3: [("Connected controllers", model.connectedControllers.isEmpty ? "No controller connected · keyboard navigation available" : model.connectedControllers.map(\.name).joined(separator: " · "), "Button test")]
+        case 3: [("Preferred audio device", model.audioSummary, "Change ›")]
+        case 4: [("Connected controllers", model.connectedControllers.isEmpty ? "No controller connected · keyboard navigation available" : model.connectedControllers.map(\.name).joined(separator: " · "), "Button test")]
+        case 6: []
         default: [("Big Screen", model.runtimeInfo.map { "CrossOver \($0.version ?? "not detected") · Template \($0.templateVersion)" } ?? "Your living-room game library", "v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1")"),
             ("Logs folder", model.logArchiveError ?? "Install and play-session diagnostics · last 10 per game", "Open in Finder"),
-            ("Reset app data", "Start setup again · installed games and saves are kept", "Review reset"),
-            ("Quit Big Screen", "Close the launcher · downloads pause and can resume next time", "Quit")]
+            ("Reset app data", "Start setup again · installed games and saves are kept", "Review reset")]
         }
     }
     var body: some View {
@@ -42,11 +42,18 @@ struct SettingsScreen: View {
                         .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 22).frame(height: 60)
                         .background(model.settingsSection == index ? Design.text.opacity(0.1) : .clear, in: RoundedRectangle(cornerRadius: 8))
                         .focusRing(model.settingsRailFocused && model.settingsSection == index, compact: true)
-                        .onTapGesture { model.settingsSection = index; model.settingsIndex = 0 }
+                        .onTapGesture {
+                            model.settingsSection = index; model.settingsIndex = 0
+                            if index == 6 { model.settingsRailFocused = true; model.activateSetting() }
+                        }
                 }
             }.frame(width: 300)
             VStack(alignment: .leading, spacing: 24) {
                 SectionLabel(text: sections[model.settingsSection])
+                if model.settingsSection == 6 {
+                    Text("Close the launcher. Downloads pause and can resume next time.")
+                        .font(Design.body(26)).foregroundStyle(Design.secondary)
+                }
                 ForEach(Array(settings.enumerated()), id: \.offset) { index, setting in
                     HStack(spacing: 24) {
                         VStack(alignment: .leading, spacing: 10) { Text(setting.0).font(Design.condensed(30)); Text(setting.1).font(Design.body(22)).foregroundStyle(Design.secondary) }

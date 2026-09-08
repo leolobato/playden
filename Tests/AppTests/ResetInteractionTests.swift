@@ -85,7 +85,7 @@ private actor ResetQueue: InstallQueuing {
     func testAboutNavigationAndCancelNeverResetData() async throws {
         let (model, catalog, auth, _) = try fixture()
         let before = try catalog.snapshot()
-        model.selectTab(.settings); model.settingsSection = 4; model.settingsIndex = 1
+        model.selectTab(.settings); model.settingsSection = 5; model.settingsIndex = 1
         model.perform(.move(.down)); XCTAssertEqual(model.settingsIndex, 2)
         model.perform(.confirm)
         XCTAssertEqual(model.panel, .resetAppData); XCTAssertEqual(model.panelIndex, 0)

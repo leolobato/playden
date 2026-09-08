@@ -593,9 +593,9 @@ final class LibraryModel {
         } else if tab == .settings {
             if direction == .up && allowsTabFocus && (settingsRailFocused ? settingsSection == 0 : settingsIndex == 0) { tabsFocused = true; return }
             if direction == .left { settingsRailFocused = true }
-            else if direction == .right { settingsRailFocused = false }
-            else if settingsRailFocused { settingsSection = min(max(0, settingsSection + (direction == .up ? -1 : 1)), 5); settingsIndex = 0 }
-            else { settingsIndex = min(max(0, settingsIndex + (direction == .up ? -1 : 1)), settingsSection == 1 || settingsSection == 2 ? 3 : settingsSection == 4 ? 3 : 0) }
+            else if direction == .right { settingsRailFocused = settingsSection == 6 }
+            else if settingsRailFocused { settingsSection = min(max(0, settingsSection + (direction == .up ? -1 : 1)), 6); settingsIndex = 0 }
+            else { settingsIndex = min(max(0, settingsIndex + (direction == .up ? -1 : 1)), settingsSection == 1 || settingsSection == 2 ? 3 : settingsSection == 5 ? 2 : 0) }
         }
     }
     func activateDetail() {
@@ -674,6 +674,7 @@ final class LibraryModel {
         games[i].isHidden.toggle(); detailID = nil; reconcileFocus()
     }
     func activateSetting() {
+        if settingsSection == 6 { quitLauncherFromUI(); return }
         if settingsRailFocused { settingsRailFocused = false; return }
         if settingsSection == 0 && !isPreview {
             if identity == nil { beginSignIn() }
@@ -687,12 +688,11 @@ final class LibraryModel {
         else if settingsSection == 2 && settingsIndex == 2 { toggleStartInFullscreen() }
         else if settingsSection == 2 && settingsIndex == 3 { reducedMotion.toggle() }
         else if settingsSection == 1 && settingsIndex == 2 { downloadWhilePlaying.toggle() }
-        else if settingsSection == 5 { openAudioSettings() }
-        else if settingsSection == 3 { openControllerTest() }
-        else if settingsSection == 4 && settingsIndex == 1 { revealLogsFolder() }
-        else if settingsSection == 4 && settingsIndex == 2 { showResetAppData() }
-        else if settingsSection == 4 && settingsIndex == 3 { quitLauncherFromUI() }
-        else if settingsSection == 4 { show(.information("Big Screen \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1")\n\nCrossOver \(runtimeInfo?.version ?? "not detected") · Template \(runtimeInfo?.templateVersion ?? "not prepared")")) }
+        else if settingsSection == 3 { openAudioSettings() }
+        else if settingsSection == 4 { openControllerTest() }
+        else if settingsSection == 5 && settingsIndex == 1 { revealLogsFolder() }
+        else if settingsSection == 5 && settingsIndex == 2 { showResetAppData() }
+        else if settingsSection == 5 { show(.information("Big Screen \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1")\n\nCrossOver \(runtimeInfo?.version ?? "not detected") · Template \(runtimeInfo?.templateVersion ?? "not prepared")")) }
         else { show(.information(isPreview ? "The design preview uses sample games. Launch without --preview to connect your account and set up your Mac." : "This setting is still being implemented.")) }
     }
     func openControllerTest() {
