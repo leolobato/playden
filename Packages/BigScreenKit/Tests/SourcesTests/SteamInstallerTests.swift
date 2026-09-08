@@ -126,6 +126,49 @@ final class SteamInstallerTests: XCTestCase {
             XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent("Game.exe")), bytes)
         }
     }
+    func testPreparationRetryAndRepairPreserveCustomSettingsOriginalsAndSaves() async throws {
+        let bytes = pe()
+        let content = ResolvedSteamContent(app: app(), manifests: [manifest([file("Game.exe", bytes), file("bin/steam_api64.dll", bytes)])], entitlements: .init(appIDs: [100], depotIDs: [101]))
+        let installer = SteamInstaller(game: game, backend: FixtureContentBackend(content: content, chunks: [Data(Insecure.SHA1.hash(data: bytes)): bytes]))
+        let plan = try await installer.resolve(), directory = try temporaryDirectory()
+        try await installer.download(plan, to: directory) { _ in }
+        let staging = try await installer.postInstall(plan, at: directory)
+        let settings = directory.appendingPathComponent("bin/steam_settings")
+        let main = "; per-game connectivity\r\n[main::connectivity]\r\noffline=0\r\ndisable_networking=0\r\ncustom_connectivity=keep\r\n[main::overlay]\r\nenable_experimental_overlay=1\r\n"
+        try Data(main.utf8).write(to: settings.appendingPathComponent("configs.main.ini"))
+        for name in ["user", "app"] {
+            let path = settings.appendingPathComponent("configs.\(name).ini")
+            var original = try Data(contentsOf: path)
+            original.append(contentsOf: "\n; keep this section\n[\(name)::custom]\noption=keep\n".utf8)
+            try original.write(to: path)
+        }
+        let save = directory.appendingPathComponent("player.sav"), saved = Data("player progress".utf8)
+        try saved.write(to: save)
+        var previous: [String: Data] = [:]
+        for attempt in 0..<2 {
+            if attempt == 1 {
+                try FileManager.default.removeItem(at: directory.appendingPathComponent("Game.exe"))
+                try await installer.repair(plan, at: directory, staging: staging) { _ in }
+            }
+            let prepared = try await installer.postInstall(plan, at: directory)
+            XCTAssertEqual(prepared, staging)
+            _ = try await installer.validate(plan, at: directory, staging: prepared)
+            for name in ["main", "user", "app"] {
+                let data = try Data(contentsOf: settings.appendingPathComponent("configs.\(name).ini"))
+                if attempt == 1 { XCTAssertEqual(data, previous[name]) }
+                previous[name] = data
+                if name != "main" {
+                    XCTAssertTrue(String(decoding: data, as: UTF8.self).contains("; keep this section\n[\(name)::custom]\noption=keep\n"))
+                }
+            }
+            let expected = main.replacingOccurrences(of: "offline=0", with: "offline=1")
+                .replacingOccurrences(of: "disable_networking=0", with: "disable_networking=1")
+                .replacingOccurrences(of: "[main::overlay]", with: "disable_lan_only=0\r\n[main::overlay]")
+            XCTAssertEqual(previous["main"], Data(expected.utf8))
+            XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent("bin/steam_api64.dll.orig")), bytes)
+            XCTAssertEqual(try Data(contentsOf: save), saved)
+        }
+    }
     private func prerequisiteFixture(tools: RecipeTools) async throws -> (SteamInstaller, InstallPlan, URL, GameBottle) {
         let game = SourceGameRecord(id: .init(source: "steam", value: "8870"), title: "BioShock Infinite")
         let info = AppInfo(appID: 8870, name: game.title, depots: [.init(id: 8871, manifestGID: 1)], launches: [.init(id: "0", executable: "Game.exe")])

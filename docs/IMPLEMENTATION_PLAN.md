@@ -572,6 +572,11 @@ See `docs/validation/2026-09-08-save-validation.md`.
 
 ### 8 September — SteamCore interface fix requested by the user
 
+Source: `fix/steamcore-legacy-interfaces` at
+`/Users/leolobato/Documents/Projetos/Personal/GameNative/GameNative-macos-steam-interfaces`.
+The fix belongs in GameNative-macos; Big Screen consumes that sibling through
+`../../../GameNative-macos/swift` from `Packages/BigScreenKit`.
+
 - [x] Cherry-pick `c5dfc3f289acb5097e31d2fea4045e19095a2ca2` into GameNative-macos main and
   ensure the active sibling checkout used by Big Screen includes it, preserving existing work.
   Main: `9ce9f16`; active `investigation/ios-runtime` checkout: `13312ff`. User changes are intact.
@@ -581,6 +586,11 @@ See `docs/validation/2026-09-08-save-validation.md`.
   app settings and saves retained identical hashes. See `docs/validation/2026-09-08-steam-interfaces.md`.
 - [x] Preserve app settings, original DLLs and saves during live preparation and validation;
   before/after hashes match for every existing non-interface file.
+- [x] Preserve custom `configs.user.ini`, `configs.app.ini` and `configs.main.ini` options on
+  future preparation/repair runs. Follow-up dependency commits: main `c9f6c22`, active sibling
+  `dd1b307`. Big Screen now merges its offline connectivity policy. Regression tests cover
+  custom settings, original DLLs and saves through preparation retry and repair.
+  See `docs/validation/2026-09-08-steam-settings-preservation.md`.
 - [ ] Replay Oniken's Store User Data action and record the live result.
   Real launch/menu/clean game exit are verified. The exact crash-triggering UI
   action remains unconfirmed; asked the user. Submit Score leads to a separate leaderboard/name
