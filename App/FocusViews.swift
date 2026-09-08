@@ -28,25 +28,31 @@ struct FocusedLibraryGrid: View {
 struct FocusedHomeRows: View {
     @Bindable var model: LibraryModel
     var body: some View {
+        let rows = model.rows
         ZStack(alignment: .topLeading) {
-            ForEach(Array(model.rows.enumerated()), id: \.offset) { index, row in
+            ForEach(model.homeVisibleRowIndices, id: \.self) { index in
+                let row = rows[index]
                 VStack(alignment: .leading, spacing: 28) {
                     SectionLabel(text: row.name).padding(.leading, 24)
-                    HStack(alignment: .top, spacing: 20) {
-                        ForEach(Array(row.games.enumerated()), id: \.element.id) { column, game in
-                            GameTile(game: game, focused: !model.tabsFocused && model.homeRow == index && model.homeColumns[index, default: 0] == column,
-                                     home: true, reducedMotion: model.reducedMotion,
-                                     subtitle: model.isPreview && index == 0 && column == 0 ? "31 h played · yesterday" : nil, paused: model.downloadPaused, job: model.isPreview ? nil : model.liveJob(for: game.id))
-                                .onTapGesture { model.homeRow = index; model.homeColumns[index] = column; model.openGame(game) }
-                        }
-                        if row.showsLibraryCard {
-                            HomeLibraryCard(focused: !model.tabsFocused && model.homeRow == index && model.homeColumns[index, default: 0] == row.games.count,
-                                            reducedMotion: model.reducedMotion) {
-                                model.homeRow = index; model.homeColumns[index] = row.games.count
-                                model.browseAvailableGames()
+                    ZStack(alignment: .topLeading) {
+                        ForEach(model.homeVisibleColumns(in: index), id: \.self) { column in
+                            Group {
+                                if let game = row.games[safe: column] {
+                                    GameTile(game: game, focused: !model.tabsFocused && model.homeRow == index && model.homeColumns[index, default: 0] == column,
+                                             home: true, reducedMotion: model.reducedMotion,
+                                             subtitle: model.isPreview && index == 0 && column == 0 ? "31 h played · yesterday" : nil, paused: model.downloadPaused, job: model.isPreview ? nil : model.liveJob(for: game.id))
+                                        .onTapGesture { model.homeRow = index; model.homeColumns[index] = column; model.openGame(game) }
+                                } else if row.showsLibraryCard && column == row.games.count {
+                                    HomeLibraryCard(focused: !model.tabsFocused && model.homeRow == index && model.homeColumns[index, default: 0] == column,
+                                                    reducedMotion: model.reducedMotion) {
+                                        model.homeRow = index; model.homeColumns[index] = column
+                                        model.browseAvailableGames()
+                                    }
+                                }
                             }
+                            .offset(x: 24 + Double(column) * 233 - model.homeRowOffsets[index, default: 0])
                         }
-                    }.padding(.horizontal, 24).offset(x: -model.homeRowOffsets[index, default: 0])
+                    }.frame(width: 1848, height: 400, alignment: .topLeading)
                         .animation(model.reducedMotion ? nil : .easeOut(duration: 0.18), value: model.homeRowOffsets[index])
                 }.offset(y: 24 + Double(index) * 456 - model.homeScrollOffset)
             }

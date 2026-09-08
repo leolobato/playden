@@ -255,7 +255,7 @@ struct GamePage: View {
     private var hasInstallProgress: Bool { !model.isPreview && model.liveJob(for: game.id).map { ![.completed, .cancelled].contains($0.state) } == true }
     var body: some View {
         ZStack(alignment: .topLeading) {
-            Artwork(url: game.heroURL, fadeIn: !model.reducedMotion).frame(width: 1920, height: 620)
+            Artwork(url: game.heroURL, placeholderID: game.id, fadeIn: !model.reducedMotion).frame(width: 1920, height: 620)
             LinearGradient(stops: [.init(color: Design.background.opacity(0.4), location: 0), .init(color: .clear, location: 0.3), .init(color: .clear, location: 0.75), .init(color: Design.background, location: 1)], startPoint: .top, endPoint: .bottom).frame(height: 620)
             HStack { LegendItem(glyph: model.controllerName == nil || model.keyboardNavigation ? "ESC" : model.playStationGlyphs ? "○" : "B", title: model.tab.rawValue); Spacer(); ClockLabel(fixed: model.fixedClock) }.frame(width: 1728, height: 40).offset(x: 96, y: 54)
             Artwork(url: game.logoURL, title: game.title, fit: true, transparent: true, fadeIn: !model.reducedMotion).frame(width: 460, height: 160).shadow(color: .black.opacity(0.5), radius: 20, y: 8).offset(x: 96, y: 430)

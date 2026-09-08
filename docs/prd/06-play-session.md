@@ -34,10 +34,12 @@ Journey: **play**. From Play to player control, to clean exit back to Home.
 
 ## 3. Exit
 
-- **FR-EXIT-1 (v1):** On process exit the launcher restores fullscreen and returns to the game page
-  (or Home if the session was started from Home), with focus on Play.
+- **FR-EXIT-1 (v1):** On process exit the launcher restores its presentation and returns to Home,
+  focusing the just-played tile when visible, otherwise the normal Home fallback. Launch failures
+  return to the game page. This follows the implementation plan's return-destination correction.
 - **FR-EXIT-2 (v1):** Playtime accumulates per session; "last played" updates; the session outcome
-  (clean, crash = non-zero status or under 30 s, forced) is recorded (04 FR-COMP-2).
+  (clean, crash = non-zero status, forced) is recorded (04 FR-COMP-2). A short clean session remains
+  clean; duration alone does not imply a crash, as specified by the implementation plan.
 - **FR-EXIT-3 (v1):** A crash shows a toast with "View logs" (07 §3).
 - **FR-EXIT-4 (v1):** Paused downloads resume after exit (05 FR-INST-5).
 

@@ -53,3 +53,30 @@ extension PreviewCatalog {
         GameCollection(name: "Short sessions", gameIDs: Set(games.filter { $0.hoursPlayed > 0 && $0.hoursPlayed < 8 }.map(\.id))),
     ]
 }
+
+/// Uses known preview artwork with synthetic identities; never reads or edits the user's catalog.
+@MainActor enum BrowseSnapshots {
+    static func model(for screen: String) -> LibraryModel {
+        let model = LibraryModel(preview: false)
+        model.fixedClock = true
+        model.identity = SourceIdentity(sourceID: "fixture", displayName: "Preview")
+        model.controllerName = "DUALSHOCK 4"; model.playStationGlyphs = true
+        model.games = (0..<720).map { index in
+            let template = PreviewCatalog.games[index % PreviewCatalog.games.count]
+            return Game(id: .init(source: "fixture", value: String(index)), title: "\(template.title) · \(index + 1)",
+                        status: .installed, coverURL: index % 40 == 39 ? nil : template.coverURL,
+                        heroURL: template.heroURL, logoURL: template.logoURL, isFavorite: true,
+                        lastPlayedAt: Date(timeIntervalSince1970: Double(index)),
+                        installedAt: Date(timeIntervalSince1970: Double(index)))
+        }
+        model.collections = (0..<8).map { .init(name: "Collection \($0 + 1)", gameIDs: Set(model.games.map(\.id)), isPinned: true) }
+        model.selectTab(screen.hasPrefix("home-") ? .home : .library)
+        if screen.hasSuffix("-end") {
+            if model.tab == .home {
+                model.homeRow = model.rows.count - 1
+                model.homeColumns[model.homeRow] = model.rows[model.homeRow].games.count - 1
+            } else { model.libraryCursor = .init(index: model.filteredGames.count - 1) }
+        }
+        return model
+    }
+}

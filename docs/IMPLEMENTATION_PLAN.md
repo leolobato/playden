@@ -796,3 +796,13 @@ repairs corrupt files. Decoded images retain alpha and are capped at 4096 pixels
 edge. All 95 app tests and the signed build pass, including a 600-request pipeline stress test.
 The 60 fps cold/warm library gate remains open: this verifies loading and storage behavior, not
 live frame pacing. See [artwork validation](validation/2026-09-08-artwork-cache.md).
+
+### 8 September — Lazy Home and cached library derivation
+
+Home constructs only nearby rows/tiles while preserving access to every Favorites/collection item
+and the final Continue Playing Library card. Derived library/Home lists now invalidate when their
+inputs change rather than being recomputed on each focus read. All 98 app tests and the signed
+build pass. A 720-game paging benchmark reduced model CPU work from 5.243 ms to 0.013 ms per action;
+this is not a rendered-frame measurement. Missing artwork now has an identity-derived color.
+PRD library/exit wording was reconciled with board 3b and the existing implementation plan.
+See [navigation validation](validation/2026-09-08-library-navigation-performance.md).

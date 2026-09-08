@@ -22,7 +22,8 @@ local edits. Nothing here names Steam except the artwork endpoint.
   (Options): installed state, source (when >1), genre, controller support, compatibility rating.
 - **FR-LIB-3 (v1):** Search (touchpad or `search`): live filter across titles; results replace the
   grid; `back` clears.
-- **FR-LIB-4 (v1):** Cover states are visible on the tile: not installed (dimmed), queued,
+- **FR-LIB-4 (v1):** Cover states are visible on the tile: not installed (full-color cover with
+  the bottom-right download glyph from adopted design board 3b), queued,
   downloading (progress bar), installed, running, broken (badge).
 - **FR-LIB-5 (v1):** Library syncs from each source on launch and every 6 hours; a manual refresh is
   in Settings. Offline shows the cached library.

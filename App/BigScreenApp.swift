@@ -372,8 +372,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let requestedScreens: Set<String>? = arguments.firstIndex(of: "--snapshot-screens").flatMap { index in
                 arguments.indices.contains(index + 1) ? Set(arguments[index + 1].split(separator: ",").map(String.init)) : nil
             }
-            for screen in ["uninstall-confirm", "uninstall-unsynced", "uninstall-checking", "cloud-ready", "cloud-conflict", "cloud-account", "cloud-pending", "cloud-syncing", "cloud-recovery", "home", "home-tabs", "home-library-card", "home-playstation", "library", "library-playstation", "library-paged", "library-return", "game", "downloads", "downloads-queued", "settings", "settings-about", "settings-reset", "settings-reset-blocked", "settings-reset-error", "settings-reset-busy", "settings-display", "settings-runtime", "settings-runtime-missing", "settings-runtime-busy", "collections", "keyboard", "keyboard-playstation", "keyboard-generic", "keyboard-space", "keyboard-long", "compatibility", "uninstall", "logs", "logs-long", "logs-long-end", "logs-long-return", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom", "library-download-glyph", "library-download-focused", "game-unknown-size", "game-favorite", "install-offer", "install-offer-space", "install-queue", "install-history-failed", "install-history-completed", "install-mini-progress", "install-storage-shortage", "install-storage-unavailable", "install-game-progress", "launching", "exit-overlay", "exit-overlay-quit", "notification", "notification-focused"] {
+            for screen in ["uninstall-confirm", "uninstall-unsynced", "uninstall-checking", "cloud-ready", "cloud-conflict", "cloud-account", "cloud-pending", "cloud-syncing", "cloud-recovery", "home", "home-tabs", "home-library-card", "home-playstation", "home-large-library", "home-large-library-end", "library-large", "library-large-end", "library", "library-playstation", "library-paged", "library-return", "game", "downloads", "downloads-queued", "settings", "settings-about", "settings-reset", "settings-reset-blocked", "settings-reset-error", "settings-reset-busy", "settings-display", "settings-runtime", "settings-runtime-missing", "settings-runtime-busy", "collections", "keyboard", "keyboard-playstation", "keyboard-generic", "keyboard-space", "keyboard-long", "compatibility", "uninstall", "logs", "logs-long", "logs-long-end", "logs-long-return", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom", "library-download-glyph", "library-download-focused", "game-unknown-size", "game-favorite", "install-offer", "install-offer-space", "install-queue", "install-history-failed", "install-history-completed", "install-mini-progress", "install-storage-shortage", "install-storage-unavailable", "install-game-progress", "launching", "exit-overlay", "exit-overlay-quit", "notification", "notification-focused"] {
                 if let requestedScreens, !requestedScreens.contains(screen) { continue }
+                // Keep each capture independent of the requested screen order.
+                let model = LibraryModel()
+                model.fixedClock = true
+                model.reducedMotion = reducedMotion
                 model.resetBusy = false; model.resetError = nil; model.resetBlocker = nil
                 model.panel = nil; model.detailID = nil; model.authScreen = nil; model.setupScreen = nil
                 model.session = .init(); model.exitOverlay = false; model.controllerName = nil
@@ -426,6 +430,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     model.selectTab(.library); model.perform(.nextPage); model.perform(.nextPage)
                 case "library-return":
                     model.selectTab(.library)
+                    for _ in 0..<5 { model.perform(.nextPage) }
                     for _ in 0..<5 { model.perform(.previousPage) }
                 case "downloads-queued":
                     model.selectTab(.downloads); model.perform(.move(.down))
@@ -504,7 +509,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     }
                 default: model.selectTab(.home)
                 }
-                let fixture = screen.hasPrefix("install-") ? InstallSnapshots.model(for: screen) : model
+                let isLargeLibrary = screen.contains("large-library") || screen.hasPrefix("library-large")
+                let fixture = isLargeLibrary ? BrowseSnapshots.model(for: screen) : screen.hasPrefix("install-") ? InstallSnapshots.model(for: screen) : model
                 fixture.reducedMotion = reducedMotion
                 window.contentView = NSHostingView(rootView: LauncherView(model: fixture))
                 try await Task.sleep(for: .seconds(2))

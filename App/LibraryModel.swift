@@ -136,8 +136,12 @@ final class LibraryModel {
     let isPreview: Bool
     var persistenceError: String?
     var gamesNeedingRepair: Set<GameID> = []
-    var games = PreviewCatalog.games { didSet { persistGameEdits(previous: oldValue) } }
-    var collections = PreviewCatalog.collections { didSet { persistCollections() } }
+    var games = PreviewCatalog.games { didSet { invalidateBrowseCaches(); persistGameEdits(previous: oldValue) } }
+    var collections = PreviewCatalog.collections { didSet { invalidateBrowseCaches(); persistCollections() } }
+    @ObservationIgnored private var filteredCache: [Game]?
+    @ObservationIgnored private var homeCache: [HomeRow]?
+    private var libraryRevision: UInt64 = 0
+    private var homeRevision: UInt64 = 0
     var compatibilityNotes: [GameID: String] = [:] { didSet { persistNotes(previous: oldValue) } }
     var libraryRailIndex = 1
     var textEditor = TextEditorState()
@@ -163,10 +167,10 @@ final class LibraryModel {
     var libraryScrollOffset = 0.0
     var libraryCursor = GridCursor() { didSet { revealLibraryFocus() } }
     var railFocused = false
-    var filter: LibraryFilter = .all { didSet { libraryCursor = .init(); libraryScrollOffset = 0; libraryRailIndex = libraryFilters.firstIndex(of: filter) ?? 1; persistPreferences() } }
-    var query = ""
-    var sort: LibrarySort = .name { didSet { libraryCursor = .init(); persistPreferences() } }
-    var refinements = LibraryRefinements() { didSet { libraryCursor = .init(); persistPreferences() } }
+    var filter: LibraryFilter = .all { didSet { invalidateLibraryCache(); libraryCursor = .init(); libraryScrollOffset = 0; libraryRailIndex = libraryFilters.firstIndex(of: filter) ?? 1; persistPreferences() } }
+    var query = "" { didSet { invalidateLibraryCache() } }
+    var sort: LibrarySort = .name { didSet { invalidateLibraryCache(); libraryCursor = .init(); persistPreferences() } }
+    var refinements = LibraryRefinements() { didSet { invalidateLibraryCache(); libraryCursor = .init(); persistPreferences() } }
     var filterChoiceIndex = 0
     var filterScrollOffset = 0.0
     var expandedGenres = false
@@ -252,7 +256,19 @@ final class LibraryModel {
         }
     }
 
+    private func invalidateLibraryCache() {
+        filteredCache = nil
+        libraryRevision &+= 1
+    }
+    private func invalidateBrowseCaches() {
+        invalidateLibraryCache()
+        homeCache = nil
+        homeRevision &+= 1
+    }
     var filteredGames: [Game] {
+        // Track a revision even on a warm read, so SwiftUI still observes every input change.
+        _ = libraryRevision
+        if let filteredCache { return filteredCache }
         let result = games.filter { game in
             guard game.isHidden == (filter == .hidden) else { return false }
             let matches = switch filter {
@@ -263,7 +279,7 @@ final class LibraryModel {
             }
             return matches && refinements.includes(game) && (query.isEmpty || game.title.localizedCaseInsensitiveContains(query))
         }
-        return result.sorted { lhs, rhs in
+        let sorted = result.sorted { lhs, rhs in
             switch sort {
             case .playtime: if lhs.hoursPlayed != rhs.hoursPlayed { return lhs.hoursPlayed > rhs.hoursPlayed }
             case .recentlyPlayed: if lhs.lastPlayedAt != rhs.lastPlayedAt { return (lhs.lastPlayedAt ?? .distantPast) > (rhs.lastPlayedAt ?? .distantPast) }
@@ -273,8 +289,12 @@ final class LibraryModel {
             let order = lhs.title.localizedStandardCompare(rhs.title)
             return order == .orderedSame ? (lhs.id.source, lhs.id.value) < (rhs.id.source, rhs.id.value) : order == .orderedAscending
         }
+        filteredCache = sorted
+        return sorted
     }
     var rows: [HomeRow] {
+        _ = homeRevision
+        if let homeCache { return homeCache }
         let visible = games.filter { !$0.isHidden }
         let result: [(String, [Game])] = [
             ("Continue playing", isPreview ? ["Hades", "Cuphead", "Hollow Knight", "Dead Cells", "Stardew Valley", "Slay the Spire", "Celeste", "Outer Wilds"].compactMap { title in visible.first { $0.title == title } } : visible.filter { $0.lastPlayedAt != nil }.sorted { $0.lastPlayedAt! > $1.lastPlayedAt! }),
@@ -284,10 +304,12 @@ final class LibraryModel {
         ] + collections.filter(\.isPinned).map { collection in
             (collection.name, visible.filter { collection.gameIDs.contains($0.id) })
         }
-        return result.filter { !$0.1.isEmpty }.map { name, games in
+        let rows = result.filter { !$0.1.isEmpty }.map { name, games in
             let isContinue = name == "Continue playing"
             return HomeRow(name: name, games: isContinue ? Array(games.prefix(15)) : games, showsLibraryCard: isContinue)
         }
+        homeCache = rows
+        return rows
     }
     var focusedGame: Game? {
         if let detailID { return games.first { $0.id == detailID } ?? liveJob(for: detailID).map { game(for: $0) } }
@@ -334,6 +356,18 @@ final class LibraryModel {
         let lastRow = Int((libraryScrollOffset + libraryViewportHeight) / 339) + 3
         let count = filteredGames.count
         return min(count, firstRow * 6)..<min(count, lastRow * 6)
+    }
+    var homeVisibleRowIndices: Range<Int> {
+        let first = max(0, Int(homeScrollOffset / 456) - 1)
+        let end = Int(ceil((homeScrollOffset + 894) / 456)) + 1
+        return min(rows.count, first)..<min(rows.count, end)
+    }
+    func homeVisibleColumns(in row: Int) -> Range<Int> {
+        let offset = homeRowOffsets[row, default: 0]
+        let count = rows[safe: row]?.itemCount ?? 0
+        let first = max(0, Int(offset / 233) - 2)
+        let end = Int(ceil((offset + 1848) / 233)) + 2
+        return min(count, first)..<min(count, end)
     }
     func revealLibraryFocus() {
         let count = filteredGames.count

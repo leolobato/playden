@@ -55,6 +55,7 @@ extension View { func focusRing(_ active: Bool, compact: Bool = false) -> some V
 struct Artwork: View {
     let url: URL?
     var title = ""
+    var placeholderID: GameID?
     var fit = false
     var transparent = false
     var fadeIn = false
@@ -63,7 +64,12 @@ struct Artwork: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                if !transparent { Color(hex: 0x2A2623) }
+                if !transparent {
+                    if let placeholderID {
+                        let byte = Array(SHA256.hash(data: Data("\(placeholderID.source):\(placeholderID.value)".utf8)))[0]
+                        Color(hue: Double(byte) / 255, saturation: 0.22, brightness: 0.21)
+                    } else { Color(hex: 0x2A2623) }
+                }
                 if let displayed = loadedURL == url ? image : ArtworkCache.shared.cachedImage(for: url) {
                     Image(nsImage: displayed).resizable().aspectRatio(contentMode: fit ? .fit : .fill)
                         .frame(width: geometry.size.width, height: geometry.size.height, alignment: fit ? .leading : .center)
@@ -188,7 +194,7 @@ struct GameTile: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
             ZStack(alignment: .bottomLeading) {
-                Artwork(url: game.coverURL, title: game.title)
+                Artwork(url: game.coverURL, title: game.title, placeholderID: game.id)
                 if focused && !home {
                     LinearGradient(colors: [.clear, Design.background.opacity(0.92)], startPoint: .top, endPoint: .bottom).frame(height: 105)
                     VStack(alignment: .leading, spacing: 4) {
