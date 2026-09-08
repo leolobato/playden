@@ -20,7 +20,13 @@ public struct ResumableDepotDownload: Sendable {
         for entry in entries where !entry.file.isSymlink {
             try Task.checkCancellation()
             if entry.file.isDirectory { try workspace.makeDirectory(entry.path); continue }
-            if try Self.isValid(entry.file, path: entry.path, workspace: workspace) {
+            let before = done, freshBefore = written
+            let checkingExisting: @Sendable (UInt64) -> Void = { checked in
+                onProgress(DownloadProgress(depotID: manifest.depotID, file: entry.path, bytesDone: before,
+                    bytesTotal: total, bytesWritten: freshBefore,
+                    verification: .init(bytesChecked: checked, bytesTotal: entry.file.size)))
+            }
+            if try Self.isValid(entry.file, path: entry.path, workspace: workspace, onVerification: checkingExisting) {
                 done += entry.file.size
                 onProgress(DownloadProgress(depotID: manifest.depotID, file: entry.path, bytesDone: done, bytesTotal: total, bytesWritten: written))
                 continue
@@ -56,7 +62,14 @@ public struct ResumableDepotDownload: Sendable {
                     }
                 }
                 try Task.checkCancellation()
-                try await writer.finish(to: entry.path)
+                let assembled = done + completed, fresh = written
+                try await writer.finish(to: entry.path) { checked in
+                    onProgress(DownloadProgress(depotID: manifest.depotID, file: entry.path, bytesDone: assembled,
+                        bytesTotal: total, bytesWritten: fresh,
+                        verification: .init(bytesChecked: checked, bytesTotal: entry.file.size)))
+                }
+                onProgress(DownloadProgress(depotID: manifest.depotID, file: entry.path,
+                    bytesDone: assembled, bytesTotal: total, bytesWritten: fresh))
             } catch {
                 // Task groups drain their children before this catch, so no writer can
                 // race the final checkpoint. Pause/network failure keeps received chunks.
@@ -133,26 +146,45 @@ public struct ResumableDepotDownload: Sendable {
         }
         return entries
     }
-    fileprivate static func isValid(_ file: DepotManifest.File, path: String, workspace: DownloadWorkspace) throws -> Bool {
+    fileprivate static func isValid(_ file: DepotManifest.File, path: String, workspace: DownloadWorkspace, onVerification: (UInt64) -> Void = { _ in }) throws -> Bool {
         let handle: FileHandle
         do { handle = try workspace.openFile(path, flags: O_RDONLY) }
         catch { return false }
         defer { try? handle.close() }
         guard try handle.seekToEnd() == file.size else { return false }
+        var checked: UInt64 = 0
+        var lastReport = ContinuousClock.now
+        onVerification(0)
+        func report(_ count: Int) {
+            checked += UInt64(count)
+            if checked == file.size || lastReport.duration(to: .now) >= .milliseconds(250) {
+                onVerification(checked); lastReport = .now
+            }
+        }
         if let sha = file.contentSHA1 {
             try handle.seek(toOffset: 0)
             var hash = Insecure.SHA1()
             while true {
                 try Task.checkCancellation()
-                let data = try handle.read(upToCount: 1024 * 1024) ?? Data()
-                if data.isEmpty { break }; hash.update(data: data)
+                // Foundation reads may autorelease their buffers. Release each block even
+                // on a long-lived async worker checking a multi-gigabyte archive.
+                let count = try autoreleasepool {
+                    let data = try handle.read(upToCount: 1024 * 1024) ?? Data()
+                    hash.update(data: data)
+                    return data.count
+                }
+                if count == 0 { break }; report(count)
             }
             return Data(hash.finalize()) == sha
         }
         for chunk in file.chunks {
             try Task.checkCancellation(); try handle.seek(toOffset: chunk.offset)
-            let data = try handle.read(upToCount: Int(chunk.uncompressedSize)) ?? Data()
-            do { try chunk.validate(data) } catch { return false }
+            let valid = try autoreleasepool {
+                let data = try handle.read(upToCount: Int(chunk.uncompressedSize)) ?? Data()
+                return (try? chunk.validate(data)) != nil
+            }
+            guard valid else { return false }
+            report(Int(chunk.uncompressedSize))
         }
         return true
     }
@@ -217,10 +249,10 @@ private actor ChunkCheckpointWriter {
         try workspace.writeAtomic(try JSONEncoder().encode(journal), path: journalPath)
         uncheckpointedBytes = 0; lastCheckpoint = .now
     }
-    func finish(to target: String) throws {
+    func finish(to target: String, onVerification: @Sendable (UInt64) -> Void) throws {
         try checkpoint()
         guard journal.completed.count == file.chunks.count,
-              try ResumableDepotDownload.isValid(file, path: partial, workspace: workspace) else {
+              try ResumableDepotDownload.isValid(file, path: partial, workspace: workspace, onVerification: onVerification) else {
             // A failed whole-file digest must not trap retries into reusing the same bad chunks.
             journal.completed = [:]
             try workspace.writeAtomic(try JSONEncoder().encode(journal), path: journalPath)

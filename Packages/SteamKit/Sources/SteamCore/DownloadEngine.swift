@@ -1,5 +1,13 @@
 import Foundation
 
+public struct FileVerificationProgress: Sendable {
+    public let bytesChecked: UInt64
+    public let bytesTotal: UInt64
+    public init(bytesChecked: UInt64, bytesTotal: UInt64) {
+        self.bytesChecked = bytesChecked; self.bytesTotal = bytesTotal
+    }
+}
+
 public struct DownloadProgress: Sendable {
     public let depotID: UInt32
     public let file: String
@@ -7,8 +15,10 @@ public struct DownloadProgress: Sendable {
     public let bytesTotal: UInt64
     /// Fresh validated/committed bytes during this invocation, excluding retained files and chunks.
     public let bytesWritten: UInt64?
-    public init(depotID: UInt32, file: String, bytesDone: UInt64, bytesTotal: UInt64, bytesWritten: UInt64? = nil) {
-        self.depotID = depotID; self.file = file; self.bytesDone = bytesDone; self.bytesTotal = bytesTotal; self.bytesWritten = bytesWritten
+    /// File-local disk verification, separate from assembled/downloaded bytes.
+    public let verification: FileVerificationProgress?
+    public init(depotID: UInt32, file: String, bytesDone: UInt64, bytesTotal: UInt64, bytesWritten: UInt64? = nil, verification: FileVerificationProgress? = nil) {
+        self.depotID = depotID; self.file = file; self.bytesDone = bytesDone; self.bytesTotal = bytesTotal; self.bytesWritten = bytesWritten; self.verification = verification
     }
 }
 

@@ -40,6 +40,10 @@ import Installs
                 jobs.append(job)
             }
             model.installJobs = jobs; model.activeInstallID = active.id; model.installTransfer = .init(bytesPerSecond: 38_000_000, secondsRemaining: 134); model.applyInstallStatuses()
+            if screen == "install-verifying" {
+                model.installTransfer = .init(bytesPerSecond: 0, secondsRemaining: nil,
+                    verification: .init(file: active.currentFile!, bytesChecked: 900_000_000, bytesTotal: 1_500_000_000))
+            }
             if screen == "install-game-progress" { model.openGame(model.games.first { $0.id == game.id }!) }
             else if screen == "install-mini-progress" { model.selectTab(.library) }
             else { model.selectTab(.downloads) }

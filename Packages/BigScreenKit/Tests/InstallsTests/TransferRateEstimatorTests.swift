@@ -17,6 +17,22 @@ final class TransferRateEstimatorTests: XCTestCase {
         let stalled = try XCTUnwrap(meter.metrics(now: 112))
         XCTAssertEqual(stalled.bytesPerSecond, 0); XCTAssertNil(stalled.secondsRemaining)
     }
+    func testVerificationIsImmediateAndDownloadRatesRestartAfterChecking() {
+        var meter = TransferRateEstimator(now: 0)
+        let check = InstallFileVerification(file: "large.bdt", bytesChecked: 400, bytesTotal: 1000)
+        meter.record(.init(bytesCompleted: 1000, bytesTotal: 2000, currentFile: check.file,
+            downloadedBytes: 800, freshlyWrittenBytes: 1000, verification: check), now: 0.1)
+        XCTAssertEqual(meter.metrics(now: 0.1)?.verification, check)
+        XCTAssertNil(meter.metrics(now: 60)?.secondsRemaining)
+        meter.record(.init(bytesCompleted: 1000, bytesTotal: 2000, currentFile: check.file,
+            downloadedBytes: 800, freshlyWrittenBytes: 1000), now: 60)
+        XCTAssertNil(meter.metrics(now: 60), "Measure a new window after the disk check")
+        meter.record(.init(bytesCompleted: 1200, bytesTotal: 2000, currentFile: "next",
+            downloadedBytes: 1000, freshlyWrittenBytes: 1200), now: 62)
+        XCTAssertNil(meter.metrics(now: 62)?.verification)
+        XCTAssertEqual(meter.metrics(now: 62)?.bytesPerSecond, 100)
+        XCTAssertNil(meter.metrics(now: 62)?.secondsRemaining)
+    }
     func testNewInvocationAndUnsupportedSourceHaveNoOldRate() {
         var meter = TransferRateEstimator(now: 0)
         meter.record(.init(bytesCompleted: 100, bytesTotal: 200, currentFile: "file"), now: 2)

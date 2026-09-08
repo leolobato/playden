@@ -31,6 +31,16 @@ public struct InstallPlan: Codable, Equatable, Sendable, Identifiable {
         self.launchOptions = launchOptions
     }
 }
+/// Ephemeral progress reading one file; never counted as downloaded or written bytes.
+public struct InstallFileVerification: Equatable, Sendable {
+    public let file: String
+    public let bytesChecked: Int64
+    public let bytesTotal: Int64
+    public init(file: String, bytesChecked: Int64, bytesTotal: Int64) {
+        self.file = file; self.bytesChecked = bytesChecked; self.bytesTotal = bytesTotal
+    }
+    public var fraction: Double { bytesTotal > 0 ? min(1, max(0, Double(bytesChecked) / Double(bytesTotal))) : 0 }
+}
 public struct InstallProgress: Equatable, Sendable {
     public let bytesCompleted: Int64
     public let bytesTotal: Int64
@@ -38,9 +48,12 @@ public struct InstallProgress: Equatable, Sendable {
     /// Invocation-local counters; never restored from a durable job's assembled byte count.
     public let downloadedBytes: Int64?
     public let freshlyWrittenBytes: Int64?
-    public init(bytesCompleted: Int64, bytesTotal: Int64, currentFile: String, downloadedBytes: Int64? = nil, freshlyWrittenBytes: Int64? = nil) {
+    public let verification: InstallFileVerification?
+    /// Invocation-local ordering for concurrent callback delivery.
+    public let sequence: UInt64?
+    public init(bytesCompleted: Int64, bytesTotal: Int64, currentFile: String, downloadedBytes: Int64? = nil, freshlyWrittenBytes: Int64? = nil, verification: InstallFileVerification? = nil, sequence: UInt64? = nil) {
         self.bytesCompleted = bytesCompleted; self.bytesTotal = bytesTotal; self.currentFile = currentFile
-        self.downloadedBytes = downloadedBytes; self.freshlyWrittenBytes = freshlyWrittenBytes
+        self.downloadedBytes = downloadedBytes; self.freshlyWrittenBytes = freshlyWrittenBytes; self.verification = verification; self.sequence = sequence
     }
 }
 public struct FileMutation: Codable, Equatable, Sendable {

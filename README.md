@@ -28,6 +28,7 @@ implemented; final controller/TV acceptance and broader game testing are still i
   Disconnected games stay in the library; Play waits for their recorded drive to return.
   Game details fetch and cache estimated download sizes when Steam provides them. Download
   progress uses fixed stat columns and a smoothed time estimate to keep the row steady.
+  Checks between downloads show file-verification progress instead of a stalled transfer.
 - **Play through CrossOver.** Per-game runtime preparation, game controls for returning or
   quitting, session playtime and recorded exit results. Downloads can pause while you play.
 - **Sync supported Steam Cloud saves.** Download before playing, upload after exit, review

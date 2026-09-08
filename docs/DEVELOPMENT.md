@@ -232,6 +232,12 @@ Download speed uses an eight-second sample window. Time remaining uses 30 second
 ten seconds of samples, and updates at most every five seconds; stalls clear it immediately
 once the speed window detects no transfer. The download card gives byte progress and speed
 fixed column widths, uses tabular digits, and rounds time remaining to minutes.
+Whole-file checks during downloading report file-local bytes checked, including reused files.
+The row shows verification progress and hides speed/ETA until downloading resumes. These
+counters are transient and never advance downloaded bytes or the durable install stage.
+Steam progress sequence numbers reject delayed callbacks; phase transitions publish immediately.
+Rate windows restart after verification so disk-check time does not skew download estimates.
+File reads release Foundation buffers per block to bound memory during large archive checks.
 
 Steam install plans retain all eligible launch options, including descriptions, arguments and
 working directories. Non-public `betakey` entries and unowned DLC options are excluded.

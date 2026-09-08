@@ -89,6 +89,24 @@ final class DownloadResumeTests: XCTestCase {
         XCTAssertEqual(cached.values.last?.bytesDone, 16)
         XCTAssertEqual(cached.values.last?.bytesWritten, 0)
     }
+    func testFileVerificationReportsReadProgressWithoutAddingWrittenBytes() async throws {
+        let root = try root(), manifest = fixture(), samples = ProgressSamples()
+        var value = download(root); value.onProgress = samples.append
+        try await value.download(manifest: manifest, fetchChunk: Feed(pieces).fetch)
+        let checks = samples.values.filter { $0.verification != nil }
+        XCTAssertEqual(checks.first?.verification?.bytesChecked, 0)
+        XCTAssertEqual(checks.last?.verification?.bytesChecked, manifest.totalSize)
+        XCTAssertTrue(checks.allSatisfy { $0.verification?.bytesTotal == manifest.totalSize && $0.file == "Game/data.bin" })
+        XCTAssertTrue(checks.allSatisfy { $0.bytesDone == manifest.totalSize && $0.bytesWritten == manifest.totalSize })
+        XCTAssertNil(samples.values.last?.verification, "Resume normal progress after checking the file")
+        // A complete file reused on a later invocation also reports the disk read, without a transfer.
+        let reused = ProgressSamples(); value.onProgress = reused.append
+        try await value.download(manifest: manifest, fetchChunk: Feed(pieces).fetch)
+        XCTAssertEqual(reused.values.first?.verification?.bytesChecked, 0)
+        XCTAssertEqual(reused.values.filter { $0.verification != nil }.last?.verification?.bytesChecked, manifest.totalSize)
+        XCTAssertTrue(reused.values.allSatisfy { $0.bytesWritten == 0 })
+        XCTAssertNil(reused.values.last?.verification)
+    }
     func testCorruptRetainedChunkIsFetchedAgain() async throws {
         let root = try root(), manifest = fixture(), feed = Feed(pieces, failAt: 11)
         do { try await download(root).download(manifest: manifest, fetchChunk: feed.fetch) } catch {}

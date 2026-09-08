@@ -53,6 +53,7 @@ public actor InstallQueue: InstallQueuing {
     private var persistenceFailure: OperationFailure?
     private var progressTime: TimeInterval = 0
     private var progressCompleted: Int64 = 0
+    private var progressSequence: UInt64?
     private var transferMeter: TransferRateEstimator?
     private var transferTicker: Task<Void, Never>?
     private var gameplayPaused = false
@@ -237,7 +238,7 @@ public actor InstallQueue: InstallQueuing {
                     try update(id) { $0.location = location }
                 case .download:
                     let path = try await directory(job)
-                    progressCompleted = 0
+                    progressCompleted = 0; progressSequence = nil
                     transferMeter = TransferRateEstimator(now: ProcessInfo.processInfo.systemUptime)
                     transferTicker = Task {
                         while !Task.isCancelled {
@@ -342,9 +343,16 @@ public actor InstallQueue: InstallQueuing {
               value.bytesCompleted >= 0, value.bytesTotal >= value.bytesCompleted else { return }
         let now = ProcessInfo.processInfo.systemUptime
         guard value.bytesCompleted >= progressCompleted else { return }
+        if let sequence = value.sequence {
+            guard progressSequence.map({ sequence > $0 }) ?? true else { return }
+            progressSequence = sequence
+        }
         progressCompleted = value.bytesCompleted
+        let previousVerification = transferMeter?.verification
         transferMeter?.record(value, now: now)
-        guard now - progressTime >= 0.25 else { return }; progressTime = now
+        let phaseChanged = (previousVerification == nil) != (value.verification == nil)
+            || previousVerification?.file != value.verification?.file
+        guard phaseChanged || now - progressTime >= 0.25 else { return }; progressTime = now
         do { try update(id) { $0.bytesCompleted = value.bytesCompleted; $0.bytesTotal = value.bytesTotal; $0.currentFile = value.currentFile } }
         catch { persistenceFailure = Self.failure("Save queue", "Install progress could not be saved."); activeTask?.cancel(); publish() }
     }

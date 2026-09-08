@@ -4,8 +4,9 @@ import Domain
 public struct InstallTransferMetrics: Equatable, Sendable {
     public let bytesPerSecond: Double
     public let secondsRemaining: Double?
-    public init(bytesPerSecond: Double, secondsRemaining: Double?) {
-        self.bytesPerSecond = bytesPerSecond; self.secondsRemaining = secondsRemaining
+    public let verification: InstallFileVerification?
+    public init(bytesPerSecond: Double, secondsRemaining: Double?, verification: InstallFileVerification? = nil) {
+        self.bytesPerSecond = bytesPerSecond; self.secondsRemaining = secondsRemaining; self.verification = verification
     }
 }
 
@@ -16,6 +17,7 @@ struct TransferRateEstimator {
     private var remaining: Int64 = 0
     private var supported = false
     private var displayedETA: Double?
+    private(set) var verification: InstallFileVerification?
     private var lastETAUpdate: TimeInterval?
     init(now: TimeInterval) { samples = [.init(time: now, network: 0, written: 0)] }
     mutating func record(_ progress: InstallProgress, now: TimeInterval) {
@@ -23,11 +25,18 @@ struct TransferRateEstimator {
               let last = samples.last, now.isFinite, now >= last.time,
               network >= last.network, written >= last.written, progress.bytesCompleted >= 0,
               progress.bytesTotal >= progress.bytesCompleted else { return }
+        if (verification == nil) != (progress.verification == nil) {
+            // Verification time must not depress the next download's speed or ETA.
+            samples = [.init(time: now, network: network, written: written)]
+            displayedETA = nil; lastETAUpdate = nil
+        }
+        verification = progress.verification
         supported = true; remaining = progress.bytesTotal - progress.bytesCompleted
         samples.append(.init(time: now, network: network, written: written))
         while samples.count > 2 && samples[1].time < now - 30 { samples.removeFirst() }
     }
     mutating func metrics(now: TimeInterval) -> InstallTransferMetrics? {
+        if let verification { return .init(bytesPerSecond: 0, secondsRemaining: nil, verification: verification) }
         guard supported, let latest = samples.last, now.isFinite,
               let start = samples.last(where: { $0.time <= now - 8 }) ?? samples.first,
               now - start.time >= 1 else { return nil }

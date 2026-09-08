@@ -50,7 +50,10 @@ struct LiveSteamInstallBackend: SteamInstallBackend {
                 engine.onTransfer = { transfers.received($0) }
                 engine.onProgress = { update in
                     transfers.assembled(depot: update.depotID, completed: before + Int64(update.bytesDone),
-                        fresh: update.bytesWritten.map(Int64.init), file: update.file)
+                        fresh: update.bytesWritten.map(Int64.init), file: update.file,
+                        verification: update.verification.map {
+                            .init(file: update.file, bytesChecked: Int64($0.bytesChecked), bytesTotal: Int64($0.bytesTotal))
+                        })
                 }
                 try await engine.download(manifest: manifest, servers: servers)
                 completed += Int64(manifest.totalSize)

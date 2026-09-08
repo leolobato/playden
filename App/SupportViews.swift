@@ -203,20 +203,20 @@ struct DownloadCard: View {
                 Text(row.game.title).font(Design.condensed(active ? 36 : 30)).lineLimit(1)
                 if let job {
                     HStack(spacing: 12) {
-                        Text(job.statusTitle).foregroundStyle(job.state == .failed ? Design.amber : active ? Design.accent : Design.secondary)
-                        if active && job.stage == .download { Text(job.displayProgress.formatted(.percent.precision(.fractionLength(0)))).monospacedDigit().foregroundStyle(Design.accent) }
+                        Text(model.downloadStatusTitle(for: job)).foregroundStyle(job.state == .failed ? Design.amber : active ? Design.accent : Design.secondary)
+                        if active && job.stage == .download { Text(model.downloadProgress(for: job).formatted(.percent.precision(.fractionLength(0)))).monospacedDigit().foregroundStyle(Design.accent) }
                     }.font(Design.body(active ? 24 : 22, weight: "Medium"))
                     if !active, let failure = job.failure {
                         Text(job.stageTitle + " · " + failure.reason).font(Design.body(20)).foregroundStyle(Design.secondary).lineLimit(2)
                     }
                     if active {
-                        ProgressTrack(value: job.displayProgress)
+                        ProgressTrack(value: model.downloadProgress(for: job))
                         HStack(spacing: 16) {
-                            Text(job.bytesLabel).frame(width: 420, alignment: .leading)
+                            Text(model.downloadBytesLabel(for: job)).frame(width: 420, alignment: .leading)
                             Text(model.transferSpeedLabel(for: job) ?? "").frame(width: 170, alignment: .leading)
                             Text(model.transferTimeLabel(for: job) ?? "").frame(maxWidth: .infinity, alignment: .leading)
                         }.font(Design.body(22)).monospacedDigit().foregroundStyle(Design.secondary).lineLimit(1)
-                        Text(job.kind == .uninstall ? "Steam Cloud saves and library history are kept." : job.currentFile ?? "Your game will be ready after verification and setup.").font(Design.body(18)).foregroundStyle(Design.muted).lineLimit(1).truncationMode(.middle)
+                        Text(job.kind == .uninstall ? "Steam Cloud saves and library history are kept." : model.fileVerification(for: job)?.file ?? job.currentFile ?? "Your game will be ready after verification and setup.").font(Design.body(18)).foregroundStyle(Design.muted).lineLimit(1).truncationMode(.middle)
                     }
                 } else if active {
                     Text(model.downloadPaused ? "Paused · 43%" : "Download · 43%").font(Design.body(24, weight: "Medium")).foregroundStyle(Design.accent)

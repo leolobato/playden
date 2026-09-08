@@ -3,6 +3,20 @@ import Domain
 @testable import Sources
 
 final class SteamTransferProgressTests: XCTestCase {
+    func testVerificationKeepsTransferCountersAndClearsOnNextFile() throws {
+        let samples = TransferSamples()
+        let progress = SteamTransferProgress(total: 20_000, report: samples.append)
+        progress.received(100)
+        let previousSequence = try XCTUnwrap(samples.last?.sequence)
+        let check = InstallFileVerification(file: "large", bytesChecked: 500, bytesTotal: 1000)
+        progress.assembled(depot: 1, completed: 1000, fresh: 1000, file: "large", verification: check)
+        XCTAssertEqual(samples.last?.verification, check)
+        XCTAssertEqual(samples.last?.downloadedBytes, 100)
+        XCTAssertEqual(samples.last?.freshlyWrittenBytes, 1000)
+        XCTAssertGreaterThan(try XCTUnwrap(samples.last?.sequence), previousSequence)
+        progress.assembled(depot: 1, completed: 1000, fresh: 1000, file: "next")
+        XCTAssertNil(samples.last?.verification)
+    }
     func testConcurrentResponsesAndMultipleDepotsKeepSeparateCounters() async throws {
         let samples = TransferSamples()
         let bridge = SteamTransferProgress(total: 20_000, report: samples.append)
