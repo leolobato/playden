@@ -124,6 +124,8 @@ public final class CatalogStore: Sendable {
             for var record in games {
                 if let prior = previous[record.id] {
                     record.firstObservedAt = prior.firstObservedAt
+                    // A transient acquisition-metadata failure must not erase a known date.
+                    if record.sourceAcquiredAt == nil { record.sourceAcquiredAt = prior.sourceAcquiredAt }
                     if record.metadataUpdatedAt == nil { Self.copyMetadata(from: prior, to: &record) }
                 }
                 try Self.putGame(db, table: "source_games", id: record.id, value: record)

@@ -30,12 +30,33 @@ struct LiveSteamBackend: SteamBackend {
     }
     func ownedGames(_ auth: StoredAuth) async throws -> [SourceGameRecord] {
         guard let token = auth.accessToken else { throw SourceFailure.expired }
-        return try await SteamLibrary.ownedGames(steamID: auth.steamID, accessToken: token).map { game in
+        async let owned = SteamLibrary.ownedGames(steamID: auth.steamID, accessToken: token)
+        async let acquired = acquisitionDates(auth)
+        return try await Self.libraryRecords(owned, acquiredAt: acquired)
+    }
+    static func libraryRecords(_ games: [OwnedGame], acquiredAt: [UInt32: Date]) -> [SourceGameRecord] {
+        games.map { game in
             let base = "https://cdn.cloudflare.steamstatic.com/steam/apps/\(game.appID)"
             return SourceGameRecord(id: GameID(source: "steam", value: String(game.appID)), title: game.name,
                 coverURL: URL(string: "\(base)/library_600x900.jpg"), heroURL: URL(string: "\(base)/library_hero.jpg"),
                 logoURL: URL(string: "\(base)/logo.png"), importedPlaytimeSeconds: Int64(game.playtimeMinutes) * 60,
-                sourceLastPlayedAt: game.lastPlayedAt)
+                sourceLastPlayedAt: game.lastPlayedAt, sourceAcquiredAt: acquiredAt[game.appID])
+        }
+    }
+    private func acquisitionDates(_ auth: StoredAuth) async throws -> [UInt32: Date] {
+        let cm = CMClient(depotKeyStore: MemoryDepotKeys())
+        do {
+            try await cm.connect()
+            _ = try await cm.logOn(accountName: auth.accountName, refreshToken: auth.refreshToken)
+            let result = try await cm.ownedEntitlements()
+            await cm.disconnect()
+            return result.appAcquiredAt
+        } catch {
+            await cm.disconnect()
+            try Task.checkCancellation()
+            // Owned games still load if optional license metadata is temporarily unavailable.
+            // CatalogStore retains previously known dates; unknown dates sort last.
+            return [:]
         }
     }
     private static func deliver(_ event: AuthEvent, to receiver: @Sendable (AuthenticationEvent) -> Void) {

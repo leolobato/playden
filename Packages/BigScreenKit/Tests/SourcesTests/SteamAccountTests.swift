@@ -24,6 +24,20 @@ private struct DelayedBackend: SteamBackend {
     func ownedGames(_ auth: StoredAuth) async throws -> [SourceGameRecord] { [] }
 }
 final class SteamAccountTests: XCTestCase {
+    func testLibraryImportKeepsSteamAcquisitionDateSeparateFromDiscoveryAndPlaytime() {
+        let acquired = Date(timeIntervalSince1970: 1_400_000_000), played = Date(timeIntervalSince1970: 1_600_000_000)
+        let result = LiveSteamBackend.libraryRecords([
+            OwnedGame(appID: 100, name: "Owned", playtimeMinutes: 120, lastPlayedAt: played),
+            OwnedGame(appID: 200, name: "Unknown date", playtimeMinutes: 0)
+        ], acquiredAt: [100: acquired, 999: acquired])
+        XCTAssertEqual(result.count, 2, "License metadata must not add apps to the owned-library response")
+        XCTAssertEqual(result[0].sourceAcquiredAt, acquired)
+        XCTAssertEqual(result[0].sourceLastPlayedAt, played)
+        XCTAssertEqual(result[0].importedPlaytimeSeconds, 7200)
+        XCTAssertGreaterThan(result[0].firstObservedAt, acquired)
+        XCTAssertNil(result[1].sourceAcquiredAt, "Unknown acquisition must not become the import timestamp")
+    }
+
     func testSignOutCancelsAuthenticatedOperationAndKeepsCredentialsCleared() async throws {
         let store = MemoryCredentials(), started = Gate(), release = Gate(), operationStarted = Gate()
         try store.save(StoredAuth(accountName: "Fixture", steamID: 1, refreshToken: "fixture"))

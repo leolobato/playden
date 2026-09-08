@@ -4,6 +4,28 @@ import Catalog
 @testable import BigScreen
 
 final class LibraryFilterTests: XCTestCase {
+    @MainActor func testRecentlyAddedSortUsesAccountAcquisitionInsteadOfLocalDiscovery() throws {
+        let catalog = try CatalogStore(), discovery = Date(timeIntervalSince1970: 1_700_000_000)
+        let old = SourceGameRecord(id: .init(source: "steam", value: "1"), title: "Old purchase",
+            firstObservedAt: discovery.addingTimeInterval(100), sourceAcquiredAt: Date(timeIntervalSince1970: 1_400_000_000))
+        let recent = SourceGameRecord(id: .init(source: "steam", value: "2"), title: "Recent purchase",
+            firstObservedAt: discovery, sourceAcquiredAt: Date(timeIntervalSince1970: 1_600_000_000))
+        let unknown = SourceGameRecord(id: .init(source: "steam", value: "3"), title: "A date unknown",
+            firstObservedAt: discovery.addingTimeInterval(200))
+        try catalog.replaceSourceCatalog(source: "steam", games: [old, unknown, recent])
+        let model = LibraryModel(catalog: catalog, preview: false)
+        defer { model.stopServices() }
+        model.selectTab(.library); model.sort = .recentlyAdded
+        XCTAssertEqual(model.filteredGames.map(\.id), [recent.id, old.id, unknown.id])
+        XCTAssertNil(model.games.first { $0.id == unknown.id }?.addedAt)
+        var backfilled = unknown
+        backfilled.sourceAcquiredAt = Date(timeIntervalSince1970: 1_650_000_000)
+        try catalog.replaceSourceCatalog(source: "steam", games: [old, backfilled, recent])
+        model.reloadCatalog()
+        XCTAssertEqual(model.sort, .recentlyAdded)
+        XCTAssertEqual(model.filteredGames.map(\.id), [unknown.id, recent.id, old.id])
+    }
+
     @MainActor private func model() -> LibraryModel {
         let model = LibraryModel()
         model.games = [

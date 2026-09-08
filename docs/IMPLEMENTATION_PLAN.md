@@ -846,3 +846,13 @@ Removed the earlier Works/Playable cover badges: the adopted design reserves com
 badges for Broken. All ratings remain on details and in filters; Running retains its state badge.
 All 108 app tests, signed build and 1080p/4K layout checks pass. See
 [tile fidelity validation](validation/2026-09-08-tile-fidelity.md).
+
+### 8 September — Recently added follows Steam acquisition dates
+
+Corrected the user-reported sort bug: the import previously used Big Screen's first-observed
+timestamp. SteamCore `608a619` now exposes each app's earliest active owned-license acquisition;
+Big Screen stores that separately and sorts by it. Unknown dates sort last, and cached dates
+survive temporary metadata failures and older catalog upgrades. The live refresh populated dates
+for all 538 Steam games, and the actual Library's order matches them. All 109 app tests and 243
+package XCTest tests pass (6 existing integration skips, plus 5 Swift Testing tests). See
+[acquisition-date validation](validation/2026-09-08-steam-acquisition-dates.md).

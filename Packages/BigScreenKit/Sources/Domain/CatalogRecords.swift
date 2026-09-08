@@ -14,6 +14,8 @@ public struct SourceGameRecord: Codable, Equatable, Sendable, Identifiable {
     public var logoURL: URL?
     public var importedPlaytimeSeconds: Int64
     public var sourceLastPlayedAt: Date?
+    /// When the source granted this game to the account, independent of our first sync.
+    public var sourceAcquiredAt: Date?
     public var downloadBytes: Int64?
     public var firstObservedAt: Date
     public var metadataUpdatedAt: Date?
@@ -21,11 +23,13 @@ public struct SourceGameRecord: Codable, Equatable, Sendable, Identifiable {
     public init(id: GameID, title: String, summary: String = "", genres: [String] = [],
                 controllerSupport: ControllerSupport = .unknown, coverURL: URL? = nil, heroURL: URL? = nil,
                 logoURL: URL? = nil, importedPlaytimeSeconds: Int64 = 0, sourceLastPlayedAt: Date? = nil,
-                downloadBytes: Int64? = nil, firstObservedAt: Date = .now, metadataUpdatedAt: Date? = nil) {
+                downloadBytes: Int64? = nil, firstObservedAt: Date = .now, metadataUpdatedAt: Date? = nil,
+                sourceAcquiredAt: Date? = nil) {
         self.id = id; self.title = title; self.summary = summary; self.genres = genres
         self.controllerSupport = controllerSupport; self.coverURL = coverURL; self.heroURL = heroURL; self.logoURL = logoURL
         self.importedPlaytimeSeconds = max(0, importedPlaytimeSeconds); self.sourceLastPlayedAt = sourceLastPlayedAt
         self.downloadBytes = downloadBytes; self.firstObservedAt = firstObservedAt; self.metadataUpdatedAt = metadataUpdatedAt
+        self.sourceAcquiredAt = sourceAcquiredAt
     }
 }
 

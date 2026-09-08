@@ -3,6 +3,30 @@ import Domain
 @testable import Catalog
 
 final class CatalogStoreTests: XCTestCase {
+    func testAcquisitionDateBackfillsOldCacheSurvivesRefreshAndDoesNotCrossSignOut() throws {
+        let path = try temporaryPath(), store = try CatalogStore(path: path)
+        var original = game(steam)
+        var legacy = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(original)) as? [String: Any])
+        legacy.removeValue(forKey: "sourceAcquiredAt")
+        original = try JSONDecoder().decode(SourceGameRecord.self, from: JSONSerialization.data(withJSONObject: legacy))
+        XCTAssertNil(original.sourceAcquiredAt)
+        try store.replaceSourceCatalog(source: steam.source, games: [original])
+        var refreshed = original
+        let acquired = epoch.addingTimeInterval(-1_000_000)
+        refreshed.sourceAcquiredAt = acquired; refreshed.firstObservedAt = epoch.addingTimeInterval(100)
+        try store.replaceSourceCatalog(source: steam.source, games: [refreshed])
+        XCTAssertEqual(try store.snapshot().entries[0].source.firstObservedAt, epoch)
+        XCTAssertEqual(try store.snapshot().entries[0].source.sourceAcquiredAt, acquired)
+        refreshed.sourceAcquiredAt = nil // Optional license metadata was unavailable this time.
+        try store.replaceSourceCatalog(source: steam.source, games: [refreshed])
+        refreshed.summary = "Fresh public metadata"; refreshed.metadataUpdatedAt = .now
+        XCTAssertTrue(try store.updateMetadata(refreshed))
+        XCTAssertEqual(try CatalogStore(path: path).snapshot().entries[0].source.sourceAcquiredAt, acquired)
+        try store.clearSourceCatalog(steam.source)
+        try store.replaceSourceCatalog(source: steam.source, games: [refreshed])
+        XCTAssertNil(try store.snapshot().entries[0].source.sourceAcquiredAt, "A new account cannot inherit old ownership dates")
+    }
+
     private let steam = GameID(source: "steam", value: "268910")
     private let other = GameID(source: "fixture", value: "268910")
     private let epoch = Date(timeIntervalSince1970: 1_700_000_000)
