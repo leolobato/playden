@@ -92,6 +92,21 @@ public final class CatalogStore: Sendable {
                 t.column("payload", .blob).notNull()
             }
         }
+        migrator.registerMigration("v5_diagnostics") { db in
+            try db.create(table: "diagnostic_logs") { t in
+                t.primaryKey("id", .text)
+                t.column("source", .text).notNull()
+                t.column("game", .text).notNull()
+                t.column("updated", .double).notNull()
+                t.column("revision", .integer).notNull().defaults(to: 1)
+                t.column("payload", .blob).notNull()
+            }
+            try db.create(index: "diagnostic_game", on: "diagnostic_logs", columns: ["source", "game", "updated"])
+            let jobs: [JobRecord] = try Self.values(db, table: "jobs")
+            let sessions: [PlaySessionRecord] = try Self.values(db, table: "sessions")
+            for job in jobs { try Self.recordDiagnostic(db, value: job, imported: true) }
+            for session in sessions { try Self.recordDiagnostic(db, value: session, imported: true) }
+        }
         try migrator.migrate(database)
     }
 
@@ -347,5 +362,6 @@ public final class CatalogStore: Sendable {
             guard (row["source"] as String) == gameID.source, (row["game"] as String) == gameID.value else { throw CatalogError.identityMismatch }
         }
         try db.execute(sql: "INSERT INTO \(table) (id, source, game, payload) VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET payload = excluded.payload", arguments: [id.uuidString, gameID.source, gameID.value, try encode(value)])
+        if table == "jobs" || table == "sessions" { try recordDiagnostic(db, value: value) }
     }
 }

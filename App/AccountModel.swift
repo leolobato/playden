@@ -7,6 +7,7 @@ enum AuthenticationScreen { case qr, credentials, approval, guardCode }
 
 extension LibraryModel {
     func startServices() {
+        startLogServices()
         guard !isPreview, let source else { return }
         startInstallServices()
         startCloudServices()
@@ -23,6 +24,7 @@ extension LibraryModel {
         }
     }
     func stopServices() {
+        logObserver?.cancel(); logObserver = nil
         cancelAuthentication(); syncTask?.cancel(); periodicSyncTask?.cancel(); setupTask?.cancel()
         installObserver?.cancel(); installOfferTask?.cancel()
         sessionObserver?.cancel()

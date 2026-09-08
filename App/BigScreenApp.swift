@@ -33,7 +33,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             do {
                 let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
                     .appendingPathComponent(preview ? "Big Screen/Preview" : "Big Screen", isDirectory: true)
-                model = LibraryModel(catalog: try CatalogStore(path: root.appendingPathComponent("catalog.sqlite").path), preview: preview, source: preview ? nil : SteamSource(), runtime: preview ? nil : CrossOverRuntime(), volumeStore: preview ? nil : GamesVolumeStore())
+                model = LibraryModel(catalog: try CatalogStore(path: root.appendingPathComponent("catalog.sqlite").path), preview: preview, source: preview ? nil : SteamSource(), runtime: preview ? nil : CrossOverRuntime(), volumeStore: preview ? nil : GamesVolumeStore(), diagnosticArchive: preview ? nil : DiagnosticArchive(root: root.appendingPathComponent("logs")))
             } catch {
                 model = LibraryModel(preview: preview)
                 model.persistenceError = error.localizedDescription
@@ -157,7 +157,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 await model.stopCloudCommands()
                 if let sessions = model.sessions { try await sessions.shutdown() }
                 else { await model.installQueue?.shutdown() }
-                model.stopServices(); sender.reply(toApplicationShouldTerminate: true)
+                model.stopServices(); await model.flushLogs(); sender.reply(toApplicationShouldTerminate: true)
             } catch {
                 terminating = false
                 model.sessionIssue = model.sessionFailure(error, stage: "Quit game")
@@ -370,7 +370,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let requestedScreens: Set<String>? = arguments.firstIndex(of: "--snapshot-screens").flatMap { index in
                 arguments.indices.contains(index + 1) ? Set(arguments[index + 1].split(separator: ",").map(String.init)) : nil
             }
-            for screen in ["uninstall-confirm", "uninstall-unsynced", "uninstall-checking", "cloud-ready", "cloud-conflict", "cloud-account", "cloud-pending", "cloud-syncing", "home", "home-tabs", "home-library-card", "home-playstation", "library", "library-playstation", "library-paged", "library-return", "game", "downloads", "downloads-queued", "settings", "settings-display", "settings-runtime", "settings-runtime-missing", "settings-runtime-busy", "collections", "keyboard", "compatibility", "uninstall", "logs", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom", "library-download-glyph", "library-download-focused", "game-unknown-size", "game-favorite", "install-offer", "install-offer-space", "install-queue", "install-history-failed", "install-history-completed", "install-mini-progress", "install-storage-shortage", "install-storage-unavailable", "install-game-progress", "launching", "exit-overlay", "exit-overlay-quit", "notification", "notification-focused"] {
+            for screen in ["uninstall-confirm", "uninstall-unsynced", "uninstall-checking", "cloud-ready", "cloud-conflict", "cloud-account", "cloud-pending", "cloud-syncing", "home", "home-tabs", "home-library-card", "home-playstation", "library", "library-playstation", "library-paged", "library-return", "game", "downloads", "downloads-queued", "settings", "settings-display", "settings-runtime", "settings-runtime-missing", "settings-runtime-busy", "collections", "keyboard", "compatibility", "uninstall", "logs", "logs-long", "logs-long-end", "logs-long-return", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom", "library-download-glyph", "library-download-focused", "game-unknown-size", "game-favorite", "install-offer", "install-offer-space", "install-queue", "install-history-failed", "install-history-completed", "install-mini-progress", "install-storage-shortage", "install-storage-unavailable", "install-game-progress", "launching", "exit-overlay", "exit-overlay-quit", "notification", "notification-focused"] {
                 if let requestedScreens, !requestedScreens.contains(screen) { continue }
                 model.panel = nil; model.detailID = nil; model.authScreen = nil; model.setupScreen = nil
                 model.session = .init(); model.exitOverlay = false; model.controllerName = nil
@@ -463,7 +463,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     model.authQR = screen == "signin-qr" ? URL(string: "https://example.invalid/big-screen-design-preview") : nil
                     model.authMessage = "Design preview · QR layout"
                     model.authError = screen == "signin-error" ? "Steam can’t be reached. Check your connection and try again." : nil
-                case "collections", "keyboard", "compatibility", "uninstall", "logs":
+                case "collections", "keyboard", "compatibility", "uninstall", "logs", "logs-long", "logs-long-end", "logs-long-return":
                     model.selectTab(.library)
                     if let game = model.games.first(where: { $0.title == "Hades" }) {
                         model.openGame(game)
@@ -474,7 +474,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                             model.compatibilityNotes[game.id] = "Works well with the controller. Try a lower resolution for a quieter Mac."
                             model.show(.compatibility); model.panelIndex = 1
                         case "uninstall": model.show(.confirmation(.uninstall(game.id)))
-                        default: model.show(.logs(game.id))
+                        default:
+                            model.show(.logs(game.id))
+                            if screen.hasPrefix("logs-long") {
+                                var log = DiagnosticLog(id: UUID(), gameID: game.id, kind: "repair", startedAt: Date(timeIntervalSince1970: 1_788_832_000))
+                                log.record("download · running", at: log.startedAt)
+                                log.record("stage · failed · Preparation: The runtime could not prepare the game.", at: log.startedAt.addingTimeInterval(15))
+                                log.capture((1...100).map { "Line \($0): Verified game content; preparing the owned runtime and checking the game's launch configuration. Diagnostic output remains selectable and wraps to fit the screen." }.joined(separator: "\n"), at: log.startedAt.addingTimeInterval(15))
+                                model.logDocument = log
+                            }
                         }
                     }
                 default: model.selectTab(.home)
@@ -483,6 +491,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     window.contentView = NSHostingView(rootView: LauncherView(model: InstallSnapshots.model(for: screen)))
                 } else { window.contentView = NSHostingView(rootView: LauncherView(model: model)) }
                 try await Task.sleep(for: .seconds(2))
+                if screen == "logs-long-end" || screen == "logs-long-return" {
+                    for _ in 0..<40 { model.perform(.nextPage); try await Task.sleep(for: .milliseconds(30)) }
+                    if screen == "logs-long-return" {
+                        for _ in 0..<40 { model.perform(.previousPage); try await Task.sleep(for: .milliseconds(30)) }
+                    }
+                    try await Task.sleep(for: .milliseconds(200))
+                }
                 guard let view = window.contentView else { continue }
                 view.layoutSubtreeIfNeeded()
                 let output = directory.appendingPathComponent("\(screen).png")

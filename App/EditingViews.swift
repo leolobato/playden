@@ -47,41 +47,6 @@ struct ConfirmDialog: View {
     }
     private var isInstall: Bool { if case .install = intent { true } else { false } }
 }
-struct LogViewer: View {
-    @Bindable var model: LibraryModel
-    let gameID: GameID
-    private var session: PlaySessionRecord? {
-        if model.session.session?.gameID == gameID { return model.session.session }
-        return try? model.catalog?.latestSession(for: gameID)
-    }
-    var body: some View {
-        VStack(alignment: .leading, spacing: 28) {
-            HStack { Text(model.gameName(gameID)).font(Design.condensed(40)); Text("· Logs").font(Design.condensed(40)).foregroundStyle(Design.secondary); Spacer(); Text(session == nil ? "No sessions yet" : "Latest session").font(Design.body(22)).foregroundStyle(Design.muted) }
-            VStack(alignment: .leading, spacing: 20) {
-                if let session, session.startedAt >= (model.liveJob(for: gameID)?.updatedAt ?? .distantPast) {
-                    Text((session.outcome?.rawValue ?? "Running") + " · " + session.startedAt.formatted()).foregroundStyle(Design.secondary)
-                    if let failure = session.failure ?? session.runtime?.failure {
-                        Text(failure.stage + " · " + failure.reason).foregroundStyle(Design.text)
-                    }
-                    ScrollView { Text(session.failure?.output ?? session.runtime?.output ?? "No runtime output captured.").textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }
-                } else if !model.isPreview, let job = model.liveJob(for: gameID) {
-                    Text(job.statusTitle).foregroundStyle(Design.text)
-                    if let failure = job.failure {
-                        Text(failure.stage + " · " + failure.timestamp.formatted()).foregroundStyle(Design.secondary)
-                        Text(failure.reason).foregroundStyle(Design.text)
-                        ScrollView { Text(failure.output).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }
-                    } else { Text(job.bytesLabel).foregroundStyle(Design.secondary) }
-                } else {
-                    Text("No installation or play-session logs yet.").foregroundStyle(Design.text)
-                    Text(model.isPreview ? "This library is using preview data. Logs will appear here after Steam and the game runtime are connected." : "Installation failures and play-session logs will appear here.").foregroundStyle(Design.secondary)
-                }
-            }.font(.system(size: 22, design: .monospaced)).padding(32)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .background(Color(hex: 0x0A0908), in: RoundedRectangle(cornerRadius: 8))
-            ActionButton(title: "Close", primary: true, focused: true, reducedMotion: model.reducedMotion) { model.panel = nil }
-        }.padding(40).frame(width: 1728, height: 864).background(Design.panel, in: RoundedRectangle(cornerRadius: 12))
-    }
-}
 
 struct InstallOfferDialog: View {
     @Bindable var model: LibraryModel

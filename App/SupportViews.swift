@@ -26,7 +26,8 @@ struct SettingsScreen: View {
             ("Reduced motion", "Keep the focus ring; turn off scaling and transitions", model.reducedMotion ? "On" : "Off")
         ]
         case 3: [("Connected controllers", model.connectedControllers.isEmpty ? "No controller connected · keyboard navigation available" : model.connectedControllers.map(\.name).joined(separator: " · "), "Button test")]
-        default: [("Big Screen", model.isPreview ? "Design preview" : "Your living-room game library", "v0.1")]
+        default: [("Big Screen", model.runtimeInfo.map { "CrossOver \($0.version ?? "not detected") · Template \($0.templateVersion)" } ?? "Your living-room game library", "v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1")"),
+            ("Logs folder", model.logArchiveError ?? "Install and play-session diagnostics · last 10 per game", "Open in Finder")]
         }
     }
     var body: some View {

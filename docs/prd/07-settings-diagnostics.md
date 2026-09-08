@@ -26,7 +26,7 @@ that makes that possible.
 ## 3. Logs
 
 - **FR-LOG-1 (v1):** Per install job and per play session, a log file under
-  `Application Support/GameNative BigScreen/logs/<source>-<id>/`, capturing tool stdout/stderr and the
+  `Application Support/Big Screen/logs/<source>-<id>/`, capturing tool stdout/stderr and the
   launcher's stage timeline. Rotated to the last 10 per game.
 - **FR-LOG-2 (v1):** "View logs" shows the latest log in a scrollable overlay on the TV; "Reveal in
   Finder" exists for desk debugging.

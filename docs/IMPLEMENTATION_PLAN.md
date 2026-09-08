@@ -658,3 +658,14 @@ failed work, and retries become visible again. Stale menu actions cannot hide a 
 The full suite, 1080p/4K rendering and a live A Short Hike dismissal/restart check pass. All live
 job and installation records remained unchanged. Physical drive/controller and broader release
 acceptance remain open. See `docs/validation/2026-09-08-download-history.md`.
+
+### 8 September — Diagnostic journal and viewer checkpoint
+
+Jobs and sessions now keep transactionally recorded, bounded stage histories and redacted output,
+mirrored to private text files with rotation to ten operations per game. Existing records import
+as explicitly labelled snapshots. The TV log viewer supports directional/page scrolling, mouse
+selection and Finder controls; About exposes versions and the logs folder. The full suite,
+1080p/4K rendering, scroll-to-end-and-back and a fresh live A Short Hike verification pass. Migration
+preserved operational records; verification preserved all game files and the save. Successful setup
+tool output, pre-launch Cloud phases, live Finder selection and Settings reset remain outstanding.
+See `docs/validation/2026-09-08-diagnostics.md`.

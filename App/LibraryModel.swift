@@ -34,6 +34,14 @@ struct HomeRow {
 @MainActor @Observable
 final class LibraryModel {
     @ObservationIgnored let catalog: CatalogStore?
+    @ObservationIgnored let diagnosticArchive: DiagnosticArchive?
+    @ObservationIgnored var logObserver: Task<Void, Never>?
+    var logDocument: DiagnosticLog?
+    var logArchiveError: String?
+    var logScrollRequest = LogScrollRequest()
+    var logScrollFraction = 0.0
+    var logCanScroll = false
+    var logActionIndex = 0
     @ObservationIgnored let source: (any GameSource)?
     @ObservationIgnored let syncCoordinator: LibrarySyncCoordinator?
     @ObservationIgnored let runtime: (any BottleManaging)?
@@ -143,6 +151,7 @@ final class LibraryModel {
             if case .installOffer = oldValue, panel != oldValue { installOfferTask?.cancel(); resolvingInstall = false }
             if case .downloadActions(let id) = panel { downloadHistoryReview = liveJob(for: id) }
             else { downloadHistoryReview = nil }
+            if case .logs(let id) = panel, panel != oldValue { prepareLogView(id) }
         }
     }
     var panelIndex = 0
@@ -180,8 +189,9 @@ final class LibraryModel {
     var keyRow = 1
     var keyColumn = 0
     var uppercase = false
-    init(catalog: CatalogStore? = nil, preview: Bool = true, source: (any GameSource)? = nil, runtime: (any BottleManaging)? = nil, volumeStore: (any VolumeManaging)? = nil, installQueue: (any InstallQueuing)? = nil, sessions: (any SessionManaging)? = nil, cloud: (any CloudSyncManaging)? = nil, gamesStorageReader: (any GamesStorageReading)? = nil) {
+    init(catalog: CatalogStore? = nil, preview: Bool = true, source: (any GameSource)? = nil, runtime: (any BottleManaging)? = nil, volumeStore: (any VolumeManaging)? = nil, installQueue: (any InstallQueuing)? = nil, sessions: (any SessionManaging)? = nil, cloud: (any CloudSyncManaging)? = nil, gamesStorageReader: (any GamesStorageReading)? = nil, diagnosticArchive: DiagnosticArchive? = nil) {
         self.catalog = catalog; self.isPreview = preview; self.source = source
+        self.diagnosticArchive = diagnosticArchive
         self.runtime = runtime; self.volumeStore = volumeStore
         self.gamesStorageReader = gamesStorageReader ?? (!preview && catalog != nil ? GamesStorageReader(volumes: volumeStore ?? GamesVolumeStore()) : nil)
         self.syncCoordinator = catalog.map { LibrarySyncCoordinator(catalog: $0) }
@@ -390,10 +400,7 @@ final class LibraryModel {
         if authScreen != nil && panel == nil { performAuthentication(action); return }
         if setupScreen != nil && panel == nil { performSetup(action); return }
         if case .logs = panel {
-            switch action {
-            case .back, .confirm: panel = nil
-            default: break
-            }
+            performLogs(action)
             return
         }
         if panel != nil {
@@ -485,7 +492,7 @@ final class LibraryModel {
             if direction == .left { settingsRailFocused = true }
             else if direction == .right { settingsRailFocused = false }
             else if settingsRailFocused { settingsSection = min(max(0, settingsSection + (direction == .up ? -1 : 1)), 4); settingsIndex = 0 }
-            else { settingsIndex = min(max(0, settingsIndex + (direction == .up ? -1 : 1)), settingsSection == 1 || settingsSection == 2 ? 3 : 0) }
+            else { settingsIndex = min(max(0, settingsIndex + (direction == .up ? -1 : 1)), settingsSection == 1 || settingsSection == 2 ? 3 : settingsSection == 4 ? 1 : 0) }
         }
     }
     func activateDetail() {
@@ -570,6 +577,8 @@ final class LibraryModel {
         else if settingsSection == 2 && settingsIndex == 3 { reducedMotion.toggle() }
         else if settingsSection == 1 && settingsIndex == 2 { downloadWhilePlaying.toggle() }
         else if settingsSection == 3 { openControllerTest() }
+        else if settingsSection == 4 && settingsIndex == 1 { revealLogsFolder() }
+        else if settingsSection == 4 { show(.information("Big Screen \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1")\n\nCrossOver \(runtimeInfo?.version ?? "not detected") · Template \(runtimeInfo?.templateVersion ?? "not prepared")")) }
         else { show(.information(isPreview ? "The design preview uses sample games. Launch without --preview to connect your account and set up your Mac." : "This setting is still being implemented.")) }
     }
     func openControllerTest() {
