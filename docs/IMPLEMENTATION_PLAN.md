@@ -787,3 +787,12 @@ the cursor, and background pages no longer retain a second focus ring behind a m
 tests and the signed build pass. Seven screens render at 1080p and 4K with reduced motion; inspected
 fixtures show readable controls and glyphs. Live DS4/animation acceptance remains open. See
 [keyboard validation](validation/2026-09-08-keyboard-polish.md).
+
+### 8 September — Bounded artwork cache
+
+Artwork disk I/O and eager decoding now run off the UI actor. Loads coalesce by URL, cancel when
+unused, and run at most four at a time; a 512 MiB LRU disk budget preserves the existing cache and
+repairs corrupt files. Decoded images retain alpha and are capped at 4096 pixels on their longest
+edge. All 95 app tests and the signed build pass, including a 600-request pipeline stress test.
+The 60 fps cold/warm library gate remains open: this verifies loading and storage behavior, not
+live frame pacing. See [artwork validation](validation/2026-09-08-artwork-cache.md).

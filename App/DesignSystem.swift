@@ -51,41 +51,6 @@ struct FocusTreatment: ViewModifier {
 }
 extension View { func focusRing(_ active: Bool, compact: Bool = false) -> some View { modifier(FocusTreatment(active: active, compact: compact)) } }
 
-@MainActor
-final class ArtworkCache {
-    static let shared = ArtworkCache()
-    private let memory = NSCache<NSURL, NSImage>()
-    private var requests: [URL: Task<NSImage?, Never>] = [:]
-    private let directory: URL
-    private init() {
-        directory = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("GameNative BigScreen/artwork")
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        memory.totalCostLimit = 160 * 1024 * 1024
-    }
-    func cachedImage(for url: URL?) -> NSImage? {
-        guard let url else { return nil }
-        return memory.object(forKey: url as NSURL)
-    }
-    func image(for url: URL) async -> NSImage? {
-        if let image = memory.object(forKey: url as NSURL) { return image }
-        if let request = requests[url] { return await request.value }
-        let file = directory.appendingPathComponent(SHA256.hash(data: Data(url.absoluteString.utf8)).map { String(format: "%02x", $0) }.joined())
-        let request = Task<NSImage?, Never> {
-            if FileManager.default.fileExists(atPath: file.path), let image = NSImage(contentsOf: file) { return image }
-            var request = URLRequest(url: url); request.timeoutInterval = 20
-            guard let (data, response) = try? await URLSession.shared.data(for: request),
-                  let response = response as? HTTPURLResponse, response.statusCode == 200,
-                  let image = NSImage(data: data) else { return nil }
-            try? data.write(to: file, options: .atomic)
-            return image
-        }
-        requests[url] = request
-        let result = await request.value
-        requests[url] = nil
-        if let result { memory.setObject(result, forKey: url as NSURL, cost: Int(result.size.width * result.size.height * 4)) }
-        return result
-    }
-}
 
 struct Artwork: View {
     let url: URL?
