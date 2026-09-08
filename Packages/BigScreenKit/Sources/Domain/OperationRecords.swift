@@ -85,6 +85,8 @@ public struct JobRecord: Codable, Equatable, Sendable, Identifiable {
     public var currentFile: String?
     /// Repair keeps the original install identity, location and installation date.
     public var originalInstallation: InstallationRecord?
+    /// Durable consent for removal; absent on older install/repair jobs.
+    public var uninstallAuthorization: UninstallAuthorization?
     public init(id: UUID = UUID(), gameID: GameID, kind: JobKind = .install, queuePosition: Int = 0, createdAt: Date = .now) {
         self.id = id; self.gameID = gameID; self.kind = kind; self.stage = .resolve; self.state = .queued
         self.completedStages = []; self.pauseReasons = []; self.queuePosition = queuePosition; self.manifestIDs = [:]

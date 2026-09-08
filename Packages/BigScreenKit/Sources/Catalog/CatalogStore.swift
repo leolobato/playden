@@ -184,6 +184,7 @@ public final class CatalogStore: Sendable {
     public func saveInstallation(_ installation: InstallationRecord) throws {
         guard installation.gameID == installation.game.id else { throw CatalogError.identityMismatch }
         try database.write { db in
+            try Self.requireNoUninstall(db, gameID: installation.gameID)
             try Self.requireCloudIdle(db, gameID: installation.gameID)
             try Self.putOperation(db, table: "installations", id: installation.id, gameID: installation.gameID, value: installation)
         }
@@ -193,6 +194,7 @@ public final class CatalogStore: Sendable {
         try database.write { db in
             let installs: [InstallationRecord] = try Self.values(db, table: "installations", whereSQL: "id = ?", arguments: [id.uuidString])
             if let installed = installs.first {
+                try Self.requireNoUninstall(db, gameID: installed.gameID)
                 try Self.requireCloudIdle(db, gameID: installed.gameID)
                 let cloud: [CloudSyncOperation] = try Self.values(db, table: "cloud_operations",
                     whereSQL: "source = ? AND game = ?", arguments: [installed.gameID.source, installed.gameID.value])
@@ -203,6 +205,7 @@ public final class CatalogStore: Sendable {
     }
     public func saveJob(_ job: JobRecord) throws {
         try database.write { db in
+            try Self.validateOrdinaryJobWrite(db, job)
             if ![.completed, .cancelled].contains(job.state) { try Self.requireCloudIdle(db, gameID: job.gameID) }
             try Self.putOperation(db, table: "jobs", id: job.id, gameID: job.gameID, value: job)
         }
@@ -210,6 +213,7 @@ public final class CatalogStore: Sendable {
     public func saveJobs(_ jobs: [JobRecord]) throws {
         try database.write { db in
             for job in jobs {
+                try Self.validateOrdinaryJobWrite(db, job)
                 if ![.completed, .cancelled].contains(job.state) { try Self.requireCloudIdle(db, gameID: job.gameID) }
                 try Self.putOperation(db, table: "jobs", id: job.id, gameID: job.gameID, value: job)
             }
@@ -248,6 +252,7 @@ public final class CatalogStore: Sendable {
         guard installation.gameID == job.gameID, installation.gameID == installation.game.id,
               job.state == .completed, job.stage == .finished else { throw CatalogError.identityMismatch }
         try database.write { db in
+            try Self.requireNoUninstall(db, gameID: job.gameID)
             try Self.requireCloudIdle(db, gameID: job.gameID)
             try Self.putOperation(db, table: "installations", id: installation.id, gameID: installation.gameID, value: installation)
             try Self.putOperation(db, table: "jobs", id: job.id, gameID: job.gameID, value: job)
@@ -269,6 +274,7 @@ public final class CatalogStore: Sendable {
                 if old.runtime?.phase == .exited, session.runtime?.phase != .exited { throw CatalogError.invalidSession }
                 if old.runtime == nil, session.runtime != nil { try Self.requireCloudIdle(db, gameID: session.gameID) }
             } else if session.endedAt == nil {
+                try Self.requireNoUninstall(db, gameID: session.gameID)
                 try Self.requireCloudIdle(db, gameID: session.gameID)
                 let installs: [InstallationRecord] = try Self.values(db, table: "installations")
                 if installs.contains(where: { $0.gameID == session.gameID && $0.needsRepair == true }) {

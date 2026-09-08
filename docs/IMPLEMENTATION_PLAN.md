@@ -599,3 +599,13 @@ the game's changed save after a clean exit. An independent fresh-connection down
 matched the game-written save byte-for-byte. Both original conflict copies were preserved.
 Uninstall/reinstall restore, disconnected-network and additional account/recovery acceptance remain.
 See `docs/validation/2026-09-08-cloud-live-roundtrip.md`.
+
+### 8 September — Uninstall authorization checkpoint
+
+Catalog now atomically compares uninstall consent against the current installation, latest session
+and Cloud history before reserving removal. Unsynced progress requires explicit discard; active
+sync and incomplete local recovery remain blocked. Durable removal checkpoints survive restart,
+reject stale workers and preserve library metadata/Cloud history at final completion. Six new tests
+and the full regression suite pass. The filesystem/bottle worker and live confirmation flow remain
+to be connected before the Uninstall placeholder can be replaced. No live installation was removed.
+See `docs/validation/2026-09-08-uninstall-journal.md`.
