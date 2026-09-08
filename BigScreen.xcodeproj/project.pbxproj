@@ -66,6 +66,7 @@
 		C4EDBB9348B8E1E02A0161D8 /* CloudReadCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F124DDCA81FCCB25F42B2E6 /* CloudReadCheck.swift */; };
 		C4F6044A852DE53219F2C612 /* UninstallModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAE11B2EFFCEB9C2937AF54F /* UninstallModel.swift */; };
 		C617DC97E2339CC012966C7D /* GameDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F8702FA8C0998A1511EBD2C /* GameDisplay.swift */; };
+		C8657A056738B32D9318181E /* SetupLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED57AF580C8BF0A81C004B85 /* SetupLifecycleTests.swift */; };
 		CA15BEFA39C7E33110214117 /* Runner in Frameworks */ = {isa = PBXBuildFile; productRef = 6310A68293BC5942095233F5 /* Runner */; };
 		CA2CD29BB2A361B7CCF5F01C /* PreviewCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB21DA9AE3F1CFE573775A04 /* PreviewCatalog.swift */; };
 		CAF7A51F716DA804FB81BE04 /* Barlow-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 4622DF2E186C3B6F638C30B1 /* Barlow-Regular.ttf */; };
@@ -159,6 +160,7 @@
 		E569123866C09B72649085F1 /* ControllerInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControllerInteractionTests.swift; sourceTree = "<group>"; };
 		E59AD64ED47C06CB9847E69F /* LibraryViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryViews.swift; sourceTree = "<group>"; };
 		EC29F464E7AA30FCF14E21D1 /* SetupInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupInteractionTests.swift; sourceTree = "<group>"; };
+		ED57AF580C8BF0A81C004B85 /* SetupLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupLifecycleTests.swift; sourceTree = "<group>"; };
 		F368FC58634A6CD38017484C /* DownloadPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadPresentation.swift; sourceTree = "<group>"; };
 		F51F9BB1C1297E755C6FB654 /* FocusViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusViews.swift; sourceTree = "<group>"; };
 		F549D7F628B1DA7071BA2F75 /* BigScreen.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BigScreen.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -205,6 +207,7 @@
 				1A0E83CFC6AB17E9B61ACC5A /* ResetInteractionTests.swift */,
 				FAD5F2E37317C6DA181E77C1 /* SessionInteractionTests.swift */,
 				EC29F464E7AA30FCF14E21D1 /* SetupInteractionTests.swift */,
+				ED57AF580C8BF0A81C004B85 /* SetupLifecycleTests.swift */,
 				697CFDC2E8EEEA5BF7F978E3 /* UninstallInteractionTests.swift */,
 			);
 			name = AppTests;
@@ -532,6 +535,7 @@
 				7F96A26586E28F9E769DE73C /* ResetInteractionTests.swift in Sources */,
 				F1B4A1FB95046FCBED1C109D /* SessionInteractionTests.swift in Sources */,
 				0B17236C1AE8462B76F1E113 /* SetupInteractionTests.swift in Sources */,
+				C8657A056738B32D9318181E /* SetupLifecycleTests.swift in Sources */,
 				FA75CFEF0078B5B129977FDF /* UninstallInteractionTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

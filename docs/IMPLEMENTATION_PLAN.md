@@ -717,3 +717,14 @@ and diagnostics remain intact. Active games, workers and unfinished removals blo
 failure leaves local data intact; database failure rolls back customization and reports sign-out
 honestly. The full regression suite and signed build pass. See
 `docs/validation/2026-09-08-settings-reset.md` for coverage and live acceptance limits.
+
+### 8 September — Setup task lifecycle checkpoint
+
+First-run/runtime checks now share a tracked task lifecycle. A replacement operation cancels and
+joins the previous worker; only the current operation can publish results or progress. Stopping
+preparation cannot turn into a success screen from a late response, and closing/reopening Runtime
+cannot resurrect old status. The volume picker initially focuses the saved drive, falling back
+to the recommended drive, so Confirm matches the visible selection. Delayed runtime tests and
+the complete regression suite pass. Fresh-profile QR/pairing/timed TV acceptance is still open;
+this checkpoint does not close the overall first-run gate. See
+`docs/validation/2026-09-08-setup-lifecycle.md`.

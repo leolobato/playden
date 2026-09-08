@@ -21,24 +21,35 @@ extension LibraryModel {
         if let preferences = try? catalog?.preferences(), !preferences.setupCompleted {
             onboarding = true; setupScreen = .controller; setupIndex = 0
         }
-        Task { [weak self] in
+        let (generation, previous) = beginSetupOperation()
+        setupTask = Task { [weak self] in
             guard let self, let runtime else { return }
-            runtimeInfo = await runtime.inspect()
+            await previous?.value
+            guard setupGeneration == generation, !Task.isCancelled else { return }
+            let info = await runtime.inspect()
+            guard setupGeneration == generation, !Task.isCancelled else { return }
+            runtimeInfo = info
         }
     }
     func openVolumeSetup(firstRun: Bool = false) {
         onboarding = firstRun; setupScreen = .volume; setupIndex = 0; setupFailure = nil
-        setupTask?.cancel()
+        let (generation, previous) = beginSetupOperation()
         setupBusy = true; volumeSaving = false
         setupTask = Task { [weak self] in
             guard let self else { return }
+            await previous?.value
+            guard setupGeneration == generation else { return }
             do {
+                try Task.checkCancellation()
                 guard let volumeStore else { throw setupIssue("Choose volume", "Volume selection is available in the live app.") }
                 let volumes = try await volumeStore.availableVolumes()
                 try Task.checkCancellation()
                 availableVolumes = volumes
-                selectedVolumeID = volumes.first(where: { $0.id == gamesVolume?.volumeID })?.id ?? volumes.first?.id
+                guard setupGeneration == generation else { return }
+                setupIndex = volumes.firstIndex(where: { $0.id == gamesVolume?.volumeID }) ?? volumes.firstIndex(where: \.isRecommended) ?? 0
+                selectedVolumeID = volumes[safe: setupIndex]?.id
             } catch {
+                guard setupGeneration == generation else { return }
                 setupFailure = setupProblem(error, stage: "Choose volume")
             }
             setupBusy = false
@@ -52,11 +63,14 @@ extension LibraryModel {
     }
     func checkRuntime() {
         guard !setupBusy else { return }
-        setupTask?.cancel(); runtimeChecking = true; setupFailure = nil; setupIndex = 0
+        let (generation, previous) = beginSetupOperation()
+        runtimeChecking = true; setupFailure = nil; setupIndex = 0
         setupTask = Task { [weak self] in
             guard let self else { return }
+            await previous?.value
+            guard setupGeneration == generation, !Task.isCancelled else { return }
             let info = await runtime?.inspect()
-            guard !Task.isCancelled else { return }
+            guard setupGeneration == generation, !Task.isCancelled else { return }
             runtimeInfo = info
             setupFailure = info?.failure
             runtimeChecking = false
@@ -66,15 +80,29 @@ extension LibraryModel {
     }
     func prepareRuntime() {
         guard !setupBusy else { return }
-        setupTask?.cancel(); runtimeChecking = false; setupBusy = true; setupFailure = nil; setupIndex = 0; templateStage = .checking
+        let (generation, previous) = beginSetupOperation()
+        runtimeChecking = false; setupBusy = true; setupFailure = nil; setupIndex = 0; templateStage = .checking
         setupTask = Task { [weak self] in
             guard let self else { return }
+            await previous?.value
+            guard setupGeneration == generation else { return }
             do {
+                try Task.checkCancellation()
                 guard let runtime else { throw setupIssue("Prepare games", "Game setup is available in the live app.") }
-                runtimeInfo = try await runtime.prepareTemplate { [weak self] stage in
-                    Task { @MainActor in self?.templateStage = stage }
+                let info = try await runtime.prepareTemplate { [weak self] stage in
+                    Task { @MainActor in
+                        guard let self, self.setupGeneration == generation, self.setupBusy,
+                              self.setupTask?.isCancelled == false else { return }
+                        self.templateStage = stage
+                    }
                 }
-            } catch { setupFailure = setupProblem(error, stage: "Prepare games") }
+                try Task.checkCancellation()
+                guard setupGeneration == generation else { return }
+                runtimeInfo = info; templateStage = info.templateReady ? .ready : templateStage
+            } catch {
+                guard setupGeneration == generation else { return }
+                setupFailure = setupProblem(error, stage: "Prepare games")
+            }
             setupBusy = false; setupIndex = 0
         }
     }
@@ -153,15 +181,21 @@ extension LibraryModel {
             setupFailure = setupIssue("Choose volume", "Connect a writable games drive, then retry."); setupIndex = 0; return
         }
         setupBusy = true; volumeSaving = true; setupIndex = 0
+        let (generation, previous) = beginSetupOperation()
         setupTask = Task { [weak self] in
             guard let self else { return }
+            await previous?.value
+            guard setupGeneration == generation else { return }
             do {
+                try Task.checkCancellation()
                 let selection = try await volumeStore.select(volume)
                 try Task.checkCancellation()
+                guard setupGeneration == generation else { return }
                 try updateSetupPreferences { $0.gamesVolume = selection }
                 gamesVolume = selection; setupBusy = false
                 if onboarding { openRuntimeSetup(firstRun: true) } else { finishSetup() }
             } catch {
+                guard setupGeneration == generation else { return }
                 setupBusy = false; setupFailure = setupProblem(error, stage: "Choose volume"); setupIndex = 0
             }
         }
@@ -169,7 +203,7 @@ extension LibraryModel {
     func finishSetup() {
         do {
             if onboarding { try updateSetupPreferences { $0.setupCompleted = true } }
-            setupTask?.cancel(); runtimeChecking = false
+            setupGeneration = UUID(); setupTask?.cancel(); runtimeChecking = false; setupBusy = false; volumeSaving = false
             onboarding = false; setupScreen = nil; setupFailure = nil; setupIndex = 0
         } catch { setupFailure = setupProblem(error, stage: "Save setup") }
     }
@@ -177,8 +211,16 @@ extension LibraryModel {
         guard let catalog else { if isPreview { return }; throw setupIssue("Save setup", "The library database is unavailable.") }
         var preferences = try catalog.preferences(); update(&preferences); try catalog.savePreferences(preferences)
     }
+    /// Join the preceding worker before starting another. Generation checks also reject late
+    /// results/progress from services that finish after cancellation or after this screen closes.
+    private func beginSetupOperation() -> (UUID, Task<Void, Never>?) {
+        let previous = setupTask
+        previous?.cancel(); setupGeneration = UUID()
+        return (setupGeneration, previous)
+    }
     private func setupIssue(_ stage: String, _ reason: String) -> OperationFailure { OperationFailure(stage: stage, reason: reason, output: "") }
     private func setupProblem(_ error: Error, stage: String) -> OperationFailure {
-        (error as? OperationFailure) ?? OperationFailure(stage: stage, reason: "This setup step could not finish. Try again.", output: error.localizedDescription)
+        if error is CancellationError { return setupIssue(stage, "Setup was stopped. You can retry when you’re ready.") }
+        return (error as? OperationFailure) ?? OperationFailure(stage: stage, reason: "This setup step could not finish. Try again.", output: error.localizedDescription)
     }
 }

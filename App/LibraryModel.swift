@@ -92,6 +92,7 @@ final class LibraryModel {
     var installTransfer: InstallTransferMetrics?
     var installPersistenceError: String?
     @ObservationIgnored var setupTask: Task<Void, Never>?
+    @ObservationIgnored var setupGeneration = UUID()
     @ObservationIgnored var onDisplaySelected: ((UInt32) -> Void)?
     @ObservationIgnored var onFullscreenRequested: ((Bool) -> Void)?
     var setupScreen: SetupScreen?
