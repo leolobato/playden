@@ -23,6 +23,23 @@ private struct DelayedBackend: SteamBackend {
     }
     func ownedGames(_ auth: StoredAuth) async throws -> [SourceGameRecord] { [] }
 }
+private actor RecoveringQRBackend: SteamBackend {
+    private var failures: [SourceFailure]
+    private(set) var loginAttempts = 0
+    init(failures: [SourceFailure]) { self.failures = failures }
+    func loginQR(onEvent: @escaping @Sendable (AuthenticationEvent) -> Void) async throws -> StoredAuth {
+        loginAttempts += 1
+        if !failures.isEmpty { throw failures.removeFirst() }
+        onEvent(.qrChallenge(URL(string: "https://s.team/q/fixture")!, expiresAt: .now.addingTimeInterval(300)))
+        return StoredAuth(accountName: "Fixture", steamID: 1, refreshToken: "fixture-refresh", accessToken: "fixture-access")
+    }
+    func login(accountName: String, password: String, guardData: String?, codeProvider: @escaping @Sendable (GuardChallenge) async throws -> String,
+               onEvent: @escaping @Sendable (AuthenticationEvent) -> Void) async throws -> StoredAuth {
+        throw SourceFailure.credentialsRejected
+    }
+    func renew(_ auth: StoredAuth) async throws -> StoredAuth { auth }
+    func ownedGames(_ auth: StoredAuth) async throws -> [SourceGameRecord] { [] }
+}
 final class SteamAccountTests: XCTestCase {
     func testLibraryImportKeepsSteamAcquisitionDateSeparateFromDiscoveryAndPlaytime() {
         let acquired = Date(timeIntervalSince1970: 1_400_000_000), played = Date(timeIntervalSince1970: 1_600_000_000)
@@ -80,6 +97,28 @@ final class SteamAccountTests: XCTestCase {
             _ = try await account.authenticatedOperation { _ -> Int in XCTFail("Signed-out operation started"); return 1 }
             XCTFail("Expected signed-out failure")
         } catch { XCTAssertEqual(error as? SourceFailure, .signedOut) }
+    }
+    func testQRSignInRecoversFromTransientStartupFailures() async throws {
+        let store = MemoryCredentials()
+        let backend = RecoveringQRBackend(failures: [.network, .unavailable])
+        let account = SteamAccount(store: store, backend: backend)
+        let identity = try await account.signInWithQR(onEvent: { _ in })
+        let attempts = await backend.loginAttempts
+        XCTAssertEqual(identity.displayName, "Fixture")
+        XCTAssertEqual(attempts, 3)
+        XCTAssertEqual(try store.load()?.accountName, "Fixture")
+    }
+    func testQRSignInDoesNotRetryRateLimits() async throws {
+        let backend = RecoveringQRBackend(failures: [.throttled])
+        let account = SteamAccount(store: MemoryCredentials(), backend: backend)
+        do {
+            _ = try await account.signInWithQR(onEvent: { _ in })
+            XCTFail("Rate-limited sign-in unexpectedly recovered")
+        } catch {
+            XCTAssertEqual(error as? SourceFailure, .throttled)
+        }
+        let attempts = await backend.loginAttempts
+        XCTAssertEqual(attempts, 1)
     }
     func testLiveQRChallengeAndPublicMetadataWhenRequested() async throws {
         guard ProcessInfo.processInfo.environment["PLAYDEN_STEAM_NETWORK_PROBE"] == "1" else {

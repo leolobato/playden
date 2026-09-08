@@ -29,6 +29,7 @@ public actor SteamAccount: SourceAuth {
     }
     public func signInWithQR(onEvent: @escaping @Sendable (AuthenticationEvent) -> Void) async throws -> SourceIdentity {
         invalidate(); let attempt = generation
+        var transientFailures = 0
         while true {
             do {
                 let credentials = try await backend.loginQR(onEvent: onEvent)
@@ -37,12 +38,19 @@ public actor SteamAccount: SourceAuth {
                 return Self.identity(credentials)
             } catch {
                 try validate(attempt)
-                if sourceFailure(error) == .expired {
+                let failure = sourceFailure(error)
+                if failure == .expired {
+                    transientFailures = 0
                     onEvent(.expired)
                     try await Task.sleep(for: .milliseconds(500))
                     continue
                 }
-                throw sourceFailure(error)
+                if [.network, .unavailable].contains(failure), transientFailures < 2 {
+                    transientFailures += 1
+                    try await Task.sleep(for: .milliseconds(Int64(transientFailures * 500)))
+                    continue
+                }
+                throw failure
             }
         }
     }
