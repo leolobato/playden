@@ -78,11 +78,96 @@ private struct OfflineInstaller: Installer {
 }
 private actor FixtureBottles: GameBottleManaging {
     var ready: [String: GameBottle] = [:]
+    var removalBlocked = false, failRemoval = false, holdRemoval = false
+    var removals = 0
+    func setRemoval(blocked: Bool = false, fail: Bool = false, held: Bool = false) { removalBlocked = blocked; failRemoval = fail; holdRemoval = held }
+    func checkRemoval(_ bottle: GameBottle, previousRuntime: RunSnapshot?) async throws {
+        if removalBlocked { throw OperationFailure(stage: "Game runtime", reason: "A game is still running", output: "") }
+    }
+    func verifyRemoved(_ bottle: GameBottle) async throws {
+        if ready[bottle.name] != nil { throw SourceFailure.unavailable }
+    }
     func prepare(_ bottle: GameBottle) async throws { ready[bottle.name] = bottle }
     func isReady(_ bottle: GameBottle) async throws -> Bool { ready[bottle.name] == bottle }
-    func remove(_ bottle: GameBottle) async throws { if ready[bottle.name] == bottle { ready[bottle.name] = nil } }
+    func remove(_ bottle: GameBottle) async throws {
+        removals += 1
+        while holdRemoval { try await Task.sleep(for: .milliseconds(10)) }
+        if failRemoval { failRemoval = false; throw OperationFailure(stage: "Game runtime", reason: "Retry removal", output: "") }
+        if ready[bottle.name] == bottle { ready[bottle.name] = nil }
+    }
 }
 final class InstallQueueTests: XCTestCase {
+    private func installedFixture() async throws -> (InstallQueue, CatalogStore, InstallStorage, FixtureBottles, FixtureVolumes, SourceGameRecord) {
+        let root = try root(), catalog = try CatalogStore(), volumes = FixtureVolumes(root: root)
+        let storage = InstallStorage(volumes: volumes), bottles = FixtureBottles(), content = OfflineContent(), game = game("remove")
+        try catalog.replaceSourceCatalog(source: game.id.source, games: [game])
+        let queue = try InstallQueue(catalog: catalog, sources: [OfflineSource(content: content)], storage: storage, bottles: bottles)
+        let job = try await queue.enqueue(queue.offer(for: game, volume: volumes.selection))
+        try await queue.start(); _ = try await waitFor(queue, jobID: job, state: .completed)
+        return (queue, catalog, storage, bottles, volumes, game)
+    }
+    func testUninstallRemovesOwnedFilesAndBottleThenAllowsFreshInstall() async throws {
+        let (queue, catalog, storage, bottles, volumes, game) = try await installedFixture()
+        let original = try XCTUnwrap(catalog.snapshot().entries.first?.installation)
+        try catalog.saveEdits(.init(isFavorite: true), for: game.id)
+        let id = try await queue.uninstall(.init(review: catalog.reviewUninstall(game.id), discardUnsyncedProgress: true))
+        let removed = try await waitFor(queue, jobID: id, state: .completed)
+        XCTAssertEqual(removed.kind, .uninstall); XCTAssertEqual(removed.stage, .finished)
+        try await storage.verifyRemoved(original.location, gameID: game.id, owner: original.ownershipToken)
+        try await bottles.verifyRemoved(try XCTUnwrap(removed.bottle))
+        XCTAssertNil(try catalog.snapshot().entries.first?.installation)
+        XCTAssertEqual(try catalog.snapshot().entries.first?.edits.isFavorite, true)
+        let reinstall = try await queue.enqueue(queue.offer(for: game, volume: volumes.selection))
+        _ = try await waitFor(queue, jobID: reinstall, state: .completed)
+        let fresh = try XCTUnwrap(catalog.snapshot().entries.first?.installation)
+        XCTAssertNotEqual(fresh.id, original.id); XCTAssertNotEqual(fresh.ownershipToken, original.ownershipToken)
+        await queue.shutdown()
+    }
+    func testFailedBottleRemovalRetriesAfterRestartWithoutAStoreConnection() async throws {
+        let (queue, catalog, storage, bottles, _, game) = try await installedFixture()
+        let original = try XCTUnwrap(catalog.snapshot().entries.first?.installation)
+        await bottles.setRemoval(fail: true)
+        let id = try await queue.uninstall(.init(review: catalog.reviewUninstall(game.id), discardUnsyncedProgress: true))
+        let failed = try await waitFor(queue, jobID: id, state: .failed)
+        XCTAssertEqual(failed.completedStages, [.removeFiles]); XCTAssertEqual(failed.stage, .removeBottle)
+        XCTAssertEqual(try catalog.snapshot().entries.first?.installation, original)
+        do { try await queue.cancel(id); XCTFail("Confirmed removal cannot be cancelled halfway") } catch {}
+        do { try await queue.setPaused(true, jobID: id); XCTFail("Removal should use retry controls") } catch {}
+        await queue.shutdown()
+        let reopened = try InstallQueue(catalog: catalog, sources: [], storage: storage, bottles: bottles)
+        try await reopened.start(); try await reopened.retry(id)
+        _ = try await waitFor(reopened, jobID: id, state: .completed)
+        XCTAssertNil(try catalog.snapshot().entries.first?.installation)
+        await reopened.shutdown()
+    }
+    func testRunningWriterPreventsAnyRemoval() async throws {
+        let (queue, catalog, storage, bottles, _, game) = try await installedFixture()
+        let original = try XCTUnwrap(catalog.snapshot().entries.first?.installation)
+        await bottles.setRemoval(blocked: true)
+        let id = try await queue.uninstall(.init(review: catalog.reviewUninstall(game.id), discardUnsyncedProgress: true))
+        _ = try await waitFor(queue, jobID: id, state: .failed)
+        _ = try await storage.directory(original.location, gameID: game.id, owner: original.ownershipToken)
+        let calls = await bottles.removals; XCTAssertEqual(calls, 0)
+        await bottles.setRemoval(); try await queue.retry(id)
+        _ = try await waitFor(queue, jobID: id, state: .completed)
+        await queue.shutdown()
+    }
+    func testShutdownDuringRemovalKeepsReservationAndRestartResumes() async throws {
+        let (queue, catalog, storage, bottles, _, game) = try await installedFixture()
+        await bottles.setRemoval(held: true)
+        let id = try await queue.uninstall(.init(review: catalog.reviewUninstall(game.id), discardUnsyncedProgress: true))
+        let limit = ContinuousClock.now.advanced(by: .seconds(5))
+        while await bottles.removals == 0, ContinuousClock.now < limit { try await Task.sleep(for: .milliseconds(10)) }
+        let calls = await bottles.removals; XCTAssertEqual(calls, 1)
+        await queue.shutdown()
+        let paused = try XCTUnwrap(catalog.jobs().first(where: { $0.id == id }))
+        XCTAssertEqual(paused.state, .queued); XCTAssertEqual(paused.completedStages, [.removeFiles])
+        XCTAssertThrowsError(try catalog.saveSession(.init(gameID: game.id, bottleID: CrossOverGameBottles.name(for: game.id))))
+        await bottles.setRemoval()
+        let reopened = try InstallQueue(catalog: catalog, sources: [], storage: storage, bottles: bottles)
+        try await reopened.start(); _ = try await waitFor(reopened, jobID: id, state: .completed)
+        await reopened.shutdown()
+    }
     private func root() throws -> URL {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("BigScreen-queue-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)

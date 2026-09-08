@@ -26,6 +26,7 @@ private actor InteractionQueue: InstallQueuing {
         return result
     }
     func enqueue(_ offer: InstallOffer) async throws -> UUID { enqueued.append(offer); return UUID() }
+    func uninstall(_ authorization: UninstallAuthorization) async throws -> UUID { throw SourceFailure.unavailable }
     func repair(_ gameID: GameID) async throws -> UUID { throw SourceFailure.unavailable }
     func setPaused(_ paused: Bool, reason: PauseReason, jobID: UUID) async throws { commands.append("\(paused ? "pause" : "resume"):\(reason.rawValue)") }
     func retry(_ jobID: UUID) async throws { commands.append("retry") }

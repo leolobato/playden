@@ -8,6 +8,12 @@ public protocol InstallStorageManaging: Sendable {
     func prepare(gameID: GameID, owner: UUID, on volume: GamesVolumeSelection) async throws -> GameLocation
     func directory(_ location: GameLocation, gameID: GameID, owner: UUID) async throws -> URL
     func remove(_ location: GameLocation, gameID: GameID, owner: UUID) async throws
+    func verifyRemoved(_ location: GameLocation, gameID: GameID, owner: UUID) async throws
+}
+extension InstallStorageManaging {
+    public func verifyRemoved(_ location: GameLocation, gameID: GameID, owner: UUID) async throws {
+        throw OperationFailure(stage: "Uninstall", reason: "Storage removal cannot be verified.", output: "")
+    }
 }
 
 /// Ownership metadata is outside downloadable content, so a depot cannot overwrite its own owner.
@@ -29,6 +35,7 @@ public actor InstallStorage: InstallStorageManaging {
         let name = CrossOverGameBottles.name(for: gameID)
         let container = root.appendingPathComponent(name, isDirectory: true)
         let marker = Owner(gameID: gameID, token: owner)
+        guard !removal(container: container, owner: marker).isPending else { throw issue("Uninstall", "Finish removing this game's files before reinstalling it.") }
         if !exists(container) {
             guard mkdir(container.path, 0o700) == 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
             do {
@@ -54,10 +61,18 @@ public actor InstallStorage: InstallStorageManaging {
         let root = try await resolveRoot(location)
         try validate(location, gameID: gameID)
         let container = root.appendingPathComponent(CrossOverGameBottles.name(for: gameID))
-        guard exists(container) else { return }
-        try verify(container, owner: Owner(gameID: gameID, token: owner))
-        try Task.checkCancellation()
-        try files.removeItem(at: container)
+        let marker = Owner(gameID: gameID, token: owner), removing = removal(container: container, owner: Owner(gameID: gameID, token: owner))
+        try removing.begin { try verify(container, owner: marker) }
+        try removing.removeRemainingFiles()
+        try removing.finish()
+    }
+    public func verifyRemoved(_ location: GameLocation, gameID: GameID, owner: UUID) async throws {
+        let root = try await resolveRoot(location)
+        try validate(location, gameID: gameID)
+        let container = root.appendingPathComponent(CrossOverGameBottles.name(for: gameID))
+        guard !exists(container), !removal(container: container, owner: Owner(gameID: gameID, token: owner)).isPending else {
+            throw issue("Uninstall", "The game's files have not finished being removed.")
+        }
     }
     private func container(_ location: GameLocation, gameID: GameID, owner: UUID) async throws -> URL {
         try validate(location, gameID: gameID)
@@ -76,7 +91,10 @@ public actor InstallStorage: InstallStorageManaging {
     private func validate(_ location: GameLocation, gameID: GameID) throws {
         guard location.relativePath == CrossOverGameBottles.name(for: gameID) + "/game" else { throw issue("Storage", "The saved game folder does not match this installation.") }
     }
-    private struct Owner: Codable, Equatable { let gameID: GameID; let token: UUID }
+    private struct Owner: Codable, Equatable, Sendable { let gameID: GameID; let token: UUID }
+    private func removal(container: URL, owner: Owner) -> OwnedDirectoryRemoval<Owner> {
+        .init(directory: container, receipt: container.deletingLastPathComponent().appendingPathComponent(".bigscreen-removing-\(owner.token.uuidString).json"), owner: owner)
+    }
     private func verify(_ container: URL, owner: Owner) throws {
         try physicalDirectory(container)
         let path = container.appendingPathComponent(".bigscreen-install.json")

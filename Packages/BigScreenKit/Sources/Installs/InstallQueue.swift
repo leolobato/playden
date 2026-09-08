@@ -29,6 +29,7 @@ public protocol InstallQueuing: Sendable {
     func offer(for game: SourceGameRecord, volume: GamesVolumeSelection) async throws -> InstallOffer
     func enqueue(_ offer: InstallOffer) async throws -> UUID
     func repair(_ gameID: GameID) async throws -> UUID
+    func uninstall(_ authorization: UninstallAuthorization) async throws -> UUID
     func setPaused(_ paused: Bool, reason: PauseReason, jobID: UUID) async throws
     func retry(_ jobID: UUID) async throws
     func cancel(_ jobID: UUID) async throws
@@ -79,7 +80,7 @@ public actor InstallQueue: InstallQueuing {
             if job.state == .running || job.state == .stopping {
                 job.state = job.pauseReasons.isEmpty || job.cancellationRequested == true ? .queued : .paused
                 // Validation's result is not trusted across a process restart before the final commit.
-                job.completedStages.remove(.validate); job.launchSpec = nil
+                if job.kind != .uninstall { job.completedStages.remove(.validate); job.launchSpec = nil }
                 try save(job)
             }
         }
@@ -123,6 +124,7 @@ public actor InstallQueue: InstallQueuing {
     }
     public func setPaused(_ paused: Bool, reason: PauseReason = .user, jobID: UUID) throws {
         guard var job = records[jobID], ![.completed, .cancelled].contains(job.state), job.cancellationRequested != true else { return }
+        guard job.kind != .uninstall else { throw Self.failure("Uninstall", "Removal continues until it finishes. Retry it if an error occurs.") }
         if paused { job.pauseReasons.insert(reason) } else { job.pauseReasons.remove(reason) }
         if !job.pauseReasons.isEmpty { job.state = activeID == jobID ? .stopping : .paused }
         else if job.state != .failed { job.state = activeID == jobID ? .running : .queued }
@@ -150,18 +152,19 @@ public actor InstallQueue: InstallQueuing {
     }
     public func setGameplayPaused(_ paused: Bool) async throws {
         gameplayPaused = paused
-        for job in ordered where ![.completed, .cancelled].contains(job.state) { try setPaused(paused, reason: .gameplay, jobID: job.id) }
+        for job in ordered where job.kind != .uninstall && ![.completed, .cancelled].contains(job.state) { try setPaused(paused, reason: .gameplay, jobID: job.id) }
         // Launching must wait for the download worker to release its files and runtime work.
         if paused { await activeTask?.value }
     }
     public func retry(_ jobID: UUID) throws {
         guard var job = records[jobID], job.state == .failed else { return }
         job.failure = nil; job.state = job.pauseReasons.isEmpty || job.cancellationRequested == true ? .queued : .paused
-        job.completedStages.remove(.validate); job.launchSpec = nil
+        if job.kind != .uninstall { job.completedStages.remove(.validate); job.launchSpec = nil }
         try save(job); pump()
     }
     public func cancel(_ jobID: UUID) throws {
         guard var job = records[jobID], ![.completed, .cancelled].contains(job.state) else { return }
+        guard job.kind != .uninstall else { throw Self.failure("Uninstall", "This removal has already been confirmed. It must finish before the game can be reinstalled.") }
         job.cancellationRequested = true; job.state = activeID == jobID ? .stopping : .queued
         try save(job)
         if activeID == jobID { activeTask?.cancel() }
@@ -196,6 +199,7 @@ public actor InstallQueue: InstallQueuing {
     private func execute(_ id: UUID, run: UUID) async {
         defer { activeTask = nil; activeID = nil; activeRun = nil; publish(); pump() }
         do {
+            if records[id]?.kind == .uninstall { try await executeUninstall(id); return }
             guard let initial = records[id], [.install, .repair].contains(initial.kind), let plan = initial.plan, let volume = initial.volume,
                   let bottle = initial.bottle, let source = sources[initial.gameID.source] else { throw Self.failure("Recover", "The saved installation plan or store is unavailable.") }
             guard plan.game.id == initial.gameID, bottle.gameID == initial.gameID, bottle.ownershipToken == initial.ownershipToken else {
@@ -261,13 +265,16 @@ public actor InstallQueue: InstallQueuing {
             guard var job = records[id] else { return }
             if Task.isCancelled || error is CancellationError {
                 job.state = job.cancellationRequested == true || !running || job.pauseReasons.isEmpty ? .queued : .paused
+            } else if job.kind == .uninstall {
+                job.failure = error as? OperationFailure ?? Self.failure("Uninstall", error.localizedDescription)
+                job.state = .failed
             } else {
                 job.failure = error as? OperationFailure ?? Self.failure(job.stage.rawValue, error.localizedDescription)
                 if let source = error as? SourceFailure, [.expired, .signedOut, .credentialsRejected].contains(source) {
                     job.pauseReasons.insert(.authentication); job.state = .paused
                 } else if (error as? POSIXError)?.code == .ENOSPC || (error as? CocoaError)?.code == .fileWriteOutOfSpace || (error as? OperationFailure)?.stage == "Reserve space" {
                     job.pauseReasons.insert(.insufficientSpace); job.state = .paused
-                } else if (error as? OperationFailure)?.stage == "Games volume" {
+                } else if (error as? OperationFailure)?.stage == "Games volume", job.kind != .uninstall {
                     job.pauseReasons.insert(.unavailableDrive); job.state = .paused
                 } else { job.state = .failed }
                 if job.stage == .verifyOriginals { job.completedStages.remove(.download) }
@@ -318,7 +325,51 @@ public actor InstallQueue: InstallQueuing {
     }
     private func save(_ value: JobRecord) throws {
         var job = value; job.updatedAt = .now
+        if job.kind == .uninstall, let expected = records[job.id] {
+            job = try catalog.checkpointUninstall(expected, stage: job.stage, state: job.state,
+                completedStages: job.completedStages, failure: job.failure)
+            records[job.id] = job; publish(); return
+        }
         try catalog.saveJob(job); records[job.id] = job; publish()
+    }
+    @discardableResult public func uninstall(_ authorization: UninstallAuthorization) async throws -> UUID {
+        let installed = authorization.review.installation
+        guard installed.bottleID == CrossOverGameBottles.name(for: installed.gameID),
+              installed.location.relativePath == installed.bottleID + "/game" else {
+            throw Self.failure("Uninstall", "This game's folder or runtime identity is invalid. Its files have been kept.")
+        }
+        let job = try catalog.beginUninstall(authorization, queuePosition: records.count)
+        records[job.id] = job; publish(); pump(); return job.id
+    }
+    private func executeUninstall(_ id: UUID) async throws {
+        guard let initial = records[id], let installed = initial.originalInstallation, let bottle = initial.bottle,
+              initial.uninstallAuthorization?.review.installation == installed,
+              bottle.name == CrossOverGameBottles.name(for: installed.gameID), bottle.gameID == installed.gameID,
+              bottle.ownershipToken == installed.ownershipToken, initial.ownershipToken == installed.ownershipToken,
+              initial.location == installed.location else { throw Self.failure("Uninstall", "The saved removal ownership does not match this game.") }
+        for stage in [JobStage.removeFiles, .removeBottle, .commit] {
+            try checkpoint(id)
+            guard let current = records[id] else { return }
+            if current.completedStages.contains(stage) { continue }
+            try update(id) { $0.stage = stage; $0.state = .running; $0.failure = nil }
+            try await bottles.checkRemoval(bottle, previousRuntime: catalog.latestRuntimeSession(for: installed.gameID)?.runtime)
+            // Revalidate the durable reservation after any asynchronous runtime inspection.
+            try update(id) { $0.state = .running }
+            switch stage {
+            case .removeFiles: try await storage.remove(installed.location, gameID: installed.gameID, owner: installed.ownershipToken)
+            case .removeBottle: try await bottles.remove(bottle)
+            case .commit:
+                try await storage.verifyRemoved(installed.location, gameID: installed.gameID, owner: installed.ownershipToken)
+                try await bottles.verifyRemoved(bottle)
+                try checkpoint(id)
+                guard let expected = records[id] else { return }
+                let completed = try catalog.completeUninstall(expected)
+                records[id] = completed; publish(); return
+            default: break
+            }
+            try checkpoint(id)
+            try update(id) { $0.completedStages.insert(stage) }
+        }
     }
     private func publish() { let value = snapshot(); for observer in observers.values { observer.yield(value) } }
     private func validateEstimate(_ value: InstallEstimate) throws {

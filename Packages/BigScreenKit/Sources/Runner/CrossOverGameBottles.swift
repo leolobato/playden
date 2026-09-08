@@ -9,11 +9,20 @@ public protocol GameBottleManaging: Sendable {
     /// Returns a physical, ownership-checked ready root for descriptor-relative save access.
     /// Does not create a bottle or establish that its game process has stopped.
     func ownedDirectory(_ bottle: GameBottle) async throws -> URL
+    /// Checks ownership and stopped writer identities without deleting or preparing anything.
+    func checkRemoval(_ bottle: GameBottle, previousRuntime: RunSnapshot?) async throws
+    func verifyRemoved(_ bottle: GameBottle) async throws
     /// Caller must stop the game's session and resolve pending Cloud uploads before removing an installed bottle.
     func remove(_ bottle: GameBottle) async throws
 }
 
 extension GameBottleManaging {
+    public func verifyRemoved(_ bottle: GameBottle) async throws {
+        throw OperationFailure(stage: "Uninstall", reason: "Runtime removal cannot be verified.", output: "")
+    }
+    public func checkRemoval(_ bottle: GameBottle, previousRuntime: RunSnapshot?) async throws {
+        throw OperationFailure(stage: "Uninstall", reason: "This runtime cannot verify safe removal.", output: "")
+    }
     public func ownedDirectory(_ bottle: GameBottle) async throws -> URL {
         throw OperationFailure(stage: "Cloud saves", reason: "The game's owned save folder is unavailable.", output: "")
     }
@@ -27,14 +36,15 @@ public actor CrossOverGameBottles: GameBottleManaging {
     private let templateName: String
     private let runtime: any BottleManaging
     private let commands: any CommandExecuting
+    private let inspector: any RuntimeInspecting
     private let files = FileManager.default
     private var busy = Set<String>()
     public init(application: URL = URL(fileURLWithPath: "/Applications/CrossOver.app"),
                 bottles: URL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/CrossOver/Bottles"),
                 templateName: String = "gn-template-1", runtime: any BottleManaging = CrossOverRuntime(),
-                commands: any CommandExecuting = CommandExecutor()) {
+                commands: any CommandExecuting = CommandExecutor(), inspector: any RuntimeInspecting = RuntimeProcessInspector()) {
         self.application = application; self.bottles = bottles; self.templateName = templateName
-        self.runtime = runtime; self.commands = commands
+        self.runtime = runtime; self.commands = commands; self.inspector = inspector
     }
     public static func name(for id: GameID) -> String {
         let plain = "gn-\(id.source)-\(id.value)"
@@ -44,6 +54,7 @@ public actor CrossOverGameBottles: GameBottleManaging {
     }
     public func isReady(_ bottle: GameBottle) throws -> Bool {
         try validateIdentity(bottle)
+        if removal(bottle).isPending { return false }
         let destination = bottles.appendingPathComponent(bottle.name)
         guard exists(destination) else { return false }
         guard try readMarker(at: destination, matching: bottle).ready else { return false }
@@ -62,6 +73,7 @@ public actor CrossOverGameBottles: GameBottleManaging {
     }
     public func prepare(_ bottle: GameBottle) async throws {
         try validateIdentity(bottle)
+        guard !removal(bottle).isPending else { throw problem("Finish removing this game's runtime before reinstalling it.") }
         guard busy.insert(bottle.name).inserted else { throw problem("Game runtime setup is already running.") }
         defer { busy.remove(bottle.name) }
         try Task.checkCancellation()
@@ -114,17 +126,61 @@ public actor CrossOverGameBottles: GameBottleManaging {
         try write(Marker(bottle: bottle, ready: true), at: destination)
         try removeContainerIfPresent(bottle)
     }
+    public func checkRemoval(_ bottle: GameBottle, previousRuntime: RunSnapshot?) async throws {
+        guard !busy.contains(bottle.name) else { throw problem("Wait for this game's runtime operation to finish.") }
+        try validateRemoval(bottle, previousRuntime: previousRuntime)
+    }
+    public func verifyRemoved(_ bottle: GameBottle) async throws {
+        try validateIdentity(bottle)
+        guard !exists(bottles.appendingPathComponent(bottle.name)), !removal(bottle).isPending,
+              !exists(bottles.appendingPathComponent(".bigscreen-staging").appendingPathComponent(bottle.ownershipToken.uuidString)) else {
+            throw problem("The game's runtime has not finished being removed.")
+        }
+    }
+    private func validateRemoval(_ bottle: GameBottle, previousRuntime: RunSnapshot?) throws {
+        try validateIdentity(bottle)
+        let directory = bottles.appendingPathComponent(bottle.name), removing = removal(bottle)
+        if removing.isPending { try removing.verify() }
+        else if exists(directory) { _ = try readMarker(at: directory, matching: bottle) }
+        let observation = try inspector.inspect(bottle: directory)
+        guard !observation.processes.contains(where: { $0.kind == .game || $0.kind == .wrapper }) else {
+            throw problem("A game or launcher is still using this runtime. Close it before uninstalling.")
+        }
+        if let previousRuntime, previousRuntime.run.bottle.name == bottle.name,
+           previousRuntime.run.bottle.ownershipToken == bottle.ownershipToken {
+            let writers = Set(previousRuntime.processes.filter { $0.kind == .game || $0.kind == .wrapper }.map(\.identity) + [previousRuntime.run.launcher])
+            for writer in writers {
+                let current = inspector.identity(of: writer.pid)
+                guard current != writer, current != nil || !observation.unreadablePIDs.contains(writer.pid) else {
+                    throw problem("The previous game process has not been confirmed stopped. Retry uninstall in a moment.")
+                }
+            }
+        }
+    }
     public func remove(_ bottle: GameBottle) async throws {
         try validateIdentity(bottle)
         guard busy.insert(bottle.name).inserted else { throw problem("Wait for the game's runtime setup to stop before removing it.") }
         defer { busy.remove(bottle.name) }
+        try validateRemoval(bottle, previousRuntime: nil)
         let destination = bottles.appendingPathComponent(bottle.name)
+        let removing = removal(bottle)
+        try removing.begin { _ = try readMarker(at: destination, matching: bottle) }
         if exists(destination) {
-            _ = try readMarker(at: destination, matching: bottle)
-            try await run("cxbottle", ["--bottle", destination.path, "--delete", "--force"], timeout: 45)
+            if exists(destination.appendingPathComponent("cxbottle.conf")) {
+                try await run("cxbottle", ["--bottle", destination.path, "--delete", "--force"], timeout: 45)
+            } else {
+                // A previous deletion may have removed CrossOver's config and internal owner
+                // marker. The external inode receipt still identifies this exact partial folder.
+                try removing.removeRemainingFiles()
+            }
             guard !exists(destination) else { throw problem("The game's runtime folder could not be removed.") }
         }
         try removeContainerIfPresent(bottle)
+        try removing.finish()
+    }
+    private func removal(_ bottle: GameBottle) -> OwnedDirectoryRemoval<GameBottle> {
+        .init(directory: bottles.appendingPathComponent(bottle.name),
+            receipt: bottles.appendingPathComponent(".bigscreen-removing-\(bottle.ownershipToken.uuidString).json"), owner: bottle)
     }
     private struct Marker: Codable, Equatable { let bottle: GameBottle; var ready: Bool }
     private let markerName = ".bigscreen-game-owner.json"

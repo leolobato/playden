@@ -609,3 +609,9 @@ reject stale workers and preserve library metadata/Cloud history at final comple
 and the full regression suite pass. The filesystem/bottle worker and live confirmation flow remain
 to be connected before the Uninstall placeholder can be replaced. No live installation was removed.
 See `docs/validation/2026-09-08-uninstall-journal.md`.
+
+The uninstall worker now performs owned file and CrossOver bottle removal with external ownership
+receipts for interrupted deletion, stopped-writer checks, verified absence and durable queue retry.
+The full regression suite and a real disposable CrossOver clone/delete probe pass. UI integration
+and live A Short Hike uninstall/reinstall with Cloud restore are next.
+See `docs/validation/2026-09-08-uninstall-worker.md`.
