@@ -5,7 +5,7 @@ import Domain
 /// Called only after the template/game ownership receipt has been verified. XDG destinations
 /// keep Windows shell folders inside this bottle, including after CrossOver's restore hook.
 enum BottleFolders {
-    static let directoryName = ".bigscreen-folders"
+    static let directoryName = ".playden-folders"
     private static let names = ["Desktop", "Documents", "Downloads", "Pictures", "Movies", "Music", "Templates"]
     private static let windowsNames = ["Desktop", "Documents", "Downloads", "Pictures", "Videos", "Movies", "Music", "Templates"]
     private static let variables = ["DESKTOP", "DOCUMENTS", "DOWNLOAD", "PICTURES", "VIDEOS", "MUSIC", "TEMPLATES"]

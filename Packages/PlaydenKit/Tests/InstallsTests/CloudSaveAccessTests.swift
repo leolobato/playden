@@ -46,7 +46,7 @@ final class CloudSaveAccessTests: XCTestCase {
     private func installed(_ store: CatalogStore) throws -> InstallationRecord {
         let value = InstallationRecord(game: .init(id: gameID, title: "A Short Hike"),
             location: .init(volumeID: "fixture", lastKnownRoot: URL(fileURLWithPath: "/fixture"), relativePath: "game"),
-            bottleID: "gn-steam-1055540", manifestIDs: [:], templateVersion: "1", launchSpec: .init(executableRelativePath: "ShortHike.exe"), installedBytes: 1)
+            bottleID: "playden-steam-1055540", manifestIDs: [:], templateVersion: "1", launchSpec: .init(executableRelativePath: "ShortHike.exe"), installedBytes: 1)
         try store.saveInstallation(value); return value
     }
     private func process(_ pid: Int32, kind: RuntimeProcessKind = .game, birth: UInt64 = 1) -> RuntimeProcess {

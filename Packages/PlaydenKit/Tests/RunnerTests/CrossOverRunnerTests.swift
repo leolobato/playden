@@ -38,11 +38,11 @@ private actor StopCommands: CommandExecuting {
 final class CrossOverRunnerTests: XCTestCase {
     private func fixture() throws -> (URL, GameBottle) {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("Playden-run-\(UUID().uuidString)")
-        let bottle = GameBottle(gameID: .init(source: "fixture", value: "one"), name: "gn-fixture-one", ownershipToken: UUID())
+        let bottle = GameBottle(gameID: .init(source: "fixture", value: "one"), name: "playden-fixture-one", ownershipToken: UUID())
         try FileManager.default.createDirectory(at: root.appendingPathComponent(bottle.name), withIntermediateDirectories: true)
         try Data("fixture".utf8).write(to: root.appendingPathComponent("game.exe"))
         struct Receipt: Encodable { let bottle: GameBottle }
-        try JSONEncoder().encode(Receipt(bottle: bottle)).write(to: root.appendingPathComponent(bottle.name + "/.bigscreen-game-owner.json"))
+        try JSONEncoder().encode(Receipt(bottle: bottle)).write(to: root.appendingPathComponent(bottle.name + "/.playden-game-owner.json"))
         addTeardownBlock { try FileManager.default.removeItem(at: root) }
         return (root, bottle)
     }

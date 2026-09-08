@@ -223,7 +223,7 @@ final class SessionServiceTests: XCTestCase {
     }
     private func installed(_ catalog: CatalogStore, id: String = "one") throws -> InstallationRecord {
         let game = SourceGameRecord(id: GameID(source: "fixture", value: id), title: id)
-        var installation = InstallationRecord(game: game, location: .init(volumeID: "fixture", lastKnownRoot: URL(fileURLWithPath: "/fixture"), relativePath: "game"), bottleID: "gn-fixture-" + id, manifestIDs: [:], templateVersion: "1", launchSpec: .init(executableRelativePath: "game.exe"), installedBytes: 100)
+        var installation = InstallationRecord(game: game, location: .init(volumeID: "fixture", lastKnownRoot: URL(fileURLWithPath: "/fixture"), relativePath: "game"), bottleID: "playden-fixture-" + id, manifestIDs: [:], templateVersion: "1", launchSpec: .init(executableRelativePath: "game.exe"), installedBytes: 100)
         installation.plan = .init(game: game, manifestIDs: [:], estimate: .init(downloadBytes: 100, installedBytes: 100, requiredBytes: 100), launchSpec: installation.launchSpec, sourcePayload: Data())
         try catalog.saveInstallation(installation)
         return installation

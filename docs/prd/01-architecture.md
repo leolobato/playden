@@ -81,8 +81,8 @@ protocol GameRunner {                       // where a game runs
 | Database, artwork cache, per-game config JSON, job state, logs | `~/Library/Application Support/Playden/` |
 | Steam tokens | Keychain (v1). `SteamCore`'s file `TokenStore` is acceptable only while the Keychain adapter is unbuilt. |
 | Game files | User-chosen games volume, default `/Volumes/VM/Playden/games` if present, else `~/Games/Playden`. Layout `<source>/<gameId>/<Name>/`, compatible with `SteamCore`'s `app_<appid>/<Name>/` for Steam. |
-| Bottles | CrossOver's private bottle directory, named `gn-<source>-<gameId>`, so they are visible and deletable in CrossOver's own UI. |
-| Bottle template | Bottle `gn-template-<version>`; see 02 §4. |
+| Bottles | CrossOver's private bottle directory, named `playden-<source>-<gameId>`, so they are visible and deletable in CrossOver's own UI. |
+| Bottle template | Bottle `playden-template-<version>`; see 02 §4. |
 
 - **AR-STOR-1 (v1):** Nothing identity-derived (SteamID, tickets) is written outside the Keychain and
   the gbe_fork staging area inside a game's own directory.

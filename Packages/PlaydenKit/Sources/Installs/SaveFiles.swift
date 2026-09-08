@@ -98,7 +98,7 @@ final class SaveDirectory {
     /// Publishes without replacing any existing file. A conflicting restore leaves both copies.
     func write(_ path: String, body: (Int32) throws -> Void) throws {
         guard let (parent, name) = try parent(path, create: true) else { throw Self.posix() }
-        let temporary = ".bigscreen-save-\(UUID().uuidString).tmp"
+        let temporary = ".playden-save-\(UUID().uuidString).tmp"
         let descriptor = openat(parent.fd, temporary, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)
         guard descriptor >= 0 else { throw Self.posix() }
         defer { close(descriptor); unlinkat(parent.fd, temporary, 0) }
@@ -116,7 +116,7 @@ final class SaveDirectory {
     /// Temporary filenames are reserved for this app's save publication protocol. An interrupted
     /// scratch write must never be discovered as player progress by a recursive '*' save rule.
     static func isSaveTemporary(_ name: String) -> Bool {
-        for prefix in [".bigscreen-save-", ".bigscreen-cloud-"] where name.hasPrefix(prefix) && name.hasSuffix(".tmp") {
+        for prefix in [".playden-save-", ".playden-cloud-"] where name.hasPrefix(prefix) && name.hasSuffix(".tmp") {
             if UUID(uuidString: String(name.dropFirst(prefix.count).dropLast(4))) != nil { return true }
         }
         return false
@@ -128,7 +128,7 @@ final class SaveDirectory {
     /// Recovery accepts only the reviewed fingerprints; unexpected bytes are never discarded.
     func changeCloudFile(_ path: String, expected: SaveDigest?, desired: SaveDigest?, temporary: String,
                          body: (Int32) throws -> Void) throws {
-        guard Self.isSaveTemporary(temporary), temporary.hasPrefix(".bigscreen-cloud-") else {
+        guard Self.isSaveTemporary(temporary), temporary.hasPrefix(".playden-cloud-") else {
             throw saveFailure("The Cloud save staging identity is invalid.")
         }
         guard let (parent, name) = try parent(path, create: desired != nil) else {

@@ -54,7 +54,7 @@ extension CatalogStore {
         }
     }
 
-    /// A stable installation-of-Big-Screen identifier, separate from editable library preferences.
+    /// A stable installation-of-Playden identifier, separate from editable library preferences.
     /// Preferences row 1 remains the library model; row 2 is this private Cloud client receipt.
     public func cloudClientID() throws -> UInt64 {
         try database.write { db in

@@ -224,7 +224,7 @@ extension SaveStore {
         let hash = Array(SHA256.hash(data: Data((snapshotID.uuidString + ":" + location.key).utf8)))
         let id = UUID(uuid: (hash[0], hash[1], hash[2], hash[3], hash[4], hash[5], hash[6], hash[7],
                              hash[8], hash[9], hash[10], hash[11], hash[12], hash[13], hash[14], hash[15]))
-        return ".bigscreen-cloud-\(id.uuidString).tmp"
+        return ".playden-cloud-\(id.uuidString).tmp"
     }
     private static func setSaveTime(_ time: Date, descriptor: Int32) throws {
         let seconds = time.timeIntervalSince1970, whole = floor(seconds)

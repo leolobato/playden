@@ -7,8 +7,8 @@ final class UninstallJournalTests: XCTestCase {
     private func installed(_ store: CatalogStore) throws -> InstallationRecord {
         let game = SourceGameRecord(id: id, title: "A Short Hike")
         let value = InstallationRecord(game: game,
-            location: .init(volumeID: "fixture", lastKnownRoot: URL(fileURLWithPath: "/fixture"), relativePath: "gn-steam-1055540/game"),
-            bottleID: "gn-steam-1055540", manifestIDs: [:], templateVersion: "1",
+            location: .init(volumeID: "fixture", lastKnownRoot: URL(fileURLWithPath: "/fixture"), relativePath: "playden-steam-1055540/game"),
+            bottleID: "playden-steam-1055540", manifestIDs: [:], templateVersion: "1",
             launchSpec: .init(executableRelativePath: "game.exe"), installedBytes: 100)
         try store.replaceSourceCatalog(source: "steam", games: [game]); try store.saveInstallation(value)
         return value

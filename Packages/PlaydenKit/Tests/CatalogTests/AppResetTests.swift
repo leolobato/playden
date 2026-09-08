@@ -12,7 +12,7 @@ final class AppResetTests: XCTestCase {
         let catalog = try CatalogStore(path: root.appendingPathComponent("catalog.sqlite").path)
         let game = SourceGameRecord(id: gameID, title: "A Short Hike")
         let installed = InstallationRecord(game: game, location: .init(volumeID: "fixture", lastKnownRoot: root, relativePath: "game"),
-            bottleID: "gn-steam-1055540", manifestIDs: [:], templateVersion: "1", launchSpec: .init(executableRelativePath: "game.exe"), installedBytes: 100)
+            bottleID: "playden-steam-1055540", manifestIDs: [:], templateVersion: "1", launchSpec: .init(executableRelativePath: "game.exe"), installedBytes: 100)
         try catalog.saveInstallation(installed)
         try catalog.replaceSourceCatalog(source: "steam", games: [game, .init(id: .init(source: "steam", value: "other"), title: "Other game")])
         var preferences = LibraryPreferences(); preferences.reducedMotion = true; preferences.setupCompleted = true

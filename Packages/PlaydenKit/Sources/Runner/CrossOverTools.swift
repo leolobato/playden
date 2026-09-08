@@ -36,7 +36,7 @@ public actor CrossOverTools: RuntimeToolRunning {
         try Task.checkCancellation()
         guard try await manager.ownedDirectory(bottle) == root, try rootIdentity(root) == identity else { throw prerequisiteFailure("The game's runtime changed during preparation. Retry to continue.") }
         saved.steps[prerequisite.id] = prerequisite.fingerprint
-        let path = root.appendingPathComponent(".bigscreen-prerequisites.json")
+        let path = root.appendingPathComponent(".playden-prerequisites.json")
         try JSONEncoder().encode(saved).write(to: path, options: .atomic)
         let handle = try FileHandle(forWritingTo: path)
         defer { try? handle.close() }
@@ -48,7 +48,7 @@ public actor CrossOverTools: RuntimeToolRunning {
         var steps: [String: Data] = [:]
     }
     private func receipt(at root: URL, bottle: GameBottle) throws -> PrerequisiteReceipt {
-        let path = root.appendingPathComponent(".bigscreen-prerequisites.json")
+        let path = root.appendingPathComponent(".playden-prerequisites.json")
         let properties: URLResourceValues
         do { properties = try path.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey]) }
         catch let error as CocoaError where error.code == .fileReadNoSuchFile { return .init(bottle: bottle) }

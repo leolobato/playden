@@ -29,7 +29,7 @@ public actor CrossOverRuntime: BottleManaging {
     public init(application: URL = URL(fileURLWithPath: "/Applications/CrossOver.app"),
                 bottles: URL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/CrossOver/Bottles"),
                 stateDirectory: URL = AppPaths.supportRoot().appendingPathComponent("runtime"),
-                templateName: String = "gn-template-1", commands: any CommandExecuting = CommandExecutor()) {
+                templateName: String = "playden-template-1", commands: any CommandExecuting = CommandExecutor()) {
         self.application = application; self.bottles = bottles; self.stateDirectory = stateDirectory
         self.templateName = templateName; self.commands = commands
     }
@@ -81,7 +81,7 @@ public actor CrossOverRuntime: BottleManaging {
                 try requireSuccess(result, stage: stage)
             }
             stage = "Configure template"; onProgress(.configuring)
-            if !exists(template.appendingPathComponent(".bigscreen-owner.json")) { try claimCreatedBottle(receipt.owner) }
+            if !exists(template.appendingPathComponent(".playden-owner.json")) { try claimCreatedBottle(receipt.owner) }
             try verifyOwnership(receipt.owner); try verifyConfiguration()
             try BottleFolders.configure(template)
             receipt.ready = false; try write(receipt, to: receiptURL)
@@ -105,7 +105,7 @@ public actor CrossOverRuntime: BottleManaging {
         }
     }
     private func checkRuntime() throws -> String {
-        guard templateName.range(of: #"^gn-[A-Za-z0-9-]+$"#, options: .regularExpression) != nil else { throw issue("Check runtime", "The template name is invalid.") }
+        guard templateName.range(of: #"^playden-[A-Za-z0-9-]+$"#, options: .regularExpression) != nil else { throw issue("Check runtime", "The template name is invalid.") }
         guard files.isExecutableFile(atPath: tool("cxbottle").path), files.isExecutableFile(atPath: tool("cxstart").path) else {
             throw issue("Check runtime", "Install CrossOver in Applications, then try again.")
         }
@@ -133,18 +133,16 @@ public actor CrossOverRuntime: BottleManaging {
     }
     private func claimCreatedBottle(_ owner: BottleOwner) throws {
         let config = try configuration()
-        let descriptions = [owner.description, "Big Screen managed template \(owner.token.uuidString)"]
-            .map { "\"Description\" = \"\($0)\"" }
-        guard config.split(separator: "\n").map({ $0.trimmingCharacters(in: .whitespaces) }).contains(where: descriptions.contains) else {
+        guard config.split(separator: "\n").map({ $0.trimmingCharacters(in: .whitespaces) }).contains("\"Description\" = \"\(owner.description)\"") else {
             throw issue("Create template", "A partial setup folder could not be identified safely. Its files have been kept.")
         }
-        let marker = template.appendingPathComponent(".bigscreen-owner.json")
+        let marker = template.appendingPathComponent(".playden-owner.json")
         if exists(marker) { try verifyOwnership(owner) }
         else { try write(owner, to: marker) }
     }
     private func verifyOwnership(_ owner: BottleOwner) throws {
         try safeTemplate()
-        let marker = template.appendingPathComponent(".bigscreen-owner.json")
+        let marker = template.appendingPathComponent(".playden-owner.json")
         guard try marker.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink != true,
               try JSONDecoder().decode(BottleOwner.self, from: Data(contentsOf: marker)) == owner else {
             throw issue("Check template", "This game setup folder does not belong to Playden.")

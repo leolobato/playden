@@ -214,7 +214,7 @@ public actor CrossOverRunner: GameRunner {
     private func verifyOwnership(_ bottle: GameBottle, at prefix: URL) throws {
         struct Receipt: Decodable { let bottle: GameBottle }
         var info = stat()
-        let marker = prefix.appendingPathComponent(".bigscreen-game-owner.json")
+        let marker = prefix.appendingPathComponent(".playden-game-owner.json")
         guard lstat(prefix.path, &info) == 0, info.st_mode & S_IFMT == S_IFDIR,
               lstat(marker.path, &info) == 0, info.st_mode & S_IFMT == S_IFREG, info.st_nlink == 1,
               try JSONDecoder().decode(Receipt.self, from: Data(contentsOf: marker)).bottle == bottle else { throw failure("Game runtime", "The game's runtime ownership could not be verified.") }

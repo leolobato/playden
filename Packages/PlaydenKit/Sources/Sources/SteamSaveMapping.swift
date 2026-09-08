@@ -35,7 +35,7 @@ enum SteamSaveMapping {
     private static func base(_ root: PathType) -> (SaveRoot, String)? {
         switch root {
         case .GameInstall: return (.game, "")
-        case .WinMyDocuments: return (.bottle, ".bigscreen-folders/Documents")
+        case .WinMyDocuments: return (.bottle, ".playden-folders/Documents")
         case .WinAppDataLocal: return (.bottle, "drive_c/users/crossover/AppData/Local")
         case .WinAppDataLocalLow: return (.bottle, "drive_c/users/crossover/AppData/LocalLow")
         case .WinAppDataRoaming: return (.bottle, "drive_c/users/crossover/AppData/Roaming")

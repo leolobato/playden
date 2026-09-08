@@ -49,17 +49,17 @@ public struct SteamCloudReader: CloudReading {
 
 struct SteamCloudReadRPC: Sendable {
     let cm: CMClient
-    func files(_ appID: UInt32) async throws -> BigScreenCloud_CCloud_GetAppFileChangelist_Response {
-        var request = BigScreenCloud_CCloud_GetAppFileChangelist_Request()
+    func files(_ appID: UInt32) async throws -> PlaydenCloud_CCloud_GetAppFileChangelist_Response {
+        var request = PlaydenCloud_CCloud_GetAppFileChangelist_Request()
         request.appid = appID; request.syncedChangeNumber = 0
         return try await cm.serviceMethod("Cloud.GetAppFileChangelist#1", request: request,
-            responseType: BigScreenCloud_CCloud_GetAppFileChangelist_Response.self)
+            responseType: PlaydenCloud_CCloud_GetAppFileChangelist_Response.self)
     }
-    func download(_ appID: UInt32, name: String) async throws -> BigScreenCloud_CCloud_ClientFileDownload_Response {
-        var request = BigScreenCloud_CCloud_ClientFileDownload_Request()
+    func download(_ appID: UInt32, name: String) async throws -> PlaydenCloud_CCloud_ClientFileDownload_Response {
+        var request = PlaydenCloud_CCloud_ClientFileDownload_Request()
         request.appid = appID; request.filename = name
         return try await cm.serviceMethod("Cloud.ClientFileDownload#1", request: request,
-            responseType: BigScreenCloud_CCloud_ClientFileDownload_Response.self)
+            responseType: PlaydenCloud_CCloud_ClientFileDownload_Response.self)
     }
 }
 
@@ -68,7 +68,7 @@ enum SteamCloudResponse {
     // an unchecked allocation from remote metadata. A Short Hike's UFS quota is 20 MB.
     static let maximumFileBytes = 64 * 1024 * 1024
 
-    static func list(_ response: BigScreenCloud_CCloud_GetAppFileChangelist_Response,
+    static func list(_ response: PlaydenCloud_CCloud_GetAppFileChangelist_Response,
                      gameID: GameID, accountKey: String) throws -> CloudFileList {
         guard response.hasCurrentChangeNumber, !response.isOnlyDelta, response.files.count <= 100_000 else {
             throw cloudFailure("Steam did not return a complete Cloud save list. Retry to refresh it.")
@@ -105,7 +105,7 @@ enum SteamCloudResponse {
         return CloudFileList(gameID: gameID, accountKey: accountKey, revision: response.currentChangeNumber, files: files)
     }
 
-    static func downloadRequest(_ response: BigScreenCloud_CCloud_ClientFileDownload_Response,
+    static func downloadRequest(_ response: PlaydenCloud_CCloud_ClientFileDownload_Response,
                                 appID: UInt32, expected: CloudFile) throws -> URLRequest {
         guard response.hasAppid, response.appid == appID, response.hasFileSize, response.hasRawFileSize,
               !response.isExplicitDelete, !response.encrypted, expected.state == .present,
@@ -146,7 +146,7 @@ enum SteamCloudResponse {
         return request
     }
 
-    static func downloadBody(_ body: Data, response: BigScreenCloud_CCloud_ClientFileDownload_Response,
+    static func downloadBody(_ body: Data, response: PlaydenCloud_CCloud_ClientFileDownload_Response,
                              expected: CloudFile) throws -> Data {
         guard body.count == response.fileSize, body.count <= maximumFileBytes,
               response.rawFileSize <= maximumFileBytes else { throw cloudFailure("The Cloud download was incomplete.") }

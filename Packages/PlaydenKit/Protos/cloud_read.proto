@@ -1,5 +1,5 @@
 syntax = "proto2";
-package BigScreenCloud;
+package PlaydenCloud;
 
 // Wire-compatible read-only subset of SteamDatabase/Protobufs steam/steammessages_cloud.steamclient.proto.
 // See README.md for provenance and regeneration.

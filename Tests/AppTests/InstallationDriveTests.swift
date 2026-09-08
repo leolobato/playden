@@ -25,9 +25,9 @@ final class InstallationDriveTests: XCTestCase {
     private func installation(_ name: String, volume: String) -> InstallationRecord {
         let game = SourceGameRecord(id: .init(source: "fixture", value: name), title: name)
         var location = GameLocation(volumeID: volume, rootBookmark: Data(volume.utf8),
-            lastKnownRoot: URL(fileURLWithPath: "/Volumes/\(volume)/games"), relativePath: "gn-fixture-\(name)/game")
+            lastKnownRoot: URL(fileURLWithPath: "/Volumes/\(volume)/games"), relativePath: "playden-fixture-\(name)/game")
         location.relativeRoot = "games"
-        return .init(game: game, location: location, bottleID: "gn-fixture-\(name)", manifestIDs: [:],
+        return .init(game: game, location: location, bottleID: "playden-fixture-\(name)", manifestIDs: [:],
                      templateVersion: "1", launchSpec: .init(executableRelativePath: "game.exe"), installedBytes: 100)
     }
     @MainActor private func settle(_ model: LibraryModel) async {

@@ -79,8 +79,8 @@ private actor RemovalCloud: CloudSyncManaging {
     private func fixture(pending: Bool = false, held: Bool = false) throws -> (LibraryModel, CatalogStore, RemovalQueue, RemovalCloud) {
         let catalog = try CatalogStore(), game = SourceGameRecord(id: id, title: "A Short Hike")
         var installed = InstallationRecord(game: game,
-            location: .init(volumeID: "fixture", lastKnownRoot: URL(fileURLWithPath: "/fixture"), relativePath: "gn-fixture-game/game"),
-            bottleID: "gn-fixture-game", manifestIDs: [:], templateVersion: "1", launchSpec: .init(executableRelativePath: "game.exe"), installedBytes: 100)
+            location: .init(volumeID: "fixture", lastKnownRoot: URL(fileURLWithPath: "/fixture"), relativePath: "playden-fixture-game/game"),
+            bottleID: "playden-fixture-game", manifestIDs: [:], templateVersion: "1", launchSpec: .init(executableRelativePath: "game.exe"), installedBytes: 100)
         installed.plan = .init(game: game, manifestIDs: [:], estimate: .init(downloadBytes: 100, installedBytes: 100, requiredBytes: 100), launchSpec: installed.launchSpec, sourcePayload: Data())
         try catalog.saveInstallation(installed)
         let queue = RemovalQueue(catalog), cloud = RemovalCloud(catalog, pending: pending, held: held)

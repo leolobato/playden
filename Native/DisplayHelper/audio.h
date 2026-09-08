@@ -44,13 +44,13 @@ static void clearManagedAudio(void) {
     HANDLE key;
     if (RegOpenKeyExW(AUDIO_HKCU, audioDriverKey, 0, 0x2011f, &key)) return;
     WCHAR managed[256], current[256];
-    if (readAudioString(key, L"BigScreenOutput", managed)) {
+    if (readAudioString(key, L"PlaydenOutput", managed)) {
         // Do not remove a later override made directly in Wine's audio settings.
         if (readAudioString(key, L"DefaultOutput", current) && sameAudioString(managed, current)) {
             if (RegDeleteValueW(key, L"DefaultOutput"))
                 message("[Playden audio] Could not restore the system-default output.\n");
         }
-        RegDeleteValueW(key, L"BigScreenOutput");
+        RegDeleteValueW(key, L"PlaydenOutput");
     }
     RegCloseKey(key);
 }
@@ -89,7 +89,7 @@ static BOOL selectAudioOutput(const WCHAR *uid) {
     if (RegCreateKeyExW(AUDIO_HKCU, audioDriverKey, 0, 0, 0, 0x2011f, 0, &key, 0)) return 0;
     length = 0; while (endpointID[length]) ++length;
     size = (length + 1) * 2;
-    BOOL written = !RegSetValueExW(key, L"BigScreenOutput", 0, 1, (const unsigned char *)endpointID, size) &&
+    BOOL written = !RegSetValueExW(key, L"PlaydenOutput", 0, 1, (const unsigned char *)endpointID, size) &&
                   !RegSetValueExW(key, L"DefaultOutput", 0, 1, (const unsigned char *)endpointID, size);
     RegCloseKey(key);
     return written;

@@ -78,7 +78,7 @@ final class CloudSyncServiceTests: XCTestCase {
     }
     private func installed(_ root: URL) -> InstallationRecord {
         .init(game: .init(id: gameID, title: "A Short Hike"),
-            location: .init(volumeID: "fixture", lastKnownRoot: root, relativePath: "game"), bottleID: "gn-steam-1055540",
+            location: .init(volumeID: "fixture", lastKnownRoot: root, relativePath: "game"), bottleID: "playden-steam-1055540",
             manifestIDs: [:], templateVersion: "1", launchSpec: .init(executableRelativePath: "ShortHike.exe"), installedBytes: 100)
     }
     private func payload(_ text: String, name: String = "GameSaveNew.mountain") -> CloudUpload {

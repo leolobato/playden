@@ -33,7 +33,7 @@ private actor ToolCommands: CommandExecuting {
     }
 }
 final class RuntimeToolTests: XCTestCase {
-    private let bottle = GameBottle(gameID: .init(source: "fixture", value: "game"), name: "gn-fixture-game", ownershipToken: UUID())
+    private let bottle = GameBottle(gameID: .init(source: "fixture", value: "game"), name: "playden-fixture-game", ownershipToken: UUID())
     private func receiptRoot() throws -> URL {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("PrerequisiteReceipts-" + UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -77,7 +77,7 @@ final class RuntimeToolTests: XCTestCase {
         await commands.configure(.init(exitCode: 0, output: "ready"), replaceRoot: root)
         let tools = CrossOverTools(manager: ToolBottle(root: root), commands: commands)
         do { try await tools.preparePrerequisite(prerequisite("first"), executable: root.appendingPathComponent("fixture.exe"), in: bottle); XCTFail("Replaced runtime was marked ready") } catch {}
-        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(".bigscreen-prerequisites.json").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(".playden-prerequisites.json").path))
     }
     func testRealGamePrerequisitesWhenRequested() async throws {
         guard let path = ProcessInfo.processInfo.environment["PLAYDEN_PREREQUISITES"] else {

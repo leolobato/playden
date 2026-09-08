@@ -44,7 +44,7 @@ final class SteamMetadataTests: XCTestCase {
 
     func testEncryptedTicketCacheUsesThirtyMinuteFixtureWindow() async throws {
         let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("bigscreen-ticket-cache-\(UUID().uuidString)")
+            .appendingPathComponent("playden-ticket-cache-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: directory) }
         let cache = EncryptedAppTicketCache(directory: directory)
         let base = Date(timeIntervalSince1970: 1_700_000_000)

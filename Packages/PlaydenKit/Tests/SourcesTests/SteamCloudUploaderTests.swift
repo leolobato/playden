@@ -32,43 +32,43 @@ private actor BatchFixture: CloudWriteRPC {
         switch method {
         case "GetAppFileChangelist":
             listings += 1
-            var result = BigScreenCloud_CCloud_GetAppFileChangelist_Response()
+            var result = PlaydenCloud_CCloud_GetAppFileChangelist_Response()
             result.currentChangeNumber = mode == .changedBeforeBegin ? 9 : listings == 3 ? 8 : 7
             let files = listings == 3 ? [upload.file] : list.files
             result.files = files.map { file in
-                var value = BigScreenCloud_CCloud_AppFileInfo()
+                var value = PlaydenCloud_CCloud_AppFileInfo()
                 value.fileName = file.name; value.shaFile = file.sha1; value.rawFileSize = UInt32(file.bytes)
                 value.timeStamp = UInt64(file.modifiedAt.timeIntervalSince1970); return value
             }
             if mode == .changedAfterCommit, listings == 3 { result.files[0].shaFile = Data(repeating: 0, count: 20) }
             data = try result.serializedData()
         case "BeginAppUploadBatch":
-            let value = try BigScreenCloud_CCloud_BeginAppUploadBatch_Request(serializedBytes: request.serializedData())
+            let value = try PlaydenCloud_CCloud_BeginAppUploadBatch_Request(serializedBytes: request.serializedData())
             guard value.filesToUpload == ["save.dat"], value.filesToDelete == ["old.dat"] else { throw BatchProblem.transfer }
-            var result = BigScreenCloud_CCloud_BeginAppUploadBatch_Response(); result.batchID = 55
+            var result = PlaydenCloud_CCloud_BeginAppUploadBatch_Response(); result.batchID = 55
             result.appChangeNumber = mode == .unexpectedReservation ? 9 : 8; data = try result.serializedData()
         case "ClientBeginFileUpload":
-            let value = try BigScreenCloud_CCloud_ClientBeginFileUpload_Request(serializedBytes: request.serializedData())
+            let value = try PlaydenCloud_CCloud_ClientBeginFileUpload_Request(serializedBytes: request.serializedData())
             guard value.fileSha == upload.file.sha1, value.fileSize == upload.data.count, value.uploadBatchID == 55,
                   !value.canEncrypt, value.filename == "save.dat" else { throw BatchProblem.transfer }
-            var result = BigScreenCloud_CCloud_ClientBeginFileUpload_Response()
-            var block = BigScreenCloud_ClientCloudFileUploadBlockDetails()
+            var result = PlaydenCloud_CCloud_ClientBeginFileUpload_Response()
+            var block = PlaydenCloud_ClientCloudFileUploadBlockDetails()
             block.urlHost = "steamcloud.example.com"; block.urlPath = "/upload?secret=never-log"
             block.useHTTPS = true; block.httpMethod = 4; block.blockOffset = 0; block.blockLength = UInt32(upload.data.count)
             result.blockRequests = [block]; data = try result.serializedData()
         case "ClientCommitFileUpload":
-            let value = try BigScreenCloud_CCloud_ClientCommitFileUpload_Request(serializedBytes: request.serializedData())
+            let value = try PlaydenCloud_CCloud_ClientCommitFileUpload_Request(serializedBytes: request.serializedData())
             events.append("commit:\(value.transferSucceeded)")
-            var result = BigScreenCloud_CCloud_ClientCommitFileUpload_Response(); result.fileCommitted = mode != .declinedCommit
+            var result = PlaydenCloud_CCloud_ClientCommitFileUpload_Response(); result.fileCommitted = mode != .declinedCommit
             data = try result.serializedData()
         case "ClientDeleteFile":
-            let value = try BigScreenCloud_CCloud_ClientDeleteFile_Request(serializedBytes: request.serializedData())
+            let value = try PlaydenCloud_CCloud_ClientDeleteFile_Request(serializedBytes: request.serializedData())
             guard value.filename == "old.dat", value.isExplicitDelete, value.uploadBatchID == 55 else { throw BatchProblem.transfer }
-            data = try BigScreenCloud_CCloud_ClientDeleteFile_Response().serializedData()
+            data = try PlaydenCloud_CCloud_ClientDeleteFile_Response().serializedData()
         case "CompleteAppUploadBatchBlocking":
-            let value = try BigScreenCloud_CCloud_CompleteAppUploadBatch_Request(serializedBytes: request.serializedData())
+            let value = try PlaydenCloud_CCloud_CompleteAppUploadBatch_Request(serializedBytes: request.serializedData())
             events.append("complete:\(value.batchEresult)")
-            data = try BigScreenCloud_CCloud_CompleteAppUploadBatch_Response().serializedData()
+            data = try PlaydenCloud_CCloud_CompleteAppUploadBatch_Response().serializedData()
         default: throw BatchProblem.transfer
         }
         return try Response(serializedBytes: data)
@@ -150,7 +150,7 @@ final class SteamCloudUploaderTests: XCTestCase {
         let events = await fixture.events; XCTAssertTrue(events.isEmpty)
     }
     func testUploadInstructionsHonorExplicitBodiesAndRejectInvalidRanges() throws {
-        var block = BigScreenCloud_ClientCloudFileUploadBlockDetails()
+        var block = PlaydenCloud_ClientCloudFileUploadBlockDetails()
         block.urlHost = "steamcloud.example.com"; block.urlPath = "/part"; block.useHTTPS = true
         block.httpMethod = 4; block.blockOffset = 2; block.blockLength = 3
         let payload = Data("abcdef".utf8)

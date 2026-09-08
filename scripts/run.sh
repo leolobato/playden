@@ -22,10 +22,8 @@ swift -e '
 import AppKit
 let bundleID = CommandLine.arguments[1]
 let launchURL = URL(fileURLWithPath: CommandLine.arguments[2]).standardizedFileURL
-let identities = bundleID == "org.lobato.playden"
-    ? [bundleID, "com.bigscreen.app", "com.gamenative.bigscreen"] : [bundleID]
 let apps = NSWorkspace.shared.runningApplications.filter {
-    identities.contains($0.bundleIdentifier ?? "") || $0.bundleURL?.standardizedFileURL == launchURL
+    $0.bundleIdentifier == bundleID || $0.bundleURL?.standardizedFileURL == launchURL
 }
 for app in apps { app.terminate() }
 let deadline = Date().addingTimeInterval(10)

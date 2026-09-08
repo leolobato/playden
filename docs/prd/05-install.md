@@ -32,7 +32,7 @@ Installed.**
   downloading while playing.
 - **FR-INST-6 (v1):** Jobs persist. After a launcher restart, in-progress jobs resume automatically
   and completed stages are not redone.
-- **FR-INST-7 (v1):** Create bottle: `cxbottle --copy gn-template-<version>` into `gn-<source>-<id>`,
+- **FR-INST-7 (v1):** Create bottle: `cxbottle --copy playden-template-<version>` into `playden-<source>-<id>`,
   then apply per-game bottle params from the `LaunchSpec` (DLL overrides via `cxstart --dll`, working
   dir). Bottle creation failure is a job failure with the `cxbottle` output attached (07 §2).
 - **FR-INST-8 (v1):** Post-install for Steam: gbe_fork Mode A staging with `unlock_all=0` and the owned
@@ -59,7 +59,7 @@ Installed.**
 - **FR-UN-2 (future):** Optional local save retention and restore on reinstall are deferred by the
   user on 7 September 2026. v1 has no "Keep saves" option. Reinstalled games recover synchronized
   saves through Steam Cloud (§6); games without supported Cloud sync have no uninstall backup.
-- **FR-UN-3 (v1):** Uninstall never touches a bottle not named `gn-<source>-<id>` for that game.
+- **FR-UN-3 (v1):** Uninstall never touches a bottle not named `playden-<source>-<id>` for that game.
 - **FR-UN-4 (v1):** Cloud saves through the source; see §6. Uninstall does not delete remote saves
   and cannot silently discard pending local uploads.
 

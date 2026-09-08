@@ -55,29 +55,29 @@ final class CrossOverRuntimeTests: XCTestCase {
     }
     func testExistingUnownedBottleIsNeverAdopted() async throws {
         let fixture = try RuntimeFixture(); defer { fixture.remove() }
-        let folder = fixture.bottles.appendingPathComponent("gn-template-1")
+        let folder = fixture.bottles.appendingPathComponent("playden-template-1")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let commands = TemplateCommands(bottles: fixture.bottles)
         do { _ = try await fixture.runtime(commands).prepareTemplate(); XCTFail("Must reject unowned bottle") }
         catch { XCTAssertTrue((error as? OperationFailure)?.reason.contains("does not belong") == true) }
         let creates = await commands.creates
         XCTAssertEqual(creates, 0)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: folder.appendingPathComponent(".bigscreen-owner.json").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: folder.appendingPathComponent(".playden-owner.json").path))
     }
-    func testPreRenamePartialTemplateCanRecoverItsOwnership() async throws {
+    func testPartialTemplateWithForeignDescriptionCannotBeClaimed() async throws {
         let fixture = try RuntimeFixture(); defer { fixture.remove() }
         let commands = TemplateCommands(bottles: fixture.bottles, failValidation: true)
         do { _ = try await fixture.runtime(commands).prepareTemplate(); XCTFail("Expected incomplete setup") } catch {}
-        let folder = fixture.bottles.appendingPathComponent("gn-template-1")
+        let folder = fixture.bottles.appendingPathComponent("playden-template-1")
         let config = folder.appendingPathComponent("cxbottle.conf")
         let text = try String(contentsOf: config, encoding: .utf8)
-            .replacingOccurrences(of: "Playden managed template", with: "Big Screen managed template")
+            .replacingOccurrences(of: "Playden managed template", with: "Other App managed template")
         try text.write(to: config, atomically: true, encoding: .utf8)
-        try FileManager.default.removeItem(at: folder.appendingPathComponent(".bigscreen-owner.json"))
-        let recovered = try await fixture.runtime(commands).prepareTemplate()
-        XCTAssertTrue(recovered.templateReady)
+        try FileManager.default.removeItem(at: folder.appendingPathComponent(".playden-owner.json"))
+        do { _ = try await fixture.runtime(commands).prepareTemplate(); XCTFail("Must reject a foreign description") }
+        catch { XCTAssertTrue((error as? OperationFailure)?.reason.contains("could not be identified safely") == true) }
         let creates = await commands.creates
-        XCTAssertEqual(creates, 1, "Recover the existing template instead of creating another bottle")
+        XCTAssertEqual(creates, 1, "Leave the foreign template untouched")
     }
     func testLicenseFailurePersistsRedactedAndRetryDoesNotRecreate() async throws {
         let fixture = try RuntimeFixture(); defer { fixture.remove() }
@@ -99,7 +99,7 @@ final class CrossOverRuntimeTests: XCTestCase {
         let fixture = try RuntimeFixture(); defer { fixture.remove() }
         let commands = TemplateCommands(bottles: fixture.bottles)
         _ = try await fixture.runtime(commands).prepareTemplate()
-        let folder = fixture.bottles.appendingPathComponent("gn-template-1")
+        let folder = fixture.bottles.appendingPathComponent("playden-template-1")
         let moved = fixture.root.appendingPathComponent("unrelated")
         try FileManager.default.moveItem(at: folder, to: moved)
         try FileManager.default.createSymbolicLink(at: folder, withDestinationURL: moved)
@@ -109,7 +109,7 @@ final class CrossOverRuntimeTests: XCTestCase {
     }
     func testRealCrossOverTemplateWhenRequested() async throws {
         guard ProcessInfo.processInfo.environment["PLAYDEN_CROSSOVER_TEMPLATE_PROBE"] == "1" else { throw XCTSkip("Opt in to creating and deleting a unique CrossOver test template") }
-        let name = "gn-probe-\(UUID().uuidString.lowercased())-template"
+        let name = "playden-probe-\(UUID().uuidString.lowercased())-template"
         let state = FileManager.default.temporaryDirectory.appendingPathComponent(name)
         defer { try? FileManager.default.removeItem(at: state) }
         let runtime = CrossOverRuntime(stateDirectory: state, templateName: name)
@@ -122,7 +122,7 @@ final class CrossOverRuntimeTests: XCTestCase {
         } catch { failure = error }
         let folder = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/CrossOver/Bottles/" + name)
         if FileManager.default.fileExists(atPath: folder.path) {
-            let marker = try JSONSerialization.jsonObject(with: Data(contentsOf: folder.appendingPathComponent(".bigscreen-owner.json"))) as? [String: Any]
+            let marker = try JSONSerialization.jsonObject(with: Data(contentsOf: folder.appendingPathComponent(".playden-owner.json"))) as? [String: Any]
             guard marker?["name"] as? String == name, try folder.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink != true else { throw CocoaError(.fileWriteNoPermission) }
             let cleanup = try await CommandExecutor().run(executable: URL(fileURLWithPath: "/Applications/CrossOver.app/Contents/SharedSupport/CrossOver/bin/cxbottle"), arguments: ["--bottle", name, "--delete", "--force"], timeout: 45)
             XCTAssertEqual(cleanup.exitCode, 0)

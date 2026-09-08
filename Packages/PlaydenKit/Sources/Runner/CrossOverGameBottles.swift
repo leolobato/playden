@@ -45,16 +45,16 @@ public actor CrossOverGameBottles: GameBottleManaging {
     private var busy = Set<String>()
     public init(application: URL = URL(fileURLWithPath: "/Applications/CrossOver.app"),
                 bottles: URL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/CrossOver/Bottles"),
-                templateName: String = "gn-template-1", runtime: any BottleManaging = CrossOverRuntime(),
+                templateName: String = "playden-template-1", runtime: any BottleManaging = CrossOverRuntime(),
                 commands: any CommandExecuting = CommandExecutor(), inspector: any RuntimeInspecting = RuntimeProcessInspector()) {
         self.application = application; self.bottles = bottles; self.templateName = templateName
         self.runtime = runtime; self.commands = commands; self.inspector = inspector
     }
     public static func name(for id: GameID) -> String {
-        let plain = "gn-\(id.source)-\(id.value)"
-        if plain.utf8.count <= 120, plain.range(of: #"^gn-[a-z0-9]+-[a-z0-9-]+$"#, options: .regularExpression) != nil { return plain }
+        let plain = "playden-\(id.source)-\(id.value)"
+        if plain.utf8.count <= 120, plain.range(of: #"^playden-[a-z0-9]+-[a-z0-9-]+$"#, options: .regularExpression) != nil { return plain }
         let digest = SHA256.hash(data: Data((String(id.source.utf8.count) + ":" + id.source + id.value).utf8)).map { String(format: "%02x", $0) }.joined()
-        return "gn-game-" + digest
+        return "playden-game-" + digest
     }
     public func isReady(_ bottle: GameBottle) throws -> Bool {
         try validateIdentity(bottle)
@@ -153,7 +153,7 @@ public actor CrossOverGameBottles: GameBottleManaging {
         try validateIdentity(bottle)
         try requireDirectory(bottles, under: bottles.deletingLastPathComponent())
         guard !exists(bottles.appendingPathComponent(bottle.name)), !removal(bottle).isPending,
-              !exists(bottles.appendingPathComponent(".bigscreen-staging").appendingPathComponent(bottle.ownershipToken.uuidString)) else {
+              !exists(bottles.appendingPathComponent(".playden-staging").appendingPathComponent(bottle.ownershipToken.uuidString)) else {
             throw problem("The game's runtime has not finished being removed.")
         }
     }
@@ -201,21 +201,21 @@ public actor CrossOverGameBottles: GameBottleManaging {
     }
     private func removal(_ bottle: GameBottle) -> OwnedDirectoryRemoval<GameBottle> {
         .init(directory: bottles.appendingPathComponent(bottle.name),
-            receipt: bottles.appendingPathComponent(".bigscreen-removing-\(bottle.ownershipToken.uuidString).json"), owner: bottle)
+            receipt: bottles.appendingPathComponent(".playden-removing-\(bottle.ownershipToken.uuidString).json"), owner: bottle)
     }
     private struct Marker: Codable, Equatable {
         let bottle: GameBottle
         var ready: Bool
         var sourcePreparationPending: Bool? = true
     }
-    private let markerName = ".bigscreen-game-owner.json"
+    private let markerName = ".playden-game-owner.json"
     private func validateIdentity(_ bottle: GameBottle) throws {
         guard bottle.name == Self.name(for: bottle.gameID), bottle.name != templateName,
               bottle.templateVersion == CrossOverRuntime.templateVersion,
-              templateName.range(of: #"^gn-[a-z0-9-]+$"#, options: .regularExpression) != nil else { throw problem("The saved game runtime identity is invalid.") }
+              templateName.range(of: #"^playden-[a-z0-9-]+$"#, options: .regularExpression) != nil else { throw problem("The saved game runtime identity is invalid.") }
     }
     private func ownedContainer(_ bottle: GameBottle, create: Bool) throws -> URL {
-        let parent = bottles.appendingPathComponent(".bigscreen-staging")
+        let parent = bottles.appendingPathComponent(".playden-staging")
         if create { try files.createDirectory(at: parent, withIntermediateDirectories: true) }
         try requireDirectory(parent, under: bottles)
         let container = parent.appendingPathComponent(bottle.ownershipToken.uuidString)
@@ -228,7 +228,7 @@ public actor CrossOverGameBottles: GameBottleManaging {
         return container
     }
     private func removeContainerIfPresent(_ bottle: GameBottle) throws {
-        let container = bottles.appendingPathComponent(".bigscreen-staging").appendingPathComponent(bottle.ownershipToken.uuidString)
+        let container = bottles.appendingPathComponent(".playden-staging").appendingPathComponent(bottle.ownershipToken.uuidString)
         guard exists(container) else { return }
         let owned = try ownedContainer(bottle, create: false)
         try files.removeItem(at: owned)

@@ -35,7 +35,7 @@ final class SteamSaveValidationTests: XCTestCase {
     private func installed(_ app: String = "1055540") -> InstallationRecord {
         .init(game: .init(id: .init(source: "steam", value: app), title: "Fixture"),
             location: .init(volumeID: "fixture", lastKnownRoot: URL(fileURLWithPath: "/fixture"), relativePath: "game"),
-            bottleID: "gn-steam-" + app, manifestIDs: [:], templateVersion: "1", launchSpec: .init(executableRelativePath: "game.exe"), installedBytes: 1)
+            bottleID: "playden-steam-" + app, manifestIDs: [:], templateVersion: "1", launchSpec: .init(executableRelativePath: "game.exe"), installedBytes: 1)
     }
     private func session(_ installed: InstallationRecord, forced: Bool = false, exit: Int32 = 0, finished: Bool = true) -> PlaySessionRecord {
         var value = PlaySessionRecord(gameID: installed.gameID, bottleID: installed.bottleID)

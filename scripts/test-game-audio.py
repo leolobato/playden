@@ -14,11 +14,11 @@ parser.add_argument('--bottle', required=True, type=Path)
 parser.add_argument('--device-uid', required=True, help='Connected Core Audio output UID to test')
 args = parser.parse_args()
 bottle = args.bottle.resolve(strict=True)
-receipt = json.loads((bottle / '.bigscreen-game-owner.json').read_text())
+receipt = json.loads((bottle / '.playden-game-owner.json').read_text())
 assert receipt['bottle']['name'] == bottle.name
 # This test must not overwrite a pre-existing output choice. No registry-file edits are used.
 registry = (bottle / 'user.reg').read_text()
-assert not re.search(r'^"(?:DefaultOutput|BigScreenOutput)"=', registry, re.M), 'Use a bottle with default audio'
+assert not re.search(r'^"(?:DefaultOutput|PlaydenOutput)"=', registry, re.M), 'Use a bottle with default audio'
 root = Path(__file__).resolve().parent.parent
 compiler = Path(os.environ.get('PLAYDEN_LLVM_ROOT', '/opt/homebrew/opt/llvm')) / 'bin/clang'
 linker = Path(os.environ.get('PLAYDEN_LLD_ROOT', '/opt/homebrew/opt/lld')) / 'bin/lld-link'

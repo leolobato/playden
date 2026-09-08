@@ -157,7 +157,7 @@ final class CloudSaveStoreTests: XCTestCase {
             case "duplicate": list = remote([payload, payload])
             case "traversal": payloads = [upload("bad", name: "../private.mountain")]; list = remote(payloads)
             case "unknown": payloads = [upload("bad", name: "not-a-save.txt")]; list = remote(payloads)
-            default: payloads = [upload("bad", name: ".bigscreen-cloud-\(UUID()).tmp/file.mountain")]; list = remote(payloads)
+            default: payloads = [upload("bad", name: ".playden-cloud-\(UUID()).tmp/file.mountain")]; list = remote(payloads)
             }
             let id = UUID()
             do { _ = try await store.stageCloud(list, installationID: installationID, mapping: mapping, downloads: payloads, id: id); XCTFail("Accepted \(kind)") } catch {}
@@ -215,7 +215,7 @@ final class CloudSaveStoreTests: XCTestCase {
         let old = try XCTUnwrap(directory.file("save")?.stream())
         try put("new", "new", at: root)
         let new = try XCTUnwrap(directory.file("new")?.stream())
-        let temp = ".bigscreen-cloud-\(UUID()).tmp"
+        let temp = ".playden-cloud-\(UUID()).tmp"
         // A fully staged replacement can be reused after interruption before the exchange.
         try put("new", temp, at: root)
         try directory.changeCloudFile("save", expected: old, desired: new, temporary: temp) { _ in XCTFail("Recopied verified staging") }
@@ -240,8 +240,8 @@ final class CloudSaveStoreTests: XCTestCase {
         let root = try directory(), game = try directory(), store = SaveStore(root: root)
         let mapping = SaveMapping(rules: [.init(root: .game, directory: "saves", cloudPrefix: "%GameInstall%saves")], coverage: .metadata)
         try put("player", "saves/progress", at: game)
-        try put("partial", "saves/.bigscreen-save-\(UUID()).tmp", at: game)
-        try put("old", "saves/.bigscreen-cloud-\(UUID()).tmp", at: game)
+        try put("partial", "saves/.playden-save-\(UUID()).tmp", at: game)
+        try put("old", "saves/.playden-cloud-\(UUID()).tmp", at: game)
         let snapshot = try await store.snapshot(gameID: gameID, installationID: UUID(), mapping: mapping, roots: [.game: game])
         XCTAssertEqual(snapshot.files.map(\.path), ["saves/progress"])
     }

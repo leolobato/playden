@@ -344,7 +344,7 @@ final class PrepareTests: XCTestCase {
     }
 
     private func temporaryDirectory() -> URL {
-        FileManager.default.temporaryDirectory.appendingPathComponent("bigscreen-prepare-\(UUID().uuidString)")
+        FileManager.default.temporaryDirectory.appendingPathComponent("playden-prepare-\(UUID().uuidString)")
     }
 
     private func makePE(architecture: PEArchitecture, section: String, strings: [String]) -> Data {

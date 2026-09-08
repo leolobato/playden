@@ -39,7 +39,7 @@ public actor InstallStorage: InstallStorageManaging {
         if !exists(container) {
             guard mkdir(container.path, 0o700) == 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
             do {
-                let path = container.appendingPathComponent(".bigscreen-install.json")
+                let path = container.appendingPathComponent(".playden-install.json")
                 try JSONEncoder().encode(marker).write(to: path, options: .atomic)
                 let handle = try FileHandle(forWritingTo: path); defer { try? handle.close() }; try handle.synchronize()
             } catch { _ = rmdir(container.path); throw error }
@@ -93,11 +93,11 @@ public actor InstallStorage: InstallStorageManaging {
     }
     private struct Owner: Codable, Equatable, Sendable { let gameID: GameID; let token: UUID }
     private func removal(container: URL, owner: Owner) -> OwnedDirectoryRemoval<Owner> {
-        .init(directory: container, receipt: container.deletingLastPathComponent().appendingPathComponent(".bigscreen-removing-\(owner.token.uuidString).json"), owner: owner)
+        .init(directory: container, receipt: container.deletingLastPathComponent().appendingPathComponent(".playden-removing-\(owner.token.uuidString).json"), owner: owner)
     }
     private func verify(_ container: URL, owner: Owner) throws {
         try physicalDirectory(container)
-        let path = container.appendingPathComponent(".bigscreen-install.json")
+        let path = container.appendingPathComponent(".playden-install.json")
         var info = stat()
         guard lstat(path.path, &info) == 0, info.st_mode & S_IFMT == S_IFREG, info.st_nlink == 1,
               let data = try? Data(contentsOf: path), let saved = try? JSONDecoder().decode(Owner.self, from: data), saved == owner else {

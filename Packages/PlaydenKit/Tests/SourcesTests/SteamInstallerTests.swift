@@ -278,7 +278,7 @@ final class SteamInstallerTests: XCTestCase {
         let installer = SteamInstaller(game: game, backend: backend, runtimeTools: tools)
         let plan = try await installer.resolve(), root = try temporaryDirectory()
         try await installer.download(plan, to: root) { _ in }
-        return (installer, plan, root, .init(gameID: game.id, name: "gn-steam-8870", ownershipToken: UUID()))
+        return (installer, plan, root, .init(gameID: game.id, name: "playden-steam-8870", ownershipToken: UUID()))
     }
     func testPinnedRecipeRetriesFromFailedPrerequisiteWithoutTouchingGameFiles() async throws {
         let tools = RecipeTools(), (installer, plan, root, bottle) = try await prerequisiteFixture(tools: tools)
@@ -321,7 +321,7 @@ final class SteamInstallerTests: XCTestCase {
             let backend = FixtureContentBackend(content: content, chunks: [Data(Insecure.SHA1.hash(data: original)): original, Data(Insecure.SHA1.hash(data: unpacked)): unpacked])
             let installer = SteamInstaller(game: game, backend: backend, runtimeTools: tools)
             let plan = try await installer.resolve(), directory = try temporaryDirectory()
-            let bottle = GameBottle(gameID: game.id, name: "gn-steam-100", ownershipToken: UUID())
+            let bottle = GameBottle(gameID: game.id, name: "playden-steam-100", ownershipToken: UUID())
             try await installer.download(plan, to: directory) { _ in }
             let save = directory.appendingPathComponent("player.sav")
             try Data("keep progress".utf8).write(to: save)
@@ -351,7 +351,7 @@ final class SteamInstallerTests: XCTestCase {
             let backend = FixtureContentBackend(content: content, chunks: [Data(Insecure.SHA1.hash(data: original)): original])
             let installer = SteamInstaller(game: game, backend: backend, runtimeTools: tools)
             let plan = try await installer.resolve(), directory = try temporaryDirectory()
-            let bottle = GameBottle(gameID: game.id, name: "gn-steam-100", ownershipToken: UUID())
+            let bottle = GameBottle(gameID: game.id, name: "playden-steam-100", ownershipToken: UUID())
             try await installer.download(plan, to: directory) { _ in }
             do { _ = try await installer.postInstall(plan, at: directory, in: bottle); XCTFail("Invalid unpacked output accepted") } catch {}
             XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent("Game.exe")), original)

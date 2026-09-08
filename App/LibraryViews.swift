@@ -222,7 +222,7 @@ struct HomeScreen: View {
             LinearGradient(colors: [.clear, Design.background.opacity(0.6), Design.background], startPoint: .top, endPoint: .bottom)
             if model.rows.isEmpty {
                 VStack(spacing: 28) {
-                    Text(!model.isPreview && model.identity == nil ? "Your games, on the big screen" : "Your next adventure starts here").font(Design.condensed(56))
+                    Text(!model.isPreview && model.identity == nil ? "Welcome to Playden" : "Your next adventure starts here").font(Design.condensed(56))
                     Text(!model.isPreview && model.identity == nil ? "Sign in to Steam to see your library." : model.syncing ? "Loading your library…" : "Find a game in your library and make yourself at home.").font(Design.body(26)).foregroundStyle(Design.secondary)
                     ActionButton(title: !model.isPreview && model.identity == nil ? "Sign in to Steam" : "Browse library", primary: true, focused: true, reducedMotion: model.reducedMotion) {
                         if !model.isPreview && model.identity == nil { model.beginSignIn() } else { model.browseAvailableGames() }

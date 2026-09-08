@@ -13,7 +13,7 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--bottle', type=Path, required=True)
 options = parser.parse_args()
 bottle = options.bottle.resolve(strict=True)
-receipt = json.loads((bottle / '.bigscreen-game-owner.json').read_text())
+receipt = json.loads((bottle / '.playden-game-owner.json').read_text())
 assert receipt['bottle']['name'] == bottle.name, 'Expected a Playden-owned bottle'
 root = Path(__file__).resolve().parent.parent
 compiler = Path(os.environ.get('PLAYDEN_LLVM_ROOT', '/opt/homebrew/opt/llvm')) / 'bin/clang'

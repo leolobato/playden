@@ -31,10 +31,10 @@ public actor GamesVolumeStore: VolumeManaging {
         // writes in cancellable child processes attributed to this app, with a finite deadline.
         try await checkWriteCommand("/bin/mkdir", ["-p", current.gamesRoot.path])
         try validate(current.gamesRoot, volumeID: current.id)
-        let result = try await checkWriteCommand("/usr/bin/mktemp", [current.gamesRoot.appendingPathComponent(".bigscreen-write-check.XXXXXXXX").path])
+        let result = try await checkWriteCommand("/usr/bin/mktemp", [current.gamesRoot.appendingPathComponent(".playden-write-check.XXXXXXXX").path])
         let probe = URL(fileURLWithPath: result.output.trimmingCharacters(in: .whitespacesAndNewlines))
         guard probe.deletingLastPathComponent().standardizedFileURL == current.gamesRoot.standardizedFileURL,
-              probe.lastPathComponent.hasPrefix(".bigscreen-write-check.") else { throw unavailable() }
+              probe.lastPathComponent.hasPrefix(".playden-write-check.") else { throw unavailable() }
         try files.removeItem(at: probe)
         let bookmark = try current.gamesRoot.bookmarkData(options: .minimalBookmark, includingResourceValuesForKeys: keys, relativeTo: nil)
         let mountPath = current.mountURL.resolvingSymlinksInPath().path

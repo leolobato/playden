@@ -60,10 +60,10 @@ struct SteamCloudBatchWriter: Sendable {
         let current = try await fetch(list)
         guard current.revision == list.revision, sameFiles(current.files, list.files) else { throw changed() }
         if files.isEmpty && deleting.isEmpty { return current }
-        var begin = BigScreenCloud_CCloud_BeginAppUploadBatch_Request()
+        var begin = PlaydenCloud_CCloud_BeginAppUploadBatch_Request()
         begin.appid = appID; begin.clientID = clientID; begin.appBuildID = buildID; begin.machineName = "Playden"
         begin.filesToUpload = files.map { $0.file.name }; begin.filesToDelete = deleting
-        let batch = try await rpc.call("BeginAppUploadBatch", request: begin, response: BigScreenCloud_CCloud_BeginAppUploadBatch_Response.self)
+        let batch = try await rpc.call("BeginAppUploadBatch", request: begin, response: PlaydenCloud_CCloud_BeginAppUploadBatch_Response.self)
         guard batch.hasBatchID, batch.batchID != 0 else { throw cloudFailure("Steam did not provide an upload batch receipt.") }
         var completed = false
         do {
@@ -79,9 +79,9 @@ struct SteamCloudBatchWriter: Sendable {
             }
             for name in deleting {
                 try Task.checkCancellation()
-                var request = BigScreenCloud_CCloud_ClientDeleteFile_Request()
+                var request = PlaydenCloud_CCloud_ClientDeleteFile_Request()
                 request.appid = appID; request.filename = name; request.isExplicitDelete = true; request.uploadBatchID = batch.batchID
-                _ = try await rpc.call("ClientDeleteFile", request: request, response: BigScreenCloud_CCloud_ClientDeleteFile_Response.self)
+                _ = try await rpc.call("ClientDeleteFile", request: request, response: PlaydenCloud_CCloud_ClientDeleteFile_Response.self)
             }
             try Task.checkCancellation()
             try await finish(appID, batchID: batch.batchID, success: true); completed = true
@@ -98,12 +98,12 @@ struct SteamCloudBatchWriter: Sendable {
         }
     }
     private func transfer(_ upload: CloudUpload, appID: UInt32, batchID: UInt64) async throws {
-        var begin = BigScreenCloud_CCloud_ClientBeginFileUpload_Request()
+        var begin = PlaydenCloud_CCloud_ClientBeginFileUpload_Request()
         begin.appid = appID; begin.filename = upload.file.name
         begin.fileSize = UInt32(upload.data.count); begin.rawFileSize = begin.fileSize
         begin.fileSha = upload.file.sha1; begin.timeStamp = UInt64(upload.file.modifiedAt.timeIntervalSince1970)
         begin.uploadBatchID = batchID; begin.canEncrypt = false
-        let response = try await rpc.call("ClientBeginFileUpload", request: begin, response: BigScreenCloud_CCloud_ClientBeginFileUpload_Response.self)
+        let response = try await rpc.call("ClientBeginFileUpload", request: begin, response: PlaydenCloud_CCloud_ClientBeginFileUpload_Response.self)
         guard !response.encryptFile else { throw cloudFailure("Steam requested an unsupported encrypted Cloud upload.") }
         guard response.blockRequests.count <= 512,
               response.blockRequests.reduce(UInt64(0), { $0 + UInt64($1.hasExplicitBodyData ? $1.explicitBodyData.count : Int($1.blockLength)) }) <= UInt64(SteamCloudResponse.maximumFileBytes) * 2 else {
@@ -120,23 +120,23 @@ struct SteamCloudBatchWriter: Sendable {
         try await commit(upload, appID: appID, success: true)
     }
     private func commit(_ upload: CloudUpload, appID: UInt32, success: Bool) async throws {
-        var request = BigScreenCloud_CCloud_ClientCommitFileUpload_Request()
+        var request = PlaydenCloud_CCloud_ClientCommitFileUpload_Request()
         request.appid = appID; request.filename = upload.file.name; request.fileSha = upload.file.sha1; request.transferSucceeded = success
-        let response = try await rpc.call("ClientCommitFileUpload", request: request, response: BigScreenCloud_CCloud_ClientCommitFileUpload_Response.self)
+        let response = try await rpc.call("ClientCommitFileUpload", request: request, response: PlaydenCloud_CCloud_ClientCommitFileUpload_Response.self)
         guard !success || response.fileCommitted else { throw cloudFailure("Steam did not commit this Cloud save. Local saves have been kept.") }
     }
     private func finish(_ appID: UInt32, batchID: UInt64, success: Bool) async throws {
-        var request = BigScreenCloud_CCloud_CompleteAppUploadBatch_Request()
+        var request = PlaydenCloud_CCloud_CompleteAppUploadBatch_Request()
         request.appid = appID; request.batchID = batchID; request.batchEresult = success ? 1 : 2
-        _ = try await rpc.call("CompleteAppUploadBatchBlocking", request: request, response: BigScreenCloud_CCloud_CompleteAppUploadBatch_Response.self)
+        _ = try await rpc.call("CompleteAppUploadBatchBlocking", request: request, response: PlaydenCloud_CCloud_CompleteAppUploadBatch_Response.self)
     }
     private func fetch(_ expected: CloudFileList) async throws -> CloudFileList {
-        var request = BigScreenCloud_CCloud_GetAppFileChangelist_Request()
+        var request = PlaydenCloud_CCloud_GetAppFileChangelist_Request()
         request.appid = UInt32(expected.gameID.value)!; request.syncedChangeNumber = 0
-        let response = try await rpc.call("GetAppFileChangelist", request: request, response: BigScreenCloud_CCloud_GetAppFileChangelist_Response.self)
+        let response = try await rpc.call("GetAppFileChangelist", request: request, response: PlaydenCloud_CCloud_GetAppFileChangelist_Response.self)
         return try SteamCloudResponse.list(response, gameID: expected.gameID, accountKey: expected.accountKey)
     }
-    static func request(_ block: BigScreenCloud_ClientCloudFileUploadBlockDetails, data: Data) throws -> URLRequest {
+    static func request(_ block: PlaydenCloud_ClientCloudFileUploadBlockDetails, data: Data) throws -> URLRequest {
         var request = try SteamCloudResponse.transferRequest(host: block.urlHost, path: block.urlPath,
             https: block.useHTTPS, headers: block.requestHeaders.map { ($0.name, $0.value) })
         let methods: [Int32: String] = [1: "GET", 2: "HEAD", 3: "POST", 4: "PUT", 5: "DELETE", 6: "OPTIONS", 7: "PATCH"]

@@ -13,13 +13,8 @@ struct KeychainFailure: Error {
 /// One device-local account; service/account keys contain no player identity. Never falls back to a file.
 struct KeychainCredentials: AuthCredentialStore {
     let service: String
-    private let legacyServices: [String]
-    init(service: String? = nil, legacyService: String? = nil) {
+    init(service: String? = nil) {
         self.service = service ?? "\(Bundle.main.bundleIdentifier ?? "org.lobato.playden").steam"
-        // Only the default app identity imports earlier builds' credentials.
-        // Custom bundle IDs have their own sign-in; explicit test services never touch user data.
-        self.legacyServices = legacyService.map { [$0] } ?? (service == nil && self.service == "org.lobato.playden.steam"
-            ? ["com.bigscreen.app.steam", "com.gamenative.bigscreen.steam"] : [])
     }
     private var query: [String: Any] {
         [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
@@ -30,16 +25,7 @@ struct KeychainCredentials: AuthCredentialStore {
         query[kSecReturnData as String] = true; query[kSecMatchLimit as String] = kSecMatchLimitOne
         var result: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
-        if status == errSecItemNotFound {
-            for legacyService in legacyServices where legacyService != service {
-                let legacy = KeychainCredentials(service: legacyService)
-                guard let auth = try legacy.load() else { continue }
-                try save(auth)
-                try legacy.clear()
-                return auth
-            }
-            return nil
-        }
+        if status == errSecItemNotFound { return nil }
         guard status == errSecSuccess else { throw KeychainFailure(status: status) }
         guard let data = result as? Data else { throw KeychainFailure(status: errSecDecode) }
         return try JSONDecoder().decode(StoredAuth.self, from: data)
@@ -57,10 +43,6 @@ struct KeychainCredentials: AuthCredentialStore {
         guard status == errSecSuccess else { throw KeychainFailure(status: status) }
     }
     func clear() throws {
-        // Clear the legacy record first so sign-out cannot resurrect it on the next load.
-        for legacyService in legacyServices where legacyService != service {
-            try KeychainCredentials(service: legacyService).clear()
-        }
         let status = SecItemDelete(query as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else { throw KeychainFailure(status: status) }
     }

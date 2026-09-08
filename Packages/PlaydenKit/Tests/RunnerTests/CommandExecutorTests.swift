@@ -61,7 +61,7 @@ final class CommandExecutorTests: XCTestCase {
         XCTAssertLessThanOrEqual(result.output.utf8.count, 256 * 1024)
     }
     func testMissingExecutableFailsBeforeWaiting() async {
-        do { _ = try await CommandExecutor().run(executable: URL(fileURLWithPath: "/bigscreen-missing-tool"), arguments: [], timeout: 60); XCTFail("Missing tool must fail") }
+        do { _ = try await CommandExecutor().run(executable: URL(fileURLWithPath: "/playden-missing-tool"), arguments: [], timeout: 60); XCTFail("Missing tool must fail") }
         catch { XCTAssertTrue(error is POSIXError) }
     }
 }

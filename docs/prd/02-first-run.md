@@ -49,7 +49,7 @@ step is the one exception and is designed for it.
 - **FR-VOL-1 (v1):** First run picks the games volume from mounted writable volumes, showing free
   space. Default per 01 §4. Changeable later in Settings; changing it does not move existing games.
 - **FR-TPL-1 (v1):** On first run (or when missing), the app creates the bottle template
-  `gn-template-<version>` with `cxbottle --create --template win10_64`, sets MSync on and D3DMetal on,
+  `playden-template-<version>` with `cxbottle --create --template win10_64`, sets MSync on and D3DMetal on,
   and installs nothing else. Creation shows progress; failure names the step (07 §2).
 - **FR-TPL-2 (v1):** Template version is pinned in the app. A new template version is created next to
   the old one; existing game bottles are never modified by a template upgrade.

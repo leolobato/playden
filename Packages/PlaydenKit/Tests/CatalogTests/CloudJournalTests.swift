@@ -46,7 +46,7 @@ final class CloudJournalTests: XCTestCase {
     private var installation: InstallationRecord {
         .init(game: .init(id: gameID, title: "A Short Hike"),
               location: .init(volumeID: "fixture", lastKnownRoot: URL(fileURLWithPath: "/fixture"), relativePath: "game"),
-              bottleID: "gn-steam-1055540", manifestIDs: [:], templateVersion: "1",
+              bottleID: "playden-steam-1055540", manifestIDs: [:], templateVersion: "1",
               launchSpec: .init(executableRelativePath: "ShortHike.exe"), installedBytes: 100)
     }
     private var file: CloudFile {

@@ -1,5 +1,5 @@
 syntax = "proto2";
-package BigScreenCloud;
+package PlaydenCloud;
 
 // Wire-compatible upload subset; provenance and regeneration in README.md.
 

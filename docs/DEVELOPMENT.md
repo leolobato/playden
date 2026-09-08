@@ -12,12 +12,8 @@ The app, Xcode scheme and module are `Playden`; the shared package is `PlaydenKi
 The default bundle identifier is `org.lobato.playden`. Script configuration uses
 the `PLAYDEN_` environment-variable prefix.
 
-Fresh profiles use `~/Library/Application Support/Playden`. Existing Big Screen
-profiles continue using their original support directory so catalogs, runtime
-receipts and pending save journals stay together. Existing game paths and ownership
-markers remain valid. The default app identity imports earlier Steam Keychain
-credentials; custom bundle IDs keep separate sign-ins. Quit the older app before
-opening Playden against the same profile.
+Profiles use `~/Library/Application Support/Playden`, with Steam credentials scoped
+by bundle identifier. Playden uses its own runtime and installation ownership markers.
 
 ```text
 playden/
@@ -94,11 +90,9 @@ build still requires `PLAYDEN_DEVELOPER_ID` to select its Developer ID Applicati
 Command-line Xcode build settings can override xcconfig values when building directly with Xcode.
 
 Changing bundle ID creates a separate Keychain service (`<bundle-id>.steam`) and can cause an
-initial macOS credential-access prompt. The default Playden identity migrates the research
-build's saved Steam credentials once; custom bundle IDs require their own Steam sign-in.
-Existing catalog/settings storage, recorded game paths and CrossOver bottles are retained.
-The legacy `.gn-download` checkpoint and `gn-template-1` bottle names remain on-disk compatibility
-identifiers, not product branding. New games folders and the artwork cache use Playden names.
+initial macOS credential-access prompt. Each bundle ID requires its own Steam sign-in.
+Playden uses its own profile, ownership markers and `playden-template-1` runtime;
+it does not import data or credentials from earlier app identities.
 
 ## Signing and permissions
 
@@ -175,7 +169,7 @@ before publishing a release. Increase the build number for subsequent builds of 
 
 ## Runtime and storage
 
-CrossOver 26.x supplies the runtime. Playden prepares an owned `gn-template-1` Windows 10
+CrossOver 26.x supplies the runtime. Playden prepares an owned `playden-template-1` Windows 10
 64-bit template with MSync and D3DMetal, then clones an owned bottle for each game. It rejects
 unowned/conflicting runtime locations. A missing per-game bottle is recreated and source
 preparation must finish before launch; supported Cloud saves are then restored.

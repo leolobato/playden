@@ -6,7 +6,7 @@ Journey: **play**. From Play to player control, to clean exit back to Home.
 
 - **FR-LAUNCH-1 (v1):** Play runs: installed-state check (files present, drive mounted, bottle
   exists; otherwise offer Verify or Reinstall) → `GameRunner.prepare` (recreate a missing bottle from
-  the template and rerun post-install) → pre-launch cloud sync/conflict resolution (05 §6) → `cxstart --bottle gn-<source>-<id> --workdir … --dll …
+  the template and rerun post-install) → pre-launch cloud sync/conflict resolution (05 §6) → `cxstart --bottle playden-<source>-<id> --workdir … --dll …
   <exe> <args>` with the `LaunchSpec` environment.
 - **FR-LAUNCH-2 (v1):** A "Launching <title>" state is shown until the game's first window is
   observed; the launcher then lowers its window level and hides its cursor so the game is frontmost.

@@ -20,7 +20,7 @@ void mainCRTStartup(void) {
     message("\n");
     HANDLE key; WCHAR managed[256], current[256];
     if (!RegOpenKeyExW(AUDIO_HKCU, audioDriverKey, 0, 0x20119, &key)) {
-        if (readAudioString(key, L"BigScreenOutput", managed)) {
+        if (readAudioString(key, L"PlaydenOutput", managed)) {
             if (!readAudioString(key, L"DefaultOutput", current) ||
                 !sameAudioString(managed, current) || !sameAudioString(managed, id)) ExitProcess(4);
             message("BSMANAGED=1\n");

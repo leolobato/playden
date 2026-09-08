@@ -25,7 +25,7 @@ fileprivate nonisolated struct _GeneratedWithProtocGenSwiftVersion: SwiftProtobu
   typealias Version = _2
 }
 
-public nonisolated struct BigScreenCloud_CCloud_ClientFileDownload_Request: Sendable {
+public nonisolated struct PlaydenCloud_CCloud_ClientFileDownload_Request: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
@@ -76,7 +76,7 @@ public nonisolated struct BigScreenCloud_CCloud_ClientFileDownload_Request: Send
   fileprivate var _forceProxy: Bool? = nil
 }
 
-public nonisolated struct BigScreenCloud_CCloud_ClientFileDownload_Response: Sendable {
+public nonisolated struct PlaydenCloud_CCloud_ClientFileDownload_Response: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
@@ -162,7 +162,7 @@ public nonisolated struct BigScreenCloud_CCloud_ClientFileDownload_Response: Sen
   /// Clears the value of `useHTTPS`. Subsequent reads from it will return its default value.
   public mutating func clearUseHTTPS() {self._useHTTPS = nil}
 
-  public var requestHeaders: [BigScreenCloud_CCloud_ClientFileDownload_Response.HTTPHeaders] = []
+  public var requestHeaders: [PlaydenCloud_CCloud_ClientFileDownload_Response.HTTPHeaders] = []
 
   public var encrypted: Bool {
     get {_encrypted ?? false}
@@ -220,7 +220,7 @@ public nonisolated struct BigScreenCloud_CCloud_ClientFileDownload_Response: Sen
   fileprivate var _encrypted: Bool? = nil
 }
 
-public nonisolated struct BigScreenCloud_CCloud_GetAppFileChangelist_Request: Sendable {
+public nonisolated struct PlaydenCloud_CCloud_GetAppFileChangelist_Request: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
@@ -251,7 +251,7 @@ public nonisolated struct BigScreenCloud_CCloud_GetAppFileChangelist_Request: Se
   fileprivate var _syncedChangeNumber: UInt64? = nil
 }
 
-public nonisolated struct BigScreenCloud_CCloud_GetAppFileChangelist_Response: Sendable {
+public nonisolated struct PlaydenCloud_CCloud_GetAppFileChangelist_Response: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
@@ -265,7 +265,7 @@ public nonisolated struct BigScreenCloud_CCloud_GetAppFileChangelist_Response: S
   /// Clears the value of `currentChangeNumber`. Subsequent reads from it will return its default value.
   public mutating func clearCurrentChangeNumber() {self._currentChangeNumber = nil}
 
-  public var files: [BigScreenCloud_CCloud_AppFileInfo] = []
+  public var files: [PlaydenCloud_CCloud_AppFileInfo] = []
 
   public var isOnlyDelta: Bool {
     get {_isOnlyDelta ?? false}
@@ -298,7 +298,7 @@ public nonisolated struct BigScreenCloud_CCloud_GetAppFileChangelist_Response: S
   fileprivate var _appBuildidHwm: UInt64? = nil
 }
 
-public nonisolated struct BigScreenCloud_CCloud_AppFileInfo: Sendable {
+public nonisolated struct PlaydenCloud_CCloud_AppFileInfo: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
@@ -401,9 +401,9 @@ public nonisolated struct BigScreenCloud_CCloud_AppFileInfo: Sendable {
 
 // MARK: - Code below here is support for the SwiftProtobuf runtime.
 
-fileprivate nonisolated let _protobuf_package = "BigScreenCloud"
+fileprivate nonisolated let _protobuf_package = "PlaydenCloud"
 
-nonisolated extension BigScreenCloud_CCloud_ClientFileDownload_Request: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+nonisolated extension PlaydenCloud_CCloud_ClientFileDownload_Request: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".CCloud_ClientFileDownload_Request"
   public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}appid\0\u{1}filename\0\u{1}realm\0\u{3}force_proxy\0")
 
@@ -442,7 +442,7 @@ nonisolated extension BigScreenCloud_CCloud_ClientFileDownload_Request: SwiftPro
     try unknownFields.traverse(visitor: &visitor)
   }
 
-  public static func ==(lhs: BigScreenCloud_CCloud_ClientFileDownload_Request, rhs: BigScreenCloud_CCloud_ClientFileDownload_Request) -> Bool {
+  public static func ==(lhs: PlaydenCloud_CCloud_ClientFileDownload_Request, rhs: PlaydenCloud_CCloud_ClientFileDownload_Request) -> Bool {
     if lhs._appid != rhs._appid {return false}
     if lhs._filename != rhs._filename {return false}
     if lhs._realm != rhs._realm {return false}
@@ -452,7 +452,7 @@ nonisolated extension BigScreenCloud_CCloud_ClientFileDownload_Request: SwiftPro
   }
 }
 
-nonisolated extension BigScreenCloud_CCloud_ClientFileDownload_Response: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+nonisolated extension PlaydenCloud_CCloud_ClientFileDownload_Response: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".CCloud_ClientFileDownload_Response"
   public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}appid\0\u{3}file_size\0\u{3}raw_file_size\0\u{3}sha_file\0\u{3}time_stamp\0\u{3}is_explicit_delete\0\u{3}url_host\0\u{3}url_path\0\u{3}use_https\0\u{3}request_headers\0\u{1}encrypted\0")
 
@@ -519,7 +519,7 @@ nonisolated extension BigScreenCloud_CCloud_ClientFileDownload_Response: SwiftPr
     try unknownFields.traverse(visitor: &visitor)
   }
 
-  public static func ==(lhs: BigScreenCloud_CCloud_ClientFileDownload_Response, rhs: BigScreenCloud_CCloud_ClientFileDownload_Response) -> Bool {
+  public static func ==(lhs: PlaydenCloud_CCloud_ClientFileDownload_Response, rhs: PlaydenCloud_CCloud_ClientFileDownload_Response) -> Bool {
     if lhs._appid != rhs._appid {return false}
     if lhs._fileSize != rhs._fileSize {return false}
     if lhs._rawFileSize != rhs._rawFileSize {return false}
@@ -536,8 +536,8 @@ nonisolated extension BigScreenCloud_CCloud_ClientFileDownload_Response: SwiftPr
   }
 }
 
-nonisolated extension BigScreenCloud_CCloud_ClientFileDownload_Response.HTTPHeaders: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
-  public static let protoMessageName: String = BigScreenCloud_CCloud_ClientFileDownload_Response.protoMessageName + ".HTTPHeaders"
+nonisolated extension PlaydenCloud_CCloud_ClientFileDownload_Response.HTTPHeaders: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = PlaydenCloud_CCloud_ClientFileDownload_Response.protoMessageName + ".HTTPHeaders"
   public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}name\0\u{1}value\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
@@ -567,7 +567,7 @@ nonisolated extension BigScreenCloud_CCloud_ClientFileDownload_Response.HTTPHead
     try unknownFields.traverse(visitor: &visitor)
   }
 
-  public static func ==(lhs: BigScreenCloud_CCloud_ClientFileDownload_Response.HTTPHeaders, rhs: BigScreenCloud_CCloud_ClientFileDownload_Response.HTTPHeaders) -> Bool {
+  public static func ==(lhs: PlaydenCloud_CCloud_ClientFileDownload_Response.HTTPHeaders, rhs: PlaydenCloud_CCloud_ClientFileDownload_Response.HTTPHeaders) -> Bool {
     if lhs._name != rhs._name {return false}
     if lhs._value != rhs._value {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
@@ -575,7 +575,7 @@ nonisolated extension BigScreenCloud_CCloud_ClientFileDownload_Response.HTTPHead
   }
 }
 
-nonisolated extension BigScreenCloud_CCloud_GetAppFileChangelist_Request: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+nonisolated extension PlaydenCloud_CCloud_GetAppFileChangelist_Request: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".CCloud_GetAppFileChangelist_Request"
   public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}appid\0\u{3}synced_change_number\0")
 
@@ -606,7 +606,7 @@ nonisolated extension BigScreenCloud_CCloud_GetAppFileChangelist_Request: SwiftP
     try unknownFields.traverse(visitor: &visitor)
   }
 
-  public static func ==(lhs: BigScreenCloud_CCloud_GetAppFileChangelist_Request, rhs: BigScreenCloud_CCloud_GetAppFileChangelist_Request) -> Bool {
+  public static func ==(lhs: PlaydenCloud_CCloud_GetAppFileChangelist_Request, rhs: PlaydenCloud_CCloud_GetAppFileChangelist_Request) -> Bool {
     if lhs._appid != rhs._appid {return false}
     if lhs._syncedChangeNumber != rhs._syncedChangeNumber {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
@@ -614,7 +614,7 @@ nonisolated extension BigScreenCloud_CCloud_GetAppFileChangelist_Request: SwiftP
   }
 }
 
-nonisolated extension BigScreenCloud_CCloud_GetAppFileChangelist_Response: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+nonisolated extension PlaydenCloud_CCloud_GetAppFileChangelist_Response: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".CCloud_GetAppFileChangelist_Response"
   public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}current_change_number\0\u{1}files\0\u{3}is_only_delta\0\u{3}path_prefixes\0\u{3}machine_names\0\u{3}app_buildid_hwm\0")
 
@@ -661,7 +661,7 @@ nonisolated extension BigScreenCloud_CCloud_GetAppFileChangelist_Response: Swift
     try unknownFields.traverse(visitor: &visitor)
   }
 
-  public static func ==(lhs: BigScreenCloud_CCloud_GetAppFileChangelist_Response, rhs: BigScreenCloud_CCloud_GetAppFileChangelist_Response) -> Bool {
+  public static func ==(lhs: PlaydenCloud_CCloud_GetAppFileChangelist_Response, rhs: PlaydenCloud_CCloud_GetAppFileChangelist_Response) -> Bool {
     if lhs._currentChangeNumber != rhs._currentChangeNumber {return false}
     if lhs.files != rhs.files {return false}
     if lhs._isOnlyDelta != rhs._isOnlyDelta {return false}
@@ -673,7 +673,7 @@ nonisolated extension BigScreenCloud_CCloud_GetAppFileChangelist_Response: Swift
   }
 }
 
-nonisolated extension BigScreenCloud_CCloud_AppFileInfo: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+nonisolated extension PlaydenCloud_CCloud_AppFileInfo: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".CCloud_AppFileInfo"
   public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}file_name\0\u{3}sha_file\0\u{3}time_stamp\0\u{3}raw_file_size\0\u{3}persist_state\0\u{3}platforms_to_sync\0\u{3}path_prefix_index\0\u{3}machine_name_index\0\u{3}reupload_requested\0")
 
@@ -732,7 +732,7 @@ nonisolated extension BigScreenCloud_CCloud_AppFileInfo: SwiftProtobuf.Message, 
     try unknownFields.traverse(visitor: &visitor)
   }
 
-  public static func ==(lhs: BigScreenCloud_CCloud_AppFileInfo, rhs: BigScreenCloud_CCloud_AppFileInfo) -> Bool {
+  public static func ==(lhs: PlaydenCloud_CCloud_AppFileInfo, rhs: PlaydenCloud_CCloud_AppFileInfo) -> Bool {
     if lhs._fileName != rhs._fileName {return false}
     if lhs._shaFile != rhs._shaFile {return false}
     if lhs._timeStamp != rhs._timeStamp {return false}

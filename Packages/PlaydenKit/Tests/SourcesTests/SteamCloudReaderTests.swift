@@ -14,26 +14,26 @@ final class SteamCloudReaderTests: XCTestCase {
               sha1: Data(Insecure.SHA1.hash(data: payload)), bytes: Int64(payload.count),
               modifiedAt: Date(timeIntervalSince1970: 100))
     }
-    func response() -> BigScreenCloud_CCloud_ClientFileDownload_Response {
-        var result = BigScreenCloud_CCloud_ClientFileDownload_Response()
+    func response() -> PlaydenCloud_CCloud_ClientFileDownload_Response {
+        var result = PlaydenCloud_CCloud_ClientFileDownload_Response()
         result.appid = 1055540; result.shaFile = file.sha1
         result.fileSize = UInt32(payload.count); result.rawFileSize = UInt32(payload.count)
         result.timeStamp = 100; result.useHTTPS = true
         result.urlHost = "steamcloud.example.com"; result.urlPath = "/signed/save?token=secret"
         return result
     }
-    func listResponse() -> BigScreenCloud_CCloud_GetAppFileChangelist_Response {
-        var result = BigScreenCloud_CCloud_GetAppFileChangelist_Response()
+    func listResponse() -> PlaydenCloud_CCloud_GetAppFileChangelist_Response {
+        var result = PlaydenCloud_CCloud_GetAppFileChangelist_Response()
         result.currentChangeNumber = 27; result.isOnlyDelta = false
         result.pathPrefixes = ["%WinAppDataLocalLow%adamgryu/A Short Hike/"]
-        var item = BigScreenCloud_CCloud_AppFileInfo()
+        var item = PlaydenCloud_CCloud_AppFileInfo()
         item.fileName = "GameSaveNew.mountain"; item.pathPrefixIndex = 0
         item.rawFileSize = UInt32(payload.count); item.shaFile = file.sha1; item.timeStamp = 100
         result.files = [item]; return result
     }
     func testFullListPreservesOpaqueCloudNamesAndDeletionStates() throws {
         var response = listResponse()
-        var deleted = BigScreenCloud_CCloud_AppFileInfo()
+        var deleted = PlaydenCloud_CCloud_AppFileInfo()
         deleted.fileName = "removed"; deleted.persistState = 2
         var forgotten = deleted; forgotten.fileName = "forgotten"; forgotten.persistState = 1
         response.files += [deleted, forgotten]
@@ -44,7 +44,7 @@ final class SteamCloudReaderTests: XCTestCase {
         XCTAssertNotEqual(SteamCloudReader.accountKey(1), SteamCloudReader.accountKey(2))
     }
     func testIncompleteAmbiguousAndUnknownRemoteListsFailClosed() throws {
-        let mutations: [(inout BigScreenCloud_CCloud_GetAppFileChangelist_Response) -> Void] = [
+        let mutations: [(inout PlaydenCloud_CCloud_GetAppFileChangelist_Response) -> Void] = [
             { $0.isOnlyDelta = true }, { $0.clearCurrentChangeNumber() },
             { $0.files[0].pathPrefixIndex = 1 }, { $0.files[0].shaFile = Data() },
             { $0.files[0].clearRawFileSize() }, { $0.files[0].persistState = 9 },
@@ -58,20 +58,20 @@ final class SteamCloudReaderTests: XCTestCase {
     }
     func testProtobufWireFieldsDecodeIndependentlyOfGeneratedPropertyNames() throws {
         // appid=1055540 (field 1), synced_change_number=27 (field 2).
-        var request = BigScreenCloud_CCloud_GetAppFileChangelist_Request()
+        var request = PlaydenCloud_CCloud_GetAppFileChangelist_Request()
         request.appid = 1055540; request.syncedChangeNumber = 27
         XCTAssertEqual(try request.serializedData(), Data([0x08, 0xb4, 0xb6, 0x40, 0x10, 0x1b]))
-        let list = try BigScreenCloud_CCloud_GetAppFileChangelist_Response(serializedBytes: Data([0x08, 0x1b, 0x18, 0x00]))
+        let list = try PlaydenCloud_CCloud_GetAppFileChangelist_Response(serializedBytes: Data([0x08, 0x1b, 0x18, 0x00]))
         XCTAssertEqual(try SteamCloudResponse.list(list, gameID: game, accountKey: "a").files, [])
     }
     func testDownloadValidatesGameIdentityHashAndTransferMetadataBeforeRequest() throws {
-        let mutations: [(inout BigScreenCloud_CCloud_ClientFileDownload_Response) -> Void] = [
+        let mutations: [(inout PlaydenCloud_CCloud_ClientFileDownload_Response) -> Void] = [
             { $0.appid = 2 }, { $0.clearAppid() }, { $0.shaFile = Data(repeating: 0, count: 20) },
             { $0.rawFileSize += 1 }, { $0.clearFileSize() }, { $0.encrypted = true },
             { $0.isExplicitDelete = true }, { $0.fileSize = UInt32.max }, { $0.useHTTPS = false },
             { $0.urlHost = "legit.com@unrelated.example.com" }, { $0.urlPath = "//unrelated.example.com" },
             { $0.urlHost = "unrelated.example.com/path" },
-            { var header = BigScreenCloud_CCloud_ClientFileDownload_Response.HTTPHeaders(); header.name = "X-Test"; header.value = "a\r\nb"; $0.requestHeaders = [header] }
+            { var header = PlaydenCloud_CCloud_ClientFileDownload_Response.HTTPHeaders(); header.name = "X-Test"; header.value = "a\r\nb"; $0.requestHeaders = [header] }
         ]
         for mutate in mutations {
             var response = response(); mutate(&response)

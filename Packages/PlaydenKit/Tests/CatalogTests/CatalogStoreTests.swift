@@ -42,7 +42,7 @@ final class CatalogStoreTests: XCTestCase {
     private func installation(_ source: SourceGameRecord) -> InstallationRecord {
         InstallationRecord(game: source,
             location: GameLocation(volumeID: "test-volume-uuid", lastKnownRoot: URL(fileURLWithPath: "/Volumes/Fixture"), relativePath: "steam/268910/Cuphead"),
-            bottleID: "gn-steam-268910", manifestIDs: ["268911": "12345678901234567890"], templateVersion: "1",
+            bottleID: "playden-steam-268910", manifestIDs: ["268911": "12345678901234567890"], templateVersion: "1",
             launchSpec: LaunchSpec(executableRelativePath: "Cuphead.exe"), installedAt: epoch, installedBytes: 4_000_000_000)
     }
     func testPinnedInstallPlanAndStagingSurviveRestartAndOlderRecordsStillDecode() throws {
@@ -127,7 +127,7 @@ final class CatalogStoreTests: XCTestCase {
         try store.saveInstallation(installation(game(steam)))
         let collection = GameCollection(name: "Keep", gameIDs: [steam, uninstalledID])
         try store.saveCollections([collection]); try store.saveEdits(GameEdits(note: "Keep this"), for: uninstalledID)
-        var session = PlaySessionRecord(gameID: steam, bottleID: "gn-steam-268910", startedAt: epoch)
+        var session = PlaySessionRecord(gameID: steam, bottleID: "playden-steam-268910", startedAt: epoch)
         session.playedSeconds = 300; session.lastCheckpointAt = epoch.addingTimeInterval(300)
         session.endedAt = session.lastCheckpointAt; session.outcome = .clean
         try store.saveSession(session)
@@ -143,7 +143,7 @@ final class CatalogStoreTests: XCTestCase {
     }
     func testCheckpointRestartAndDuplicateFinalizationDoNotChargeDowntime() throws {
         let path = try temporaryPath()
-        var session = PlaySessionRecord(gameID: steam, bottleID: "gn-steam-268910", startedAt: epoch)
+        var session = PlaySessionRecord(gameID: steam, bottleID: "playden-steam-268910", startedAt: epoch)
         session.playedSeconds = 180; session.lastCheckpointAt = epoch.addingTimeInterval(180)
         do {
             let store = try CatalogStore(path: path)

@@ -29,7 +29,7 @@ private actor BottleCommands: CommandExecuting {
             if interruptDelete {
                 interruptDelete = false
                 try FileManager.default.removeItem(at: destination.appendingPathComponent("cxbottle.conf"))
-                try FileManager.default.removeItem(at: destination.appendingPathComponent(".bigscreen-game-owner.json"))
+                try FileManager.default.removeItem(at: destination.appendingPathComponent(".playden-game-owner.json"))
                 return .init(exitCode: 15, output: "", cancelled: true)
             }
             try FileManager.default.removeItem(at: destination)
@@ -76,7 +76,7 @@ final class GameBottleTests: XCTestCase {
         let root = try fixture(), bottle = reference(), commands = BottleCommands()
         let manager = CrossOverGameBottles(bottles: root, runtime: ReadyTemplate(), commands: commands)
         try await manager.prepare(bottle)
-        let directory = root.appendingPathComponent(bottle.name), marker = directory.appendingPathComponent(".bigscreen-game-owner.json")
+        let directory = root.appendingPathComponent(bottle.name), marker = directory.appendingPathComponent(".playden-game-owner.json")
         let save = directory.appendingPathComponent("existing.sav"), bytes = Data("existing progress".utf8)
         try bytes.write(to: save)
         var legacy = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: marker)) as? [String: Any])
@@ -118,12 +118,12 @@ final class GameBottleTests: XCTestCase {
         let reopened = CrossOverGameBottles(bottles: root, runtime: ReadyTemplate(), commands: commands)
         try await reopened.remove(bottle)
         XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(bottle.name).path))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(".bigscreen-removing-\(bottle.ownershipToken.uuidString).json").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(".playden-removing-\(bottle.ownershipToken.uuidString).json").path))
         try await reopened.remove(bottle)
     }
     private func fixture() throws -> URL {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("Playden-bottles-\(UUID().uuidString)")
-        let template = root.appendingPathComponent("gn-template-1")
+        let template = root.appendingPathComponent("playden-template-1")
         try FileManager.default.createDirectory(at: template, withIntermediateDirectories: true)
         try "[EnvironmentVariables]\n\"WINEMSYNC\" = \"1\"\n\"CX_GRAPHICS_BACKEND\" = \"d3dmetal\"\n".write(to: template.appendingPathComponent("cxbottle.conf"), atomically: true, encoding: .utf8)
         addTeardownBlock { try FileManager.default.removeItem(at: root) }
@@ -147,7 +147,7 @@ final class GameBottleTests: XCTestCase {
         try await manager.remove(bottle)
         XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(bottle.name).path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: unrelated.path))
-        XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent("gn-template-1").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent("playden-template-1").path))
     }
     func testValidationFailureResumesPublishedCloneWithoutCopyingAgain() async throws {
         let root = try fixture(), commands = BottleCommands(failValidation: true), bottle = reference()
@@ -169,7 +169,7 @@ final class GameBottleTests: XCTestCase {
         let manager = CrossOverGameBottles(bottles: root, runtime: ReadyTemplate(), commands: commands)
         do { try await manager.prepare(bottle); XCTFail("Unowned bottle adopted") } catch {}
         try FileManager.default.removeItem(at: destination)
-        try FileManager.default.createSymbolicLink(at: destination, withDestinationURL: root.appendingPathComponent("gn-template-1"))
+        try FileManager.default.createSymbolicLink(at: destination, withDestinationURL: root.appendingPathComponent("playden-template-1"))
         do { try await manager.remove(bottle); XCTFail("Symlink accepted") } catch {}
         let count = await commands.copies; XCTAssertEqual(count, 0)
         XCTAssertTrue(FileManager.default.fileExists(atPath: destination.path))
@@ -185,7 +185,7 @@ final class GameBottleTests: XCTestCase {
         XCTAssertEqual(directory.path, String(cString: physical))
         let wrong = GameBottle(gameID: bottle.gameID, name: bottle.name, ownershipToken: UUID())
         do { _ = try await manager.ownedDirectory(wrong); XCTFail("Other ownership token exposed") } catch {}
-        let marker = directory.appendingPathComponent(".bigscreen-game-owner.json")
+        let marker = directory.appendingPathComponent(".playden-game-owner.json")
         try FileManager.default.removeItem(at: marker)
         do { _ = try await manager.ownedDirectory(bottle); XCTFail("Unowned save folder exposed") } catch {}
     }
