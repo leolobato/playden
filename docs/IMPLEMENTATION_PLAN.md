@@ -825,3 +825,12 @@ user-set Works/Playable badges; and the context menu exposes state-specific prim
 the existing guarded Uninstall flow. Details content accounts for long notes and job failures so
 it stays above the footer. All 102 app tests pass. Physical acceptance remains open. See
 [game status validation](validation/2026-09-08-game-status.md).
+
+### 8 September — Home collection identity and focus preservation
+
+Only the built-in Continue Playing row receives the 15-game cap and final Library card; a user
+collection with the same name retains every game. Home now preserves each row's selected child
+and scroll position by stable identity across download updates, collection changes and catalog
+refreshes. Row/card view identities are stable as well. All 108 app tests and the signed build
+pass; 1080p/4K Home endpoint layouts were rendered and inspected. Physical acceptance remains
+open. See [Home focus validation](validation/2026-09-08-home-row-identity.md).

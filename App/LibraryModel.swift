@@ -24,11 +24,18 @@ enum Panel: Equatable {
     case textEditor(TextPurpose), collections(GameID), collectionOptions(UUID), confirmation(Confirmation), logs(GameID)
 }
 
-struct HomeRow {
+struct HomeRow: Identifiable {
+    enum ID: Hashable { case continuePlaying, downloading, recentlyInstalled, favorites, collection(UUID) }
+    enum ItemID: Hashable { case game(GameID), library }
+    let id: ID
     let name: String
     let games: [Game]
-    let showsLibraryCard: Bool
+    var showsLibraryCard: Bool { id == .continuePlaying }
     var itemCount: Int { games.count + (showsLibraryCard ? 1 : 0) }
+    func itemID(at column: Int) -> ItemID? {
+        if let game = games[safe: column] { return .game(game.id) }
+        return showsLibraryCard && column == games.count ? .library : nil
+    }
 }
 
 @MainActor @Observable
@@ -140,6 +147,7 @@ final class LibraryModel {
     var collections = PreviewCatalog.collections { didSet { invalidateBrowseCaches(); persistCollections() } }
     @ObservationIgnored private var filteredCache: [Game]?
     @ObservationIgnored private var homeCache: [HomeRow]?
+    @ObservationIgnored var isReconcilingHomeFocus = false
     private var libraryRevision: UInt64 = 0
     private var homeRevision: UInt64 = 0
     var compatibilityNotes: [GameID: String] = [:] { didSet { persistNotes(previous: oldValue) } }
@@ -261,9 +269,20 @@ final class LibraryModel {
         libraryRevision &+= 1
     }
     private func invalidateBrowseCaches() {
+        let homeFocus = isReconcilingHomeFocus ? nil : homeCache.map { captureHomeFocus(in: $0) }
         invalidateLibraryCache()
         homeCache = nil
         homeRevision &+= 1
+        if let homeFocus { restoreHomeFocus(homeFocus) }
+    }
+    func preservingHomeFocus(_ update: () -> Void) {
+        let previous = isReconcilingHomeFocus
+        let snapshot = homeCache.map { captureHomeFocus(in: $0) }
+        isReconcilingHomeFocus = true
+        update()
+        isReconcilingHomeFocus = previous
+        if !previous, let snapshot { restoreHomeFocus(snapshot) }
+        else if !previous { revealHomeFocus() }
     }
     var filteredGames: [Game] {
         // Track a revision even on a warm read, so SwiftUI still observes every input change.
@@ -296,17 +315,16 @@ final class LibraryModel {
         _ = homeRevision
         if let homeCache { return homeCache }
         let visible = games.filter { !$0.isHidden }
-        let result: [(String, [Game])] = [
-            ("Continue playing", isPreview ? ["Hades", "Cuphead", "Hollow Knight", "Dead Cells", "Stardew Valley", "Slay the Spire", "Celeste", "Outer Wilds"].compactMap { title in visible.first { $0.title == title } } : visible.filter { $0.lastPlayedAt != nil }.sorted { $0.lastPlayedAt! > $1.lastPlayedAt! }),
-            ("Downloading now", visible.filter { [.queued, .downloading].contains($0.status) }.sorted { $0.status == .downloading && $1.status != .downloading }),
-            ("Recently installed", isPreview ? visible.filter { $0.status == .installed && $0.hoursPlayed <= 9 } : visible.filter { $0.status == .installed && $0.installedAt != nil }.sorted { $0.installedAt! > $1.installedAt! }),
-            ("Favorites", visible.filter(\.isFavorite)),
+        let result: [(HomeRow.ID, String, [Game])] = [
+            (.continuePlaying, "Continue playing", isPreview ? ["Hades", "Cuphead", "Hollow Knight", "Dead Cells", "Stardew Valley", "Slay the Spire", "Celeste", "Outer Wilds"].compactMap { title in visible.first { $0.title == title } } : visible.filter { $0.lastPlayedAt != nil }.sorted { $0.lastPlayedAt! > $1.lastPlayedAt! }),
+            (.downloading, "Downloading now", visible.filter { [.queued, .downloading].contains($0.status) }.sorted { $0.status == .downloading && $1.status != .downloading }),
+            (.recentlyInstalled, "Recently installed", isPreview ? visible.filter { $0.status == .installed && $0.hoursPlayed <= 9 } : visible.filter { $0.status == .installed && $0.installedAt != nil }.sorted { $0.installedAt! > $1.installedAt! }),
+            (.favorites, "Favorites", visible.filter(\.isFavorite)),
         ] + collections.filter(\.isPinned).map { collection in
-            (collection.name, visible.filter { collection.gameIDs.contains($0.id) })
+            (.collection(collection.id), collection.name, visible.filter { collection.gameIDs.contains($0.id) })
         }
-        let rows = result.filter { !$0.1.isEmpty }.map { name, games in
-            let isContinue = name == "Continue playing"
-            return HomeRow(name: name, games: isContinue ? Array(games.prefix(15)) : games, showsLibraryCard: isContinue)
+        let rows = result.filter { !$0.2.isEmpty }.map { id, name, games in
+            HomeRow(id: id, name: name, games: id == .continuePlaying ? Array(games.prefix(15)) : games)
         }
         homeCache = rows
         return rows
@@ -380,6 +398,7 @@ final class LibraryModel {
             itemMax: top + 315, viewport: libraryViewportHeight, content: content)
     }
     func revealHomeFocus() {
+        guard !isReconcilingHomeFocus else { return }
         let top = 24.0 + Double(homeRow) * 456
         homeScrollOffset = FocusViewport.reveal(offset: homeScrollOffset, itemMin: top,
             itemMax: top + 450, viewport: 840, content: 48 + Double(rows.count) * 456)

@@ -38,12 +38,14 @@
 		47D3331506D352A34D2918D0 /* LibraryFilterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C9C86672EFCA75AD8158EA9 /* LibraryFilterTests.swift */; };
 		557F062A5951E40EC82A7F69 /* FocusViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = F51F9BB1C1297E755C6FB654 /* FocusViews.swift */; };
 		678145EB1E39512228810CF7 /* ArtworkCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 455BAC3C2C8544E4682144E8 /* ArtworkCacheTests.swift */; };
+		6AE3400A3B47BD3BA5A4B4E3 /* HomeNavigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35357DB7608B2221B9BCA89A /* HomeNavigation.swift */; };
 		759FD0040D3A15F11EB242BF /* SessionModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEE20F0279EE5686D8DDF808 /* SessionModel.swift */; };
 		764655582701C0B1C2F9BA54 /* SupportViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0ABE6CC32C22767FC77D4D03 /* SupportViews.swift */; };
 		7C334DEF7D550877108D36C6 /* SetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E9A8D8C39868D9CD1F07282 /* SetupView.swift */; };
 		7F96A26586E28F9E769DE73C /* ResetInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A0E83CFC6AB17E9B61ACC5A /* ResetInteractionTests.swift */; };
 		85893C2ABE20A3E103B5225D /* DownloadTransferTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 825D548FA12B76980D9AE991 /* DownloadTransferTests.swift */; };
 		8898C23653880E5196312E05 /* DisplayInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCEE46DE0C8F1B560E954F47 /* DisplayInteractionTests.swift */; };
+		89F0722369DD8D572D97E15F /* HomeNavigationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFF46CA81D6E2F684129B207 /* HomeNavigationTests.swift */; };
 		8E48D457DC1378C5E8F680BF /* SetupModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B189A59421792AA442D72A7D /* SetupModel.swift */; };
 		8F22CB0C305DF070224934BA /* BarlowCondensed-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 675832B109B2E37BE237EB27 /* BarlowCondensed-SemiBold.ttf */; };
 		8F6786AF7BABC6BECC836D3F /* LibraryFilters.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD033BB2ED7ABC84DF20A75D /* LibraryFilters.swift */; };
@@ -115,6 +117,7 @@
 		290BD195A4CE920AC4FD05D0 /* InstallModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallModel.swift; sourceTree = "<group>"; };
 		298A7FE3903DF49BE93D4156 /* DownloadsStorageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadsStorageTests.swift; sourceTree = "<group>"; };
 		2ABB68A7CE89083ACCBE20BC /* LibraryEditing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryEditing.swift; sourceTree = "<group>"; };
+		35357DB7608B2221B9BCA89A /* HomeNavigation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeNavigation.swift; sourceTree = "<group>"; };
 		3547F87915CA6A6B8343BBC8 /* DownloadHistoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadHistoryTests.swift; sourceTree = "<group>"; };
 		3F8702FA8C0998A1511EBD2C /* GameDisplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameDisplay.swift; sourceTree = "<group>"; };
 		4038C0219269A842D64FC94D /* EditingViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditingViews.swift; sourceTree = "<group>"; };
@@ -153,6 +156,7 @@
 		BBF8335C78563AB54988A674 /* BarlowCondensed-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "BarlowCondensed-Bold.ttf"; sourceTree = "<group>"; };
 		BCEE46DE0C8F1B560E954F47 /* DisplayInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayInteractionTests.swift; sourceTree = "<group>"; };
 		BD033BB2ED7ABC84DF20A75D /* LibraryFilters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryFilters.swift; sourceTree = "<group>"; };
+		BFF46CA81D6E2F684129B207 /* HomeNavigationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeNavigationTests.swift; sourceTree = "<group>"; };
 		C0A99C8A8DFE712FC7DD3CEF /* LibraryPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryPersistence.swift; sourceTree = "<group>"; };
 		C8DF7A3A43F7711BF2900808 /* barlow-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "barlow-OFL.txt"; sourceTree = "<group>"; };
 		CB83A4AB9B30E5196BC6109C /* PairingControllerArt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingControllerArt.swift; sourceTree = "<group>"; };
@@ -205,6 +209,7 @@
 				3547F87915CA6A6B8343BBC8 /* DownloadHistoryTests.swift */,
 				298A7FE3903DF49BE93D4156 /* DownloadsStorageTests.swift */,
 				825D548FA12B76980D9AE991 /* DownloadTransferTests.swift */,
+				BFF46CA81D6E2F684129B207 /* HomeNavigationTests.swift */,
 				766C5E1AA303977304DFD467 /* InstallInteractionTests.swift */,
 				BAA058B561808E36274C4A53 /* LibraryEditingTests.swift */,
 				4C9C86672EFCA75AD8158EA9 /* LibraryFilterTests.swift */,
@@ -254,6 +259,7 @@
 				F51F9BB1C1297E755C6FB654 /* FocusViews.swift */,
 				3F8702FA8C0998A1511EBD2C /* GameDisplay.swift */,
 				DAC0CDDDECE591309D86C1B6 /* GameExitShortcut.swift */,
+				35357DB7608B2221B9BCA89A /* HomeNavigation.swift */,
 				290BD195A4CE920AC4FD05D0 /* InstallModel.swift */,
 				2282843F7F4162EBF4E8583C /* InstallSnapshots.swift */,
 				2ABB68A7CE89083ACCBE20BC /* LibraryEditing.swift */,
@@ -499,6 +505,7 @@
 				557F062A5951E40EC82A7F69 /* FocusViews.swift in Sources */,
 				C617DC97E2339CC012966C7D /* GameDisplay.swift in Sources */,
 				22C6ADE3CF2AAE902950F889 /* GameExitShortcut.swift in Sources */,
+				6AE3400A3B47BD3BA5A4B4E3 /* HomeNavigation.swift in Sources */,
 				38E2837AB3519707459E65EF /* InstallModel.swift in Sources */,
 				3D06C7DD0B318C2EDB32000C /* InstallSnapshots.swift in Sources */,
 				026CD25A5A7A4881AC6252AE /* LibraryEditing.swift in Sources */,
@@ -537,6 +544,7 @@
 				D4018573EFE69AF20732859B /* DownloadHistoryTests.swift in Sources */,
 				85893C2ABE20A3E103B5225D /* DownloadTransferTests.swift in Sources */,
 				B1590EAEFE782189155E22D5 /* DownloadsStorageTests.swift in Sources */,
+				89F0722369DD8D572D97E15F /* HomeNavigationTests.swift in Sources */,
 				A87C77D05E6DD17B5E85C9BD /* InstallInteractionTests.swift in Sources */,
 				F97B357CF2C84140B4D6FD9C /* LibraryEditingTests.swift in Sources */,
 				47D3331506D352A34D2918D0 /* LibraryFilterTests.swift in Sources */,

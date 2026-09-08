@@ -185,14 +185,9 @@ extension LibraryModel {
     }
     func reloadCatalog() {
         let focusedID = focusedGame?.id
-        let selectedRowName = rows[safe: homeRow]?.name
         restoringState = true; restoreCatalog(); restoringState = false
         refreshCloudAvailability()
         if let focusedID, let index = filteredGames.firstIndex(where: { $0.id == focusedID }) { libraryCursor = GridCursor(index: index) }
-        if let selectedRowName, let index = rows.firstIndex(where: { $0.name == selectedRowName }) {
-            homeRow = index
-            if let focusedID, let column = rows[index].games.firstIndex(where: { $0.id == focusedID }) { homeColumns[index] = column }
-        }
         if let detailID, !games.contains(where: { $0.id == detailID }) { self.detailID = nil }
     }
 }

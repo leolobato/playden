@@ -30,12 +30,13 @@ struct FocusedHomeRows: View {
     var body: some View {
         let rows = model.rows
         ZStack(alignment: .topLeading) {
-            ForEach(model.homeVisibleRowIndices, id: \.self) { index in
-                let row = rows[index]
+            ForEach(model.homeVisibleRowIndices.map { (index: $0, row: rows[$0]) }, id: \.row.id) { entry in
+                let index = entry.index, row = entry.row
                 VStack(alignment: .leading, spacing: 28) {
                     SectionLabel(text: row.name).padding(.leading, 24)
                     ZStack(alignment: .topLeading) {
-                        ForEach(model.homeVisibleColumns(in: index), id: \.self) { column in
+                        ForEach(model.homeVisibleColumns(in: index).map { (column: $0, id: row.itemID(at: $0)) }, id: \.id) { item in
+                            let column = item.column
                             Group {
                                 if let game = row.games[safe: column] {
                                     GameTile(game: game, focused: !model.tabsFocused && model.homeRow == index && model.homeColumns[index, default: 0] == column,

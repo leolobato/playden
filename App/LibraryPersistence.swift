@@ -6,6 +6,9 @@ extension LibraryModel {
     /// Preview fixtures seed their own database once. Production callers pass preview: false and
     /// populate this same catalog through GameSource; no fixture can become a real installation.
     func restoreCatalog() {
+        preservingHomeFocus { restoreCatalogContents() }
+    }
+    private func restoreCatalogContents() {
         guard let catalog else { return }
         do {
             if isPreview, try catalog.lastSync(for: "steam") == nil {

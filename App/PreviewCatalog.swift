@@ -70,6 +70,10 @@ extension PreviewCatalog {
                         installedAt: Date(timeIntervalSince1970: Double(index)))
         }
         model.collections = (0..<8).map { .init(name: "Collection \($0 + 1)", gameIDs: Set(model.games.map(\.id)), isPinned: true) }
+        if screen == "home-collection-end" {
+            model.games = Array(model.games.prefix(40))
+            model.collections = [.init(name: "Continue playing", gameIDs: Set(model.games.map(\.id)), isPinned: true)]
+        }
         model.selectTab(screen.hasPrefix("home-") ? .home : .library)
         if screen.hasSuffix("-end") {
             if model.tab == .home {
