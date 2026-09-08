@@ -185,10 +185,7 @@ public actor InstallQueue: InstallQueuing {
         records.values.sorted { $0.queuePosition == $1.queuePosition ? $0.createdAt < $1.createdAt : $0.queuePosition < $1.queuePosition }
     }
     private func reserved(on volumeID: String, excluding id: UUID? = nil) -> Int64 {
-        records.values.filter { $0.id != id && $0.volume?.volumeID == volumeID && ![.completed, .cancelled].contains($0.state) }.reduce(0) {
-            let remaining = $1.kind == .repair ? 0 : max(0, ($1.plan?.estimate.requiredBytes ?? 0) - $1.bytesCompleted)
-            let sum = $0.addingReportingOverflow(remaining); return sum.overflow ? Int64.max : sum.partialValue
-        }
+        InstallReservations.bytes(Array(records.values), on: volumeID, excluding: id)
     }
     private func pump() {
         guard running, persistenceFailure == nil, activeTask == nil,

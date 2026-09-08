@@ -629,3 +629,13 @@ the exact remote bytes into the new bottle, Continue loaded the existing progres
 completed post-exit sync. The game remains installed. Network/account/concurrent-client and
 interrupted-operation acceptance remain open.
 See `docs/validation/2026-09-08-uninstall-live-restore.md`.
+
+### 8 September — Downloads storage checkpoint
+
+The production Downloads card now measures owned game/partial-download files on the selected
+volume and shows queue reservations, other used space, free-after-queue and shortages. Reservation
+accounting is shared with install offers and the worker. Disconnected/failed reads clear stale
+figures and refresh automatically; late results from a prior selection are rejected. Tests,
+1080p/4K rendering and independent live VM-volume allocation checks pass. Speed/ETA, history
+dismissal and physical drive-disconnection acceptance remain.
+See `docs/validation/2026-09-08-download-storage.md`.

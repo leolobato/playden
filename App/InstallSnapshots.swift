@@ -14,6 +14,12 @@ import Installs
         let plan = InstallPlan(game: source, manifestIDs: [:], estimate: .init(downloadBytes: 2_100_000_000, installedBytes: 3_500_000_000, requiredBytes: 7_300_000_000), launchSpec: .init(executableRelativePath: "TUNIC.exe"), sourcePayload: Data())
         let volume = GamesVolumeSelection(volumeID: "screenshot-only", rootBookmark: Data(), lastKnownRoot: URL(fileURLWithPath: "/Volumes/Games/Big Screen"), relativeRoot: "Big Screen")
         model.gamesVolume = volume
+        model.gamesStorage = .init(volumeID: volume.volumeID, name: "Games", root: volume.lastKnownRoot,
+            totalBytes: 2_000_000_000_000, freeBytes: screen == "install-storage-shortage" ? 9_000_000_000 : 1_350_000_000_000,
+            gamesBytes: 640_000_000_000, reservedBytes: 13_900_000_000)
+        if screen == "install-storage-unavailable" {
+            model.gamesStorage = nil; model.gamesStorageError = "Reconnect your games drive. Storage will update automatically."
+        }
         if let index = model.games.firstIndex(where: { $0.id == game.id }) { model.games[index].size = "2.1 GB" }
         if screen.hasPrefix("install-offer") {
             model.openGame(game)

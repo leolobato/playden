@@ -74,6 +74,9 @@ final class LibraryModel {
     var installOffer: InstallOffer?
     var installOfferError: String?
     var resolvingInstall = false
+    @ObservationIgnored let gamesStorageReader: (any GamesStorageReading)?
+    var gamesStorage: GamesStorageSnapshot?
+    var gamesStorageError: String?
     var installJobs: [JobRecord] = []
     var activeInstallID: UUID?
     var installPersistenceError: String?
@@ -172,9 +175,10 @@ final class LibraryModel {
     var keyRow = 1
     var keyColumn = 0
     var uppercase = false
-    init(catalog: CatalogStore? = nil, preview: Bool = true, source: (any GameSource)? = nil, runtime: (any BottleManaging)? = nil, volumeStore: (any VolumeManaging)? = nil, installQueue: (any InstallQueuing)? = nil, sessions: (any SessionManaging)? = nil, cloud: (any CloudSyncManaging)? = nil) {
+    init(catalog: CatalogStore? = nil, preview: Bool = true, source: (any GameSource)? = nil, runtime: (any BottleManaging)? = nil, volumeStore: (any VolumeManaging)? = nil, installQueue: (any InstallQueuing)? = nil, sessions: (any SessionManaging)? = nil, cloud: (any CloudSyncManaging)? = nil, gamesStorageReader: (any GamesStorageReading)? = nil) {
         self.catalog = catalog; self.isPreview = preview; self.source = source
         self.runtime = runtime; self.volumeStore = volumeStore
+        self.gamesStorageReader = gamesStorageReader ?? (!preview && catalog != nil ? GamesStorageReader(volumes: volumeStore ?? GamesVolumeStore()) : nil)
         self.syncCoordinator = catalog.map { LibrarySyncCoordinator(catalog: $0) }
         if let installQueue { self.installQueue = installQueue }
         else if !preview, let catalog, let source {

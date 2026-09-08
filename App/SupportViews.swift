@@ -6,32 +6,10 @@ struct DownloadsScreen: View {
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
             DownloadQueue(model: model).frame(width: 1188, height: 894).offset(x: -24, y: -24)
-            VStack(alignment: .leading, spacing: 28) {
-                SectionLabel(text: "Games volume")
-                if model.isPreview {
-                VStack(alignment: .leading, spacing: 24) {
-                    Text("VM").font(Design.condensed(36))
-                    Text("412 GB free of 2 TB").font(Design.body(22)).foregroundStyle(Design.secondary)
-                    GeometryReader { g in HStack(spacing: 0) { Design.text.frame(width: g.size.width * 0.7); Design.accent.frame(width: g.size.width * 0.08); Design.text.opacity(0.15) } }.frame(height: 16).clipShape(Capsule())
-                    storageLine("Used by games", "1.51 TB", Design.text)
-                    storageLine("Reserved by queue", "10.1 GB", Design.accent)
-                    storageLine("Free", "412 GB", Design.muted)
-                    Rectangle().fill(Design.text.opacity(0.1)).frame(height: 1)
-                    Text(model.downloadWhilePlaying ? "Downloads continue while you play." : "Downloads pause automatically while you play.").font(Design.body(22)).foregroundStyle(Design.secondary).lineSpacing(6)
-                }.padding(28).background(Design.text.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
-                Text("Preview queue · no files are being downloaded").font(Design.body(18)).foregroundStyle(Design.muted)
-                } else {
-                    Text(model.gamesVolume == nil ? "No games drive selected" : "Games folder").font(Design.condensed(36))
-                    Text(model.gamesVolume?.lastKnownRoot.path ?? "Choose a drive in Settings → Library.").font(Design.body(24)).foregroundStyle(Design.secondary)
-                    Text("One game installs at a time. Pause, reorder or cancel an installation from its menu.").font(Design.body(22)).foregroundStyle(Design.secondary).lineSpacing(6)
-                    if let error = model.installPersistenceError { Text(error).font(Design.body(22)).foregroundStyle(Design.amber) }
-                }
-            }.frame(width: 524)
+            DownloadsStorageCard(model: model).frame(width: 524)
         }.offset(x: 96, y: 150)
     }
-    private func storageLine(_ title: String, _ value: String, _ color: Color) -> some View {
-        HStack(spacing: 12) { Circle().fill(color).frame(width: 10, height: 10); Text(title); Spacer(); Text(value).foregroundStyle(Design.secondary) }.font(Design.body(22))
-    }
+
 }
 
 struct SettingsScreen: View {
