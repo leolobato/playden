@@ -621,3 +621,11 @@ separate consent before discarding unsynced progress. Downloads offers removal s
 of download cancellation; details blocks Play until removal finishes. Controller/keyboard interaction
 tests and 1080p/4K rendering checks pass. Live A Short Hike removal/reinstall/restore acceptance is next.
 See `docs/validation/2026-09-08-uninstall-ui.md`.
+
+Live A Short Hike uninstall/reinstall/Cloud restoration now passes. The app removed the owned game
+folder and bottle after a fresh sync; an independent Steam read confirmed the remote save stayed
+unchanged. Reinstallation used the selected games volume and a fresh identity/token. Play restored
+the exact remote bytes into the new bottle, Continue loaded the existing progress, and clean exit
+completed post-exit sync. The game remains installed. Network/account/concurrent-client and
+interrupted-operation acceptance remain open.
+See `docs/validation/2026-09-08-uninstall-live-restore.md`.
