@@ -19,6 +19,8 @@ static void message(const char *value) {
     WriteFile(GetStdHandle((DWORD)-11), value, count, &written, 0);
 }
 
+#include "audio.h"
+
 static BOOL enumerateMonitor(HMONITOR monitor, HDC dc, RECT *rect, LPARAM unused) {
     (void)dc; (void)rect; (void)unused;
     if (monitorCount >= 32) return 0;
@@ -171,9 +173,12 @@ void mainCRTStartup(void) {
     int geometry[6];
     if (!readBytes(geometry, sizeof(geometry))) ExitProcess(2);
     for (int i = 0; i < 6; ++i) if (geometry[i] < -131072 || geometry[i] > 131072) ExitProcess(2);
-    if (geometry[2] <= 0 || geometry[3] <= 0 || geometry[4] <= 0 || geometry[5] <= 0 || !readArguments()) ExitProcess(2);
-    BOOL canPlace = EnumDisplayMonitors(0, 0, enumerateMonitor, 0) && chooseMonitor(geometry);
-    if (!canPlace) message("[Big Screen display] Display lookup unavailable; using the game's display.\n");
+    BOOL hasDisplay = 0;
+    for (int i = 0; i < 6; ++i) if (geometry[i]) hasDisplay = 1;
+    if ((hasDisplay && (geometry[2] <= 0 || geometry[3] <= 0 || geometry[4] <= 0 || geometry[5] <= 0)) || !readArguments()) ExitProcess(2);
+    configureAudio();
+    BOOL canPlace = hasDisplay && EnumDisplayMonitors(0, 0, enumerateMonitor, 0) && chooseMonitor(geometry);
+    if (hasDisplay && !canPlace) message("[Big Screen display] Display lookup unavailable; using the game's display.\n");
     STARTUPINFOW startup = {0}; startup.cb = sizeof(startup);
     if (canPlace) { startup.flags = 4; startup.x = target.left; startup.y = target.top; }
     PROCESS_INFORMATION child = {0};

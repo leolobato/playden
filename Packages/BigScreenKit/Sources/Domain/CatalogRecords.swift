@@ -61,6 +61,8 @@ public struct LibraryPreferences: Codable, Equatable, Sendable {
     public var selectedDisplayID: UInt32?
     public var selectedDisplayUUID: String?
     public var selectedDisplayName: String?
+    public var selectedAudioDeviceUID: String?
+    public var selectedAudioDeviceName: String?
     /// Nil preserves the fullscreen default for profiles created before this setting existed.
     public var startInFullscreen: Bool?
     public var gamesVolume: GamesVolumeSelection?

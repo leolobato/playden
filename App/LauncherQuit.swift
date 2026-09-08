@@ -13,6 +13,12 @@ extension LibraryModel {
     }
     var isConfirmingLauncherQuit: Bool { launcherQuitRequest != nil }
 
+    func quitLauncherFromUI() {
+        guard !launcherQuitting else { return }
+        if hasActiveSession { requestLauncherQuit() }
+        else { onLauncherQuit?() }
+    }
+
     func requestLauncherQuit() {
         guard hasActiveSession, !launcherQuitting else { return }
         launcherQuitApproval = nil

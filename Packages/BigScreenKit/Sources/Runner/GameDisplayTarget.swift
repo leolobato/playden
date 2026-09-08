@@ -17,9 +17,12 @@ public struct GameDisplayTarget: Equatable, Sendable {
         return values.map { String(Int($0.rounded())) }
     }
     func launchInput(executable: String, arguments: [String]) throws -> Data {
+        try Self.launchInput(display: self, executable: executable, arguments: arguments)
+    }
+    static func launchInput(display: GameDisplayTarget?, executable: String, arguments: [String]) throws -> Data {
         var data = Data()
         func append(_ value: UInt32) { var little = value.littleEndian; withUnsafeBytes(of: &little) { data.append(contentsOf: $0) } }
-        for value in try self.arguments() { append(UInt32(bitPattern: Int32(value)!)) }
+        for value in try display?.arguments() ?? Array(repeating: "0", count: 6) { append(UInt32(bitPattern: Int32(value)!)) }
         let values = [executable] + arguments
         guard values.count <= 1024 else { throw CocoaError(.fileReadCorruptFile) }
         append(UInt32(values.count))

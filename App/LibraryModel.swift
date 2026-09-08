@@ -141,6 +141,10 @@ final class LibraryModel {
     @ObservationIgnored var installationDriveGeneration = UUID()
     var installationDriveAvailable: [GameID: Bool] = [:]
     var checkingInstallationDrives: Set<GameID> = []
+    var audioDevices: [AudioDeviceChoice] = []
+    var selectedAudioDeviceUID: String?
+    var selectedAudioDeviceName: String?
+    var audioDeviceError: String?
     var displays: [DisplayChoice] = []
     var selectedDisplayID: UInt32?
     var selectedDisplayUUID: String?
@@ -266,7 +270,8 @@ final class LibraryModel {
             do {
                 let runner = CrossOverRunner(manager: CrossOverGameBottles(runtime: runtime ?? CrossOverRuntime()),
                     displayHelper: Bundle.main.url(forResource: "BigScreenDisplay", withExtension: "exe"),
-                    displayTarget: { @MainActor in GameDisplay.target(preferences: try catalog.preferences()) })
+                    displayTarget: { @MainActor in GameDisplay.target(preferences: try catalog.preferences()) },
+                    audioDeviceUID: { @MainActor in try catalog.preferences().selectedAudioDeviceUID })
                 self.sessions = try SessionService(catalog: catalog, sources: [source], runner: runner, queue: queue,
                     storage: InstallStorage(volumes: volumeStore ?? GamesVolumeStore()), cloud: self.cloudService)
             }
@@ -382,10 +387,10 @@ final class LibraryModel {
         else if isCheckingInstallationDrive(game.id) { primary = "Checking drive…" }
         else if gamesNeedingRepair.contains(game.id) { primary = "Verify files" }
         else { primary = switch game.status { case .installed: "Play"; case .downloading: downloadPaused ? "Resume download" : "Pause download"; case .queued: "View download"; case .driveDisconnected: "Drive disconnected"; case .notInstalled: "Install" } }
-        return [primary, game.isFavorite ? "Favorited" : "Favorite", "Add to collection", game.isHidden ? "Unhide" : "Hide", "Set compatibility"] + (game.status == .installed ? (primary == "Verify files" ? ["Uninstall", "Cloud saves"] : ["Verify files", "Uninstall", "Cloud saves"]) : []) + ["View logs"]
+        return [primary] + (canShowGameControls && session.session?.gameID == game.id ? ["Quit game"] : []) + [game.isFavorite ? "Favorited" : "Favorite", "Add to collection", game.isHidden ? "Unhide" : "Hide", "Set compatibility"] + (game.status == .installed ? (primary == "Verify files" ? ["Uninstall", "Cloud saves"] : ["Verify files", "Uninstall", "Cloud saves"]) : []) + ["View logs"]
     }
     var contextActions: [String] {
-        [detailActions.first ?? "Open game", focusedGame?.isFavorite == true ? "Unfavorite" : "Favorite", "Set compatibility", focusedGame?.isHidden == true ? "Unhide" : "Hide", "View logs", "Add to collection"]
+        [detailActions.first ?? "Open game"] + (detailActions.contains("Quit game") ? ["Quit game"] : []) + [focusedGame?.isFavorite == true ? "Unfavorite" : "Favorite", "Set compatibility", focusedGame?.isHidden == true ? "Unhide" : "Hide", "View logs", "Add to collection"]
         + (focusedGame.map { (gameLaunchOptions[$0.id]?.count ?? 0) > 1 } == true ? ["Launch options"] : [])
         + (detailActions.contains("Uninstall") ? ["Uninstall"] : [])
     }
@@ -589,8 +594,8 @@ final class LibraryModel {
             if direction == .up && allowsTabFocus && (settingsRailFocused ? settingsSection == 0 : settingsIndex == 0) { tabsFocused = true; return }
             if direction == .left { settingsRailFocused = true }
             else if direction == .right { settingsRailFocused = false }
-            else if settingsRailFocused { settingsSection = min(max(0, settingsSection + (direction == .up ? -1 : 1)), 4); settingsIndex = 0 }
-            else { settingsIndex = min(max(0, settingsIndex + (direction == .up ? -1 : 1)), settingsSection == 1 || settingsSection == 2 ? 3 : settingsSection == 4 ? 2 : 0) }
+            else if settingsRailFocused { settingsSection = min(max(0, settingsSection + (direction == .up ? -1 : 1)), 5); settingsIndex = 0 }
+            else { settingsIndex = min(max(0, settingsIndex + (direction == .up ? -1 : 1)), settingsSection == 1 || settingsSection == 2 ? 3 : settingsSection == 4 ? 3 : 0) }
         }
     }
     func activateDetail() {
@@ -600,6 +605,7 @@ final class LibraryModel {
         case "Cloud saves", "Review saves": if let id = focusedGame?.id { showCloud(id) }
         case "Play": if let id = focusedGame?.id { beginPlay(id) }
         case "Return to game": returnToGame()
+        case "Quit game": showGameControls()
         case "Favorite", "Favorited": toggleFavorite()
         case "Hide", "Unhide": hideFocused()
         case "Set compatibility": show(.compatibility)
@@ -635,6 +641,7 @@ final class LibraryModel {
         case .context:
             if !panelActionEnabled(at: panelIndex) { return }
             if panelIndex == 0, let game = focusedGame { openGame(game); activateDetail() }
+            else if label == "Quit game" { showGameControls() }
             else if label == "Favorite" || label == "Unfavorite" { toggleFavorite(); panel = nil }
             else if label == "Set compatibility" { show(.compatibility) }
             else if label == "Hide" || label == "Unhide" { hideFocused(); panel = nil }
@@ -680,9 +687,11 @@ final class LibraryModel {
         else if settingsSection == 2 && settingsIndex == 2 { toggleStartInFullscreen() }
         else if settingsSection == 2 && settingsIndex == 3 { reducedMotion.toggle() }
         else if settingsSection == 1 && settingsIndex == 2 { downloadWhilePlaying.toggle() }
+        else if settingsSection == 5 { openAudioSettings() }
         else if settingsSection == 3 { openControllerTest() }
         else if settingsSection == 4 && settingsIndex == 1 { revealLogsFolder() }
         else if settingsSection == 4 && settingsIndex == 2 { showResetAppData() }
+        else if settingsSection == 4 && settingsIndex == 3 { quitLauncherFromUI() }
         else if settingsSection == 4 { show(.information("Big Screen \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1")\n\nCrossOver \(runtimeInfo?.version ?? "not detected") · Template \(runtimeInfo?.templateVersion ?? "not prepared")")) }
         else { show(.information(isPreview ? "The design preview uses sample games. Launch without --preview to connect your account and set up your Mac." : "This setting is still being implemented.")) }
     }

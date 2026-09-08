@@ -49,6 +49,24 @@ final class SessionInteractionTests: XCTestCase {
         played.runtime = .init(run: .init(bottle: bottle, launcher: identity), phase: .running, window: .init(id: 1, process: identity), hadWindow: true)
         return .init(phase: phase, game: game, session: played)
     }
+    func testVisibleQuitActionsOpenConfirmationAndDisappearWhenSessionEnds() throws {
+        let model = LibraryModel()
+        model.games = [Game(id: id, title: "A Short Hike", status: .installed)]
+        model.detailID = id
+        model.receiveSession(snapshot())
+        XCTAssertTrue(model.canShowGameControls)
+        XCTAssertEqual(Array(model.detailActions.prefix(2)), ["Return to game", "Quit game"])
+        model.detailAction = 1; model.activateDetail()
+        XCTAssertTrue(model.exitOverlay); XCTAssertEqual(model.exitIndex, 0)
+        model.setExitOverlay(false)
+        model.show(.context); model.panelIndex = try XCTUnwrap(model.contextActions.firstIndex(of: "Quit game"))
+        model.activatePanel()
+        XCTAssertNil(model.panel); XCTAssertTrue(model.exitOverlay)
+        model.receiveSession(.init())
+        XCTAssertFalse(model.canShowGameControls)
+        XCTAssertFalse(model.detailActions.contains("Quit game"))
+        model.showGameControls(); XCTAssertFalse(model.exitOverlay)
+    }
     func testFirstWindowHandsOffOnceAndExitReturnsHome() {
         let model = LibraryModel()
         var handoffs = 0, exits = 0

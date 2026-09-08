@@ -4,6 +4,51 @@ import Vision
 @testable import BigScreen
 
 @MainActor final class ExitOverlayLayoutTests: XCTestCase {
+    func testAudioPickerAndVisibleQuitActionsRenderAt1080() async throws {
+        Design.registerFonts()
+        for screen in ["audio", "about", "running"] {
+            let model = LibraryModel(); model.fixedClock = true; model.reducedMotion = true
+            for index in model.games.indices {
+                model.games[index].coverURL = nil; model.games[index].heroURL = nil; model.games[index].logoURL = nil
+            }
+            let content: AnyView
+            let expected: [String]
+            if screen == "audio" {
+                model.audioDevices = [.init(id: "tv", name: "Living room speakers"), .init(id: "headphones", name: "Wireless headphones")]
+                model.selectedAudioDeviceUID = "tv"; model.setupScreen = .audio; model.setupIndex = 1
+                content = AnyView(SetupView(model: model)); expected = ["choose your audio output", "system default", "living room speakers", "next launch"]
+            } else if screen == "about" {
+                model.selectTab(.settings); model.settingsSection = 4; model.settingsIndex = 3
+                content = AnyView(LauncherView(model: model)); expected = ["quit big screen", "downloads pause"]
+            } else {
+                model.configureSessionSnapshot("exit-overlay"); model.exitOverlay = false
+                model.detailID = model.sessionGame?.id
+                content = AnyView(LauncherView(model: model)); expected = ["return to game", "quit game"]
+            }
+            // AppKit-backed scroll views need a hosting view to participate in snapshots.
+            let hosting = NSHostingView(rootView: content.frame(width: 1920, height: 1080))
+            let window = NSWindow(contentRect: .init(x: -10000, y: -10000, width: 1920, height: 1080),
+                                  styleMask: .borderless, backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false; window.contentView = hosting
+            defer { window.contentView = nil; window.close() }
+            hosting.layoutSubtreeIfNeeded()
+            try await Task.sleep(for: .milliseconds(100))
+            hosting.layoutSubtreeIfNeeded()
+            let bitmap = try XCTUnwrap(hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds))
+            hosting.cacheDisplay(in: hosting.bounds, to: bitmap)
+            let image = try XCTUnwrap(bitmap.cgImage)
+            let attachment = XCTAttachment(image: NSImage(cgImage: image, size: .zero))
+            attachment.name = "audio-quit-\(screen)"; attachment.lifetime = .keepAlways; add(attachment)
+            let request = VNRecognizeTextRequest(); request.recognitionLevel = .accurate
+            try VNImageRequestHandler(cgImage: image).perform([request])
+            let text = (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }.joined(separator: " ").lowercased()
+            for value in expected { XCTAssertTrue(text.contains(value), "Missing \(value): \(text)") }
+            let directory = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("bigscreen-audio-quit-review")
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try XCTUnwrap(NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]))
+                .write(to: directory.appendingPathComponent("\(screen).png"))
+        }
+    }
     func testDownloadsShowActualVerificationPercentageAt1080And4K() throws {
         Design.registerFonts()
         for width in [1920, 3840] {

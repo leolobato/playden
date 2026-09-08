@@ -100,6 +100,7 @@ extension LibraryModel {
         for index in games.indices { games[index].isFavorite = false; games[index].isHidden = false; games[index].compatibility = .untested }
         collections = []; compatibilityNotes = [:]
         filter = .all; sort = .name; refinements = .init(); reducedMotion = false; downloadWhilePlaying = false
+        selectedAudioDeviceUID = nil; selectedAudioDeviceName = nil
         gamesVolume = nil; selectedDisplayID = nil; selectedDisplayUUID = nil; selectedDisplayName = nil; startInFullscreen = true
         restoringState = false
     }

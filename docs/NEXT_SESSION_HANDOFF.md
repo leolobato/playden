@@ -1,5 +1,24 @@
 # Next session handoff — 8 September 2026
 
+## Current priority — monitor, audio and quit controls
+
+The user redirected this pass to the Wine monitor issue, then requested a preferred
+output device, a visible Quit game action, and a visible Quit Big Screen action.
+Generic focus-engine work is suspended in `stash@{0}` named
+`WIP generic focus engine and Home Library integration before Wine monitor investigation`.
+Do not pop it into these changes automatically. Existing user depot/download and
+design edits remain separate and uncommitted.
+
+The live A Short Hike window was successfully moved from LG to the preferred ASUS
+without restarting it. Startup placement now waits for an eligible game window
+before starting its ten-second movement budget. Audio is configured per game bottle
+on launch, without changing the Mac's output. Both quit actions are now visible and
+use the existing session/shutdown controls. See the [monitor investigation](validation/2026-09-08-wine-monitor-startup.md)
+and [audio/quit validation](validation/2026-09-08-preferred-audio.md).
+The updated installed helper still needs a real cold-launch acceptance check;
+physical audio playback/reconnect and live quit remain acceptance items. The current
+installed app has not been replaced during the active game session.
+
 ## Current resumption — 8 September 2026
 
 The user has resumed implementation of this handoff and asked to check stale instructions.

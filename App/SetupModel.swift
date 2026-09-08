@@ -4,7 +4,7 @@ import Input
 import Runner
 import AppKit
 
-enum SetupScreen { case controller, display, account, volume, runtime }
+enum SetupScreen { case controller, display, audio, account, volume, runtime }
 struct DisplayChoice: Identifiable, Equatable {
     var id: UInt32
     var name: String
@@ -110,6 +110,7 @@ extension LibraryModel {
         switch setupScreen {
         case .controller: [controllerName == nil ? "Continue with keyboard" : "Continue", "Open Bluetooth settings"]
         case .display: displays.map { $0.name } + ["Back"]
+        case .audio: ["System default"] + audioDevices.map(\.name) + ["Back"]
         case .volume:
             if setupBusy { volumeSaving ? ["Cancel"] : [] }
             else if setupFailure != nil { ["Choose another drive", onboarding ? "Set up later" : "Back"] }
@@ -157,6 +158,10 @@ extension LibraryModel {
                 onDisplaySelected?(display.id)
                 if onboarding { advanceToAccount() } else { finishSetup() }
             } catch { setupFailure = setupProblem(error, stage: "Choose display") }
+        case .audio:
+            if setupIndex == 0 { selectAudioDevice(nil) }
+            else if let device = audioDevices[safe: setupIndex - 1] { selectAudioDevice(device) }
+            else { finishSetup() }
         case .volume:
             if setupBusy { setupTask?.cancel() }
             else if setupFailure != nil {

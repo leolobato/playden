@@ -1,0 +1,6 @@
+LIBRARY OLE32.dll
+EXPORTS
+CoInitializeEx
+CoUninitialize
+CoCreateInstance
+StringFromGUID2

@@ -9,6 +9,21 @@ import Sessions
         return .init(phase: .running, game: game, session: .init(gameID: game.id, bottleID: "fixture"))
     }
 
+    func testVisibleAppQuitUsesIdleShutdownAndActiveSessionConfirmation() {
+        let model = LibraryModel()
+        var requests = 0; model.onLauncherQuit = { requests += 1 }
+        model.selectTab(.settings); model.settingsSection = 4; model.settingsRailFocused = false
+        model.settingsIndex = 2; model.perform(.move(.down)); model.perform(.confirm)
+        XCTAssertEqual(model.settingsIndex, 3); XCTAssertEqual(requests, 1)
+        model.session = running()
+        model.quitLauncherFromUI()
+        XCTAssertEqual(requests, 1); XCTAssertTrue(model.isConfirmingLauncherQuit)
+        model.perform(.confirm) // Keep launcher open is selected by default.
+        XCTAssertEqual(requests, 1); XCTAssertFalse(model.isConfirmingLauncherQuit)
+        model.quitLauncherFromUI(); model.perform(.move(.down)); model.perform(.confirm)
+        XCTAssertEqual(requests, 2); XCTAssertTrue(model.consumeLauncherQuitApproval())
+    }
+
     func testQuitRequiresDirectionalConfirmationAndCancelKeepsGameRunning() {
         let model = LibraryModel(); model.session = running()
         var quitRequests = 0

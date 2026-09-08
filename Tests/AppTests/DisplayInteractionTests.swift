@@ -4,6 +4,36 @@ import Domain
 @testable import BigScreen
 
 final class DisplayInteractionTests: XCTestCase {
+    @MainActor func testAudioSelectionPersistsAndDisconnectedDeviceFallsBackWithoutLosingPreference() throws {
+        let catalog = try CatalogStore()
+        let model = LibraryModel(catalog: catalog, preview: false)
+        let output = AudioDeviceChoice(id: "stable-output-uid", name: "Living room speakers")
+        model.audioDevices = [output]; model.setupScreen = .audio; model.setupIndex = 1
+        model.perform(.confirm)
+        XCTAssertNil(model.setupScreen)
+        XCTAssertEqual(try catalog.preferences().selectedAudioDeviceUID, output.id)
+        model.downloadWhilePlaying = true
+        let restored = LibraryModel(catalog: catalog, preview: false)
+        XCTAssertEqual(restored.selectedAudioDeviceUID, output.id)
+        XCTAssertTrue(restored.audioSummary.contains("disconnected"))
+        restored.audioDevices = [output]
+        XCTAssertTrue(restored.audioSummary.hasPrefix(output.name))
+        restored.setupScreen = .audio; restored.setupIndex = 0; restored.perform(.confirm)
+        XCTAssertNil(try catalog.preferences().selectedAudioDeviceUID)
+        XCTAssertNil(try catalog.preferences().selectedAudioDeviceName)
+        XCTAssertTrue(restored.audioSummary.hasPrefix("System default"))
+    }
+    @MainActor func testAudioSettingsAreReachableWithControllerAndBackDoesNotChangeSelection() {
+        let model = LibraryModel()
+        model.selectTab(.settings); model.settingsRailFocused = true; model.settingsSection = 4
+        model.perform(.move(.down)); XCTAssertEqual(model.settingsSection, 5)
+        model.perform(.confirm); model.perform(.confirm)
+        XCTAssertEqual(model.setupScreen, .audio)
+        model.perform(.back)
+        XCTAssertNil(model.setupScreen)
+        XCTAssertNil(model.selectedAudioDeviceUID)
+    }
+
     @MainActor func testStartupPreferenceSurvivesOtherSettingsAndLaunchOverridesAreTemporary() throws {
         let catalog = try CatalogStore()
         let model = LibraryModel(catalog: catalog, preview: false)

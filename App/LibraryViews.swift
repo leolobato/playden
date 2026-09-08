@@ -120,12 +120,26 @@ struct TopBar: View {
                 }
             }
             Spacer()
+            if model.canShowGameControls {
+                Button { model.showGameControls() } label: {
+                    Label("Quit game", systemImage: "stop.circle")
+                        .font(Design.body(24, weight: "Medium")).foregroundStyle(Design.text)
+                        .padding(.horizontal, 18).frame(height: 52)
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Design.text.opacity(0.3), lineWidth: 2))
+                }.buttonStyle(.plain).padding(.trailing, 24)
+            }
             HStack(spacing: 22) {
                 HStack(spacing: 12) {
                     Circle().fill(LinearGradient(colors: [Design.accent, Color(hex: 0x8A3D15)], startPoint: .topLeading, endPoint: .bottomTrailing)).frame(width: 40, height: 40)
                     Text(model.isPreview ? "Preview" : model.identity?.displayName ?? "Offline").font(Design.body(24, weight: "Medium")).lineLimit(1).frame(maxWidth: 260).fixedSize(horizontal: true, vertical: false)
                 }
                 ClockLabel(fixed: model.fixedClock)
+                Button { model.quitLauncherFromUI() } label: {
+                    Image(systemName: "power").font(.system(size: 26)).foregroundStyle(Design.secondary)
+                        .frame(width: 52, height: 52)
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Design.text.opacity(0.2), lineWidth: 2))
+                }.buttonStyle(.plain).help("Quit Big Screen").accessibilityLabel("Quit Big Screen")
+                    .disabled(model.launcherQuitting)
             }
         }
     }
@@ -163,6 +177,11 @@ struct BottomBar: View {
                 else if !keyboard { HStack(spacing: 10) { Glyph(text: model.playStationGlyphs ? "L1" : "LB"); Glyph(text: model.playStationGlyphs ? "R1" : "RB"); Text("Tabs").font(Design.body(22, weight: "Medium")) } }
                 if model.tab == .home || model.tab == .library { LegendItem(glyph: keyboard ? "/" : model.playStationGlyphs ? "PAD" : "VIEW", title: "Search") }
             }
+            }
+            if model.canShowGameControls {
+                LegendItem(glyph: keyboard ? "⇧ HOME" : model.playStationGlyphs ? "PS" : "HOME",
+                           title: keyboard ? "Game controls" : "Hold: game controls")
+                    .onTapGesture { model.showGameControls() }
             }
             Spacer(minLength: 0)
             if model.detailID != nil, let game = model.focusedGame, game.status == .installed,
@@ -261,8 +280,8 @@ struct GamePage: View {
                         ForEach(Array(model.detailActions.enumerated()), id: \.offset) { index, title in
                             ActionButton(title: title,
                                          primary: index == 0 && model.detailActionEnabled(at: index), detail: title == "Install" ? game.knownSize : nil, focused: model.detailAction == index, large: index == 0, reducedMotion: model.reducedMotion,
-                                         systemImage: index == 1 ? (game.isFavorite ? "heart.fill" : "heart") : title == "Play" ? "play.fill" : nil,
-                                         iconOnly: index == 1, highlighted: index == 1 && game.isFavorite) {
+                                         systemImage: ["Favorite", "Favorited"].contains(title) ? (game.isFavorite ? "heart.fill" : "heart") : title == "Play" ? "play.fill" : title == "Quit game" ? "stop.fill" : nil,
+                                         iconOnly: ["Favorite", "Favorited"].contains(title), highlighted: ["Favorite", "Favorited"].contains(title) && game.isFavorite) {
                                 model.detailAction = index; model.activateDetail()
                             }.disabled(!model.detailActionEnabled(at: index))
                                 .help(index == 1 ? (game.isFavorite ? "Remove from favorites" : "Add to favorites") : title).id(index)

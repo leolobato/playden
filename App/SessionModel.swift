@@ -14,6 +14,12 @@ extension LibraryModel {
             sessionIssueFocused = false; show(.logs(id))
         } else { sessionIssue = nil }
     }
+    var canShowGameControls: Bool { [.preparing, .launching, .running, .stopping].contains(session.phase) }
+    func showGameControls() {
+        guard canShowGameControls else { return }
+        panel = nil
+        setExitOverlay(true)
+    }
     var hasActiveSession: Bool { session.phase != .idle }
     func isGameRunning(_ id: GameID) -> Bool {
         session.session?.gameID == id && (session.phase == .running || session.phase == .stopping)

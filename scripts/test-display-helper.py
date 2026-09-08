@@ -76,7 +76,8 @@ with tempfile.TemporaryDirectory(prefix='BigScreen-display-test-') as temporary:
     subprocess.run([str(linker), '/nodefaultlib', '/entry:mainCRTStartup', '/subsystem:console',
                     '/machine:x64', '/timestamp:0', f'/out:{placement}', str(work / 'placement.obj'),
                     str(imports / 'kernel32.lib'), str(imports / 'user32.lib'),
-                    str(imports / 'shell32.lib')], check=True)
+                    str(imports / 'shell32.lib'), str(imports / 'ole32.lib'),
+                    str(imports / 'advapi32.lib')], check=True)
     subprocess.run(['/Applications/CrossOver.app/Contents/SharedSupport/CrossOver/bin/cxstart',
                     '--bottle', str(bottle), '--no-gui', '--no-convert', '--wait-children',
                     windows(placement)], check=True, timeout=20)

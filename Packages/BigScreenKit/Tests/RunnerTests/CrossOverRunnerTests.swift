@@ -12,7 +12,11 @@ private final class ProcessFixture: GameProcess, GameProcessLaunching, @unchecke
     let lock = NSLock()
     var status: Int32? = nil
     var signals: [Int32] = []
-    func start(executable: URL, arguments: [String], environment: [String: String], input: Data?) throws -> any GameProcess { self }
+    private var lastLaunch: (arguments: [String], environment: [String: String], input: Data?)?
+    func start(executable: URL, arguments: [String], environment: [String: String], input: Data?) throws -> any GameProcess {
+        lock.withLock { lastLaunch = (arguments, environment, input) }; return self
+    }
+    func launched() -> (arguments: [String], environment: [String: String], input: Data?)? { lock.withLock { lastLaunch } }
     func poll() -> GameProcessPoll { lock.withLock { .init(exitCode: status, output: "access_token=fixture-secret") } }
     func signalGroup(_ signal: Int32) { lock.withLock { signals.append(signal); status = 0 } }
     func exit(_ code: Int32) { lock.withLock { status = code } }
@@ -52,6 +56,25 @@ final class CrossOverRunnerTests: XCTestCase {
             defer { group.cancelAll() }
             return try await group.next()!
         }
+    }
+    func testAudioPreferenceReachesHelperWithoutDisplayAndSystemDefaultStillRunsHelper() async throws {
+        for uid: String? in ["Core Audio UID 🎮", nil] {
+            let (root, bottle) = try fixture(), inspector = InspectionFixture(), child = ProcessFixture()
+            let helper = root.appendingPathComponent("game.exe")
+            let runner = CrossOverRunner(bottles: root, manager: ReadyGame(), inspector: inspector,
+                launcher: child, displayHelper: helper, audioDeviceUID: { uid })
+            let run = try await runner.launch(.init(executableRelativePath: "game.exe", arguments: ["argument"],
+                                                   environment: ["GAME_FLAG": "yes"]), in: bottle, directory: root)
+            let launch = try XCTUnwrap(child.launched())
+            XCTAssertEqual(launch.environment["BIGSCREEN_AUDIO_DEVICE_UID"], uid)
+            XCTAssertEqual(launch.environment["GAME_FLAG"], "yes")
+            XCTAssertFalse(launch.arguments.contains("argument"))
+            XCTAssertEqual(Array(try XCTUnwrap(launch.input).prefix(24)), Array(repeating: 0, count: 24))
+            child.exit(0); _ = try await wait(runner, run, phase: .exited)
+        }
+        let (root, _) = try fixture()
+        XCTAssertThrowsError(try CrossOverRunner.arguments(.init(executableRelativePath: "game.exe",
+            environment: ["BIGSCREEN_AUDIO_DEVICE_UID": "source-override"]), bottle: root, directory: root))
     }
     func testWrapperExitDoesNotEndLiveGameAndServicesDoNotKeepItAlive() async throws {
         let (root, bottle) = try fixture(), inspector = InspectionFixture(), child = ProcessFixture()

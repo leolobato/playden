@@ -55,6 +55,7 @@ extension LibraryModel {
             reducedMotion = preferences.reducedMotion; downloadWhilePlaying = preferences.downloadWhilePlaying
             gamesVolume = preferences.gamesVolume; selectedDisplayID = preferences.selectedDisplayID
             selectedDisplayUUID = preferences.selectedDisplayUUID; selectedDisplayName = preferences.selectedDisplayName
+            selectedAudioDeviceUID = preferences.selectedAudioDeviceUID; selectedAudioDeviceName = preferences.selectedAudioDeviceName
             startInFullscreen = preferences.startInFullscreen ?? true
             applyInstallStatuses()
             reconcileFocus()

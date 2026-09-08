@@ -12,6 +12,7 @@ public actor CrossOverRunner: GameRunner {
     private let commands: any CommandExecuting
     private let displayHelper: URL?
     private let displayTarget: @Sendable () async throws -> GameDisplayTarget?
+    private let audioDeviceUID: @Sendable () async throws -> String?
     private var starting = false
     private var active: RunningGame?
     private var child: (any GameProcess)?
@@ -22,10 +23,11 @@ public actor CrossOverRunner: GameRunner {
                 bottles: URL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/CrossOver/Bottles"),
                 manager: any GameBottleManaging = CrossOverGameBottles(), inspector: any RuntimeInspecting = RuntimeProcessInspector(),
                 launcher: any GameProcessLaunching = GameProcessLauncher(), commands: any CommandExecuting = CommandExecutor(),
-                displayHelper: URL? = nil, displayTarget: @escaping @Sendable () async throws -> GameDisplayTarget? = { nil }) {
+                displayHelper: URL? = nil, displayTarget: @escaping @Sendable () async throws -> GameDisplayTarget? = { nil },
+                audioDeviceUID: @escaping @Sendable () async throws -> String? = { nil }) {
         self.application = application; self.bottles = bottles; self.manager = manager; self.inspector = inspector
         self.launcher = launcher; self.commands = commands
-        self.displayHelper = displayHelper; self.displayTarget = displayTarget
+        self.displayHelper = displayHelper; self.displayTarget = displayTarget; self.audioDeviceUID = audioDeviceUID
     }
     @discardableResult public func prepare(_ bottle: GameBottle) async throws -> Bool {
         guard !starting, active == nil else { throw failure("Prepare game", "Quit the current game before preparing another game.") }
@@ -51,11 +53,16 @@ public actor CrossOverRunner: GameRunner {
         let baseline = try inspector.inspect(bottle: prefix)
         guard !baseline.processes.contains(where: { $0.kind == .game }) else { throw failure("Launch game", "This game's bottle already has an application running.") }
         let target = try await displayTarget()
+        let audioUID = try await audioDeviceUID()
+        guard audioUID.map({ !$0.isEmpty && $0.utf16.count < 440 && !$0.utf8.contains(0) && !$0.contains("\\") }) ?? true else {
+            throw failure("Launch game", "The preferred audio device is invalid. Choose it again in Settings → Audio.")
+        }
+        let useHelper = displayHelper != nil || target != nil || audioUID != nil
         let plainArguments = try Self.arguments(spec, bottle: prefix, directory: directory)
-        let input = try target?.launchInput(executable: plainArguments[plainArguments.count - spec.arguments.count - 1], arguments: spec.arguments)
-        let arguments = try Self.arguments(spec, bottle: prefix, directory: directory, display: target, helper: displayHelper)
+        let input = try useHelper ? GameDisplayTarget.launchInput(display: target, executable: plainArguments[plainArguments.count - spec.arguments.count - 1], arguments: spec.arguments) : nil
+        let arguments = try Self.arguments(spec, bottle: prefix, directory: directory, display: target, helper: displayHelper, forceHelper: useHelper)
         try Task.checkCancellation()
-        let process = try launcher.start(executable: tool("cxstart"), arguments: arguments, environment: spec.environment, input: input)
+        let process = try launcher.start(executable: tool("cxstart"), arguments: arguments, environment: spec.environment.merging(audioUID.map { ["BIGSCREEN_AUDIO_DEVICE_UID": $0] } ?? [:]) { _, preferred in preferred }, input: input)
         let run = RunningGame(bottle: bottle, launcher: process.identity)
         active = run; child = process; latest[run.id] = .init(run: run, processes: baseline.processes)
         worker = Task { await self.watch(run, process: process) }
@@ -212,7 +219,7 @@ public actor CrossOverRunner: GameRunner {
               lstat(marker.path, &info) == 0, info.st_mode & S_IFMT == S_IFREG, info.st_nlink == 1,
               try JSONDecoder().decode(Receipt.self, from: Data(contentsOf: marker)).bottle == bottle else { throw failure("Game runtime", "The game's runtime ownership could not be verified.") }
     }
-    static func arguments(_ spec: LaunchSpec, bottle: URL, directory: URL, display: GameDisplayTarget? = nil, helper: URL? = nil) throws -> [String] {
+    static func arguments(_ spec: LaunchSpec, bottle: URL, directory: URL, display: GameDisplayTarget? = nil, helper: URL? = nil, forceHelper: Bool = false) throws -> [String] {
         func path(_ value: String, folder: Bool) throws -> URL {
             let normalized = value.replacingOccurrences(of: "\\", with: "/")
             let components = normalized.split(separator: "/", omittingEmptySubsequences: false)
@@ -227,18 +234,18 @@ public actor CrossOverRunner: GameRunner {
         }
         guard spec.environment.keys.allSatisfy({ key in
             key.range(of: #"^[A-Za-z_][A-Za-z0-9_]*$"#, options: .regularExpression) != nil &&
-            !["HOME", "PATH", "WINEPREFIX", "CX_BOTTLE", "CX_ROOT", "XDG_CONFIG_HOME", "CX_DIRECT_DESKTOP", "CODEX_HOME"].contains(key) && !key.hasPrefix("DYLD_")
+            !["HOME", "PATH", "WINEPREFIX", "CX_BOTTLE", "CX_ROOT", "XDG_CONFIG_HOME", "CX_DIRECT_DESKTOP", "CODEX_HOME", "BIGSCREEN_AUDIO_DEVICE_UID"].contains(key) && !key.hasPrefix("DYLD_")
         }), spec.dllOverrides.allSatisfy({ $0.range(of: #"^[A-Za-z0-9_.*-]+=[nb](,[nb])?$"#, options: .regularExpression) != nil }) else { throw CocoaError(.fileReadCorruptFile) }
         let executable = try path(spec.executableRelativePath, folder: false), working = try path(spec.workingDirectoryRelativePath, folder: true)
         func windows(_ path: URL) -> String { "Z:" + path.path.replacingOccurrences(of: "/", with: "\\") }
         var result = ["--bottle", bottle.path, "--no-gui", "--no-convert", "--wait-children", "--workdir", windows(working)]
         for value in spec.dllOverrides { result += ["--dll", value] }
-        if let display {
+        if display != nil || forceHelper {
             guard let helper, helper.isFileURL, !helper.path.utf8.contains(0),
                   try helper.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile == true else {
                 throw OperationFailure(stage: "Launch game", reason: "The display helper is missing. Rebuild or reinstall Big Screen.", output: "")
             }
-            _ = try display.arguments()
+            _ = try display?.arguments()
             return result + [windows(helper)]
         }
         return result + [windows(executable)] + spec.arguments

@@ -8,6 +8,7 @@ struct SetupView: View {
         switch model.setupScreen {
         case .controller: "Connect your controller"
         case .display: "Pick your screen."
+        case .audio: "Choose your audio output."
         case .volume: "Where should games go?"
         default: model.runtimeInfo?.templateReady == true && !model.setupBusy && model.setupFailure == nil ? "Ready when you are." : "Preparing your Mac"
         }
@@ -17,20 +18,26 @@ struct SetupView: View {
         if model.setupScreen == .runtime && !model.onboarding {
             RuntimeSettingsView(model: model)
         } else {
-            setupBody
+            setupBody.task {
+                guard model.setupScreen == .audio else { return }
+                while !Task.isCancelled {
+                    model.refreshAudioDevices()
+                    do { try await Task.sleep(for: .seconds(2)) } catch { return }
+                }
+            }
         }
     }
     private var setupBody: some View {
         ZStack(alignment: .topLeading) {
             Design.background
             LinearGradient(colors: [Design.accent.opacity(0.05), .clear], startPoint: .topTrailing, endPoint: .bottomLeading)
-            SectionLabel(text: model.onboarding ? "Set up · Step \(step) of 4" : model.setupScreen == .volume ? "Games volume" : model.setupScreen == .display ? "Display" : "Game setup")
+            SectionLabel(text: model.onboarding ? "Set up · Step \(step) of 4" : model.setupScreen == .volume ? "Games volume" : model.setupScreen == .display ? "Display" : model.setupScreen == .audio ? "Audio" : "Game setup")
                 .offset(x: 96, y: 60)
             VStack(alignment: .leading, spacing: 34) {
                 Text(title).font(Design.condensed(72)).fixedSize(horizontal: false, vertical: true)
                 if model.setupScreen == .controller { controllerInstructions }
                 else {
-                    Text(model.setupScreen == .volume ? "Pick a drive with room. You can change it later; games already installed stay where they are." : model.setupScreen == .display ? "Choose the display you’ll play on. Big Screen will remember it for next time." : "A one-time setup so Windows games can run." + (model.syncing ? " Your library is loading in the meantime." : " You can browse your library when this finishes."))
+                    Text(model.setupScreen == .audio ? "Choose where your games play sound. Changes apply on the next launch. If the device is disconnected, games use the system default." : model.setupScreen == .volume ? "Pick a drive with room. You can change it later; games already installed stay where they are." : model.setupScreen == .display ? "Choose the display you’ll play on. Big Screen will remember it for next time." : "A one-time setup so Windows games can run." + (model.syncing ? " Your library is loading in the meantime." : " You can browse your library when this finishes."))
                         .font(Design.body(30)).foregroundStyle(Design.secondary).lineSpacing(8)
                 }
                 if let failure = model.setupFailure {
@@ -132,6 +139,9 @@ struct SetupView: View {
                                         if let display { Text(display.resolution).font(Design.body(23)).foregroundStyle(Design.secondary) }
                                     }
                                     Spacer()
+                                    if model.setupScreen == .audio && (index == 0 ? model.selectedAudioDeviceUID == nil : model.audioDevices[safe: index - 1]?.id == model.selectedAudioDeviceUID && index <= model.audioDevices.count) {
+                                        Image(systemName: "checkmark.circle.fill").foregroundStyle(Design.accent).font(.system(size: 32))
+                                    }
                                     if let display, display.id == model.preferredDisplay?.id { Image(systemName: "checkmark.circle.fill").foregroundStyle(Design.accent).font(.system(size: 32)) }
                                 } }
                                 }.padding(28).frame(maxWidth: .infinity, minHeight: volume != nil ? 144 : display != nil ? 120 : 84)

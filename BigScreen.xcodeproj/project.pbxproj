@@ -42,10 +42,12 @@
 		485B7BA07378B48FF91CB2F2 /* Sessions in Frameworks */ = {isa = PBXBuildFile; productRef = F113430A9DD2F5547F593DAD /* Sessions */; };
 		557F062A5951E40EC82A7F69 /* FocusViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = F51F9BB1C1297E755C6FB654 /* FocusViews.swift */; };
 		58CE38BDFCBC046979A40CE9 /* ExitOverlayLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C6480A4FE30F7948C207246 /* ExitOverlayLayoutTests.swift */; };
+		5A9B4B8C5FEAD80392C3F7DA /* AudioModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7BE5F28AE7FCA98C0D6B27D /* AudioModel.swift */; };
 		678145EB1E39512228810CF7 /* ArtworkCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 455BAC3C2C8544E4682144E8 /* ArtworkCacheTests.swift */; };
 		68D4540E4C421581F636B3BD /* NotificationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B69BF50E3BC2A41800854755 /* NotificationModel.swift */; };
 		6AE3400A3B47BD3BA5A4B4E3 /* HomeNavigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35357DB7608B2221B9BCA89A /* HomeNavigation.swift */; };
 		6C86441D7B9FCC0D4F0BAA46 /* GameActivationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C3A1AA3E40F9A6067DD0D52 /* GameActivationTests.swift */; };
+		6F7715E5031B240231AD3037 /* AudioDevices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9313D1C169F54582AD68B2ED /* AudioDevices.swift */; };
 		759FD0040D3A15F11EB242BF /* SessionModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEE20F0279EE5686D8DDF808 /* SessionModel.swift */; };
 		764655582701C0B1C2F9BA54 /* SupportViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0ABE6CC32C22767FC77D4D03 /* SupportViews.swift */; };
 		7C334DEF7D550877108D36C6 /* SetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E9A8D8C39868D9CD1F07282 /* SetupView.swift */; };
@@ -169,6 +171,7 @@
 		8DF603146150E3A8F502D3AF /* BarlowCondensed-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "BarlowCondensed-Medium.ttf"; sourceTree = "<group>"; };
 		8E9A8D8C39868D9CD1F07282 /* SetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupView.swift; sourceTree = "<group>"; };
 		90B31D8170237DFF98E1AF7E /* DownloadTransfer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadTransfer.swift; sourceTree = "<group>"; };
+		9313D1C169F54582AD68B2ED /* AudioDevices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioDevices.swift; sourceTree = "<group>"; };
 		960AF38981989E6B845AE12D /* AccountModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountModel.swift; sourceTree = "<group>"; };
 		99B69173E3CBF5EC838826D5 /* LibraryInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryInteractionTests.swift; sourceTree = "<group>"; };
 		99CC90B68B12DC034A62B4A8 /* barlowcondensed-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "barlowcondensed-OFL.txt"; sourceTree = "<group>"; };
@@ -187,6 +190,7 @@
 		BD033BB2ED7ABC84DF20A75D /* LibraryFilters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryFilters.swift; sourceTree = "<group>"; };
 		BFF46CA81D6E2F684129B207 /* HomeNavigationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeNavigationTests.swift; sourceTree = "<group>"; };
 		C0A99C8A8DFE712FC7DD3CEF /* LibraryPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryPersistence.swift; sourceTree = "<group>"; };
+		C7BE5F28AE7FCA98C0D6B27D /* AudioModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioModel.swift; sourceTree = "<group>"; };
 		C8DF7A3A43F7711BF2900808 /* barlow-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "barlow-OFL.txt"; sourceTree = "<group>"; };
 		C96CFB32AC1177E304D52FED /* NotificationViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationViews.swift; sourceTree = "<group>"; };
 		CB83A4AB9B30E5196BC6109C /* PairingControllerArt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingControllerArt.swift; sourceTree = "<group>"; };
@@ -290,6 +294,8 @@
 				960AF38981989E6B845AE12D /* AccountModel.swift */,
 				6C51BD54920288A7687D10E5 /* AmbientBackdrop.swift */,
 				0FC8F14943DF9C8CD25F2BFC /* ArtworkCache.swift */,
+				9313D1C169F54582AD68B2ED /* AudioDevices.swift */,
+				C7BE5F28AE7FCA98C0D6B27D /* AudioModel.swift */,
 				8D6705B879274E7AFECA275A /* AuthenticationView.swift */,
 				DC34C0B6A3AA65EAACEB3DF6 /* BigScreenApp.swift */,
 				1EF000111188A66D0F1EE7F7 /* CloudModel.swift */,
@@ -538,7 +544,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "#!/bin/sh\nset -eu\ncd \"$SRCROOT\"\n# Build a tiny Windows executable using the existing LLVM cross compiler and linker.\n# No downloaded runtime, Windows SDK, .NET, or additional user permissions are required.\ncompiler_root=\"${BIGSCREEN_LLVM_ROOT:-/opt/homebrew/opt/llvm}\"\nlinker_root=\"${BIGSCREEN_LLD_ROOT:-/opt/homebrew/opt/lld}\"\nhelper_build=\"$DERIVED_FILE_DIR/DisplayHelper\"\nhelper_resources=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH\"\nmkdir -p \"$helper_build\" \"$helper_resources\"\n\"$compiler_root/bin/clang\" --target=x86_64-pc-windows-msvc -std=c11 -Os -Wall -Wextra -Werror \\\n    -ffreestanding -fno-builtin -fno-stack-protector -c Native/DisplayHelper/main.c -o \"$helper_build/main.obj\"\nfor library in kernel32 user32 shell32; do\n    \"$compiler_root/bin/llvm-dlltool\" -m i386:x86-64 -d \"Native/DisplayHelper/$library.def\" -l \"$helper_build/$library.lib\"\ndone\n\"$linker_root/bin/lld-link\" /nodefaultlib /entry:mainCRTStartup /subsystem:console /machine:x64 /timestamp:0 \\\n    \"/out:$helper_resources/BigScreenDisplay.exe\" \"$helper_build/main.obj\" \\\n    \"$helper_build/kernel32.lib\" \"$helper_build/user32.lib\" \"$helper_build/shell32.lib\"\n";
+			shellScript = "#!/bin/sh\nset -eu\ncd \"$SRCROOT\"\n# Build a tiny Windows executable using the existing LLVM cross compiler and linker.\n# No downloaded runtime, Windows SDK, .NET, or additional user permissions are required.\ncompiler_root=\"${BIGSCREEN_LLVM_ROOT:-/opt/homebrew/opt/llvm}\"\nlinker_root=\"${BIGSCREEN_LLD_ROOT:-/opt/homebrew/opt/lld}\"\nhelper_build=\"$DERIVED_FILE_DIR/DisplayHelper\"\nhelper_resources=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH\"\nmkdir -p \"$helper_build\" \"$helper_resources\"\n\"$compiler_root/bin/clang\" --target=x86_64-pc-windows-msvc -std=c11 -Os -Wall -Wextra -Werror \\\n    -ffreestanding -fno-builtin -fno-stack-protector -c Native/DisplayHelper/main.c -o \"$helper_build/main.obj\"\nfor library in kernel32 user32 shell32 ole32 advapi32; do\n    \"$compiler_root/bin/llvm-dlltool\" -m i386:x86-64 -d \"Native/DisplayHelper/$library.def\" -l \"$helper_build/$library.lib\"\ndone\n\"$linker_root/bin/lld-link\" /nodefaultlib /entry:mainCRTStartup /subsystem:console /machine:x64 /timestamp:0 \\\n    \"/out:$helper_resources/BigScreenDisplay.exe\" \"$helper_build/main.obj\" \\\n    \"$helper_build/kernel32.lib\" \"$helper_build/user32.lib\" \"$helper_build/shell32.lib\" \"$helper_build/ole32.lib\" \"$helper_build/advapi32.lib\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -550,6 +556,8 @@
 				36F6307D8E8DC73C2A6AF33F /* AccountModel.swift in Sources */,
 				2CBF1B157A95E516A68766C2 /* AmbientBackdrop.swift in Sources */,
 				BDA5D34A135069E88FBB6EF0 /* ArtworkCache.swift in Sources */,
+				6F7715E5031B240231AD3037 /* AudioDevices.swift in Sources */,
+				5A9B4B8C5FEAD80392C3F7DA /* AudioModel.swift in Sources */,
 				184DCD9AB341114AFCCFE804 /* AuthenticationView.swift in Sources */,
 				14216B99792AA03166CC204A /* BigScreenApp.swift in Sources */,
 				400AB80512FEE0BAABEDFD36 /* CloudModel.swift in Sources */,
