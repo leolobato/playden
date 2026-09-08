@@ -11,7 +11,8 @@ stores is planned.
 
 *Actual app capture using the sample library. Displayed games are not a compatibility list.*
 
-Big Screen is in active v1 development. Installation, play sessions and Steam Cloud sync are
+**Current version: 0.1** (Git tag `v0.1`). Big Screen is in active development.
+Installation, play sessions and Steam Cloud sync are
 implemented; final controller/TV acceptance and broader game testing are still in progress.
 
 ## What you can do

@@ -17,7 +17,7 @@ Notarization credentials (choose one):
   BIGSCREEN_NOTARY_KEY_ID      API key ID (required with KEY_PATH)
   BIGSCREEN_NOTARY_ISSUER_ID   Issuer UUID (required for a team API key)
 
-Example: ./scripts/distribute.sh 0.1.0 1
+Example: ./scripts/distribute.sh 0.1 1
 See docs/DEVELOPMENT.md for credential setup. Nothing is published to GitHub.
 EOF
 }
@@ -31,8 +31,8 @@ if (( $# != 2 )); then
 fi
 version=$1
 build_number=$2
-if [[ ! "$version" =~ '^[0-9]+\.[0-9]+\.[0-9]+$' || ! "$build_number" =~ '^[1-9][0-9]*$' ]]; then
-  printf 'Use a numeric version (e.g. 0.1.0) and a positive integer build number.\n' >&2
+if [[ ! "$version" =~ '^[0-9]+\.[0-9]+(\.[0-9]+)?$' || ! "$build_number" =~ '^[1-9][0-9]*$' ]]; then
+  printf 'Use a numeric version (e.g. 0.1 or 0.1.0) and a positive integer build number.\n' >&2
   exit 1
 fi
 : "${BIGSCREEN_DEVELOPER_ID:?Set BIGSCREEN_DEVELOPER_ID to a Developer ID Application identity.}"

@@ -82,9 +82,9 @@ class ReleaseScriptsTests(unittest.TestCase):
         self.env.update(PATH=f"{bin_dir}:{os.environ['PATH']}", RELEASE_TEST_ROOT=str(self.root),
                         BIGSCREEN_DEVELOPER_ID=IDENTITY, BIGSCREEN_NOTARY_PROFILE="test-profile",
                         BIGSCREEN_CODE_SIGN_IDENTITY="-")
-        self.output = self.root / "dist/Big-Screen-0.1.0-1-arm64.dmg"
+        self.output = self.root / "dist/Big-Screen-0.1-1-arm64.dmg"
 
-    def run_script(self, script="distribute.sh", args=("0.1.0", "1")):
+    def run_script(self, script="distribute.sh", args=("0.1", "1")):
         return subprocess.run(["/bin/zsh", str(self.root / "scripts" / script), *args],
                               cwd="/", env=self.env, capture_output=True, text=True)
 
@@ -120,6 +120,11 @@ class ReleaseScriptsTests(unittest.TestCase):
                 self.assertTrue(any("org.release-test.bigscreen.dmg" in call for call in self.calls()))
                 self.assertFalse(list((self.root / "dist").glob(".distribution.*")))
                 (self.root / "calls.jsonl").unlink()
+
+    def test_distribution_also_accepts_three_component_versions(self):
+        result = self.run_script(args=("0.1.1", "2"))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue((self.root / "dist/Big-Screen-0.1.1-2-arm64.dmg").exists())
 
     def test_failures_preserve_existing_artifact_and_clean_staging(self):
         self.output.parent.mkdir()
