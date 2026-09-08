@@ -26,6 +26,8 @@ implemented; final controller/TV acceptance and broader game testing are still i
 - **Install and manage games.** Choose a games drive, queue downloads, pause/resume, reorder,
   retry failures, verify files and uninstall. Download checkpoints survive restarting the app.
   Disconnected games stay in the library; Play waits for their recorded drive to return.
+  Game details fetch and cache estimated download sizes when Steam provides them. Download
+  progress uses fixed stat columns and a smoothed time estimate to keep the row steady.
 - **Play through CrossOver.** Per-game runtime preparation, game controls for returning or
   quitting, session playtime and recorded exit results. Downloads can pause while you play.
 - **Sync supported Steam Cloud saves.** Download before playing, upload after exit, review

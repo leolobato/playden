@@ -2,10 +2,11 @@ import Foundation
 import Domain
 import SteamCore
 
-/// Explicit, read-only installation probe. Reports stages and numeric error codes, never
-/// credentials, account identifiers, response bodies, depot keys or signed request URLs.
+/// Installation probe, read-only unless a temporary download root is explicitly supplied.
+/// Reports stages and error codes, never credentials, account identifiers, response bodies,
+/// depot keys or signed request URLs.
 public enum SteamInstallDiagnostics {
-    public static func inspect(appID: UInt32, report: @Sendable (String) -> Void) async -> Bool {
+    public static func inspect(appID: UInt32, downloadProbeRoot: URL? = nil, report: @escaping @Sendable (String) -> Void) async -> Bool {
         let cm = CMClient(depotKeyStore: MemoryDepotKeys())
         var stage = "Keychain"
         do {
@@ -58,6 +59,10 @@ public enum SteamInstallDiagnostics {
             let plan = try SteamPlanBuilder.build(game: .init(id: .init(source: "steam", value: String(appID)), title: "Diagnostic"),
                 app: app, manifests: manifests, ownedApps: owned.appIDs, ownedDepots: owned.depotIDs)
             report("Install plan ready: \(plan.estimate.downloadBytes) download bytes; no game files written")
+            if let downloadProbeRoot {
+                stage = "Chunk download and disk write probe"
+                try await probeDownload(cm: cm, appID: appID, manifests: manifests, servers: servers, root: downloadProbeRoot, report: report)
+            }
             await cm.disconnect()
             return true
         } catch {
@@ -65,6 +70,34 @@ public enum SteamInstallDiagnostics {
             await cm.disconnect()
             return false
         }
+    }
+
+    /// Opt-in bounded probe through the real downloader. Never uses an installation's folder.
+    private static func probeDownload(cm: CMClient, appID: UInt32, manifests: [DepotManifest], servers: [ContentServer],
+                                      root: URL, report: @escaping @Sendable (String) -> Void) async throws {
+        guard try root.resourceValues(forKeys: [.isDirectoryKey]).isDirectory == true,
+              let manifest = manifests.first(where: { $0.files.contains { !$0.isDirectory && !$0.isSymlink && !$0.chunks.isEmpty } }),
+              let file = manifest.files.first(where: { !$0.isDirectory && !$0.isSymlink && !$0.chunks.isEmpty }) else {
+            throw SteamPlanBuilder.failure("Probe", "Choose an existing folder for the download probe.")
+        }
+        var chunks: [DepotManifest.Chunk] = [], size: UInt64 = 0
+        for chunk in file.chunks.sorted(by: { $0.offset < $1.offset }).prefix(8) {
+            guard size + UInt64(chunk.uncompressedSize) <= 8 * 1024 * 1024 else { break }
+            chunks.append(chunk); size += UInt64(chunk.uncompressedSize)
+        }
+        guard !chunks.isEmpty else { throw SteamPlanBuilder.failure("Probe", "No chunk fits the 8 MiB probe limit.") }
+        let directory = root.appendingPathComponent(".big-screen-download-probe-" + UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let probe = DepotManifest(depotID: manifest.depotID, gid: manifest.gid,
+            files: [.init(path: "probe.bin", size: size, chunks: chunks)], totalSize: size)
+        var engine = DownloadEngine(cm: cm, appID: appID, destination: directory)
+        engine.onProgress = { report("Probe written: \($0.bytesDone)/\($0.bytesTotal) bytes") }
+        try await engine.download(manifest: probe, servers: servers)
+        guard try ResumableDepotDownload(destination: directory).invalidFiles(in: probe).isEmpty else {
+            throw SteamPlanBuilder.failure("Probe", "Downloaded probe failed verification.")
+        }
+        report("Download probe passed; \(size) bytes verified on the selected drive; temporary files removed on exit")
     }
 
     static func code(for error: Error) -> String {

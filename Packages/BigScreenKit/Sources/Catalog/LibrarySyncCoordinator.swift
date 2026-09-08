@@ -21,6 +21,7 @@ public actor LibrarySyncCoordinator {
         let owned = try await source.ownedGames()
         try check(run)
         try catalog.replaceSourceCatalog(source: source.id, games: owned)
+        try catalog.invalidateDownloadSizes(source: source.id)
         onUpdate()
         let cutoff = Date.now.addingTimeInterval(-6 * 3600)
         let ownedIDs = Set(owned.map(\.id))

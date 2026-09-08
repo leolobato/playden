@@ -43,7 +43,12 @@ extension LibraryModel {
             guard let self else { return }
             do {
                 guard let game = try catalog.snapshot().entries.first(where: { $0.id == id })?.source else { throw SourceFailure.unavailable }
+                let sizeAccount = try? await self.source?.downloadSizeAccountKey()
                 let offer = try await installQueue.offer(for: game, volume: volume)
+                guard !Task.isCancelled, self.panel == .installOffer(id) else { return }
+                if let sizeAccount, (try? await self.source?.downloadSizeAccountKey()) == sizeAccount {
+                    self.cacheResolvedDownloadSize(offer.plan, accountKey: sizeAccount)
+                }
                 guard !Task.isCancelled, self.panel == .installOffer(id) else { return }
                 self.installOffer = offer; self.resolvingInstall = false; self.panelIndex = 0
                 if let index = self.games.firstIndex(where: { $0.id == id }) {

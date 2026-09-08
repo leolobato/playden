@@ -11,7 +11,7 @@ final class DownloadTransferTests: XCTestCase {
         model.activeInstallID = job.id
         XCTAssertEqual(model.transferLabel(for: job), "Measuring speed…")
         model.installTransfer = .init(bytesPerSecond: 38_000_000, secondsRemaining: 134)
-        XCTAssertEqual(model.transferLabel(for: job), "38 MB/s · 2 min 14 s left")
+        XCTAssertEqual(model.transferLabel(for: job), "38 MB/s · About 3 min left")
         var paused = job; paused.state = .paused
         XCTAssertNil(model.transferLabel(for: paused))
         var verifying = job; verifying.stage = .validate

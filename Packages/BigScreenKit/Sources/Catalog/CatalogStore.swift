@@ -109,6 +109,16 @@ public final class CatalogStore: Sendable {
             for job in jobs { try Self.recordDiagnostic(db, value: job, imported: true) }
             for session in sessions { try Self.recordDiagnostic(db, value: session, imported: true) }
         }
+        migrator.registerMigration("v6_download_sizes") { db in
+            try db.create(table: "download_sizes") { t in
+                t.column("source", .text).notNull()
+                t.column("game", .text).notNull()
+                t.column("account", .text).notNull()
+                t.column("payload", .blob).notNull()
+                t.column("invalidated", .boolean).notNull().defaults(to: false)
+                t.primaryKey(["source", "game", "account"])
+            }
+        }
         try migrator.migrate(database)
     }
 

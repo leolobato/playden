@@ -29,6 +29,7 @@ extension LibraryModel {
         }
     }
     func stopServices() {
+        detailSizeTask?.cancel(); detailSizeTask = nil
         installationDriveTask?.cancel(); installationDriveTask = nil; installationDriveGeneration = UUID()
         notifications = []; notificationJobs = nil
         logObserver?.cancel(); logObserver = nil
@@ -172,7 +173,7 @@ extension LibraryModel {
                 _ = try await syncCoordinator.refresh(source: source) { [weak self] in
                     Task { @MainActor in self?.reloadCatalog() }
                 }
-                if !Task.isCancelled { reloadCatalog(); syncing = false }
+                if !Task.isCancelled { reloadCatalog(); syncing = false; loadDetailDownloadSize() }
             } catch {
                 guard !Task.isCancelled else { return }
                 syncing = false; syncError = error.localizedDescription

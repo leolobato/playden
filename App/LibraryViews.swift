@@ -305,7 +305,7 @@ struct GamePage: View {
                     }
                 }.frame(width: 1128, alignment: .leading)
                 VStack(alignment: .leading, spacing: 18) {
-                    HStack(alignment: .top, spacing: 40) { metadata("Playtime", game.hoursPlayed == 0 ? "Never played" : "\(game.hoursPlayed) hours"); metadata([.installed, .driveDisconnected].contains(game.status) ? "Size" : "Download", game.size) }
+                    HStack(alignment: .top, spacing: 40) { metadata("Playtime", game.hoursPlayed == 0 ? "Never played" : "\(game.hoursPlayed) hours"); metadata([.installed, .driveDisconnected].contains(game.status) ? "Size" : "Download", model.detailSizeLabel(for: game)) }
                     HStack(alignment: .top, spacing: 40) { metadata("Source", game.id.source.capitalized); metadata("Compatibility", game.compatibility.rawValue) }
                     HStack(alignment: .top, spacing: 40) {
                         metadata("Controller", model.isPreview ? "Full support" : game.controllerSupport == .full ? "Full support" : game.controllerSupport == .partial ? "Partial support" : game.controllerSupport == .none ? "No support" : "Unknown")

@@ -111,8 +111,10 @@ final class DownloadWorkspace: @unchecked Sendable {
         return String(decoding: buffer.prefix(count), as: UTF8.self)
     }
     static func sync(_ handle: FileHandle) throws {
+        // Download bytes are revalidated against their chunk hashes on resume. fsync
+        // orders data before its journal without forcing a drive-wide cache flush
+        // for every checkpoint (F_FULLFSYNC can stall USB/HFS+ drives for minutes).
         try handle.synchronize()
-        if fcntl(handle.fileDescriptor, F_FULLFSYNC) == -1 && errno != EINVAL && errno != ENOTSUP { throw systemError() }
     }
     private static func syncDirectory(_ fd: Int32) throws {
         if fsync(fd) == -1 && errno != EINVAL && errno != ENOTSUP { throw systemError() }

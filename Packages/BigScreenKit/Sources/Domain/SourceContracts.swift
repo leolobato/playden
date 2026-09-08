@@ -44,5 +44,11 @@ public protocol GameSource: Sendable {
     var auth: any SourceAuth { get }
     func ownedGames() async throws -> [SourceGameRecord]
     func metadata(for game: SourceGameRecord) async throws -> SourceGameRecord
+    func downloadSizeAccountKey() async throws -> String?
+    func downloadSize(for game: SourceGameRecord) async throws -> DownloadSizeEstimate?
     func installer(for game: SourceGameRecord) throws -> any Installer
+}
+public extension GameSource {
+    func downloadSizeAccountKey() async throws -> String? { nil }
+    func downloadSize(for game: SourceGameRecord) async throws -> DownloadSizeEstimate? { nil }
 }

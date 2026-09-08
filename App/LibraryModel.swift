@@ -154,7 +154,7 @@ final class LibraryModel {
     @ObservationIgnored var syncTask: Task<Void, Never>?
     @ObservationIgnored var periodicSyncTask: Task<Void, Never>?
     @ObservationIgnored var guardContinuation: CheckedContinuation<String, Error>?
-    var identity: SourceIdentity?
+    var identity: SourceIdentity? { didSet { if identity != oldValue { loadDetailDownloadSize() } } }
     var authScreen: AuthenticationScreen?
     var authIndex = 0
     var authAttempt = UUID()
@@ -185,7 +185,10 @@ final class LibraryModel {
     var downloadWhilePlaying = false { didSet { persistPreferences(); updateSessionDownloadPolicy() } }
     var tabsFocused = false
     var tab: AppTab = .home
-    var detailID: GameID?
+    var detailID: GameID? { didSet { if detailID != oldValue { loadDetailDownloadSize() } } }
+    @ObservationIgnored var detailSizeTask: Task<Void, Never>?
+    var detailDownloadSize: DownloadSizeEstimate?
+    var detailSizeLoading = false
     var panel: Panel? {
         didSet {
             if case .installOffer = oldValue, panel != oldValue { installOfferTask?.cancel(); resolvingInstall = false }

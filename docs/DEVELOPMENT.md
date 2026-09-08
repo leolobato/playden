@@ -209,6 +209,30 @@ resolution without installing or launching a game. Output contains stages and nu
 codes, not credentials, account identifiers, depot keys or signed URLs. An access-denied content
 response is distinct from expired authentication and should not trigger another sign-in loop.
 
+For a stall after manifest resolution, add `--download-probe-root /Volumes/YourDrive` to that
+command. This opt-in check downloads at most eight chunks (8 MiB uncompressed), writes and
+verifies them through the real downloader in a unique temporary folder on the selected drive,
+then removes that folder. It never writes into an existing game installation.
+
+Large depot files grow as chunks arrive rather than being preallocated. Download checkpoints
+sync file data before atomically replacing the journal, in batches of 16 MiB or one second of
+received chunks. Pause/error flushes the pending batch; resume revalidates every retained range.
+Abrupt termination may redownload the last uncheckpointed batch. Bulk downloads use `fsync`
+without per-chunk `F_FULLFSYNC` drive-cache flushes, which can stall external HFS+ drives.
+
+Game details lazily request compressed depot sizes after a 300 ms navigation debounce. The
+SQLite `download_sizes` cache is scoped by source, game and a hashed account identifier, with
+public-English manifest IDs and a six-hour freshness window (15 minutes for unknown sizes).
+Library refresh invalidates freshness while retaining the displayed value for offline use.
+Install resolution supplies the precise manifest total; a later metadata estimate cannot replace
+that precise value for the same manifest set. No CDN manifests or game chunks are fetched just
+to show a metadata estimate, and missing compressed sizes remain unknown.
+
+Download speed uses an eight-second sample window. Time remaining uses 30 seconds, waits for
+ten seconds of samples, and updates at most every five seconds; stalls clear it immediately
+once the speed window detects no transfer. The download card gives byte progress and speed
+fixed column widths, uses tabular digits, and rounds time remaining to minutes.
+
 Steam install plans retain all eligible launch options, including descriptions, arguments and
 working directories. Non-public `betakey` entries and unowned DLC options are excluded.
 The per-game **Always use this** preference is stored in catalog edits; changing launch metadata

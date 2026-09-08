@@ -39,6 +39,40 @@ final class DownloadResumeTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("Game/data.bin")), pieces.reduce(Data(), +))
         XCTAssertEqual(try download(root).invalidFiles(in: manifest), [])
     }
+    func testLargeFileGrowsWithReceivedChunksAndShortPartialResumes() async throws {
+        let root = try root()
+        let data = Data(repeating: 7, count: 1024 * 1024), sha = SteamCrypto.sha1(data)
+        let checksum = DepotManifest.Chunk.adler(data)
+        let chunks = (0..<20_000).map { index in
+            DepotManifest.Chunk(sha: sha, offset: UInt64(index) * UInt64(data.count), compressedSize: UInt32(data.count),
+                uncompressedSize: UInt32(data.count), checksum: checksum)
+        }
+        let size = UInt64(chunks.count) * UInt64(data.count)
+        let manifest = DepotManifest(depotID: 7, gid: 9, files: [.init(path: "Game/large.bdt", size: size, chunks: chunks)], totalSize: size)
+        let feed = LargeFileFeed(root: root, data: data)
+        do { try await download(root).download(manifest: manifest, fetchChunk: feed.fetch); XCTFail() }
+        catch is CancellationError {}
+        XCTAssertEqual(try partial(root).resourceValues(forKeys: [.fileSizeKey]).fileSize, data.count)
+        let observations = await feed.partialSizes
+        XCTAssertEqual(observations, [0, data.count], "Do not allocate the game's entire archive before fetching chunks")
+        let resumed = LargeFileFeed(root: root, data: data)
+        do { try await download(root).download(manifest: manifest, fetchChunk: resumed.fetch); XCTFail() }
+        catch is CancellationError {}
+        let offsets = await resumed.offsets
+        XCTAssertEqual(offsets, [UInt64(data.count)], "A partial shorter than the final file must retain verified checkpoints")
+    }
+    func testOutOfOrderManifestFetchesFromStartWithoutChangingJournalIndices() async throws {
+        let root = try root(), source = fixture(), file = source.files[0]
+        let manifest = DepotManifest(depotID: source.depotID, gid: source.gid,
+            files: [.init(path: file.path, size: file.size, chunks: file.chunks.reversed(), contentSHA1: file.contentSHA1)], totalSize: source.totalSize)
+        let feed = Feed(pieces, failAt: 5)
+        do { try await download(root).download(manifest: manifest, fetchChunk: feed.fetch) } catch {}
+        let first = await feed.requested; XCTAssertEqual(first, [0, 5])
+        let resumed = Feed(pieces)
+        try await download(root).download(manifest: manifest, fetchChunk: resumed.fetch)
+        let next = await resumed.requested; XCTAssertEqual(next, [5, 11])
+        XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent(file.path)), pieces.reduce(Data(), +))
+    }
     func testTransferProgressExcludesRetainedChunksAndCompleteFiles() async throws {
         let root = try root(), manifest = fixture(), first = Feed(pieces, failAt: 5)
         do { try await download(root).download(manifest: manifest, fetchChunk: first.fetch) } catch {}
@@ -127,6 +161,25 @@ final class DownloadResumeTests: XCTestCase {
         var value = download(root); value.chunkConcurrency = 0
         try await value.download(manifest: empty) { _ in XCTFail(); return Data() }
         XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("empty")), Data())
+    }
+}
+
+private actor LargeFileFeed {
+    let root: URL
+    let data: Data
+    var offsets: [UInt64] = []
+    var partialSizes: [Int] = []
+    init(root: URL, data: Data) { self.root = root; self.data = data }
+    nonisolated var fetch: @Sendable (DepotManifest.Chunk) async throws -> Data {
+        { chunk in try await self.read(chunk) }
+    }
+    func read(_ chunk: DepotManifest.Chunk) throws -> Data {
+        offsets.append(chunk.offset)
+        let files = FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.fileSizeKey])!
+        let partial = try XCTUnwrap(files.allObjects.compactMap { $0 as? URL }.first { $0.pathExtension == "partial" })
+        partialSizes.append(try partial.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? -1)
+        guard chunk.offset == 0 else { throw CancellationError() }
+        return data
     }
 }
 

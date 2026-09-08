@@ -204,14 +204,18 @@ struct DownloadCard: View {
                 if let job {
                     HStack(spacing: 12) {
                         Text(job.statusTitle).foregroundStyle(job.state == .failed ? Design.amber : active ? Design.accent : Design.secondary)
-                        if active && job.stage == .download { Text(job.displayProgress.formatted(.percent.precision(.fractionLength(0)))).foregroundStyle(Design.accent) }
+                        if active && job.stage == .download { Text(job.displayProgress.formatted(.percent.precision(.fractionLength(0)))).monospacedDigit().foregroundStyle(Design.accent) }
                     }.font(Design.body(active ? 24 : 22, weight: "Medium"))
                     if !active, let failure = job.failure {
                         Text(job.stageTitle + " · " + failure.reason).font(Design.body(20)).foregroundStyle(Design.secondary).lineLimit(2)
                     }
                     if active {
                         ProgressTrack(value: job.displayProgress)
-                        Text(model.downloadStats(for: job)).font(Design.body(22)).foregroundStyle(Design.secondary)
+                        HStack(spacing: 16) {
+                            Text(job.bytesLabel).frame(width: 420, alignment: .leading)
+                            Text(model.transferSpeedLabel(for: job) ?? "").frame(width: 170, alignment: .leading)
+                            Text(model.transferTimeLabel(for: job) ?? "").frame(maxWidth: .infinity, alignment: .leading)
+                        }.font(Design.body(22)).monospacedDigit().foregroundStyle(Design.secondary).lineLimit(1)
                         Text(job.kind == .uninstall ? "Steam Cloud saves and library history are kept." : job.currentFile ?? "Your game will be ready after verification and setup.").font(Design.body(18)).foregroundStyle(Design.muted).lineLimit(1).truncationMode(.middle)
                     }
                 } else if active {

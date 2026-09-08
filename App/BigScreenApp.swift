@@ -60,10 +60,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if let index = args.firstIndex(of: "--diagnose-install") {
             NSApp.setActivationPolicy(.prohibited)
             guard args.indices.contains(index + 1), let appID = UInt32(args[index + 1]) else {
-                fputs("Usage: Big Screen --diagnose-install STEAM_APP_ID\n", stderr); exit(2)
+                fputs("Usage: Big Screen --diagnose-install STEAM_APP_ID [--download-probe-root FOLDER]\n", stderr); exit(2)
+            }
+            var probeRoot: URL?
+            if let probeIndex = args.firstIndex(of: "--download-probe-root") {
+                guard args.indices.contains(probeIndex + 1) else { fputs("Specify an existing folder for --download-probe-root.\n", stderr); exit(2) }
+                probeRoot = URL(fileURLWithPath: args[probeIndex + 1], isDirectory: true)
             }
             Task {
-                let succeeded = await SteamInstallDiagnostics.inspect(appID: appID) { message in
+                let succeeded = await SteamInstallDiagnostics.inspect(appID: appID, downloadProbeRoot: probeRoot) { message in
                     FileHandle.standardOutput.write(Data((message + "\n").utf8))
                 }
                 exit(succeeded ? 0 : 1)

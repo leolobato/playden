@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 import Domain
 import SteamCore
 
@@ -11,6 +12,10 @@ public actor SteamAccount: SourceAuth {
     init(store: any AuthCredentialStore, backend: any SteamBackend) { self.store = store; self.backend = backend }
     public func identity() async throws -> SourceIdentity? {
         do { return try store.load().map(Self.identity) } catch { throw credentialFailure(error) }
+    }
+    func downloadSizeAccountKey() throws -> String? {
+        guard let auth = try store.load() else { return nil }
+        return SHA256.hash(data: Data("steam-download-size:\(auth.steamID)".utf8)).map { String(format: "%02x", $0) }.joined()
     }
     private func invalidate() {
         generation += 1

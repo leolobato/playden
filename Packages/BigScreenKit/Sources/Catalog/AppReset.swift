@@ -13,7 +13,7 @@ extension CatalogStore {
     public func resetAppData() throws {
         try database.write { db in
             try Self.checkAppReset(db)
-            for table in ["source_games", "source_sync", "game_edits", "collections", "job_history_dismissals"] {
+            for table in ["source_games", "source_sync", "game_edits", "collections", "job_history_dismissals", "download_sizes"] {
                 try db.execute(sql: "DELETE FROM \(table)")
             }
             try db.execute(sql: "DELETE FROM preferences WHERE id = 1")

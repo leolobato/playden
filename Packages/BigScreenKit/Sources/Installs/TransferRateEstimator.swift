@@ -15,6 +15,8 @@ struct TransferRateEstimator {
     private var samples: [Sample]
     private var remaining: Int64 = 0
     private var supported = false
+    private var displayedETA: Double?
+    private var lastETAUpdate: TimeInterval?
     init(now: TimeInterval) { samples = [.init(time: now, network: 0, written: 0)] }
     mutating func record(_ progress: InstallProgress, now: TimeInterval) {
         guard let network = progress.downloadedBytes, let written = progress.freshlyWrittenBytes,
@@ -23,18 +25,25 @@ struct TransferRateEstimator {
               progress.bytesTotal >= progress.bytesCompleted else { return }
         supported = true; remaining = progress.bytesTotal - progress.bytesCompleted
         samples.append(.init(time: now, network: network, written: written))
-        while samples.count > 2 && samples[1].time < now - 8 { samples.removeFirst() }
+        while samples.count > 2 && samples[1].time < now - 30 { samples.removeFirst() }
     }
-    func metrics(now: TimeInterval) -> InstallTransferMetrics? {
+    mutating func metrics(now: TimeInterval) -> InstallTransferMetrics? {
         guard supported, let latest = samples.last, now.isFinite,
               let start = samples.last(where: { $0.time <= now - 8 }) ?? samples.first,
               now - start.time >= 1 else { return nil }
         let elapsed = now - start.time
         let networkRate = Double(latest.network - start.network) / elapsed
-        let writeRate = Double(latest.written - start.written) / elapsed
+        let longStart = samples.last(where: { $0.time <= now - 30 }) ?? samples[0]
+        let longElapsed = now - longStart.time
+        let writeRate = Double(latest.written - longStart.written) / max(1, longElapsed)
         // Network speed and completion speed use their own units (compressed body vs assembled data).
         // After a stall, stale positive rates disappear as the sampling window advances.
-        let eta = remaining > 0 && writeRate > 0 && networkRate > 0 ? Double(remaining) / writeRate : nil
-        return .init(bytesPerSecond: max(0, networkRate), secondsRemaining: eta?.isFinite == true ? eta : nil)
+        if remaining <= 0 || writeRate <= 0 || networkRate <= 0 || longElapsed < 10 {
+            displayedETA = nil; lastETAUpdate = nil
+        } else if lastETAUpdate == nil || now - lastETAUpdate! >= 5 {
+            let eta = Double(remaining) / writeRate
+            displayedETA = eta.isFinite ? eta : nil; lastETAUpdate = now
+        }
+        return .init(bytesPerSecond: max(0, networkRate), secondsRemaining: displayedETA)
     }
 }

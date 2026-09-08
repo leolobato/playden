@@ -2,8 +2,9 @@ import Foundation
 import CryptoKit
 import Darwin
 
-/// The CDN boundary supplies decrypted chunks. The writer validates them, syncs their bytes, then
-/// atomically checkpoints completion. Reopening validates every retained range before reusing it.
+/// The CDN boundary supplies decrypted chunks. The writer validates and writes them, then
+/// periodically syncs bytes before atomically checkpointing completion. Reopening validates
+/// every retained range; abrupt termination may redownload the last uncheckpointed batch.
 public struct ResumableDepotDownload: Sendable {
     public let destination: URL
     public var chunkConcurrency = 8
@@ -31,29 +32,37 @@ public struct ResumableDepotDownload: Sendable {
             var completed = resumed.bytes
             onProgress(DownloadProgress(depotID: manifest.depotID, file: entry.path, bytesDone: done + completed, bytesTotal: total, bytesWritten: written))
             let pending = entry.file.chunks.enumerated().filter { !resumed.indices.contains($0.offset) }
+                .sorted { $0.element.offset < $1.element.offset }
             var iterator = pending.makeIterator()
-            try await withThrowingTaskGroup(of: UInt64.self) { group in
-                func next() {
-                    guard let (index, chunk) = iterator.next() else { return }
-                    group.addTask {
+            do {
+                try await withThrowingTaskGroup(of: UInt64.self) { group in
+                    func next() {
+                        guard let (index, chunk) = iterator.next() else { return }
+                        group.addTask {
+                            try Task.checkCancellation()
+                            let data = try await fetchChunk(chunk)
+                            try Task.checkCancellation()
+                            try chunk.validate(data)
+                            try await writer.commit(data, index: index)
+                            return UInt64(data.count)
+                        }
+                    }
+                    for _ in 0..<max(1, min(16, chunkConcurrency)) { next() }
+                    while let count = try await group.next() {
                         try Task.checkCancellation()
-                        let data = try await fetchChunk(chunk)
-                        try Task.checkCancellation()
-                        try chunk.validate(data)
-                        try await writer.commit(data, index: index)
-                        return UInt64(data.count)
+                        completed += count; written += count
+                        onProgress(DownloadProgress(depotID: manifest.depotID, file: entry.path, bytesDone: done + completed, bytesTotal: total, bytesWritten: written))
+                        next()
                     }
                 }
-                for _ in 0..<max(1, min(16, chunkConcurrency)) { next() }
-                while let count = try await group.next() {
-                    try Task.checkCancellation()
-                    completed += count; written += count
-                    onProgress(DownloadProgress(depotID: manifest.depotID, file: entry.path, bytesDone: done + completed, bytesTotal: total, bytesWritten: written))
-                    next()
-                }
+                try Task.checkCancellation()
+                try await writer.finish(to: entry.path)
+            } catch {
+                // Task groups drain their children before this catch, so no writer can
+                // race the final checkpoint. Pause/network failure keeps received chunks.
+                try await writer.checkpoint()
+                throw error
             }
-            try Task.checkCancellation()
-            try await writer.finish(to: entry.path)
             done += entry.file.size
         }
         // Links are applied last. No later file write in this manifest can traverse a newly created link.
@@ -161,14 +170,21 @@ private actor ChunkCheckpointWriter {
     let journalPath: String
     let handle: FileHandle
     var journal: ChunkJournal
+    private var uncheckpointedBytes: UInt64 = 0
+    private var lastCheckpoint = ContinuousClock.now
     init(workspace: DownloadWorkspace, file: DepotManifest.File, base: String) throws {
         self.workspace = workspace; self.file = file; partial = base + ".partial"; journalPath = base + ".json"
         let encoder = JSONEncoder(); encoder.outputFormatting = .sortedKeys
         let fingerprint = Data(SHA256.hash(data: try encoder.encode(file)))
         let saved = (try? workspace.read(journalPath)).flatMap { try? JSONDecoder().decode(ChunkJournal.self, from: $0) }
-        journal = saved?.version == 1 && saved?.fingerprint == fingerprint ? saved! : ChunkJournal(fingerprint: fingerprint)
+        let canResume = saved?.version == 1 && saved?.fingerprint == fingerprint
+        journal = canResume ? saved! : ChunkJournal(fingerprint: fingerprint)
         handle = try workspace.openFile(partial, flags: O_RDWR | O_CREAT, createParents: true)
-        if try handle.seekToEnd() != file.size { journal.completed = [:]; try handle.truncate(atOffset: file.size) }
+        // Grow only as chunks arrive. HFS+ allocates/zero-fills the entire length
+        // when truncating upward, which can block a multi-GB download before it starts.
+        if try !canResume || handle.seekToEnd() > file.size {
+            journal.completed = [:]; try handle.truncate(atOffset: 0)
+        }
     }
     func restore() throws -> (indices: Set<Int>, bytes: UInt64) {
         var retained: [Int: Data] = [:], bytes: UInt64 = 0
@@ -189,11 +205,20 @@ private actor ChunkCheckpointWriter {
         let chunk = file.chunks[index]
         try chunk.validate(data)
         try handle.seek(toOffset: chunk.offset); try handle.write(contentsOf: data)
-        try DownloadWorkspace.sync(handle)
         journal.completed[index] = Data(SHA256.hash(data: data))
+        uncheckpointedBytes += UInt64(data.count)
+        if uncheckpointedBytes >= 16 * 1024 * 1024 || lastCheckpoint.duration(to: .now) >= .seconds(1) {
+            try checkpoint()
+        }
+    }
+    func checkpoint() throws {
+        guard uncheckpointedBytes > 0 else { return }
+        try DownloadWorkspace.sync(handle)
         try workspace.writeAtomic(try JSONEncoder().encode(journal), path: journalPath)
+        uncheckpointedBytes = 0; lastCheckpoint = .now
     }
     func finish(to target: String) throws {
+        try checkpoint()
         guard journal.completed.count == file.chunks.count,
               try ResumableDepotDownload.isValid(file, path: partial, workspace: workspace) else {
             // A failed whole-file digest must not trap retries into reusing the same bad chunks.
