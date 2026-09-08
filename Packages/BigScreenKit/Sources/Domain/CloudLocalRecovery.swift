@@ -1,5 +1,18 @@
 import Foundation
 
+/// Verified inputs for local-only recovery of an attempt's archived progress. This is separate
+/// from its Steam plan: restoring device-owned bytes never authorizes remote writes or attachment.
+public struct CloudArchiveRecoveryInput: Codable, Equatable, Sendable {
+    public let plan: CloudSyncPlan
+    public let localSnapshotID: UUID
+    public let remoteSnapshotID: UUID
+    public let requiresReview: Bool
+    public init(plan: CloudSyncPlan, localSnapshotID: UUID, remoteSnapshotID: UUID, requiresReview: Bool = false) {
+        self.plan = plan; self.localSnapshotID = localSnapshotID; self.remoteSnapshotID = remoteSnapshotID
+        self.requiresReview = requiresReview
+    }
+}
+
 /// A local-only publication review. The remote snapshot here is the complete intended result
 /// assembled from a previously authorized operation's immutable copies, not a new server read.
 /// Every review is retained so replacements and repeated crashes cannot discard earlier copies.

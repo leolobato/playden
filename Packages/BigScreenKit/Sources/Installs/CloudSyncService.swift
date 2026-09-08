@@ -66,7 +66,7 @@ public actor CloudSyncService: CloudSyncManaging {
             if let authorization, authorization.operation != previous { throw CloudJournalError.staleAttempt }
             // A local recovery choice is consumed locally. It never authorizes a subsequent
             // account attachment or resolves a new disagreement with the live Steam account.
-            let consent = previous?.needsLocalRecovery == true ? nil : authorization
+            var consent = previous?.needsLocalRecovery == true ? nil : authorization
             let attachment = try catalog.cloudAttachment(for: gameID, installationID: installation.id)
             if let previous {
                 guard previous.installationID == installation.id, previous.mapping == mapping else {
@@ -79,24 +79,23 @@ public actor CloudSyncService: CloudSyncManaging {
             }
             let locations = try await roots(installation)
             try Task.checkCancellation()
+            if previous != nil, try await recoverArchiveIfRootChanged(installation, locations: locations) { consent = nil }
 
             // Complete an interrupted local publication using its already authorized, verified
             // copies before interpreting a changed remote list or accepting an offline launch.
             if let pending = active[gameID], pending.needsLocalRecovery {
                 if let review = try await recoverLocal(installation, locations: locations, authorization: authorization) { return review }
             }
-            if previous != nil {
-                let priorAccount = try current(gameID).accountKey
-                _ = try catalog.supersedeCloudSync(current(gameID)); active[gameID] = nil
-                active[gameID] = try catalog.beginCloudSync(installation: installation, accountKey: priorAccount,
-                    mapping: mapping, preparingSessionID: preparingSessionID)
-            }
             // Never reuse a previous attempt's local bytes as if they reflected later offline play.
             // The old immutable copy remains in history; this fresh snapshot detects new progress.
-            let freshID = try current(gameID).id
             let local = try await saves.snapshot(gameID: gameID, installationID: installation.id,
-                                                  mapping: mapping, roots: locations, id: freshID)
-            if try current(gameID).localSnapshotID == nil {
+                                                  mapping: mapping, roots: roots(installation))
+            if previous != nil, try await recoverArchiveIfRootChanged(installation, locations: locations, currentSnapshot: local) {
+                throw issue("The save folder changed before its checkpoint was saved. Retry to restore the archived progress.")
+            }
+            if previous != nil {
+                active[gameID] = try catalog.replaceCloudSync(current(gameID), installation: installation, localSnapshotID: local.id)
+            } else if try current(gameID).localSnapshotID == nil {
                 active[gameID] = try catalog.recordCloudLocalSnapshot(current(gameID), snapshotID: local.id)
             }
             let remote = try await reader.files(for: gameID)
@@ -105,18 +104,15 @@ public actor CloudSyncService: CloudSyncManaging {
 
             if let authorization = consent {
                 guard let originalLocalID = authorization.operation.localSnapshotID,
-                      authorization.operation.remote == remote else { return try await replanChangedReview(installation, mapping: mapping, local: local, remote: remote, sessionID: preparingSessionID) }
+                      authorization.operation.remote == remote else { return try await replanChangedReview(installation, mapping: mapping, local: local, remote: remote) }
                 let reviewed = try await saves.verified(originalLocalID, gameID: gameID)
                 if fingerprints(reviewed) != fingerprints(local) || reviewed.rootIdentities != local.rootIdentities {
-                    return try await replanChangedReview(installation, mapping: mapping, local: local, remote: remote, sessionID: preparingSessionID)
+                    return try await replanChangedReview(installation, mapping: mapping, local: local, remote: remote)
                 }
             }
             if try current(gameID).accountKey != remote.accountKey {
-                _ = try catalog.supersedeCloudSync(current(gameID))
-                active[gameID] = nil
-                active[gameID] = try catalog.beginCloudSync(installation: installation, accountKey: remote.accountKey,
-                    mapping: mapping, preparingSessionID: preparingSessionID)
-                active[gameID] = try catalog.recordCloudLocalSnapshot(current(gameID), snapshotID: local.id)
+                active[gameID] = try catalog.replaceCloudSync(current(gameID), installation: installation,
+                    localSnapshotID: local.id, accountKey: remote.accountKey)
             }
             return try await stageAndExecute(installation, mapping: mapping, local: local,
                                               remote: remote, consent: consent)
@@ -125,16 +121,53 @@ public actor CloudSyncService: CloudSyncManaging {
         }
     }
 
+    private func archiveInput(_ accepted: CloudLocalRecovery) throws -> CloudArchiveRecoveryInput {
+        guard let plan = accepted.appliedPlan else { throw CloudJournalError.invalidTransition }
+        return .init(plan: plan, localSnapshotID: accepted.localSnapshotID, remoteSnapshotID: accepted.remoteSnapshotID)
+    }
+
+    /// Losing a physical root is not evidence that the player deleted its pending upload.
+    /// Retain and recover that local archive before reading Steam or retiring the attempt.
+    private func recoverArchiveIfRootChanged(_ installation: InstallationRecord, locations: [SaveRoot: URL],
+                                           currentSnapshot: SaveSnapshot? = nil) async throws -> Bool {
+        let pending = try current(installation.gameID)
+        guard !pending.needsLocalRecovery else { return false }
+        let accepted = pending.localRecoveries?.last(where: { $0.appliedPlan != nil })
+        guard let snapshotID = accepted?.localSnapshotID ?? pending.localSnapshotID else { return false }
+        let archived = try await saves.verified(snapshotID, gameID: installation.gameID)
+        guard archived.installationID == installation.id, archived.mapping == pending.mapping, archived.cloud == nil else {
+            throw issue("The pending save archive does not match this installation. Its files have been kept.")
+        }
+        let now: SaveSnapshot
+        if let currentSnapshot { now = currentSnapshot }
+        else { now = try await saves.snapshot(gameID: installation.gameID, installationID: installation.id,
+            mapping: pending.mapping, roots: locations) }
+        let cloudRoots = Set(pending.mapping.rules.filter { $0.cloudPrefix != nil }.map(\.root))
+        let knownRoots = cloudRoots.allSatisfy { archived.rootIdentities?[$0] != nil }
+        let changed = cloudRoots.contains { archived.rootIdentities?[$0] != now.rootIdentities?[$0] }
+        guard changed || (!knownRoots && fingerprints(archived) != fingerprints(now)) else { return false }
+        let input: CloudArchiveRecoveryInput
+        if let accepted { input = try archiveInput(accepted) }
+        else {
+            guard !localFiles(archived).isEmpty else { return false }
+            input = try await saves.archiveRecoveryInput(snapshotID, gameID: installation.gameID,
+                accountKey: pending.accountKey, revision: pending.plan?.remoteRevision ?? 0, requireReview: !knownRoots)
+        }
+        active[installation.gameID] = try catalog.requireCloudArchiveRecovery(pending, input: input)
+        return true
+    }
+
     private func recoverLocal(_ installation: InstallationRecord, locations: [SaveRoot: URL],
                               authorization: CloudSyncAuthorization?) async throws -> CloudSyncStatus? {
         let gameID = installation.gameID, pending = try current(gameID)
         let accepted = pending.localRecoveries?.last(where: { $0.appliedPlan != nil })
-        guard let plan = accepted?.appliedPlan ?? pending.plan,
-              let localID = accepted?.localSnapshotID ?? pending.localSnapshotID,
-              let remoteID = accepted?.remoteSnapshotID ?? pending.remoteSnapshotID else {
+        guard let plan = accepted?.appliedPlan ?? pending.archiveRecoveryInput?.plan ?? pending.plan,
+              let localID = accepted?.localSnapshotID ?? pending.archiveRecoveryInput?.localSnapshotID ?? pending.localSnapshotID,
+              let remoteID = accepted?.remoteSnapshotID ?? pending.archiveRecoveryInput?.remoteSnapshotID ?? pending.remoteSnapshotID else {
             throw issue("The interrupted save review is incomplete. Existing files have been kept.")
         }
-        var recovery = try await saves.stageLocalRecovery(plan, localSnapshotID: localID, remoteSnapshotID: remoteID, roots: locations)
+        var recovery = try await saves.stageLocalRecovery(plan, localSnapshotID: localID, remoteSnapshotID: remoteID, roots: locations,
+            requireReview: accepted == nil && pending.archiveRecoveryInput?.requiresReview == true)
         var choice: CloudSyncAuthorization.ConflictChoice?
         if let authorization, let requested = authorization.conflictChoice,
            let reviewed = authorization.operation.localRecoveries?.last, reviewed.requiresReview, reviewed.appliedPlan == nil {
@@ -164,12 +197,10 @@ public actor CloudSyncService: CloudSyncManaging {
     }
 
     private func replanChangedReview(_ installation: InstallationRecord, mapping: SaveMapping,
-                                     local: SaveSnapshot, remote: CloudFileList, sessionID: UUID?) async throws -> CloudSyncStatus {
+                                     local: SaveSnapshot, remote: CloudFileList) async throws -> CloudSyncStatus {
         let gameID = installation.gameID
-        _ = try catalog.supersedeCloudSync(current(gameID)); active[gameID] = nil
-        active[gameID] = try catalog.beginCloudSync(installation: installation, accountKey: remote.accountKey,
-            mapping: mapping, preparingSessionID: sessionID)
-        active[gameID] = try catalog.recordCloudLocalSnapshot(current(gameID), snapshotID: local.id)
+        active[gameID] = try catalog.replaceCloudSync(current(gameID), installation: installation,
+            localSnapshotID: local.id, accountKey: remote.accountKey)
         // Do not carry the old consent into changed data. A new review must be explicit even if
         // a three-way planner would otherwise see a one-sided change as automatically safe.
         return try await stageAndExecute(installation, mapping: mapping, local: local, remote: remote,

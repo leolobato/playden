@@ -767,3 +767,14 @@ its preparation checkpoints without repeating the completed download. Failure/re
 full regression suite and a disposable real CrossOver marker/clone/delete probe passed. Full live
 missing-bottle Cloud/gameplay acceptance and archived pending-upload recovery remain open. See
 `docs/validation/2026-09-08-runtime-preparation-recovery.md`.
+
+### 8 September — Pending upload archive recovery checkpoint
+
+Cloud retry now recovers pending archived progress after physical save-root replacement before
+retiring its attempt, including offline failures that never obtained a Steam plan. Recovery uses
+the existing controller whole-copy choice for conflicting current progress and cannot authorize
+an account attachment or remote write. A fresh attempt and its verified local snapshot are saved
+atomically with retirement of the old attempt. Tests cover repeated root loss, loss at the fresh
+checkpoint boundary, exact controller consent without a Steam plan and a committed upload whose
+response was lost. Real game/controller acceptance remains separate and open. See
+`docs/validation/2026-09-08-pending-upload-archive-recovery.md`.

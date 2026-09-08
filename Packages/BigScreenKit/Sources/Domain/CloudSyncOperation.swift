@@ -31,6 +31,7 @@ public struct CloudSyncOperation: Codable, Equatable, Sendable, Identifiable {
     /// Offline play is safe before application starts, but not midway through replacing saves.
     public var needsLocalRecovery: Bool
     public var localRecoveries: [CloudLocalRecovery]? = nil
+    public var archiveRecoveryInput: CloudArchiveRecoveryInput? = nil
     public var reviewPlan: CloudSyncPlan? { needsLocalRecovery ? localRecoveries?.last?.plan ?? plan : plan }
     public var needsRecoveryReview: Bool { needsLocalRecovery && localRecoveries?.last?.requiresReview == true }
     public var failure: OperationFailure?

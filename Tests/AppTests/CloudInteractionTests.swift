@@ -91,6 +91,29 @@ private actor CloudUIFixture: CloudSyncManaging {
         XCTAssertNil(model.panel)
         let count = await sessions.quitCount; XCTAssertEqual(count, 1)
     }
+    func testPendingArchiveReviewWorksWithoutAnOriginalSteamPlan() async throws {
+        let (model, sessions) = model()
+        model.configureCloudSnapshot("cloud-recovery")
+        let id = try XCTUnwrap(model.detailID)
+        var review = try XCTUnwrap(model.cloudReview)
+        let original = try XCTUnwrap(review.plan)
+        let localOnly = CloudSyncPlan(gameID: original.gameID, installationID: original.installationID,
+            accountKey: original.accountKey, remoteRevision: 0, decisions: original.decisions.map {
+                .init(name: $0.name, location: $0.location, action: .upload, local: $0.local, remote: nil)
+            }, requiresAccountConfirmation: false)
+        review.archiveRecoveryInput = .init(plan: localOnly, localSnapshotID: try XCTUnwrap(review.localSnapshotID), remoteSnapshotID: UUID())
+        review.plan = nil; review.remote = nil; review.remoteSnapshotID = nil
+        model.cloudStatuses[id] = .init(gameID: id, state: .conflict, operation: review, message: "Recover archived progress", canPlayOffline: false)
+        model.session.cloudStatus = model.cloudStatuses[id]; model.showCloud(id)
+        XCTAssertEqual(model.cloudChoices(id), [.local, .remote, .retry, .close])
+        XCTAssertEqual(model.cloudChoiceTitle(.remote, id: id), "Restore recovered files")
+        for _ in 0..<10 { model.perform(.move(.left)) }
+        model.perform(.move(.right)); model.perform(.confirm)
+        await model.sessionCommand?.value
+        let sent = await sessions.reviews
+        XCTAssertEqual(sent.count, 1); XCTAssertEqual(sent[0]?.operation, review)
+        XCTAssertEqual(sent[0]?.conflictChoice, .remote); XCTAssertEqual(sent[0]?.attachAccount, false)
+    }
     func testClosingBackgroundReviewKeepsDurableTransferAlive() async throws {
         let (model, _) = model(), id = try XCTUnwrap(model.detailID)
         model.session = .init()

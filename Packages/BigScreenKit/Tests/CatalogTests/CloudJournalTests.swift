@@ -3,6 +3,44 @@ import Domain
 @testable import Catalog
 
 final class CloudJournalTests: XCTestCase {
+    func testArchiveRecoveryCannotAuthorizeSteamAndReplacementKeepsDurableSnapshot() throws {
+        let databasePath = try path(), store = try CatalogStore(path: databasePath), installed = installation
+        try store.saveInstallation(installed)
+        var operation = try store.beginCloudSync(installation: installed, accountKey: "unattached", mapping: mapping)
+        let originalID = UUID()
+        operation = try store.recordCloudLocalSnapshot(operation, snapshotID: originalID)
+        let location = CloudSavePath(root: .bottle, path: "saves/GameSaveNew.mountain")
+        let plan = CloudSyncPlan(gameID: gameID, installationID: installed.id, accountKey: "unattached", remoteRevision: 0,
+            decisions: [.init(name: file.name, location: location, action: .upload,
+                local: .init(location: location, sha1: file.sha1, bytes: file.bytes, modifiedAt: file.modifiedAt), remote: nil)],
+            requiresAccountConfirmation: false)
+        XCTAssertThrowsError(try store.requireCloudArchiveRecovery(operation,
+            input: .init(plan: plan, localSnapshotID: UUID(), remoteSnapshotID: UUID())))
+        operation = try store.requireCloudArchiveRecovery(operation,
+            input: .init(plan: plan, localSnapshotID: originalID, remoteSnapshotID: UUID()))
+        XCTAssertThrowsError(try store.replaceCloudSync(operation, installation: installed, localSnapshotID: UUID()))
+        XCTAssertThrowsError(try store.confirmCloudAccount(operation))
+        XCTAssertThrowsError(try store.recordCloudBatch(operation, batch: .init(id: 42, revision: 1)))
+        XCTAssertThrowsError(try store.markCloudApplying(operation))
+        operation = try store.stageCloudLocalRecovery(operation,
+            recovery: .init(localSnapshotID: UUID(), remoteSnapshotID: UUID(), plan: plan))
+        operation = try store.authorizeCloudLocalRecovery(operation)
+        operation = try store.markCloudLocalApplied(operation)
+        XCTAssertThrowsError(try store.confirmCloudAccount(operation))
+        XCTAssertNil(operation.plan); XCTAssertNil(operation.remote); XCTAssertEqual(operation.localSnapshotID, originalID)
+        let unchanged = try store.cloudOperations()
+        var foreign = installed; foreign.ownershipToken = UUID()
+        XCTAssertThrowsError(try store.replaceCloudSync(operation, installation: foreign, localSnapshotID: UUID()))
+        XCTAssertEqual(try store.cloudOperations(), unchanged)
+        let freshID = UUID()
+        let next = try store.replaceCloudSync(operation, installation: installed, localSnapshotID: freshID)
+        let reopened = try CatalogStore(path: databasePath), saved = try reopened.cloudOperations()
+        XCTAssertEqual(saved.filter { !$0.phase.isTerminal }, [next]); XCTAssertEqual(next.localSnapshotID, freshID)
+        XCTAssertEqual(saved.first { $0.id == operation.id }?.localSnapshotID, originalID)
+        XCTAssertThrowsError(try reopened.pauseCloudSync(operation, phase: .failed))
+        XCTAssertNil(try reopened.cloudAttachment(for: gameID, installationID: installed.id))
+        XCTAssertNil(try reopened.cloudBaseline(for: gameID, accountKey: "unattached"))
+    }
     private let gameID = GameID(source: "steam", value: "1055540")
     private let mapping = SaveMapping(rules: [.init(root: .bottle, directory: "saves", pattern: "*.mountain", cloudPrefix: "%GameInstall%saves")], coverage: .metadata)
     private var installation: InstallationRecord {

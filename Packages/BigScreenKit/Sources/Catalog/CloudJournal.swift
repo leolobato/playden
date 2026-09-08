@@ -83,7 +83,7 @@ extension CatalogStore {
     /// can remain pending without blocking offline play. This does not advance a sync baseline.
     public func markCloudLocalApplied(_ expected: CloudSyncOperation) throws -> CloudSyncOperation {
         try changeCloud(expected) { db, value in
-            try Self.requireExecutable(db, value)
+            try Self.requireLocalRecoveryAccess(db, value)
             guard value.phase == .applyingLocal,
                   value.localRecoveries?.isEmpty != false || value.localRecoveries?.last?.appliedPlan != nil else {
                 throw CloudJournalError.invalidTransition
@@ -96,11 +96,12 @@ extension CatalogStore {
     /// result. Recovery never changes the original plan, account, batch receipts or baseline.
     public func stageCloudLocalRecovery(_ expected: CloudSyncOperation, recovery: CloudLocalRecovery) throws -> CloudSyncOperation {
         try changeCloud(expected) { db, value in
-            try Self.requireExecutable(db, value)
+            try Self.requireLocalRecoveryAccess(db, value)
             guard value.needsLocalRecovery, recovery.appliedPlan == nil,
                   recovery.localSnapshotID != recovery.remoteSnapshotID,
                   recovery.plan.gameID == value.gameID, recovery.plan.installationID == value.installationID,
-                  recovery.plan.accountKey == value.accountKey, recovery.plan.remoteRevision == value.plan?.remoteRevision,
+                  recovery.plan.accountKey == value.accountKey,
+                  recovery.plan.remoteRevision == (value.archiveRecoveryInput?.plan.remoteRevision ?? value.plan?.remoteRevision),
                   !recovery.plan.hasUnavailableFiles, !recovery.plan.requiresAccountConfirmation,
                   !(value.localRecoveries ?? []).contains(where: { $0.id == recovery.id }) else {
                 throw CloudJournalError.invalidTransition
@@ -115,7 +116,7 @@ extension CatalogStore {
     public func authorizeCloudLocalRecovery(_ expected: CloudSyncOperation,
                                            choice: CloudSyncAuthorization.ConflictChoice? = nil) throws -> CloudSyncOperation {
         try changeCloud(expected) { db, value in
-            try Self.requireExecutable(db, value)
+            try Self.requireLocalRecoveryAccess(db, value)
             guard value.needsLocalRecovery, var reviews = value.localRecoveries, !reviews.isEmpty,
                   reviews[reviews.count - 1].appliedPlan == nil,
                   let plan = reviews.last?.choosing(choice), !plan.hasConflicts, !plan.hasUnavailableFiles else {
@@ -167,13 +168,53 @@ extension CatalogStore {
         }
     }
 
+    /// Retire the previous attempt only in the same transaction that records its replacement's
+    /// verified local archive. A crash cannot leave progress reachable only through retired history.
+    public func replaceCloudSync(_ expected: CloudSyncOperation, installation: InstallationRecord,
+                                 localSnapshotID: UUID, accountKey: String? = nil) throws -> CloudSyncOperation {
+        try database.write { db in
+            var old = try Self.currentCloud(db, expected)
+            guard old.claim != nil, !old.phase.isTerminal, !old.needsLocalRecovery else { throw CloudJournalError.invalidTransition }
+            let installed = try Self.requireCloudAccess(db, operation: old, sessionID: old.preparingSessionID)
+            guard installed == installation, !(accountKey ?? old.accountKey).isEmpty else { throw CloudJournalError.identityMismatch }
+            var next = CloudSyncOperation(installation: installation, accountKey: accountKey ?? old.accountKey,
+                mapping: old.mapping, preparingSessionID: old.preparingSessionID)
+            next.localSnapshotID = localSnapshotID
+            old.phase = .superseded; old.claim = nil; old.preparingSessionID = nil
+            try Self.advanceCloud(db, &old)
+            try Self.putCloud(db, next)
+            return next
+        }
+    }
+
+    /// Fence a lost-root archive for local recovery without modifying the original Steam plan,
+    /// upload batches, account attachment or baseline. Inputs must come from this attempt's local
+    /// archive or its latest already-authorized local recovery.
+    public func requireCloudArchiveRecovery(_ expected: CloudSyncOperation,
+                                            input: CloudArchiveRecoveryInput) throws -> CloudSyncOperation {
+        try changeCloud(expected) { _, value in
+            let accepted = value.localRecoveries?.last(where: { $0.appliedPlan != nil })
+            let acceptedInput = accepted.map { CloudArchiveRecoveryInput(plan: $0.appliedPlan!,
+                localSnapshotID: $0.localSnapshotID, remoteSnapshotID: $0.remoteSnapshotID) }
+            guard !value.needsLocalRecovery, input.localSnapshotID != input.remoteSnapshotID,
+                  input.plan.gameID == value.gameID, input.plan.installationID == value.installationID,
+                  input.plan.accountKey == value.accountKey, !input.plan.requiresAccountConfirmation,
+                  !input.plan.hasConflicts, !input.plan.hasUnavailableFiles,
+                  (acceptedInput == input || (accepted == nil && input.localSnapshotID == value.localSnapshotID &&
+                    input.plan.decisions.allSatisfy { $0.action == .upload && $0.local != nil && $0.remote == nil })) else {
+                throw CloudJournalError.invalidTransition
+            }
+            value.archiveRecoveryInput = input; value.needsLocalRecovery = true; value.phase = .pending
+        }
+    }
+
     /// Both snapshot IDs must already identify fully durable, verified copies (including empty
     /// snapshots). A conflict plan may be journaled, but cannot start writes. Supersede it with
     /// a resolved attempt, keeping its backup references. Staged context is immutable.
     public func stageCloudSync(_ expected: CloudSyncOperation, plan: CloudSyncPlan, remote: CloudFileList,
                                localSnapshotID: UUID, remoteSnapshotID: UUID) throws -> CloudSyncOperation {
         try changeCloud(expected) { _, value in
-            guard value.plan == nil, value.batches.isEmpty, !value.needsLocalRecovery,
+            guard value.plan == nil, value.batches.isEmpty, !value.needsLocalRecovery, value.archiveRecoveryInput == nil,
                   [.checking, .ready, .conflict, .pending, .failed, .unavailable].contains(value.phase),
                   plan.gameID == value.gameID, plan.installationID == value.installationID,
                   plan.accountKey == value.accountKey, remote.gameID == value.gameID,
@@ -192,7 +233,7 @@ extension CatalogStore {
     /// this account. Kept separate from sign-in and from choosing a timestamp-based conflict winner.
     public func confirmCloudAccount(_ expected: CloudSyncOperation) throws -> CloudSyncOperation {
         try changeCloud(expected) { db, value in
-            guard value.batches.isEmpty, !value.needsLocalRecovery else { throw CloudJournalError.invalidTransition }
+            guard value.batches.isEmpty, !value.needsLocalRecovery, value.archiveRecoveryInput == nil else { throw CloudJournalError.invalidTransition }
             try Self.putGame(db, table: "cloud_attachments", id: value.gameID,
                 value: CloudAccountAttachment(gameID: value.gameID, installationID: value.installationID, accountKey: value.accountKey))
         }
@@ -364,7 +405,7 @@ extension CatalogStore {
         return installed
     }
     private static func requireExecutable(_ db: Database, _ value: CloudSyncOperation) throws {
-        guard let plan = value.plan, value.remote != nil, value.localSnapshotID != nil,
+        guard value.archiveRecoveryInput == nil, let plan = value.plan, value.remote != nil, value.localSnapshotID != nil,
               value.remoteSnapshotID != nil, !plan.hasConflicts, !plan.hasUnavailableFiles else { throw CloudJournalError.invalidTransition }
         if plan.requiresAccountConfirmation || plan.decisions.contains(where: { $0.local != nil || $0.action == .deleteRemote || $0.action == .upload }) {
             let attachment = try attachment(db, gameID: value.gameID)
@@ -372,6 +413,13 @@ extension CatalogStore {
                 throw CloudJournalError.accountConfirmationRequired
             }
         }
+    }
+    private static func requireLocalRecoveryAccess(_ db: Database, _ value: CloudSyncOperation) throws {
+        // Only the explicitly journaled local archive path can bypass remote account consent.
+        // Every remote-writing/final-baseline transition still calls requireExecutable.
+        if value.archiveRecoveryInput != nil {
+            guard value.needsLocalRecovery else { throw CloudJournalError.invalidTransition }
+        } else { try requireExecutable(db, value) }
     }
     private struct Fingerprint: Equatable { let sha1: Data; let bytes: Int64 }
     private static func fingerprints(_ files: [CloudFile]) throws -> [String: Fingerprint] {

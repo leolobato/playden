@@ -2,6 +2,25 @@ import Foundation
 import Domain
 
 extension SaveStore {
+    /// Build a local-only recovery source from a pending upload snapshot, including attempts
+    /// that failed before Steam could be read. The empty remote is an internal staging context.
+    public func archiveRecoveryInput(_ snapshotID: UUID, gameID: GameID, accountKey: String,
+                                     revision: UInt64, requireReview: Bool = false) throws -> CloudArchiveRecoveryInput {
+        let local = try verified(snapshotID, gameID: gameID), paths = try CloudSavePaths(mapping: local.mapping)
+        guard local.cloud == nil else { throw saveFailure("The pending local save archive is invalid.") }
+        let empty = try stageCloud(.init(gameID: gameID, accountKey: accountKey, revision: revision, files: []),
+            installationID: local.installationID, mapping: local.mapping, downloads: [])
+        let decisions = try local.files.compactMap { file -> CloudSyncDecision? in
+            let location = CloudSavePath(root: file.root, path: file.path)
+            guard let name = try paths.remoteName(for: location) else { return nil }
+            return .init(name: name, location: location, action: .upload,
+                local: .init(location: location, sha1: file.sha1, bytes: file.bytes, modifiedAt: file.modifiedAt), remote: nil)
+        }
+        let plan = CloudSyncPlan(gameID: gameID, installationID: local.installationID, accountKey: accountKey,
+            remoteRevision: revision, decisions: decisions, requiresAccountConfirmation: false)
+        _ = try cloudContext(plan, localSnapshotID: local.id, remoteSnapshotID: empty.id)
+        return .init(plan: plan, localSnapshotID: local.id, remoteSnapshotID: empty.id, requiresReview: requireReview)
+    }
     /// Construct a complete local recovery candidate from the authorized copies, including
     /// local uploads that may never have reached Steam. No network access or live writes occur.
     public func stageLocalRecovery(_ plan: CloudSyncPlan, localSnapshotID: UUID, remoteSnapshotID: UUID,
