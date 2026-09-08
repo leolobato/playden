@@ -1,5 +1,15 @@
 # Next session handoff — 8 September 2026
 
+## New investigation TODO — controller disconnect freezes input
+
+- [ ] Investigate the user's report (8 September 2026) that disconnecting the
+  controller freezes Big Screen and mouse/keyboard input across the Mac. It is
+  not yet known whether this is a Big Screen or macOS problem; no reproduction
+  or cause has been established. When the user is available for an interactive
+  reproduction, capture controller disconnect callbacks, application/thread
+  samples and system input/Bluetooth logs, and compare with Big Screen closed.
+  Treat the reported loss of all input as a priority investigation.
+
 ## Current priority — monitor, audio and quit controls
 
 The user redirected this pass to the Wine monitor issue, then requested a preferred
