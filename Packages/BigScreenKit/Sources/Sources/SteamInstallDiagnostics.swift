@@ -92,6 +92,9 @@ public enum SteamInstallDiagnostics {
         let probe = DepotManifest(depotID: manifest.depotID, gid: manifest.gid,
             files: [.init(path: "probe.bin", size: size, chunks: chunks)], totalSize: size)
         var engine = DownloadEngine(cm: cm, appID: appID, destination: directory)
+        try await engine.prepare(manifests: [probe])
+        await cm.disconnect()
+        report("Download probe: keys cached; Steam connection closed before CDN transfer")
         engine.onProgress = { report("Probe written: \($0.bytesDone)/\($0.bytesTotal) bytes") }
         try await engine.download(manifest: probe, servers: servers)
         guard try ResumableDepotDownload(destination: directory).invalidFiles(in: probe).isEmpty else {

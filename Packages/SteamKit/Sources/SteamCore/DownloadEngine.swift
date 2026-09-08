@@ -65,6 +65,15 @@ public struct DownloadEngine {
                                                   requestCode: code, depotKey: key)
     }
 
+    /// Cache every selected key before a long transfer. Once prepared, pinned manifests
+    /// download from the CDN without depending on the CM connection staying alive.
+    public func prepare(manifests: [DepotManifest]) async throws {
+        for depotID in Set(manifests.map(\.depotID)).sorted() {
+            try Task.checkCancellation()
+            _ = try await cm.depotKey(appID: appID, depotID: depotID)
+        }
+    }
+
     public func download(depot: DepotInfo, servers: [ContentServer]) async throws {
         try await download(manifest: manifest(depot: depot, servers: servers), servers: servers)
     }

@@ -240,6 +240,10 @@ counters are transient and never advance downloaded bytes or the durable install
 Steam progress sequence numbers reject delayed callbacks; phase transitions publish immediately.
 Rate windows restart after verification so disk-check time does not skew download estimates.
 File reads release Foundation buffers per block to bound memory during large archive checks.
+Before transferring a pinned install plan, Steam checks entitlement and fetches all selected
+depot keys into the invocation's memory cache, then closes the CM control connection. CDN
+downloads and resume checks do not depend on that connection surviving a long first depot.
+Disconnected CM requests report a network failure rather than a malformed library response.
 
 Steam install plans retain all eligible launch options, including descriptions, arguments and
 working directories. Non-public `betakey` entries and unowned DLC options are excluded.

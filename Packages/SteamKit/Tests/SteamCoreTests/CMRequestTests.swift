@@ -110,6 +110,32 @@ final class CMRequestTests: XCTestCase {
         let parts = try await request.value; XCTAssertEqual(parts.count, 2)
         await cm.disconnect()
     }
+    func testPreparedDepotsDownloadAfterCMDisconnectAndMissingKeysReportNetworkLoss() async throws {
+        let cm = client(), transport = TestCMTransport(); try await cm.attach(transport)
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let manifests = [UInt32(7), 8].map { DepotManifest(depotID: $0, gid: 1, files: [], totalSize: 0) }
+        let engine = DownloadEngine(cm: cm, appID: 42, destination: root)
+        let preparation = Task { try await engine.prepare(manifests: manifests) }
+        try await wait(cm, count: 1)
+        var response = CMsgClientGetDepotDecryptionKeyResponse(); response.eresult = 1
+        response.depotEncryptionKey = Data(repeating: 1, count: 32)
+        transport.deliver(try frame(.kEmsgClientGetDepotDecryptionKeyResponse, body: response, target: 2))
+        // Waiting for the second request's actual send avoids confusing the first pending job.
+        let deadline = Date().addingTimeInterval(1)
+        while await cm.outstandingRequests != 1 || transport.sentCount < 3 {
+            guard Date() < deadline else { throw URLError(.timedOut) }
+            try await Task.sleep(for: .milliseconds(1))
+        }
+        transport.deliver(try frame(.kEmsgClientGetDepotDecryptionKeyResponse, body: response, target: 3))
+        try await preparation.value
+        await cm.disconnect()
+        for manifest in manifests {
+            try await engine.download(manifest: manifest, servers: [.init(host: "unused.invalid", vhost: "unused.invalid", load: 0)])
+        }
+        do { _ = try await cm.depotKey(appID: 42, depotID: 9); XCTFail("Missing key must require a connection") }
+        catch { XCTAssertEqual((error as? URLError)?.code, .networkConnectionLost) }
+    }
     func testConnectionLossIsReportedAsNetworkFailure() async throws {
         let cm = client(), transport = TestCMTransport(); try await cm.attach(transport)
         let request = Task { try await cm.waitForLicenses() }
@@ -133,12 +159,14 @@ final class CMRequestTests: XCTestCase {
 private final class TestCMTransport: CMTransport, @unchecked Sendable {
     private let lock = NSLock()
     private var closed = false
+    private var sent = 0
+    var sentCount: Int { lock.withLock { sent } }
     private var frames: [Data] = []
     private var receiver: CheckedContinuation<Data, Error>?
     private let ignoreClose: Bool
     init(ignoreClose: Bool = false) { self.ignoreClose = ignoreClose }
     var isClosed: Bool { lock.withLock { closed } }
-    func send(_ data: Data) async throws { if isClosed { throw URLError(.networkConnectionLost) } }
+    func send(_ data: Data) async throws { try lock.withLock { if closed { throw URLError(.networkConnectionLost) }; sent += 1 } }
     func receive() async throws -> Data {
         try await withCheckedThrowingContinuation { continuation in
             lock.withLock {

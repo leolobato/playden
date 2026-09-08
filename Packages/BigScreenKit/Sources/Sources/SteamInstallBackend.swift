@@ -40,6 +40,11 @@ struct LiveSteamInstallBackend: SteamInstallBackend {
                 throw SteamPlanBuilder.failure("Download", "This account no longer has access to all depots in the saved install plan. Resolve the installation again with an account that owns this edition.")
             }
             let servers = try await CDNClient.contentServers(cellID: cm.cellID)
+            let preparation = DownloadEngine(cm: cm, appID: payload.app.appID, destination: directory)
+            try await preparation.prepare(manifests: payload.manifests)
+            // Entitlements were checked above. Keys live only in this invocation's memory
+            // store; transfers must not ask a long-idle CM for the next depot's key.
+            await cm.disconnect()
             let total = payload.manifests.reduce(Int64(0)) { $0 + Int64($1.totalSize) }
             let transfers = SteamTransferProgress(total: total, report: progress)
             var completed: Int64 = 0

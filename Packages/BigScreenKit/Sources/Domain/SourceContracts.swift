@@ -24,7 +24,7 @@ public enum SourceFailure: Error, Equatable, Sendable, LocalizedError {
         case .credentialsRejected: "The store couldn’t verify those details. Check your account name, password or code."
         case .cancelled: "Sign-in was cancelled."
         case .unavailable: "The store couldn’t complete the request. Try again shortly."
-        case .malformedResponse: "The store returned an incomplete library. Your cached games have been kept."
+        case .malformedResponse: "The store returned an unexpected or incomplete response. Please retry."
         case .storage(let detail): "Big Screen couldn’t access your saved sign-in. Unlock your Mac and retry. (\(detail))"
         }
     }

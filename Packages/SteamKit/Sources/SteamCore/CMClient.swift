@@ -156,7 +156,7 @@ public actor CMClient {
     // MARK: send / receive plumbing
 
     private func send<M: Message>(_ emsg: EMsg, body: M, header: CMsgProtoBufHeader? = nil) async throws {
-        guard let socket else { throw SteamError.protocolError("not connected") }
+        guard let socket else { throw URLError(.networkConnectionLost) }
         var hdr = header ?? CMsgProtoBufHeader()
         hdr.steamid = steamID
         hdr.clientSessionid = sessionID
@@ -290,7 +290,7 @@ public actor CMClient {
         isComplete: @escaping (Data) -> Bool = { _ in true }
     ) async throws -> [Data] {
         try Task.checkCancellation()
-        guard socket != nil else { throw SteamError.protocolError("not connected") }
+        guard socket != nil else { throw URLError(.networkConnectionLost) }
         jobCounter += 1
         let jobID = jobCounter
         var header = CMsgProtoBufHeader()
