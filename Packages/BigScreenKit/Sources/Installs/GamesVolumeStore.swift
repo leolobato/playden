@@ -16,7 +16,7 @@ public actor GamesVolumeStore: VolumeManaging {
                   values.volumeIsReadOnly != true, let id = values.volumeUUIDString, !result.contains(where: { $0.id == id }) else { continue }
             let isHome = id == homeValues.volumeUUIDString
             let mount = values.volume ?? path
-            let root = isHome ? home.appendingPathComponent("Games/GameNative", isDirectory: true) : mount.appendingPathComponent("GameNative/games", isDirectory: true)
+            let root = isHome ? home.appendingPathComponent("Games/Big Screen", isDirectory: true) : mount.appendingPathComponent("Big Screen/games", isDirectory: true)
             guard files.isWritableFile(atPath: path.path) else { continue }
             result.append(GamesVolume(id: id, name: isHome ? "This Mac" : values.volumeName ?? mount.lastPathComponent,
                 mountURL: mount, gamesRoot: root, freeBytes: max(0, values.volumeAvailableCapacityForImportantUsage ?? Int64(values.volumeAvailableCapacity ?? 0)),

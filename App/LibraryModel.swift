@@ -101,6 +101,8 @@ final class LibraryModel {
     @ObservationIgnored var installOfferTask: Task<Void, Never>?
     var installOffer: InstallOffer?
     var installOfferError: String?
+    var installOfferRequiresSignIn = false
+    var installAfterAuthentication: GameID?
     var resolvingInstall = false
     @ObservationIgnored let gamesStorageReader: (any GamesStorageReading)?
     var gamesStorage: GamesStorageSnapshot?
@@ -380,7 +382,7 @@ final class LibraryModel {
         switch panel {
         case .context: contextActions
         case .downloadActions(let id): downloadActions(for: id)
-        case .installOffer: resolvingInstall ? [installOffer == nil ? "Cancel" : "Close"] : installOfferError != nil ? ["Cancel", "Retry"] : installOffer?.canInstall == true ? ["Cancel", "Install"] : ["Cancel", "Check space again"]
+        case .installOffer: resolvingInstall ? [installOffer == nil ? "Cancel" : "Close"] : installOfferError != nil ? ["Cancel", installOfferRequiresSignIn ? "Sign in" : "Retry"] : installOffer?.canInstall == true ? ["Cancel", "Install"] : ["Cancel", "Check space again"]
         case .filters: []
         case .compatibility: Compatibility.allCases.map(\.rawValue) + ["Edit note"]
         case .collections: collections.map(\.name) + ["New collection…"]
@@ -610,6 +612,7 @@ final class LibraryModel {
         switch panel {
         case .installOffer(let id):
             if panelIndex == 0 { panel = nil }
+            else if installOfferRequiresSignIn { beginSignIn(resumingInstall: id) }
             else if installOfferError != nil || installOffer?.canInstall != true { beginInstall(id) }
             else { confirmInstall() }
         case .signOut:

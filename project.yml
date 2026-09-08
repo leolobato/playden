@@ -1,12 +1,14 @@
 name: BigScreen
 options:
-  bundleIdPrefix: com.gamenative
   deploymentTarget:
     macOS: '15.0'
 settings:
   base:
     SWIFT_VERSION: '6.0'
     MACOSX_DEPLOYMENT_TARGET: '15.0'
+configFiles:
+  Debug: Config/Build.xcconfig
+  Release: Config/Build.xcconfig
 packages:
   BigScreenKit:
     path: Packages/BigScreenKit
@@ -49,7 +51,7 @@ targets:
         product: Sessions
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.gamenative.bigscreen
+        PRODUCT_BUNDLE_IDENTIFIER: $(BIGSCREEN_BUNDLE_IDENTIFIER)
         PRODUCT_NAME: Big Screen
         PRODUCT_MODULE_NAME: BigScreen
         HEADER_SEARCH_PATHS: ['$(inherited)', /opt/homebrew/include]
@@ -70,6 +72,7 @@ targets:
       - target: BigScreen
     settings:
       base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(BIGSCREEN_BUNDLE_IDENTIFIER).tests
         GENERATE_INFOPLIST_FILE: YES
         CODE_SIGN_IDENTITY: '-'
         TEST_HOST: '$(BUILT_PRODUCTS_DIR)/Big Screen.app/Contents/MacOS/Big Screen'

@@ -61,7 +61,7 @@ local edits. Nothing here names Steam except the artwork endpoint.
 - **FR-COMP-2 (v1):** The launcher records the last session outcome (clean exit, crash, forced quit)
   and shows it on the game page; it never changes the user's rating on its own.
 - **FR-COMP-3 (v2):** Seeded ratings and notes from a shared list (your own verified results, later
-  the GameNative community data). Seeded values are labeled as such and are overridable.
+  community compatibility data). Seeded values are labeled as such and are overridable.
 - **FR-COMP-4 (later):** Export ratings back to the community.
 
 ## 6. Artwork and metadata

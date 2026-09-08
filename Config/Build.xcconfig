@@ -1,0 +1,5 @@
+// Shared defaults. Keep personal identifiers and teams in Local.xcconfig.
+BIGSCREEN_BUNDLE_IDENTIFIER = com.bigscreen.app
+DEVELOPMENT_TEAM =
+
+#include? "Local.xcconfig"

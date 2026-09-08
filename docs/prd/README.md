@@ -2,8 +2,8 @@
 
 Product requirements for a couch-first game launcher on macOS. This folder is the contract for
 *what the product is*, split by user journey. Engineering detail lives in
-[01-architecture.md](01-architecture.md) and, for the Steam layer, in the sibling repo
-`../GameNative-macos` (`swift/README.md`, `docs/`).
+[01-architecture.md](01-architecture.md) and, for the Steam layer,
+[SteamKit](../../Packages/SteamKit/README.md).
 
 Drafted 2026-09-07 (Leo + Claude brainstorm). Decisions recorded below are dated; everything else is
 proposal-stage until built.
@@ -26,7 +26,7 @@ console.
 
 - **Leo, on the couch.** A PS4 controller in hand, a Mac on the TV, a Steam library of ~600 games.
   Wants to pick a game and play without touching a keyboard, mouse or the CrossOver window.
-- **Later: other GameNative users on Macs.** Same expectations; may use other stores and controllers.
+- **Later: other players on Macs.** Same expectations; may use other stores and controllers.
 
 ## Release tiers
 
@@ -40,13 +40,13 @@ Every requirement carries one tag. A requirement without a tag is a bug in this 
 
 ## Decisions (dated 2026-09-07)
 
-1. **Install model: GameNative-style.** Game files are downloaded directly by the app (Steam depots via
+1. **Install model: direct downloads.** Game files are downloaded directly by the app (Steam depots via
    `SteamCore`), Steam emulation (gbe_fork) provides the Steam API, and the game exe is launched in
    CrossOver. The real Steam client is never shown. Alternative rejected: driving the Steam client in a
    bottle, because it surfaces Steam's own windows and takes install control away from the launcher.
 2. **Standalone app that reuses `SteamCore`.** New SwiftUI/AppKit app in this repository, depending on
-   the `GameNativeSteam` SwiftPM package from `../GameNative-macos` by local path. Not a new mode
-   inside that repository: this product ships on its own timeline and does not carry the VM runtime.
+   the in-repository `SteamKit` SwiftPM package. This product ships on its own timeline and does
+   not carry the research VM runtime.
 3. **Stores and installers are protocols from day one.** `GameSource` and `Installer` are defined in v1
    with Steam as the only implementation; GOG, itch.io and Epic follow (see [05-install.md](05-install.md)).
 4. **One CrossOver bottle per game, cloned from a launcher-managed template.** Isolation per title,
@@ -104,7 +104,7 @@ v1 ships when, with the Mac connected to a TV and only a PS4 controller in hand:
 
 | PRD area | Depends on |
 |---|---|
-| Login, library, downloads, gbe_fork staging | `SteamCore` in `../GameNative-macos/swift` (auth, PICS, CDN download engine, `Prepare`), already implemented and CLI-tested |
+| Login, library, downloads, gbe_fork staging | `SteamCore` in `Packages/SteamKit` (auth, PICS, CDN download engine, `Prepare`), already implemented and CLI-tested |
 | Launch | CrossOver 26.x installed; `cxbottle` and `cxstart` CLIs (verified present 2026-09-07) |
 | Artwork | Steam CDN public art endpoints; SteamGridDB API key for v2 fallback |
 | Controller | Apple GameController framework (DualShock 4 supported natively) |

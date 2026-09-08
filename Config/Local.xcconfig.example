@@ -1,0 +1,3 @@
+// Copy to Local.xcconfig (ignored by Git).
+BIGSCREEN_BUNDLE_IDENTIFIER = com.yourcompany.bigscreen
+DEVELOPMENT_TEAM = YOURTEAMID

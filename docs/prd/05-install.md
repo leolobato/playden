@@ -37,7 +37,7 @@ Installed.**
   dir). Bottle creation failure is a job failure with the `cxbottle` output attached (07 §2).
 - **FR-INST-8 (v1):** Post-install for Steam: gbe_fork Mode A staging with `unlock_all=0` and the owned
   DLC list, synthetic offline identity, Steamless unpack for SteamStub exes, originals backed up
-  once. Mirrors `GameNative-macos` FR-LAUNCH-2/3.
+  once.
 - **FR-INST-9 (v1):** Verify: file sizes against the manifest; a "Verify files" action is available
   on installed games and repairs missing or short files by re-downloading them.
 - **FR-INST-10 (v2):** Game updates: detect a newer manifest, show "Update available", update on

@@ -38,12 +38,13 @@ extension LibraryModel {
         cloudObserver?.cancel()
         uninstallTask?.cancel()
     }
-    func beginSignIn() {
+    func beginSignIn(resumingInstall gameID: GameID? = nil) {
         guard !resetBusy else { return }
         guard source != nil else {
             show(.information("Steam sign-in is available in the live app. Launch without --preview to connect your account.")); return
         }
         cancelAuthentication()
+        installAfterAuthentication = gameID
         panel = nil; authScreen = .qr; authIndex = 0
         authMessage = "Connecting to Steam…"
         runAuthentication(password: false)
@@ -77,8 +78,13 @@ extension LibraryModel {
                 } else { result = try await source.auth.signInWithQR(onEvent: events) }
                 try Task.checkCancellation()
                 guard authAttempt == attempt else { return }
-                identity = result; cancelAuthentication(); refreshLibrary(); selectTab(.home)
-                if setupScreen == .account { openVolumeSetup(firstRun: true) }
+                let pendingInstall = installAfterAuthentication
+                identity = result; cancelAuthentication(); refreshLibrary()
+                if let pendingInstall { beginInstall(pendingInstall) }
+                else {
+                    selectTab(.home)
+                    if setupScreen == .account { openVolumeSetup(firstRun: true) }
+                }
             } catch {
                 guard authAttempt == attempt, !Task.isCancelled else { return }
                 authQR = nil; authError = error.localizedDescription; authMessage = "Couldn’t sign in"
@@ -90,6 +96,7 @@ extension LibraryModel {
         authAttempt = UUID(); authTask?.cancel(); authTask = nil
         guardContinuation?.resume(throwing: CancellationError()); guardContinuation = nil
         authScreen = nil; authQR = nil; authExpiresAt = nil; authError = nil
+        installAfterAuthentication = nil
         accountNameDraft = ""; passwordDraft = ""
         if maskedText || panel == .textEditor(.accountName) { panel = nil; textEditor = TextEditorState() }
     }
@@ -137,9 +144,11 @@ extension LibraryModel {
     func activateAuthentication() {
         guard let title = authenticationActions[safe: authIndex] else { return }
         switch title {
-        case "Retry": beginSignIn()
+        case "Retry": beginSignIn(resumingInstall: installAfterAuthentication)
         case "Use password instead", "Try again":
+            let pendingInstall = installAfterAuthentication
             cancelAuthentication(); authScreen = .credentials; authIndex = 0
+            installAfterAuthentication = pendingInstall
         case "Account name": beginText(.accountName)
         case "Password": beginText(.password)
         case "Enter code": beginText(.guardCode)

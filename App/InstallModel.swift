@@ -37,7 +37,7 @@ extension LibraryModel {
     func beginInstall(_ id: GameID) {
         guard let installQueue, let catalog else { show(.information(installPersistenceError ?? "The install queue is unavailable.")); return }
         guard let volume = gamesVolume else { openVolumeSetup(); return }
-        installOfferTask?.cancel(); installOffer = nil; installOfferError = nil; resolvingInstall = true
+        installOfferTask?.cancel(); installOffer = nil; installOfferError = nil; installOfferRequiresSignIn = false; resolvingInstall = true
         show(.installOffer(id))
         installOfferTask = Task { [weak self] in
             guard let self else { return }
@@ -51,7 +51,7 @@ extension LibraryModel {
                 }
             } catch {
                 guard !Task.isCancelled, self.panel == .installOffer(id) else { return }
-                self.installOfferError = (error as? OperationFailure)?.reason ?? error.localizedDescription; self.resolvingInstall = false; self.panelIndex = 1
+                self.recordInstallOfferFailure(error); self.resolvingInstall = false; self.panelIndex = 1
             }
         }
     }
@@ -65,9 +65,14 @@ extension LibraryModel {
                 self.panel = nil; self.selectTab(.downloads)
             } catch {
                 guard let self, !Task.isCancelled else { return }
-                self.resolvingInstall = false; self.installOfferError = (error as? OperationFailure)?.reason ?? error.localizedDescription
+                self.resolvingInstall = false; self.recordInstallOfferFailure(error)
             }
         }
+    }
+    private func recordInstallOfferFailure(_ error: Error) {
+        installOfferError = (error as? OperationFailure)?.reason ?? error.localizedDescription
+        let failure = error as? SourceFailure
+        installOfferRequiresSignIn = failure == .signedOut || failure == .expired || failure == .credentialsRejected
     }
     var latestInstallJobs: [JobRecord] {
         var latest: [GameID: JobRecord] = [:]

@@ -143,6 +143,7 @@
 		55F98FF85521FE1A2C0FE973 /* ResetModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResetModel.swift; sourceTree = "<group>"; };
 		5B2BFD1CFF9C87356CDEE098 /* DisplayModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayModel.swift; sourceTree = "<group>"; };
 		5B78D60EBB0202EF68C9C101 /* LauncherQuitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LauncherQuitTests.swift; sourceTree = "<group>"; };
+		5E9D8BCA65488EB860FC53BD /* Build.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Build.xcconfig; sourceTree = "<group>"; };
 		5F124DDCA81FCCB25F42B2E6 /* CloudReadCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudReadCheck.swift; sourceTree = "<group>"; };
 		675832B109B2E37BE237EB27 /* BarlowCondensed-SemiBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "BarlowCondensed-SemiBold.ttf"; sourceTree = "<group>"; };
 		697CFDC2E8EEEA5BF7F978E3 /* UninstallInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UninstallInteractionTests.swift; sourceTree = "<group>"; };
@@ -251,6 +252,14 @@
 			path = Tests/AppTests;
 			sourceTree = "<group>";
 		};
+		7F10F63A4FEA3B4A7B70D912 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				5E9D8BCA65488EB860FC53BD /* Build.xcconfig */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
 		92362F9C9330BF887D34F154 /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -323,6 +332,7 @@
 			children = (
 				A251EF9B07E2D247834C407F /* App */,
 				44AE54041DEFE82B94ECF2C3 /* AppTests */,
+				7F10F63A4FEA3B4A7B70D912 /* Config */,
 				BDB57EE0D1D5201A1A15BFED /* Packages */,
 				92362F9C9330BF887D34F154 /* Products */,
 			);
@@ -419,7 +429,11 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					58B7188056332475075E4BE8 = {
+						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
+					};
+					628B536C891807FDA13EE822 = {
+						DevelopmentTeam = "";
 					};
 				};
 			};
@@ -623,7 +637,7 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.gamenative.BigScreenTests;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(BIGSCREEN_BUNDLE_IDENTIFIER).tests";
 				SDKROOT = macosx;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Big Screen.app/Contents/MacOS/Big Screen";
 			};
@@ -654,7 +668,7 @@
 					"$(inherited)",
 					/opt/homebrew/lib,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.gamenative.bigscreen;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(BIGSCREEN_BUNDLE_IDENTIFIER)";
 				PRODUCT_MODULE_NAME = BigScreen;
 				PRODUCT_NAME = "Big Screen";
 				SDKROOT = macosx;
@@ -663,6 +677,7 @@
 		};
 		A5FE89B0440D04A149AD46DF /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 5E9D8BCA65488EB860FC53BD /* Build.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -729,7 +744,7 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.gamenative.BigScreenTests;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(BIGSCREEN_BUNDLE_IDENTIFIER).tests";
 				SDKROOT = macosx;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Big Screen.app/Contents/MacOS/Big Screen";
 			};
@@ -760,7 +775,7 @@
 					"$(inherited)",
 					/opt/homebrew/lib,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.gamenative.bigscreen;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(BIGSCREEN_BUNDLE_IDENTIFIER)";
 				PRODUCT_MODULE_NAME = BigScreen;
 				PRODUCT_NAME = "Big Screen";
 				SDKROOT = macosx;
@@ -769,6 +784,7 @@
 		};
 		EF820DB2030C3AF2874595C6 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 5E9D8BCA65488EB860FC53BD /* Build.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;

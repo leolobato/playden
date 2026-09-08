@@ -3,41 +3,25 @@
 The [root README](../README.md) covers player setup, controls, current features and the roadmap.
 Run the commands below from the `big-screen` repository root.
 
-**Current checkpoint:** development is paused at the user's request, with Big Screen and the
-test game closed. Read [the next-session handoff](NEXT_SESSION_HANDOFF.md) before resuming.
-The latest quit-confirmation implementation passes 137 app tests and the signed build; complete
-live shutdown and focus validation are still open. Do not automatically run the app or tests
-that take over the desktop while the user is using the Mac.
-The user subsequently resumed only the Oniken startup regression check, which passed with a
-clean exit and user confirmation. Both apps are closed again; other work remains paused.
-See [the interface validation](validation/2026-09-08-steam-interfaces.md).
+The [development handoff](NEXT_SESSION_HANDOFF.md) and [validation notes](validation/)
+record gameplay and controller acceptance work. Build and packaging checks do not replace
+those live checks. Avoid tests that take over the desktop while someone is using the Mac.
 
 ## Source layout
 
 ```text
-GameNative/
-├── big-screen/
-└── GameNative-macos/
-    └── swift/
+big-screen/
+├── App/
+├── Config/
+└── Packages/
+    ├── BigScreenKit/
+    └── SteamKit/
 ```
 
-`Packages/BigScreenKit` depends on `../../../GameNative-macos/swift`. The tested sibling revision is
-**`608a619ee02e0a56ca223dd732d807b013330658`**, or a descendant retaining its APIs. It includes
-Steam license acquisition dates as well as injected auth/key storage, bounded CM operations,
-package entitlement lookup, Cloud transfers, verified resumable downloads and preparation fixes.
-The sibling's current `main` does not yet contain all of those APIs; a checkout of `main` alone
-is not the tested dependency. Preserve unrelated work when selecting a compatible checkout.
-
-For a fresh sibling checkout with no local work, select the tested revision with:
-
-```sh
-git -C ../GameNative-macos switch --detach 608a619ee02e0a56ca223dd732d807b013330658
-```
-
-The supplied Steam interface fix is integrated into the sibling's main history (`9ce9f16`) and
-its active dependency history (`13312ff`). The active revision above also includes later settings
-preservation and acquisition-date work. See [interface validation](validation/2026-09-08-steam-interfaces.md)
-and [settings preservation](validation/2026-09-08-steam-settings-preservation.md).
+All application and Steam library source is in this repository. `BigScreenKit` depends on
+`../SteamKit`, whose `SteamCore` product includes authentication, entitlement lookup, metadata,
+Cloud primitives, downloads and game preparation. No sibling checkout is required.
+See [SteamKit](../Packages/SteamKit/README.md) for its tests, protocol generation and source provenance.
 
 ## Build and run
 
@@ -54,10 +38,17 @@ brew install xcodegen xz zstd llvm lld
 ./scripts/run.sh --preview
 ```
 
+`build.sh` defaults to Debug, and `run.sh` always uses the Debug build. For an optimized local
+Release build, run `./scripts/build-release.sh`. The verified bundle is revealed in Finder at
+`DerivedData/Build/Products/Release/Big Screen.app`; quit Big Screen before copying it into
+`/Applications`. See the [source installation instructions](../README.md#build-from-source-and-install).
+Both configurations use the same signing selection and embed the runtime dependencies.
+Use `./scripts/build-release.sh --no-open` to build without opening Finder.
+
 The build embeds compression libraries and the Windows display helper. The staged app passed
 [minimal-environment validation](validation/2026-09-08-minimal-environment.md): Steam Cloud access
 and an A Short Hike launch with no development-shell variables or Homebrew library paths.
-Preview still requires the sibling package at build time,
+Preview uses the same in-repository packages,
 but does not use Steam credentials, CrossOver or game files at runtime.
 
 `project.yml` is the project source of truth. Open `BigScreen.xcodeproj` in Xcode; regenerate with
@@ -68,13 +59,46 @@ It requests a normal quit before replacing that copy and refuses replacement if 
 not complete. Never replace the signed bundle under a running game or force-quit the launcher
 just to stage a build. Downloads and sessions currently run in-process.
 
+## Bundle ID and signing team
+
+Shared defaults live in [`Config/Build.xcconfig`](../Config/Build.xcconfig). To override them
+locally without editing the generated Xcode project:
+
+```sh
+cp Config/Local.xcconfig.example Config/Local.xcconfig
+```
+
+Edit `Config/Local.xcconfig` (ignored by Git):
+
+```xcconfig
+BIGSCREEN_BUNDLE_IDENTIFIER = com.yourcompany.bigscreen
+DEVELOPMENT_TEAM = YOURTEAMID
+```
+
+The default bundle ID is `com.bigscreen.app` and the default team is empty. Both Debug and
+Release use this configuration. The test bundle appends `.tests`; the run script reads the
+built app's ID, and the distribution script derives the DMG signing identifier from it.
+The scripts resolve `DEVELOPMENT_TEAM` through Xcode and select a matching local development
+certificate. An explicit signing certificate must also match the configured team. A distribution
+build still requires `BIGSCREEN_DEVELOPER_ID` to select its Developer ID Application certificate.
+Command-line Xcode build settings can override xcconfig values when building directly with Xcode.
+
+Changing bundle ID creates a separate Keychain service (`<bundle-id>.steam`) and can cause an
+initial macOS credential-access prompt. The default Big Screen identity migrates the research
+build's saved Steam credentials once; custom bundle IDs require their own Steam sign-in.
+Existing catalog/settings storage, recorded game paths and CrossOver bottles are retained.
+The legacy `.gn-download` checkpoint and `gn-template-1` bottle names remain on-disk compatibility
+identifiers, not product branding. New games folders and the artwork cache use Big Screen names.
+
 ## Signing and permissions
 
-Scripts reuse an available Apple Development certificate and cache the selection in
+Scripts reuse an available Apple Development certificate for the configured team and cache the selection in
 `.build/signing-identity`. Set `BIGSCREEN_CODE_SIGN_IDENTITY` to select another existing identity;
 `-` selects ad-hoc signing. No certificate is created or imported by these scripts.
 
-Without an Apple Development certificate, scripts fall back to ad-hoc signing. Rebuilds can
+With no team configured and no Apple Development certificate, scripts fall back to ad-hoc signing.
+If a team is configured but its certificate is missing, the build reports an error; explicitly
+set `BIGSCREEN_CODE_SIGN_IDENTITY=-` to opt into a local ad-hoc build. Rebuilds can
 then require Keychain approval again. Moving an existing sign-in to development signing can
 also require an initial approval. The app never asks for or stores the Mac login password.
 
@@ -82,6 +106,60 @@ The app runs **without App Sandbox**. macOS privacy and Keychain permissions sti
 The stable launch location avoids Wine loading bundled helpers from protected Documents/Desktop
 folders, and avoids Xcode replacing a running bundle during builds or tests. Repeated prompts
 are not resolved by disabling App Sandbox again.
+
+## Distribution builds
+
+`scripts/distribute.sh` creates an Apple Silicon Release app and a drag-to-Applications DMG
+for GitHub releases or other downloads. It requires the same source/build dependencies, an
+installed **Developer ID Application** certificate with its private key, and Apple notarization
+credentials. It never falls back to development or ad-hoc signing.
+
+For local releases, store notarization credentials in macOS Keychain once. This command prompts
+for the required values; do not put passwords in scripts or commit them:
+
+```sh
+xcrun notarytool store-credentials "big-screen-notary"
+security find-identity -v -p codesigning
+```
+
+Select the full Developer ID Application name (or SHA-1) from that list, then build with an
+explicit marketing version and positive integer build number:
+
+```sh
+export BIGSCREEN_DEVELOPER_ID="Developer ID Application: Your Name (TEAMID)"
+export BIGSCREEN_NOTARY_PROFILE="big-screen-notary"
+./scripts/distribute.sh 0.1.0 1
+```
+
+Alternatively, use an App Store Connect API key, including in CI. Import the Developer ID
+certificate into the runner's Keychain first, and supply the private `.p8` file from a secret
+store. The script accepts these variables instead of a Keychain profile:
+
+```sh
+unset BIGSCREEN_NOTARY_PROFILE
+export BIGSCREEN_NOTARY_KEY_PATH="/path/to/AuthKey.p8"
+export BIGSCREEN_NOTARY_KEY_ID="YOUR_KEY_ID"
+export BIGSCREEN_NOTARY_ISSUER_ID="YOUR_ISSUER_UUID"
+./scripts/distribute.sh 0.1.0 1
+```
+
+The issuer UUID is required for team API keys; omit it for individual API keys. A configured
+Keychain profile takes precedence over API key variables. Keep private keys outside the repository.
+
+The script validates the identity and notarization credentials, builds in
+`.build/distribution/DerivedData`, enables hardened runtime, and signs the native libraries and
+app with secure timestamps. It submits the app to Apple and staples the accepted ticket before
+packaging it with an Applications shortcut. It then signs, notarizes and staples the DMG,
+verifies signatures and tickets, and checks both the app and DMG with Gatekeeper. This follows
+Apple's [signing](https://developer.apple.com/documentation/xcode/creating-distribution-signed-code-for-the-mac)
+and [notarization workflow](https://developer.apple.com/documentation/security/customizing-the-notarization-workflow).
+
+Only after every check succeeds does it place `dist/Big-Screen-0.1.0-1-arm64.dmg` at the final
+output path. Upload that DMG to the GitHub release; the script does not publish it. Open the DMG
+to install by dragging Big Screen into Applications, after quitting any running copy.
+Notarization responses and Apple logs are retained under `.build/distribution/notarization.*`,
+including on rejection. Review the logs for warnings and test the downloaded DMG on a clean Mac
+before publishing a release. Increase the build number for subsequent builds of the same version.
 
 ## Runtime and storage
 
@@ -96,13 +174,13 @@ preparation must finish before launch; supported Cloud saves are then restored.
 | Preview catalog | `~/Library/Application Support/Big Screen/Preview/catalog.sqlite` |
 | Per-game logs | `~/Library/Application Support/Big Screen/logs/` |
 | Setup progress and errors | Live profile's `runtime/` directory |
-| Artwork | `~/Library/Caches/GameNative BigScreen/artwork/` |
+| Artwork | `~/Library/Caches/Big Screen/artwork/` |
 | CrossOver bottles | `~/Library/Application Support/CrossOver/Bottles/` |
 | Game files | Selected writable games volume |
-| Steam credentials | Keychain service `com.gamenative.bigscreen.steam` |
+| Steam credentials | Keychain service `<bundle-id>.steam` (default `com.bigscreen.app.steam`) |
 
-Games-volume selection defaults to `/Volumes/VM/GameNative/games` when writable and present,
-otherwise `~/Games/GameNative`. The choice stores volume identity and a bookmark. Changing the
+Games-volume selection defaults to `/Volumes/VM/Big Screen/games` when writable and present,
+otherwise `~/Games/Big Screen`. The choice stores volume identity and a bookmark. Changing the
 preference affects new installs; it does not move existing games. Runtime space and games-drive
 space are checked separately.
 
@@ -112,11 +190,13 @@ local saves. Cloud attachment and pending transfers remain account scoped.
 
 The Barlow/Barlow Condensed fonts include their OFL licenses. The pinned bundled Steamless
 resources, hashes and licensing constraints are documented in [STEAMLESS.md](STEAMLESS.md).
-Distribution and notarization are outside the current v1 scope.
+The distribution workflow above handles signing and notarization; game compatibility and the
+remaining acceptance checks are separate release requirements.
 
 ## Tests and visual review
 
 ```sh
+python3 scripts/test-release.py
 ./scripts/test.sh
 ./scripts/snapshot.sh --snapshot-reduced-motion
 BIGSCREEN_SNAPSHOT_DIR="$PWD/.build/screenshots-4k" ./scripts/snapshot.sh --snapshot-width 3840 --snapshot-reduced-motion
@@ -152,6 +232,3 @@ test environment; System Events does. See [current shortcut evidence](validation
 - [Steam acquisition sorting](validation/2026-09-08-steam-acquisition-dates.md)
 - [Per-title prerequisite preparation](validation/2026-09-08-prerequisites.md)
 - [Failure and log retry controls](validation/2026-09-08-failure-retry-controls.md)
-
-The sibling `GameNative-macos` also contains a separate VM runtime. `GameNative-android` is the
-reference for existing Android behavior and future per-game configuration interoperability.

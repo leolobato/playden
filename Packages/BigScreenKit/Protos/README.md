@@ -3,7 +3,7 @@
 `cloud_read.proto` and `cloud_write.proto` contain selected message subsets of
 [SteamDatabase/Protobufs](https://github.com/SteamDatabase/Protobufs/blob/b008ad5896440fabc63852440f695b3569e6647c/steam/steammessages_cloud.steamclient.proto),
 revision `b008ad5896440fabc63852440f695b3569e6647c`, inspected 7 September 2026.
-The sibling GameNative Android implementation uses these messages through JavaSteam.
+JavaSteam also uses these Steam protocol messages.
 
 The local package namespace avoids collisions with SteamCore's generated types. Wire field
 numbers/types are unchanged. `persist_state` uses its wire-compatible int32 representation:

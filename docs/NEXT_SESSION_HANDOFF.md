@@ -23,11 +23,9 @@ gameplay save is retained with a pre-test backup; all other v1 work is still pau
   informational notifications, `7655667` minimal-environment validation, `e2d6867` game focus.
 - Quit confirmation was checkpointed in `7b95dfb` as work in progress; confirmed live shutdown
   acceptance remains open. The subsequent Oniken validation does not close that separate item.
-- Sibling `../GameNative-macos` is on `investigation/ios-runtime` at
-  `608a619ee02e0a56ca223dd732d807b013330658`. Big Screen needs this local package API.
-  **Do not switch that working checkout to main**: main does not yet contain all required APIs.
+- SteamCore now lives in `Packages/SteamKit`; Big Screen no longer depends on a sibling checkout.
 - Preserve the user's uncommitted Big Screen design files:
-  `docs/design/GameNative Big Screen.dc.html`, `docs/design/README.md`,
+  `docs/design/Big Screen.dc.html`, `docs/design/README.md`,
   `docs/design/screenshots/3b-library-download-glyph.png`, `3b-tile-detail.png`.
   They were not included in implementation commits.
 - Preserve the sibling's modified handoff/runtime/docs files and untracked iOS plans/`poc/ios/`.

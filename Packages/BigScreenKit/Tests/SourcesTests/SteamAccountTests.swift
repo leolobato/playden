@@ -122,8 +122,8 @@ final class SteamAccountTests: XCTestCase {
         XCTAssertNil(try store.load())
     }
     func testKeychainRoundTripUsesOnlyItsOwnService() throws {
-        let first = KeychainCredentials(service: "com.gamenative.bigscreen.tests.\(UUID().uuidString)")
-        let second = KeychainCredentials(service: "com.gamenative.bigscreen.tests.\(UUID().uuidString)")
+        let first = KeychainCredentials(service: "com.bigscreen.app.tests.\(UUID().uuidString)")
+        let second = KeychainCredentials(service: "com.bigscreen.app.tests.\(UUID().uuidString)")
         defer { try? first.clear(); try? second.clear() }
         XCTAssertNil(try first.load())
         let fixture = StoredAuth(accountName: "Fixture", steamID: 1, refreshToken: "not-a-real-token")
@@ -145,6 +145,21 @@ final class SteamAccountTests: XCTestCase {
         XCTAssertNotNil(metadata.metadataUpdatedAt)
         let mismatch = Data(#"{"268910":{"success":true,"data":{"steam_appid":42}}}"#.utf8)
         XCTAssertThrowsError(try SteamSource.parseMetadata(mismatch, for: game))
+    }
+    func testLegacyCredentialsMigrateOnceAndSignOutCannotRestoreThem() throws {
+        let legacy = KeychainCredentials(service: "com.bigscreen.app.tests.legacy.\(UUID().uuidString)")
+        let current = KeychainCredentials(service: "com.bigscreen.app.tests.current.\(UUID().uuidString)", legacyService: legacy.service)
+        defer { try? current.clear(); try? legacy.clear() }
+        let fixture = StoredAuth(accountName: "Fixture", steamID: 1, refreshToken: "not-a-real-token")
+        try legacy.save(fixture)
+        XCTAssertEqual(try current.load()?.refreshToken, fixture.refreshToken)
+        XCTAssertNil(try legacy.load())
+        try current.clear()
+        XCTAssertNil(try current.load())
+        try legacy.save(fixture)
+        try current.clear()
+        XCTAssertNil(try current.load())
+        XCTAssertNil(try legacy.load())
     }
     func testFailureMappingDoesNotExposeCredentialURLs() {
         let error = SteamError.http(status: 403, url: "https://fixture.invalid?access_token=do-not-display")

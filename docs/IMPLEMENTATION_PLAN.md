@@ -132,8 +132,8 @@ the two-minute onboarding goal after those prerequisites, under a documented net
 
 ## 2. Existing code: reuse and required work
 
-Only link the sibling package's `SteamCore` library product. Do not import `steamcli` or
-`GameNativeRuntime` to obtain convenience functions.
+Link the in-repository `Packages/SteamKit` package’s `SteamCore` library product. The research
+CLI and VM runtime are not dependencies of this app.
 
 | Area | Evidence at review | Planned work |
 |---|---|---|
@@ -145,16 +145,15 @@ Only link the sibling package's `SteamCore` library product. Do not import `stea
 | Launch selection | CLI launch/config helpers live outside SteamCore. | Implement source-neutral launch resolution; use Windows launch metadata and internal title recipes, with explicit ambiguity failure. No arbitrary “first exe” fallback. |
 | Build dependencies | The Swift package declares macOS 14 and uses liblzma/libzstd system libraries. | Validate the actual minimum and arrange runtime library/resources delivery for the app. Distribution polish remains deferred, but the app must find its required libraries. |
 
-Source references: [Package.swift](../../GameNative-macos/swift/Package.swift),
-[DownloadEngine.swift](../../GameNative-macos/swift/Sources/SteamCore/DownloadEngine.swift),
-[PICS.swift](../../GameNative-macos/swift/Sources/SteamCore/PICS.swift),
-[SteamAuth.swift](../../GameNative-macos/swift/Sources/SteamCore/SteamAuth.swift),
-[Prepare.swift](../../GameNative-macos/swift/Sources/SteamCore/Prepare.swift), and
-[CLI Mode A orchestration](../../GameNative-macos/swift/Sources/steamcli/ModeAStaging.swift).
+Source references: [Package.swift](../Packages/SteamKit/Package.swift),
+[DownloadEngine.swift](../Packages/SteamKit/Sources/SteamCore/DownloadEngine.swift),
+[PICS.swift](../Packages/SteamKit/Sources/SteamCore/PICS.swift),
+[SteamAuth.swift](../Packages/SteamKit/Sources/SteamCore/SteamAuth.swift),
+[Prepare.swift](../Packages/SteamKit/Sources/SteamCore/Prepare.swift), with orchestration owned by Big Screen.
 
-SteamCore changes are a separate dependency deliverable in `GameNative-macos`, with targeted
-regression tests and a recorded compatible commit. Keep this repository's local-path dependency
-and document the sibling checkout requirement.
+SteamCore changes live in `Packages/SteamKit` in this repository, with targeted
+regression tests. Keep the local package dependency within this repository and record source
+provenance in the package README.
 
 ## 3. Architecture and durable contracts
 
@@ -621,8 +620,8 @@ See `docs/validation/2026-09-08-save-validation.md`.
 
 Source: `fix/steamcore-legacy-interfaces` at
 `/Users/leolobato/Documents/Projetos/Personal/GameNative/GameNative-macos-steam-interfaces`.
-The fix belongs in GameNative-macos; Big Screen consumes that sibling through
-`../../../GameNative-macos/swift` from `Packages/BigScreenKit`.
+The fix is now included in the in-repository `Packages/SteamKit` dependency. The sibling
+worktree and commit references below record the original investigation.
 
 - [x] Cherry-pick `c5dfc3f289acb5097e31d2fea4045e19095a2ca2` into GameNative-macos main and
   ensure the active sibling checkout used by Big Screen includes it, preserving existing work.

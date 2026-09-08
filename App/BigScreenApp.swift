@@ -484,7 +484,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     model.onboarding = true
                     model.setupScreen = screen == "setup-controller" ? .controller : screen == "setup-display" ? .display : screen == "setup-volume" ? .volume : .runtime
                     model.displays = [DisplayChoice(id: 1, name: "Living room TV", resolution: "3840 × 2160"), DisplayChoice(id: 2, name: "Studio Display", resolution: "5120 × 2880")]
-                    model.availableVolumes = [GamesVolume(id: "fixture-ssd", name: "Games SSD", mountURL: URL(fileURLWithPath: "/Volumes/Games"), gamesRoot: URL(fileURLWithPath: "/Volumes/Games/GameNative/games"), freeBytes: 812_000_000_000, totalBytes: 1_000_000_000_000, isRecommended: true), GamesVolume(id: "fixture-mac", name: "This Mac", mountURL: URL(fileURLWithPath: "/"), gamesRoot: URL(fileURLWithPath: "/fixture/games"), freeBytes: 206_000_000_000, totalBytes: 1_000_000_000_000)]
+                    model.availableVolumes = [GamesVolume(id: "fixture-ssd", name: "Games SSD", mountURL: URL(fileURLWithPath: "/Volumes/Games"), gamesRoot: URL(fileURLWithPath: "/Volumes/Games/Big Screen/games"), freeBytes: 812_000_000_000, totalBytes: 1_000_000_000_000, isRecommended: true), GamesVolume(id: "fixture-mac", name: "This Mac", mountURL: URL(fileURLWithPath: "/"), gamesRoot: URL(fileURLWithPath: "/fixture/games"), freeBytes: 206_000_000_000, totalBytes: 1_000_000_000_000)]
                     model.selectedVolumeID = "fixture-ssd"
                     model.runtimeInfo = RuntimeInfo(version: "26.2", templateVersion: "1", templateReady: screen == "setup-ready")
                     model.templateStage = screen == "setup-ready" ? .ready : .creating

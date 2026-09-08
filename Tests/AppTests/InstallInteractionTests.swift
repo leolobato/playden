@@ -7,6 +7,7 @@ import Installs
 private actor InteractionQueue: InstallQueuing {
     let result: InstallOffer
     var held = false
+    var offerFailure: SourceFailure?
     var cancelledOffers = 0
     var enqueued: [InstallOffer] = []
     var commands: [String] = []
@@ -20,7 +21,9 @@ private actor InteractionQueue: InstallQueuing {
     }
     func publish(_ snapshot: InstallQueueSnapshot) { observer?.yield(snapshot) }
     func hold() { held = true }
+    func failOffer(_ failure: SourceFailure?) { offerFailure = failure }
     func offer(for game: SourceGameRecord, volume: GamesVolumeSelection) async throws -> InstallOffer {
+        if let offerFailure { throw offerFailure }
         do { while held { try await Task.sleep(for: .milliseconds(10)) } }
         catch { cancelledOffers += 1; throw error }
         return result
@@ -33,6 +36,28 @@ private actor InteractionQueue: InstallQueuing {
     func cancel(_ jobID: UUID) async throws { commands.append("cancel") }
     func move(_ jobID: UUID, before otherID: UUID) async throws { commands.append("move") }
 }
+private actor InstallRecoveryAuth: SourceAuth {
+    func identity() async throws -> SourceIdentity? { nil }
+    func signInWithQR(onEvent: @escaping @Sendable (AuthenticationEvent) -> Void) async throws -> SourceIdentity {
+        try await Task.sleep(for: .seconds(60))
+        throw CancellationError()
+    }
+    func signIn(accountName: String, password: String,
+                codeProvider: @escaping @Sendable (GuardChallenge) async throws -> String,
+                onEvent: @escaping @Sendable (AuthenticationEvent) -> Void) async throws -> SourceIdentity {
+        SourceIdentity(sourceID: "fixture", displayName: "Fixture")
+    }
+    func cancelSignIn() async {}
+    func signOut() async throws {}
+}
+private struct InstallRecoverySource: GameSource {
+    let id = "fixture", displayName = "Fixture"
+    let auth: any SourceAuth = InstallRecoveryAuth()
+    let game: SourceGameRecord
+    func ownedGames() async throws -> [SourceGameRecord] { [game] }
+    func metadata(for game: SourceGameRecord) async throws -> SourceGameRecord { game }
+    func installer(for game: SourceGameRecord) throws -> any Installer { throw SourceFailure.unavailable }
+}
 final class InstallInteractionTests: XCTestCase {
     private let id = GameID(source: "fixture", value: "game")
     private func offer(free: Int64 = 10_000) -> InstallOffer {
@@ -41,12 +66,64 @@ final class InstallInteractionTests: XCTestCase {
             launchSpec: .init(executableRelativePath: "game.exe"), sourcePayload: Data())
         return .init(plan: plan, volume: .init(volumeID: "fixture", rootBookmark: Data(), lastKnownRoot: URL(fileURLWithPath: "/fixture/games"), relativeRoot: "games"), freeBytes: free, reservedBytes: 0)
     }
-    @MainActor private func model(_ queue: InteractionQueue, offer: InstallOffer) throws -> LibraryModel {
+    @MainActor private func model(_ queue: InteractionQueue, offer: InstallOffer, source: (any GameSource)? = nil) throws -> LibraryModel {
         let catalog = try CatalogStore()
         try catalog.replaceSourceCatalog(source: "fixture", games: [offer.plan.game])
-        let model = LibraryModel(catalog: catalog, preview: false, installQueue: queue)
+        let model = LibraryModel(catalog: catalog, preview: false, source: source, installQueue: queue)
         model.gamesVolume = offer.volume
         return model
+    }
+    @MainActor func testExpiredInstallCanSignInAndReturnsToConfirmation() async throws {
+        let offer = offer(), queue = InteractionQueue(offer)
+        await queue.failOffer(.expired)
+        let model = try model(queue, offer: offer, source: InstallRecoverySource(game: offer.plan.game))
+        defer { model.stopServices() }
+        model.selectTab(.library)
+        model.beginInstall(id)
+        await model.installOfferTask?.value
+        XCTAssertEqual(model.panelActions, ["Cancel", "Sign in"])
+        model.perform(.confirm)
+        XCTAssertEqual(model.authScreen, .qr)
+        XCTAssertEqual(model.installAfterAuthentication, id)
+        // Retain the install when changing from QR to password authentication.
+        model.perform(.confirm)
+        XCTAssertEqual(model.authScreen, .credentials)
+        XCTAssertEqual(model.installAfterAuthentication, id)
+        await queue.failOffer(nil)
+        model.accountNameDraft = "Fixture"; model.passwordDraft = "fixture-only"
+        model.authIndex = 2; model.activateAuthentication()
+        try await eventually { model.installOffer != nil && model.authScreen == nil }
+        XCTAssertEqual(model.panel, .installOffer(id))
+        XCTAssertEqual(model.panelActions, ["Cancel", "Install"])
+        XCTAssertEqual(model.tab, .library)
+        XCTAssertNil(model.installAfterAuthentication)
+        let enqueued = await queue.enqueued
+        XCTAssertTrue(enqueued.isEmpty, "Signing in must still require confirmation before downloading")
+    }
+    @MainActor func testCancellingInstallSignInDropsPendingInstallation() async throws {
+        let offer = offer(), queue = InteractionQueue(offer)
+        await queue.failOffer(.signedOut)
+        let model = try model(queue, offer: offer, source: InstallRecoverySource(game: offer.plan.game))
+        defer { model.stopServices() }
+        model.beginInstall(id); await model.installOfferTask?.value
+        model.perform(.confirm)
+        XCTAssertEqual(model.installAfterAuthentication, id)
+        model.perform(.back)
+        XCTAssertNil(model.authScreen)
+        XCTAssertNil(model.installAfterAuthentication)
+        XCTAssertNil(model.panel)
+        XCTAssertNil(model.installOffer)
+    }
+    @MainActor func testNetworkAndKeychainFailuresKeepRetryInsteadOfSignIn() async throws {
+        for failure in [SourceFailure.network, .storage("test-status")] {
+            let offer = offer(), queue = InteractionQueue(offer)
+            await queue.failOffer(failure)
+            let model = try model(queue, offer: offer)
+            model.beginInstall(id); await model.installOfferTask?.value
+            XCTAssertEqual(model.panelActions, ["Cancel", "Retry"])
+            XCTAssertEqual(model.installOfferError, failure.localizedDescription)
+            model.stopServices()
+        }
     }
     @MainActor private func eventually(_ condition: @MainActor () async -> Bool) async throws {
         let deadline = Date().addingTimeInterval(3)

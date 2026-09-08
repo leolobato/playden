@@ -1,6 +1,7 @@
 #!/bin/zsh
 set -eu
 cd "$(dirname "$0")/.."
+swift test --package-path Packages/SteamKit
 swift test --package-path Packages/BigScreenKit
 xcodegen generate
 signing_identity=$(python3 scripts/signing-identity.py)

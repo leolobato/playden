@@ -17,7 +17,7 @@ Journey: **play**. From Play to player control, to clean exit back to Home.
   one.
 - **FR-LAUNCH-5 (v2):** Per-game properties honored: exe, args, env, DXVK vs D3DMetal, resolution,
   language, Steam emu options (DLC list, offline), controller mapping. Editable from the controller.
-  Import of GameNative-android configs where fields map (see `GameNative-macos/docs/12`).
+  Import of other launcher configurations where fields map.
 
 ## 2. In game
 

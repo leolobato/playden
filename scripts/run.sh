@@ -15,11 +15,16 @@ staging_root=$(mktemp -d "$run_root/.staging.XXXXXX")
 trap 'rm -rf -- "$staging_root"' EXIT
 ditto "$built_app" "$staging_root/Big Screen.app"
 codesign --verify --deep --strict "$staging_root/Big Screen.app"
+bundle_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$staging_root/Big Screen.app/Contents/Info.plist")
 
 # Respect normal app quit handling. Never replace the running bundle or force-quit a game.
 swift -e '
 import AppKit
-let apps = NSRunningApplication.runningApplications(withBundleIdentifier: "com.gamenative.bigscreen")
+let bundleID = CommandLine.arguments[1]
+let launchURL = URL(fileURLWithPath: CommandLine.arguments[2]).standardizedFileURL
+let apps = NSWorkspace.shared.runningApplications.filter {
+    $0.bundleIdentifier == bundleID || $0.bundleURL?.standardizedFileURL == launchURL
+}
 for app in apps { app.terminate() }
 let deadline = Date().addingTimeInterval(10)
 while apps.contains(where: { !$0.isTerminated }) && Date() < deadline {
@@ -29,7 +34,7 @@ guard apps.allSatisfy({ $0.isTerminated }) else {
     fputs("Big Screen is still running. Finish quitting it, then run this command again.\n", stderr)
     exit(1)
 }
-'
+' "$bundle_id" "$run_root/Big Screen.app"
 rm -rf -- "$run_root/Big Screen.app"
 mv "$staging_root/Big Screen.app" "$run_root/Big Screen.app"
 open "$run_root/Big Screen.app" --args "$@"

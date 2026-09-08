@@ -58,7 +58,7 @@ actor ArtworkLoader {
     static let maximumFileBytes = 16 * 1024 * 1024
 
     init(directory: URL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("GameNative BigScreen/artwork"),
+            .appendingPathComponent("Big Screen/artwork"),
          diskLimit: Int = 512 * 1024 * 1024, concurrency: Int = 4,
          fetch: @escaping Fetch = ArtworkLoader.download) {
         self.directory = directory

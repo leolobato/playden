@@ -41,14 +41,37 @@ account with games, and enough space for game files and their CrossOver environm
 targets **macOS 15 or newer**; current live testing uses macOS 26.6.2 and CrossOver 26.2.
 DualShock 4 is the target controller. A keyboard and mouse can also be used throughout setup.
 
-### Build this development version
+### Build from source and install
 
-Place this repository beside `GameNative-macos`, which provides the Steam library. Use the
-compatible SteamCore revision listed in the [developer setup](docs/DEVELOPMENT.md#source-layout).
+The Steam library is included in `Packages/SteamKit`; no other source checkout is needed.
 Install Xcode 26.3 with its command-line tools selected, then run from this repository:
 
 ```sh
 brew install xcodegen xz zstd llvm lld
+./scripts/build-release.sh
+```
+
+This creates an optimized **Release** build and reveals it in Finder. Quit any running copy
+of Big Screen, then drag **Big Screen.app** into **Applications** (replace the existing app
+when updating). Launch `/Applications/Big Screen.app` from Finder or Spotlight.
+
+The app includes its compression libraries and Windows display helper; the source checkout
+and build tools are only needed to build or update it. CrossOver is still required to play games.
+No Apple Developer membership is required: the build reuses an available Apple Development
+certificate or falls back to ad-hoc signing. This is a local source build, not a notarized
+distribution. Build and signing options are in [Development](docs/DEVELOPMENT.md).
+
+To update, update your source checkout, rerun the release build, quit
+Big Screen and replace the app in Applications. Your library, settings and credentials are
+stored separately from the app bundle. The build output is
+`DerivedData/Build/Products/Release/Big Screen.app`.
+
+### Development builds
+
+Without `--release`, the build script creates a **Debug** build. The run script uses that Debug
+build and builds it if missing:
+
+```sh
 ./scripts/build.sh
 ./scripts/run.sh
 ```
@@ -63,8 +86,11 @@ To look around with sample games and without signing in:
 ./scripts/run.sh --preview
 ```
 
-Preview uses separate sample data; it does not install or launch games. Build and signing
-options are in [Development](docs/DEVELOPMENT.md).
+Preview uses separate sample data; it does not install or launch games. With Big Screen closed,
+preview the installed release build using `open "/Applications/Big Screen.app" --args --preview`.
+
+Maintainers can build a signed, notarized DMG with `scripts/distribute.sh`; see
+[distribution builds](docs/DEVELOPMENT.md#distribution-builds).
 
 ### First launch
 
@@ -83,8 +109,8 @@ there; it does not store your Mac password. See [signing and permissions](docs/D
 if rebuilding repeatedly causes permission prompts.
 
 Under **Settings → Display**, choose your preferred monitor and **Start in fullscreen**.
-The **Fullscreen** control changes the current window mode. `./scripts/run.sh --windowed`
-overrides fullscreen for that launch.
+The **Fullscreen** control changes the current window mode. With Big Screen closed,
+`open "/Applications/Big Screen.app" --args --windowed` overrides fullscreen for that launch.
 
 ## Controls
 
@@ -148,6 +174,7 @@ run remains open. Multiplayer, anti-cheat, achievements UI and DLC management ar
 | Library is empty or stale | Settings → Account to check sign-in; Settings → Library → Refresh library |
 | CrossOver setup failed | Settings → Library → Runtime, then Check again or Retry setup |
 | Download or installation failed | Downloads → More → Retry or View logs |
+| Installation asks you to sign in again | Select Sign in in the install dialog; after signing in, review and confirm the installation |
 | Game shows Drive disconnected | Reconnect its drive and allow access; Big Screen checks it automatically |
 | Game fails to launch | Retry on the failure notification; game page → View logs or Verify files |
 | Cloud sync needs attention | Game page → Cloud saves |
