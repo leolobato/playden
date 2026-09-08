@@ -12,7 +12,7 @@ extension LibraryModel {
                     guard let self, !Task.isCancelled else { return }
                     let focusedDownload = self.downloadGames[safe: self.downloadIndex]?.id
                     let completedBefore = Set(self.installJobs.filter { [.completed, .cancelled].contains($0.state) }.map(\.id))
-                    self.installJobs = snapshot.jobs; self.activeInstallID = snapshot.activeJobID
+                    self.installJobs = snapshot.jobs; self.activeInstallID = snapshot.activeJobID; self.installTransfer = snapshot.transfer
                     self.installPersistenceError = snapshot.persistenceFailure?.reason
                     if Set(snapshot.jobs.filter { [.completed, .cancelled].contains($0.state) }.map(\.id)) != completedBefore { self.reloadCatalog() }
                     self.applyInstallStatuses()

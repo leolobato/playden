@@ -32,8 +32,12 @@ public struct InstallProgress: Equatable, Sendable {
     public let bytesCompleted: Int64
     public let bytesTotal: Int64
     public let currentFile: String
-    public init(bytesCompleted: Int64, bytesTotal: Int64, currentFile: String) {
+    /// Invocation-local counters; never restored from a durable job's assembled byte count.
+    public let downloadedBytes: Int64?
+    public let freshlyWrittenBytes: Int64?
+    public init(bytesCompleted: Int64, bytesTotal: Int64, currentFile: String, downloadedBytes: Int64? = nil, freshlyWrittenBytes: Int64? = nil) {
         self.bytesCompleted = bytesCompleted; self.bytesTotal = bytesTotal; self.currentFile = currentFile
+        self.downloadedBytes = downloadedBytes; self.freshlyWrittenBytes = freshlyWrittenBytes
     }
 }
 public struct FileMutation: Codable, Equatable, Sendable {

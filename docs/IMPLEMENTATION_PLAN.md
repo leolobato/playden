@@ -639,3 +639,13 @@ figures and refresh automatically; late results from a prior selection are rejec
 1080p/4K rendering and independent live VM-volume allocation checks pass. Speed/ETA, history
 dismissal and physical drive-disconnection acceptance remain.
 See `docs/validation/2026-09-08-download-storage.md`.
+
+### 8 September — Download transfer checkpoint
+
+Downloads, game details and the bottom indicator now share real speed and remaining-time metrics.
+SteamCore separately reports received chunk bytes and fresh assembled bytes, excluding cached
+resume work from rates. Monotonic samples reset per invocation, age out during stalls and disappear
+outside active downloading. Sibling, package and app checks pass (one corrected zero-format test
+expectation), with 1080p/4K UI inspection and a successful live A Short Hike repair transfer. The
+asset was restored exactly and saves stayed unchanged. History dismissal and physical drive
+reconnection acceptance remain next. See `docs/validation/2026-09-08-download-transfer.md`.

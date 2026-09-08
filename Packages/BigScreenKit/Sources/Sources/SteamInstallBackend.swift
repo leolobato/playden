@@ -38,12 +38,17 @@ struct LiveSteamInstallBackend: SteamInstallBackend {
             }
             let servers = try await CDNClient.contentServers(cellID: cm.cellID)
             let total = payload.manifests.reduce(Int64(0)) { $0 + Int64($1.totalSize) }
+            let transfers = SteamTransferProgress(total: total, report: progress)
             var completed: Int64 = 0
             for manifest in payload.manifests {
                 try Task.checkCancellation()
                 let before = completed
                 var engine = DownloadEngine(cm: cm, appID: payload.app.appID, destination: directory)
-                engine.onProgress = { update in progress(InstallProgress(bytesCompleted: before + Int64(update.bytesDone), bytesTotal: total, currentFile: update.file)) }
+                engine.onTransfer = { transfers.received($0) }
+                engine.onProgress = { update in
+                    transfers.assembled(depot: update.depotID, completed: before + Int64(update.bytesDone),
+                        fresh: update.bytesWritten.map(Int64.init), file: update.file)
+                }
                 try await engine.download(manifest: manifest, servers: servers)
                 completed += Int64(manifest.totalSize)
             }

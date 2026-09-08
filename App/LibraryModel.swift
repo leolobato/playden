@@ -79,6 +79,7 @@ final class LibraryModel {
     var gamesStorageError: String?
     var installJobs: [JobRecord] = []
     var activeInstallID: UUID?
+    var installTransfer: InstallTransferMetrics?
     var installPersistenceError: String?
     @ObservationIgnored var setupTask: Task<Void, Never>?
     @ObservationIgnored var onDisplaySelected: ((UInt32) -> Void)?

@@ -188,7 +188,7 @@ struct DownloadCard: View {
                     }
                     if active {
                         ProgressTrack(value: job.displayProgress)
-                        Text(job.bytesLabel).font(Design.body(22)).foregroundStyle(Design.secondary)
+                        Text(model.downloadStats(for: job)).font(Design.body(22)).foregroundStyle(Design.secondary)
                         Text(job.kind == .uninstall ? "Steam Cloud saves and library history are kept." : job.currentFile ?? "Your game will be ready after verification and setup.").font(Design.body(18)).foregroundStyle(Design.muted).lineLimit(1).truncationMode(.middle)
                     }
                 } else if active {

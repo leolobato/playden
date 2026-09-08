@@ -7,8 +7,9 @@ public struct InstallQueueSnapshot: Sendable {
     public let jobs: [JobRecord]
     public let activeJobID: UUID?
     public let persistenceFailure: OperationFailure?
-    public init(jobs: [JobRecord], activeJobID: UUID? = nil, persistenceFailure: OperationFailure? = nil) {
-        self.jobs = jobs; self.activeJobID = activeJobID; self.persistenceFailure = persistenceFailure
+    public let transfer: InstallTransferMetrics?
+    public init(jobs: [JobRecord], activeJobID: UUID? = nil, persistenceFailure: OperationFailure? = nil, transfer: InstallTransferMetrics? = nil) {
+        self.jobs = jobs; self.activeJobID = activeJobID; self.persistenceFailure = persistenceFailure; self.transfer = transfer
     }
 }
 public struct InstallOffer: Sendable {
@@ -51,6 +52,9 @@ public actor InstallQueue: InstallQueuing {
     private var running = false
     private var persistenceFailure: OperationFailure?
     private var progressTime: TimeInterval = 0
+    private var progressCompleted: Int64 = 0
+    private var transferMeter: TransferRateEstimator?
+    private var transferTicker: Task<Void, Never>?
     private var gameplayPaused = false
     private let stages: [JobStage] = [.reserve, .download, .verifyOriginals, .createBottle, .stage, .validate, .commit]
     public init(catalog: CatalogStore, sources: [any GameSource], storage: any InstallStorageManaging = InstallStorage(),
@@ -64,7 +68,9 @@ public actor InstallQueue: InstallQueuing {
         records = Dictionary(uniqueKeysWithValues: try catalog.jobs().map { ($0.id, $0) })
     }
     public func snapshot() -> InstallQueueSnapshot {
-        .init(jobs: ordered, activeJobID: activeID, persistenceFailure: persistenceFailure)
+        let downloading = activeID.flatMap { records[$0] }.map { $0.stage == .download && $0.state == .running } ?? false
+        return .init(jobs: ordered, activeJobID: activeID, persistenceFailure: persistenceFailure,
+            transfer: downloading ? transferMeter?.metrics(now: ProcessInfo.processInfo.systemUptime) : nil)
     }
     public func updates() -> AsyncStream<InstallQueueSnapshot> {
         let id = UUID()
@@ -194,7 +200,7 @@ public actor InstallQueue: InstallQueuing {
         activeTask = Task { await self.execute(job.id, run: run) }; publish()
     }
     private func execute(_ id: UUID, run: UUID) async {
-        defer { activeTask = nil; activeID = nil; activeRun = nil; publish(); pump() }
+        defer { transferTicker?.cancel(); transferTicker = nil; transferMeter = nil; activeTask = nil; activeID = nil; activeRun = nil; publish(); pump() }
         do {
             if records[id]?.kind == .uninstall { try await executeUninstall(id); return }
             guard let initial = records[id], [.install, .repair].contains(initial.kind), let plan = initial.plan, let volume = initial.volume,
@@ -220,6 +226,15 @@ public actor InstallQueue: InstallQueuing {
                     try update(id) { $0.location = location }
                 case .download:
                     let path = try await directory(job)
+                    progressCompleted = 0
+                    transferMeter = TransferRateEstimator(now: ProcessInfo.processInfo.systemUptime)
+                    transferTicker = Task {
+                        while !Task.isCancelled {
+                            do { try await Task.sleep(for: .seconds(1)) } catch { return }
+                            guard self.activeRun == run, self.records[id]?.stage == .download else { return }
+                            self.publish()
+                        }
+                    }
                     let report: @Sendable (InstallProgress) -> Void = { progress in Task { await self.progress(progress, id: id, run: run) } }
                     if job.kind == .repair { try await installer.repair(plan, at: path, staging: job.staging, progress: report) }
                     else { try await installer.download(plan, to: path, progress: report) }
@@ -309,6 +324,9 @@ public actor InstallQueue: InstallQueuing {
               !job.completedStages.contains(.download),
               value.bytesCompleted >= 0, value.bytesTotal >= value.bytesCompleted else { return }
         let now = ProcessInfo.processInfo.systemUptime
+        guard value.bytesCompleted >= progressCompleted else { return }
+        progressCompleted = value.bytesCompleted
+        transferMeter?.record(value, now: now)
         guard now - progressTime >= 0.25 else { return }; progressTime = now
         do { try update(id) { $0.bytesCompleted = value.bytesCompleted; $0.bytesTotal = value.bytesTotal; $0.currentFile = value.currentFile } }
         catch { persistenceFailure = Self.failure("Save queue", "Install progress could not be saved."); activeTask?.cancel(); publish() }

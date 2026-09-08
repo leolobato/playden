@@ -39,8 +39,9 @@ import Installs
                 if state == .failed { job.failure = .init(stage: "Prepare game", reason: "Game preparation could not finish. Retry the installation.", output: "Screenshot fixture") }
                 jobs.append(job)
             }
-            model.installJobs = jobs; model.activeInstallID = active.id; model.applyInstallStatuses()
+            model.installJobs = jobs; model.activeInstallID = active.id; model.installTransfer = .init(bytesPerSecond: 38_000_000, secondsRemaining: 134); model.applyInstallStatuses()
             if screen == "install-game-progress" { model.openGame(model.games.first { $0.id == game.id }!) }
+            else if screen == "install-mini-progress" { model.selectTab(.library) }
             else { model.selectTab(.downloads) }
         }
         return model
