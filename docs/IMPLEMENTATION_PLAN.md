@@ -2,11 +2,9 @@
 
 ## Current checkpoint — resumed 8 September 2026
 
-Implementation and automated verification have resumed. The earlier desktop pause is historical;
-interactive acceptance requires an available Mac. The installed app was running at this audit's
-start, so builds/tests must not replace it or control its windows without coordinating availability.
-See [NEXT_SESSION_HANDOFF.md](NEXT_SESSION_HANDOFF.md) for preservation and remaining work, and
-[the requirement audit](validation/2026-09-08-v1-requirement-audit.md) for evidence and gaps.
+Implementation is in progress. Session handoffs and detailed validation records are
+maintained outside this repository. The milestones and acceptance criteria below
+define the remaining delivery scope.
 
 The checkout now includes self-contained release packaging, sign-in recovery, launch choices,
 download-size caching, and download/resume verification progress. The historical unchecked
@@ -55,7 +53,7 @@ process restart check verified persisted favorites and restored the original val
 The CrossOver probe created/cloned/deleted owned Windows 10 bottles, verified MSync/D3DMetal settings,
 and ran a Windows command. Missing-executable invocation hung even with `--no-gui`; Runner must
 preflight paths and provide recoverable delayed launch. This is a recorded failure, not a passed M0
-gate. See [foundation/platform evidence](validation/2026-09-07-foundation.md). Chunk-resumable jobs,
+gate. Chunk-resumable jobs,
 actual game sessions, background exit input, and release acceptance remain open.
 
 The M2 account/catalog slice is now connected to the native UI. Normal launches use the real SQLite
@@ -70,7 +68,7 @@ The unauthenticated Steam QR challenge and public metadata probe passed. Native 
 24 app tests and 22 package tests passed (the optional network test was run separately). Full account
 approval, a real 600-title library and authenticated offline restart remain unverified. This does not
 complete the M2 gate or v1: installer, runner/session services, setup and remaining UI acceptance are
-still pending. See [account validation](validation/2026-09-07-steam-account.md).
+still pending.
 
 The next setup slice adds a Runner command executor with bounded output, process-group cancellation
 and timeouts, plus owned, versioned CrossOver template preparation and persisted failures. A real
@@ -82,21 +80,20 @@ The native first-run path now includes pairing guidance with highlighted Share/P
 display selection, account sign-in/skip, games volume, template progress/failure/retry and completion.
 These controls are also reachable from Settings. Display choice and setup completion persist; a
 controller-disconnect banner preserves focus. Actual game launch and background input are still
-unverified. See [setup/runtime evidence](validation/2026-09-07-setup-runtime.md).
+unverified.
 
 The latest UI slice completes the native controller button-test screen and grouped library
 Sort & Filter sheet, including every v1 sort, combined refinements, persistent selections and
 keyboard-aware footer hints. Seventy tests pass, with two optional probes skipped; native
 keyboard navigation and window captures were checked. New diagnostic hardware validation remains
 pending. The sibling SteamCore commit `b54c993` supplies durable, verified chunk checkpoints with
-nine new resume tests, but the app's durable install orchestrator is not yet connected. See
-[controller/filter and downloader evidence](validation/2026-09-07-controller-filters.md).
+nine new resume tests, but the app's durable install orchestrator is not yet connected.
 
 SteamCore `4d5a46e` now bounds CM request waits, cancels them on disconnect, isolates stale connection
 replies, injects depot-key storage, and preserves PICS launch/save metadata. The native account
 boundary cancels authenticated work on sign-out and uses memory-only depot keys. The live unauthenticated
 CM hello and expanded suites pass. The installer factory, pinned plan and durable orchestration remain
-the next integration work; see [installation boundary evidence](validation/2026-09-07-steam-install-boundary.md).
+the next integration work.
 
 ## 1. Planning defaults and PRD corrections
 
@@ -349,7 +346,7 @@ Dependencies: M3; M0 process/input validation.
 - [ ] Implement launch/error states and indefinite no-window waiting with an exit escape hatch, window handoff, exit overlay, graceful/forced stop and Home return.
   Automatic keyboard focus after startup-window replacement, exit overlay Return, subsequent
   game input and clean Home return passed with A Short Hike on 8 September. Physical DS4/TV
-  acceptance remains open. See [focus handoff evidence](validation/2026-09-08-game-focus-handoff.md).
+  acceptance remains open.
 - [ ] Implement single-session enforcement, playtime/outcome recording, automatic pause-reason coordination,
   normal app quit, launcher-crash reconciliation and prevention of duplicate sessions after restart.
 - [ ] Implement controller uninstall confirmation with local-save deletion consequences, pending Cloud
@@ -357,8 +354,7 @@ Dependencies: M3; M0 process/input validation.
 - [ ] Ensure missing-bottle recreation reapplies the recorded recipe and synchronizes available Cloud saves.
   Keyboard-driven A Short Hike recreation, source preparation, restored gameplay, clean quit,
   upload and independent remote readback passed on 8 September; original bottle retained.
-  Physical controller acceptance remains open. See
-  [live recovery evidence](validation/2026-09-08-live-runtime-cloud-recovery.md).
+  Physical controller acceptance remains open.
 - [ ] Implement Steam Cloud metadata/transfer adapters, verified save-path mapping, account-scoped
   sync journals, pre-launch pull, post-exit push, offline retry and controller conflict resolution.
 - [ ] Verify cloud roundtrip, concurrent edits, interrupted transfer/restart, account switching and
@@ -382,7 +378,7 @@ Dependencies: M2–M4 services.
   the pointer usable; controller/keyboard navigation can hide it. Do not capture or lock the mouse
   in the launcher. Verify clicks do not immediately hide it, repeated input changes balance AppKit
   hide/unhide calls, and focus loss restores normal desktop behavior. Requested 7 September 2026.
-  Both changes implemented and checked in `docs/validation/2026-09-07-input-polish.md`; physical
+  Both changes are implemented and checked; physical
   controller/game handoff remains part of the wider TV acceptance run.
 
 - [ ] Finish first run: pairing guidance, display/volume choice, sign-in/skip, CrossOver retry and template progress.
@@ -404,14 +400,13 @@ Dependencies: M2–M4 services.
   Download/verification/removal outcomes and controller connection events now use the designer's
   bottom-right toasts. They never take focus, wait behind modals/games, and dismiss after five
   visible seconds; controller disconnect persists until reconnection. Retry and View logs remain
-  in Downloads. See [notification validation](validation/2026-09-08-transient-notifications.md).
+  in Downloads.
 - [x] Close the disconnected-drive implementation gap (FR-STOR-2). Each installation now uses
   its recorded volume identity/bookmark. Refresh on mount/unmount, volume rename, wake, app
   activation and installation changes. Keep disconnected games in Installed and Recently
   installed; disable Play with a reconnect reason, including keyboard/controller activation.
   Queue recovery remains accessible. Tests cover separate drives, reconnection, stale reads,
-  replacement installs and a real resolver rejecting another UUID at the same existing path.
-  See [drive-availability validation](validation/2026-09-08-installation-drives.md). Physical
+  replacement installs and a real resolver rejecting another UUID at the same existing path. Physical
   disconnect/reconnect remains a separate release-acceptance check.
 - [ ] Bound/redact per-job/session logs and rotate to the last 10 per game; keep technical names in diagnostics.
 
@@ -427,7 +422,7 @@ Dependencies: M0–M5 gates passed.
 - [x] Verify the app can run with its required resources/libraries without relying on the development shell's environment.
   The staged app passed a launch with only HOME, system PATH and LANG, a fresh authenticated
   Cloud read, and an A Short Hike launch/input/clean-exit session. Linked app/compression
-  libraries contain no Homebrew paths. See [minimal-environment evidence](validation/2026-09-08-minimal-environment.md).
+  libraries contain no Homebrew paths.
 - [ ] Check every v1 requirement against its implementation and evidence; unresolved items are recorded failures or
   explicit scope decisions, not silently marked complete.
 - [ ] Document build/run instructions, in-repository SteamKit provenance, CrossOver/system setup, supported-title results,
@@ -482,23 +477,21 @@ input away from a CrossOver game. That behavior remains an M0 test.
 The app now connects resolved install estimates and confirmation to a serial, persistent queue,
 owned game storage/bottles, source staging and atomic installation commit. Downloads controls and
 progress use saved jobs. This is a tested implementation checkpoint, not completion of the real-game
-or v1 gates. See [queue and UI evidence](validation/2026-09-07-install-queue.md) for checks and remaining work.
+or v1 gates.
 
 ### 7 September — real install and private Windows folders
 
 Oniken completed the real Steam install pipeline in the signed app after replacing native-folder
 links with bottle-local Windows folders. The verified download was reused on Retry. Template and
 clone probes, folder ownership tests and the real installed folder audit passed. This establishes
-one real installation; play/session/save-reinstall acceptance remains open. See
-[private-folder and installation evidence](validation/2026-09-07-private-game-folders.md).
+one real installation; play/session/save-reinstall acceptance remains open.
 
 ### 7 September — game process observation and scoped quit
 
 The injected CrossOver runner now has literal launch arguments, bottle/process/window attribution,
 scoped graceful/forced termination and process-identity recovery. A real Oniken window and ten-second
 quit escalation were observed. The session service and Play/overlay UI remain unconnected, and
-controller handoff/player-controlled gameplay are not yet proven. See
-[runner evidence](validation/2026-09-07-game-runner.md).
+controller handoff/player-controlled gameplay are not yet proven.
 
 2026-09-07 session service checkpoint: launch preparation, a single active game, monotonic
 playtime starting at the first window, persisted runtime receipts, recovery before queue restart,
@@ -516,7 +509,7 @@ normal quit coordination and persisted session diagnostics. Fullscreen game-wind
 and overlay ordering were corrected using a real A Short Hike launch. The suite has 121 passing
 tests and three optional runtime skips. Title rendering, global keyboard overlay, forced quit and
 return to fullscreen were observed; continuous gameplay, physical DS4 handoff and save/relaunch
-are still open. See `docs/validation/2026-09-07-session-ui.md`. User additionally requested clear
+are still open. User additionally requested clear
 preferred-monitor settings for launcher/game placement and a saved startup-fullscreen option;
 these are the next display work, beyond the existing first-run launcher display selector.
 
@@ -525,8 +518,7 @@ startup-fullscreen preference. The launcher display picker stores a stable UUID/
 an unavailable preference, and follows the preferred display on reconnect when no game is active.
 Both fullscreen monitor-switch directions and saved windowed/fullscreen startup were exercised
 on the real LG and built-in displays. AppKit follow-up transitions must occur after the exit
-delegate callback returns; the live check caught and fixed a stranded fullscreen Space.
-See `docs/validation/2026-09-07-display-settings.md` for checks and remaining limits. Applying
+delegate callback returns; the live check caught and fixed a stranded fullscreen Space. Applying
 the monitor preference to CrossOver game launches is still outstanding; launcher placement
 alone does not satisfy that request.
 
@@ -567,36 +559,33 @@ attachment, deletions and reinstall. The upload-batch transport passes simulated
 tests, with a mandatory durable-checkpoint callback and final remote verification. This is not yet
 connected to launch/exit or a completed Cloud sync feature. Next: persistent journal, owned local
 file application, session integration, controller conflict UI and real upload/restore acceptance.
-See `docs/validation/2026-09-08-cloud-planning-upload.md` for exact evidence and remaining limits.
 
 The durable Cloud journal now stores account-scoped baselines, installation attachment, staged
 copy references and upload receipts. Versioned claims share the session/maintenance database
 boundary, survive restart, and reject stale callbacks. Pending network work can release its claim
 for offline play; partial local application keeps play blocked until verified recovery. These are
 database guarantees, not completed sync: the coordinator, actual staging/replacement, launch/exit
-integration, conflict UI and real Cloud roundtrip remain. Validation and limits are recorded in
-`docs/validation/2026-09-08-cloud-journal.md`.
+integration, conflict UI and real Cloud roundtrip remain.
 
 Cloud staging now publishes account/revision-bound downloaded copies, and local application
 verifies both backups and the complete live save set before replacement/deletion. Atomic file
 publication and retry support cover interruption between files; original/downloaded copies remain
 available for conflict recovery. Owned bottle save access is exposed and tested. Coordinator,
 launch/exit/offline integration, conflict UI and a live Steam roundtrip are still required.
-See `docs/validation/2026-09-08-cloud-files.md`.
 
 The Cloud coordinator now connects verified staging, three-way planning, conflict authorization,
 upload receipts, local application and final baseline verification under the durable game claim.
 Tests exercise download/edit/upload, offline play/retry, lost commit responses, changed review
 data, account changes, interrupted local recovery and validation of remote deletions. Production
 owned-root/upload validation, race-free session handoff, controller status/conflict UI and live
-Steam upload/restore acceptance remain. See `docs/validation/2026-09-08-cloud-coordinator.md`.
+Steam upload/restore acceptance remain.
 
 Session integration now runs an injected Cloud coordinator after bottle preparation and before
 launch, pauses for conflict/retry/offline choices, and keeps the session reservation through
 post-exit sync. Restart recovers verified exits and interrupted Cloud claims before downloads
 start; sync time does not count as playtime or trigger forced termination. Production root access,
 save-format validation and the app's controller UI/factory wiring remain before enabling live
-Cloud writes. See `docs/validation/2026-09-08-cloud-sessions.md`.
+Cloud writes.
 
 Production Cloud root access now requires the current installation and journal claim, uses the
 owned game/bottle accessors without creating or stopping anything, and checks live/omitted writer
@@ -610,7 +599,6 @@ as expected. The Steam upload policy validates staged hashes and requires an own
 for unknown formats and deletion changes; A Short Hike receives structural validation regardless
 of exit outcome. The callback includes deletions so mixed upload/delete batches cannot bypass
 that policy. App factory, controller UI and live Cloud roundtrip remain.
-See `docs/validation/2026-09-08-save-validation.md`.
 
 ### 8 September — SteamCore interface fix requested by the user
 
@@ -625,19 +613,18 @@ worktree and commit references below record the original investigation.
 - [x] Rebuild Big Screen, regenerate Oniken's existing interface configuration through its real
   preparation path, and verify all 17 interfaces including `STEAMUSERSTATS_INTERFACE_VERSION011`.
   The real Verify files job completed; only the four interface files changed/appeared. Originals,
-  app settings and saves retained identical hashes. See `docs/validation/2026-09-08-steam-interfaces.md`.
+  app settings and saves retained identical hashes.
 - [x] Preserve app settings, original DLLs and saves during live preparation and validation;
   before/after hashes match for every existing non-interface file.
 - [x] Preserve custom `configs.user.ini`, `configs.app.ini` and `configs.main.ini` options on
   future preparation/repair runs. Follow-up dependency commits: main `c9f6c22`, active sibling
   `dd1b307`. Big Screen now merges its offline connectivity policy. Regression tests cover
   custom settings, original DLLs and saves through preparation retry and repair.
-  See `docs/validation/2026-09-08-steam-settings-preservation.md`.
 - [x] Replay Oniken's reported Store User Data crash trigger and record the live result.
   The user clarified that it was starting the game from its Windows launcher. The new run reached
   Stage 1-1 without the crash, confirmed by the user, and ended cleanly (exit 0, not forced).
   Settings/originals/interfaces are unchanged; the gameplay-updated save and its pre-test backup
-  are retained. See `docs/validation/2026-09-08-steam-interfaces.md` for the scoped evidence.
+  are retained.
 
 ### 8 September — Cloud UI and production wiring checkpoint
 
@@ -650,14 +637,12 @@ sync returns focus to Big Screen and does not offer controls for an already stop
 Regression tests pass, and conflict/account/status screens were rendered and inspected at 1080p
 and 4K. Live upload/readback, restore and offline/account-switch acceptance remain outstanding;
 this checkpoint does not declare Cloud sync or v1 complete.
-See `docs/validation/2026-09-08-cloud-ui.md`.
 
 The first live A Short Hike Cloud roundtrip now passes: the app displayed a real conflict, restored
 the user's existing remote progress after selecting Cloud, launched and loaded it, and uploaded
 the game's changed save after a clean exit. An independent fresh-connection download of revision 2
 matched the game-written save byte-for-byte. Both original conflict copies were preserved.
 Uninstall/reinstall restore, disconnected-network and additional account/recovery acceptance remain.
-See `docs/validation/2026-09-08-cloud-live-roundtrip.md`.
 
 ### 8 September — Uninstall authorization checkpoint
 
@@ -667,19 +652,16 @@ sync and incomplete local recovery remain blocked. Durable removal checkpoints s
 reject stale workers and preserve library metadata/Cloud history at final completion. Six new tests
 and the full regression suite pass. The filesystem/bottle worker and live confirmation flow remain
 to be connected before the Uninstall placeholder can be replaced. No live installation was removed.
-See `docs/validation/2026-09-08-uninstall-journal.md`.
 
 The uninstall worker now performs owned file and CrossOver bottle removal with external ownership
 receipts for interrupted deletion, stopped-writer checks, verified absence and durable queue retry.
 The full regression suite and a real disposable CrossOver clone/delete probe pass. UI integration
 and live A Short Hike uninstall/reinstall with Cloud restore are next.
-See `docs/validation/2026-09-08-uninstall-worker.md`.
 
 Live uninstall controls now show what is removed/kept, stop the selected game, check Cloud and require
 separate consent before discarding unsynced progress. Downloads offers removal status/retry instead
 of download cancellation; details blocks Play until removal finishes. Controller/keyboard interaction
 tests and 1080p/4K rendering checks pass. Live A Short Hike removal/reinstall/restore acceptance is next.
-See `docs/validation/2026-09-08-uninstall-ui.md`.
 
 Live A Short Hike uninstall/reinstall/Cloud restoration now passes. The app removed the owned game
 folder and bottle after a fresh sync; an independent Steam read confirmed the remote save stayed
@@ -687,7 +669,6 @@ unchanged. Reinstallation used the selected games volume and a fresh identity/to
 the exact remote bytes into the new bottle, Continue loaded the existing progress, and clean exit
 completed post-exit sync. The game remains installed. Network/account/concurrent-client and
 interrupted-operation acceptance remain open.
-See `docs/validation/2026-09-08-uninstall-live-restore.md`.
 
 ### 8 September — Downloads storage checkpoint
 
@@ -697,7 +678,6 @@ accounting is shared with install offers and the worker. Disconnected/failed rea
 figures and refresh automatically; late results from a prior selection are rejected. Tests,
 1080p/4K rendering and independent live VM-volume allocation checks pass. Speed/ETA, history
 dismissal and physical drive-disconnection acceptance remain.
-See `docs/validation/2026-09-08-download-storage.md`.
 
 ### 8 September — Download transfer checkpoint
 
@@ -707,7 +687,7 @@ resume work from rates. Monotonic samples reset per invocation, age out during s
 outside active downloading. Sibling, package and app checks pass (one corrected zero-format test
 expectation), with 1080p/4K UI inspection and a successful live A Short Hike repair transfer. The
 asset was restored exactly and saves stayed unchanged. History dismissal and physical drive
-reconnection acceptance remain next. See `docs/validation/2026-09-08-download-transfer.md`.
+reconnection acceptance remain next.
 
 ### 8 September — Downloads history checkpoint
 
@@ -716,7 +696,7 @@ Dismissal persists without changing jobs, installations or logs; game pages reta
 failed work, and retries become visible again. Stale menu actions cannot hide a changed job.
 The full suite, 1080p/4K rendering and a live A Short Hike dismissal/restart check pass. All live
 job and installation records remained unchanged. Physical drive/controller and broader release
-acceptance remain open. See `docs/validation/2026-09-08-download-history.md`.
+acceptance remain open.
 
 ### 8 September — Diagnostic journal and viewer checkpoint
 
@@ -727,7 +707,6 @@ selection and Finder controls; About exposes versions and the logs folder. The f
 1080p/4K rendering, scroll-to-end-and-back and a fresh live A Short Hike verification pass. Migration
 preserved operational records; verification preserved all game files and the save. Successful setup
 tool output, pre-launch Cloud phases, live Finder selection and Settings reset remain outstanding.
-See `docs/validation/2026-09-08-diagnostics.md`.
 
 ### 8 September — Diagnostic capture checkpoint
 
@@ -738,7 +717,7 @@ recorded around launch/exit. Full tests, a real disposable CrossOver command-cap
 rendering and a clean live A Short Hike launch/quit pass; its save stayed unchanged. Settings reset
 and live Finder acceptance remain. Before the missing-bottle live test, resolve how replacement
 runtime save roots invalidate the old Cloud baseline so missing progress cannot be interpreted as
-a remote deletion. See `docs/validation/2026-09-08-diagnostic-capture.md`.
+a remote deletion.
 
 ### 8 September — Missing-bottle Cloud baseline checkpoint
 
@@ -749,7 +728,7 @@ inheriting deletion history. Identity checks also invalidate stale consent and p
 into a replaced folder. Legacy baselines migrate conservatively without deleting saves. Full tests
 and the signed build pass. The live A Short Hike test is pending because the desktop is locked;
 its bottle remains untouched. Recovery when the original root is lost during an interrupted local
-publication also remains open. See `docs/validation/2026-09-08-cloud-root-recovery.md`.
+publication also remains open.
 
 ### 8 September — Interrupted publication recovery checkpoint
 
@@ -761,8 +740,7 @@ a Cloud baseline. Play can reserve runtime/recipe preparation for a released rec
 game writer and offline launch remain blocked until local recovery finishes. Tests cover this
 sequence and the account/identity/consent boundaries. The recovery dialog has 1080p/4K offscreen
 layout evidence; live interaction/gameplay is pending on the locked desktop. Settings reset and
-the remaining v1 acceptance gates are still open. See
-`docs/validation/2026-09-08-cloud-publication-recovery.md`.
+the remaining v1 acceptance gates are still open.
 
 ### 8 September — Settings reset checkpoint
 
@@ -771,8 +749,7 @@ the cached owned library, customization and preferences after joining refresh/au
 and signing out. Games, saves, install ownership, download progress, play history, Cloud recovery
 and diagnostics remain intact. Active games, workers and unfinished removals block reset. Keychain
 failure leaves local data intact; database failure rolls back customization and reports sign-out
-honestly. The full regression suite and signed build pass. See
-`docs/validation/2026-09-08-settings-reset.md` for coverage and live acceptance limits.
+honestly. The full regression suite and signed build pass.
 
 ### 8 September — Setup task lifecycle checkpoint
 
@@ -782,8 +759,7 @@ preparation cannot turn into a success screen from a late response, and closing/
 cannot resurrect old status. The volume picker initially focuses the saved drive, falling back
 to the recommended drive, so Confirm matches the visible selection. Delayed runtime tests and
 the complete regression suite pass. Fresh-profile QR/pairing/timed TV acceptance is still open;
-this checkpoint does not close the overall first-run gate. See
-`docs/validation/2026-09-08-setup-lifecycle.md`.
+this checkpoint does not close the overall first-run gate.
 
 ### 8 September — SteamStub executable preparation checkpoint
 
@@ -795,8 +771,7 @@ receipts preserve `.orig` backups, validate transformed hashes separately and su
 Wine Mono's early API resolution is handled with identical dependency copies in the working folder.
 The real CLI passed with BioShock Infinite's original executable in a disposable bottle; live
 installation and saves stayed untouched. Package/app tests, signed build and bundled-resource
-hash checks pass. Title prerequisites and full game acceptance remain open. See
-`docs/validation/2026-09-08-steamless.md` and the pinned dependency details in `docs/STEAMLESS.md`.
+hash checks pass. Title prerequisites and full game acceptance remain open. See the pinned dependency details in `docs/STEAMLESS.md`.
 
 ### 8 September — Pinned game prerequisites checkpoint
 
@@ -807,8 +782,7 @@ restart, retain successful work on retry and are lost with a recreated bottle. L
 these records even when the base runtime is already ready. Existing recipe versions remain pinned.
 Regression tests and a real disposable CrossOver probe passed, including native runtime component
 verification and a second pass executing no completed commands. Full fresh installation/gameplay,
-broader recipes and physical missing-bottle Cloud acceptance remain open. See
-`docs/validation/2026-09-08-prerequisites.md`.
+broader recipes and physical missing-bottle Cloud acceptance remain open.
 
 ### 8 September — Runtime source-preparation recovery checkpoint
 
@@ -818,8 +792,7 @@ launch while it remains pending. Existing ownership markers get one conservative
 normal later launches reuse the acknowledgment. Queue retry rebuilds a missing runtime and reruns
 its preparation checkpoints without repeating the completed download. Failure/restart tests, the
 full regression suite and a disposable real CrossOver marker/clone/delete probe passed. Full live
-missing-bottle Cloud/gameplay acceptance and archived pending-upload recovery remain open. See
-`docs/validation/2026-09-08-runtime-preparation-recovery.md`.
+missing-bottle Cloud/gameplay acceptance and archived pending-upload recovery remain open.
 
 ### 8 September — Pending upload archive recovery checkpoint
 
@@ -829,8 +802,7 @@ the existing controller whole-copy choice for conflicting current progress and c
 an account attachment or remote write. A fresh attempt and its verified local snapshot are saved
 atomically with retirement of the old attempt. Tests cover repeated root loss, loss at the fresh
 checkpoint boundary, exact controller consent without a Steam plan and a committed upload whose
-response was lost. Real game/controller acceptance remains separate and open. See
-`docs/validation/2026-09-08-pending-upload-archive-recovery.md`.
+response was lost. Real game/controller acceptance remains separate and open.
 
 ### 8 September — Keyboard and modal polish
 
@@ -838,8 +810,7 @@ On-screen keyboard navigation follows key centers and preserves its column throu
 Editor, sign-in and setup legends follow the active input device; long text stays visible beside
 the cursor, and background pages no longer retain a second focus ring behind a modal. All 89 app
 tests and the signed build pass. Seven screens render at 1080p and 4K with reduced motion; inspected
-fixtures show readable controls and glyphs. Live DS4/animation acceptance remains open. See
-[keyboard validation](validation/2026-09-08-keyboard-polish.md).
+fixtures show readable controls and glyphs. Live DS4/animation acceptance remains open.
 
 ### 8 September — Bounded artwork cache
 
@@ -848,7 +819,7 @@ unused, and run at most four at a time; a 512 MiB LRU disk budget preserves the 
 repairs corrupt files. Decoded images retain alpha and are capped at 4096 pixels on their longest
 edge. All 95 app tests and the signed build pass, including a 600-request pipeline stress test.
 The 60 fps cold/warm library gate remains open: this verifies loading and storage behavior, not
-live frame pacing. See [artwork validation](validation/2026-09-08-artwork-cache.md).
+live frame pacing.
 
 ### 8 September — Lazy Home and cached library derivation
 
@@ -858,7 +829,6 @@ inputs change rather than being recomputed on each focus read. All 98 app tests 
 build pass. A 720-game paging benchmark reduced model CPU work from 5.243 ms to 0.013 ms per action;
 this is not a rendered-frame measurement. Missing artwork now has an identity-derived color.
 PRD library/exit wording was reconciled with board 3b and the existing implementation plan.
-See [navigation validation](validation/2026-09-08-library-navigation-performance.md).
 
 ### 8 September — Game status and exit destination audit
 
@@ -866,8 +836,7 @@ Fixed four concrete v1 gaps: Library-launched games now return to Home after exi
 show the recorded last-session outcome independently of compatibility; tiles show Running and
 user-set Works/Playable badges; and the context menu exposes state-specific primary actions and
 the existing guarded Uninstall flow. Details content accounts for long notes and job failures so
-it stays above the footer. All 102 app tests pass. Physical acceptance remains open. See
-[game status validation](validation/2026-09-08-game-status.md).
+it stays above the footer. All 102 app tests pass. Physical acceptance remains open.
 
 ### 8 September — Home collection identity and focus preservation
 
@@ -876,15 +845,13 @@ collection with the same name retains every game. Home now preserves each row's 
 and scroll position by stable identity across download updates, collection changes and catalog
 refreshes. Row/card view identities are stable as well. All 108 app tests and the signed build
 pass; 1080p/4K Home endpoint layouts were rendered and inspected. Physical acceptance remains
-open. See [Home focus validation](validation/2026-09-08-home-row-identity.md), including the later
-live keyboard/window checks for Home tabs and the final Library card.
+open.
 
 ### 8 September — Cover badges match the designer's state guidance
 
 Removed the earlier Works/Playable cover badges: the adopted design reserves compatibility tile
 badges for Broken. All ratings remain on details and in filters; Running retains its state badge.
-All 108 app tests, signed build and 1080p/4K layout checks pass. See
-[tile fidelity validation](validation/2026-09-08-tile-fidelity.md).
+All 108 app tests, signed build and 1080p/4K layout checks pass.
 
 ### 8 September — Recently added follows Steam acquisition dates
 
@@ -893,5 +860,4 @@ timestamp. SteamCore `608a619` now exposes each app's earliest active owned-lice
 Big Screen stores that separately and sorts by it. Unknown dates sort last, and cached dates
 survive temporary metadata failures and older catalog upgrades. The live refresh populated dates
 for all 538 Steam games, and the actual Library's order matches them. All 109 app tests and 243
-package XCTest tests pass (6 existing integration skips, plus 5 Swift Testing tests). See
-[acquisition-date validation](validation/2026-09-08-steam-acquisition-dates.md).
+package XCTest tests pass (6 existing integration skips, plus 5 Swift Testing tests).

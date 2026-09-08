@@ -1,6 +1,6 @@
 // Wine's per-bottle output preference. The macOS default output is never changed.
 // Core Audio UIDs map to endpoint GUIDs in winecoreaudio.drv's devices registry.
-// See docs/validation/2026-09-08-preferred-audio.md for upstream references.
+// Upstream: wine-mirror/wine, dlls/mmdevapi/devenum.c and dlls/winecoreaudio.drv/coreaudio.c.
 typedef struct { DWORD data1; unsigned short data2, data3; unsigned char data4[8]; } AUDIO_GUID;
 typedef struct AudioEnumerator AudioEnumerator;
 typedef struct AudioEndpoint AudioEndpoint;

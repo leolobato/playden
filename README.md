@@ -173,7 +173,7 @@ future version; v1 does not offer a Keep saves option.
 **A Short Hike** has completed real installation, gameplay, save/reload, uninstall/reinstall,
 Cloud restore, missing-runtime recovery and independently verified Cloud upload/download checks.
 Those journeys were exercised with keyboard input. The complete physical DS4/TV journey is
-still awaiting acceptance. See the [validation notes](docs/validation/2026-09-08-live-runtime-cloud-recovery.md).
+still awaiting acceptance.
 
 Seeing a game in your Steam library does not guarantee it will work through CrossOver or support
 save sync. BioShock Infinite prerequisite setup has been checked, but a complete fresh gameplay
@@ -222,4 +222,4 @@ optional local save retention, controller remapping and kiosk conveniences. Thes
 not features of the current build.
 
 [Product requirements](docs/prd/README.md) · [Implementation and acceptance plan](docs/IMPLEMENTATION_PLAN.md) ·
-[Developer setup](docs/DEVELOPMENT.md) · [Current development handoff](docs/NEXT_SESSION_HANDOFF.md)
+[Developer setup](docs/DEVELOPMENT.md)

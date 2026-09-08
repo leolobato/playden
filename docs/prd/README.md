@@ -12,8 +12,8 @@ The [v1 implementation plan](../IMPLEMENTATION_PLAN.md) translates this PRD into
 including proposed corrections and planning defaults from the implementation review. Those proposals
 are identified separately from the dated decisions below.
 
-Current implementation status and outstanding verification are recorded in the
-[8 September handoff](../NEXT_SESSION_HANDOFF.md). v1 is still in progress; this PRD remains the
+The [implementation plan](../IMPLEMENTATION_PLAN.md) records delivery and acceptance criteria.
+v1 is still in progress; this PRD remains the
 requirements contract, not a claim that every requirement has passed acceptance.
 
 ## Product in one sentence

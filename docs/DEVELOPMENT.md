@@ -3,9 +3,8 @@
 The [root README](../README.md) covers player setup, controls, current features and the roadmap.
 Run the commands below from the `big-screen` repository root.
 
-The [development handoff](NEXT_SESSION_HANDOFF.md) and [validation notes](validation/)
-record gameplay and controller acceptance work. Build and packaging checks do not replace
-those live checks. Avoid tests that take over the desktop while someone is using the Mac.
+Build and packaging checks do not replace gameplay and controller acceptance checks.
+Avoid tests that take over the desktop while someone is using the Mac.
 
 ## Source layout
 
@@ -46,7 +45,7 @@ Both configurations use the same signing selection and embed the runtime depende
 Use `./scripts/build-release.sh --no-open` to build without opening Finder.
 
 The build embeds compression libraries and the Windows display helper. The staged app passed
-[minimal-environment validation](validation/2026-09-08-minimal-environment.md): Steam Cloud access
+minimal-environment validation: Steam Cloud access
 and an A Short Hike launch with no development-shell variables or Homebrew library paths.
 Preview uses the same in-repository packages,
 but does not use Steam credentials, CrossOver or game files at runtime.
@@ -278,14 +277,9 @@ Run build, test, snapshot and app-replacement operations sequentially. For real 
 verify active sessions and Cloud work before restarting the app. Use the owned game's exact
 process-start identity and window ID for input/capture; do not target a game by title alone.
 Bare CGEvent injection does not trigger the registered global Shift–Home hotkey in the current
-test environment; System Events does. See [current shortcut evidence](validation/2026-09-08-failure-retry-controls.md).
+test environment; System Events does.
 
 ## Implementation references
 
 - [PRD](prd/README.md) and [delivery/acceptance plan](IMPLEMENTATION_PLAN.md)
 - [Design guidance](design/README.md)
-- [A Short Hike uninstall/reinstall Cloud journey](validation/2026-09-08-uninstall-live-restore.md)
-- [Missing-runtime recovery and remote save readback](validation/2026-09-08-live-runtime-cloud-recovery.md)
-- [Steam acquisition sorting](validation/2026-09-08-steam-acquisition-dates.md)
-- [Per-title prerequisite preparation](validation/2026-09-08-prerequisites.md)
-- [Failure and log retry controls](validation/2026-09-08-failure-retry-controls.md)
