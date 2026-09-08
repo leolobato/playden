@@ -284,6 +284,7 @@ final class SessionServiceTests: XCTestCase {
         try await service.start(downloadWhilePlaying: false); try await service.play(game.gameID)
         let waiting = try await wait(service, phase: .awaitingCloud)
         let reviewed = try XCTUnwrap(waiting.cloudStatus?.operation)
+        clock.advance(7)
         await cloud.configure()
         let client: any SessionManaging = service
         try await client.retryCloud(authorization: .init(operation: reviewed, conflictChoice: .remote, attachAccount: true))
@@ -296,6 +297,9 @@ final class SessionServiceTests: XCTestCase {
         let log = try XCTUnwrap(catalog.diagnosticLog(try XCTUnwrap(waiting.session).id))
         XCTAssertEqual(log.events.filter { $0.message == "Cloud before launch · checking" }.count, 2)
         XCTAssertTrue(log.events.contains { $0.message == "Cloud before launch · upToDate" })
+        let cloudTime = try XCTUnwrap(log.events.last { $0.message == "Cloud before launch · upToDate" }).timestamp
+        let launchTime = try XCTUnwrap(log.events.first { $0.message == "Runtime · launching" }).timestamp
+        XCTAssertGreaterThanOrEqual(launchTime, cloudTime, "Launch timestamp must follow the completed Cloud preflight")
     }
 
     func testExitSyncKeepsDurableSessionReservationAndDoesNotCountSyncTime() async throws {

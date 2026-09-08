@@ -197,7 +197,9 @@ public actor SessionService: SessionManaging {
             try Task.checkCancellation()
             let run = try await runner.launch(installed.launchSpec, in: bottle(installed), directory: directory)
             guard var session = active else { try await runner.terminate(run, force: true); return }
-            session.runtime = .init(run: run); active = session
+            session.runtime = .init(run: run)
+            session.lastCheckpointAt = max(clock.wallTime, session.lastCheckpointAt)
+            active = session
             // Keep observing even if a checkpoint fails; a database error must not orphan a game.
             do { try catalog.saveSession(session) }
             catch { value.failure = issue("Save session", "The process checkpoint could not be saved. Your game is still being tracked.") }

@@ -42,6 +42,11 @@ not included in those events.
   `Cloud after exit · checking/upToDate`. The save hash remained unchanged. Private evidence is in
   `.build/diagnostic-capture-live/`.
 
+The live log exposed a stale launch timestamp: the initial runtime checkpoint reused the session
+creation time after Cloud preflight. A follow-up fixes it to the current checkpoint time, with a
+delayed-Cloud-retry regression test. SessionServiceTests pass after that correction;
+`/tmp/bigscreen-diagnostic-launch-time-tests.log`. Existing historical logs are left unchanged.
+
 ## Still open
 
 Settings reset and live Finder selection acceptance remain open. Before the missing-bottle live
