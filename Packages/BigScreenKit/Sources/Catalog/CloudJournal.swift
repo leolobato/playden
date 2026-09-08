@@ -31,6 +31,7 @@ extension CatalogStore {
     public func saveCloudRecoveryPreparation(_ prepared: InstallationRecord, replacing original: InstallationRecord,
                                              sessionID: UUID) throws {
         var allowed = original; allowed.launchSpec = prepared.launchSpec; allowed.staging = prepared.staging
+        allowed.stagingVersion = prepared.staging?.version ?? original.stagingVersion
         guard prepared == allowed else { throw CloudJournalError.identityMismatch }
         try database.write { db in
             let operations: [CloudSyncOperation] = try Self.values(db, table: "cloud_operations",

@@ -72,12 +72,16 @@ public protocol Installer: Sendable {
     func repair(_ plan: InstallPlan, at directory: URL, staging: InstallStaging?,
                 progress: @escaping @Sendable (InstallProgress) -> Void) async throws
     func postInstall(_ plan: InstallPlan, at directory: URL) async throws -> InstallStaging
+    func postInstall(_ plan: InstallPlan, at directory: URL, in bottle: GameBottle) async throws -> InstallStaging
     func validate(_ plan: InstallPlan, at directory: URL, staging: InstallStaging) async throws -> LaunchSpec
     func saveMapping(_ plan: InstallPlan) throws -> SaveMapping
     /// Source-side cleanup only. Removing the owned game directory/bottle is the orchestrator's job.
     func uninstall(_ plan: InstallPlan, at directory: URL) async throws
 }
 public extension Installer {
+    func postInstall(_ plan: InstallPlan, at directory: URL, in bottle: GameBottle) async throws -> InstallStaging {
+        try await postInstall(plan, at: directory)
+    }
     func saveMapping(_ plan: InstallPlan) throws -> SaveMapping { SaveMapping() }
     /// Unmodified sources can reuse their resumable downloader. Sources with staged originals
     /// must provide a repair implementation so backups are never replaced with modified files.

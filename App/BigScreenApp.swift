@@ -33,7 +33,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             do {
                 let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
                     .appendingPathComponent(preview ? "Big Screen/Preview" : "Big Screen", isDirectory: true)
-                model = LibraryModel(catalog: try CatalogStore(path: root.appendingPathComponent("catalog.sqlite").path), preview: preview, source: preview ? nil : SteamSource(), runtime: preview ? nil : CrossOverRuntime(), volumeStore: preview ? nil : GamesVolumeStore(), diagnosticArchive: preview ? nil : DiagnosticArchive(root: root.appendingPathComponent("logs")))
+                model = LibraryModel(catalog: try CatalogStore(path: root.appendingPathComponent("catalog.sqlite").path), preview: preview, source: preview ? nil : SteamSource(runtimeTools: CrossOverTools()), runtime: preview ? nil : CrossOverRuntime(), volumeStore: preview ? nil : GamesVolumeStore(), diagnosticArchive: preview ? nil : DiagnosticArchive(root: root.appendingPathComponent("logs")))
             } catch {
                 model = LibraryModel(preview: preview)
                 model.persistenceError = error.localizedDescription

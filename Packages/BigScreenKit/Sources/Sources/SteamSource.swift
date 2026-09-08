@@ -7,8 +7,10 @@ public struct SteamSource: GameSource {
     public var auth: any SourceAuth { account }
     public let account: SteamAccount
     private let session: URLSession
-    public init(account: SteamAccount = SteamAccount()) {
+    private let runtimeTools: (any RuntimeToolRunning)?
+    public init(account: SteamAccount = SteamAccount(), runtimeTools: (any RuntimeToolRunning)? = nil) {
         self.account = account
+        self.runtimeTools = runtimeTools
         let configuration = URLSessionConfiguration.ephemeral
         configuration.urlCache = nil; configuration.httpCookieStorage = nil
         configuration.timeoutIntervalForRequest = 20; configuration.timeoutIntervalForResource = 30
@@ -17,7 +19,7 @@ public struct SteamSource: GameSource {
     public func ownedGames() async throws -> [SourceGameRecord] { try await account.ownedGames() }
     public func installer(for game: SourceGameRecord) throws -> any Installer {
         guard game.id.source == id, UInt32(game.id.value) != nil else { throw SourceFailure.malformedResponse }
-        return SteamInstaller(game: game, account: account)
+        return SteamInstaller(game: game, account: account, runtimeTools: runtimeTools)
     }
     public func metadata(for game: SourceGameRecord) async throws -> SourceGameRecord {
         guard game.id.source == id, UInt32(game.id.value) != nil else { throw SourceFailure.malformedResponse }

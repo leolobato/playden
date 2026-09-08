@@ -248,7 +248,7 @@ public actor InstallQueue: InstallQueuing {
                     guard result.isValid else { throw Self.failure("Verify", "Downloaded game files are missing or damaged. Retry to repair the download.") }
                 case .createBottle: try await bottles.prepare(bottle)
                 case .stage:
-                    let staging = try await installer.postInstall(plan, at: directory(job))
+                    let staging = try await installer.postInstall(plan, at: directory(job), in: bottle)
                     try update(id) { $0.staging = staging }
                 case .validate:
                     guard let staging = job.staging else { throw Self.failure("Verify", "Game preparation has no saved receipt.") }

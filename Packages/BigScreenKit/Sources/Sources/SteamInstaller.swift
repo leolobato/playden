@@ -7,10 +7,14 @@ public struct SteamInstaller: Installer {
     public var gameID: GameID { game.id }
     private let game: SourceGameRecord
     private let backend: any SteamInstallBackend
-    public init(game: SourceGameRecord, account: SteamAccount) {
+    private let runtimeTools: (any RuntimeToolRunning)?
+    public init(game: SourceGameRecord, account: SteamAccount, runtimeTools: (any RuntimeToolRunning)? = nil) {
         self.game = game; backend = LiveSteamInstallBackend(account: account)
+        self.runtimeTools = runtimeTools
     }
-    init(game: SourceGameRecord, backend: any SteamInstallBackend) { self.game = game; self.backend = backend }
+    init(game: SourceGameRecord, backend: any SteamInstallBackend, runtimeTools: (any RuntimeToolRunning)? = nil) {
+        self.game = game; self.backend = backend; self.runtimeTools = runtimeTools
+    }
     public func resolve() async throws -> InstallPlan {
         guard gameID.source == "steam", let appID = UInt32(gameID.value) else { throw SourceFailure.malformedResponse }
         let resolved = try await backend.resolve(appID: appID)
@@ -36,26 +40,48 @@ public struct SteamInstaller: Installer {
         return VerificationResult(invalidFiles: invalid)
     }
     public func postInstall(_ plan: InstallPlan, at directory: URL) async throws -> InstallStaging {
+        try await prepare(plan, at: directory, bottle: nil)
+    }
+    public func postInstall(_ plan: InstallPlan, at directory: URL, in bottle: GameBottle) async throws -> InstallStaging {
+        guard bottle.gameID == gameID else { throw SteamPlanBuilder.failure("Prepare", "The game runtime belongs to another installation.") }
+        return try await prepare(plan, at: directory, bottle: bottle)
+    }
+    private func prepare(_ plan: InstallPlan, at directory: URL, bottle: GameBottle?) async throws -> InstallStaging {
         let payload = try SteamPlanBuilder.payload(plan, for: gameID)
         try Task.checkCancellation()
         try rejectLinks(in: directory)
         let apis = try apiPaths(payload)
         // Existing .orig files are usable only if they still verify against the pinned manifest.
         // This recovers an interrupted staging pass even before its receipt reached Catalog.
-        let recovered = InstallStaging(mutations: apis.filter { FileManager.default.fileExists(atPath: directory.appendingPathComponent($0 + ".orig").path) }.map {
+        let executables = try executablePaths(payload)
+        let recovered = InstallStaging(mutations: (apis + executables).filter { FileManager.default.fileExists(atPath: directory.appendingPathComponent($0 + ".orig").path) }.map {
             FileMutation(relativePath: $0, originalRelativePath: $0 + ".orig", stagedSHA256: Data(repeating: 0, count: 32))
-        })
+        }, version: 2)
         guard try await verifyOriginals(plan, at: directory, staging: recovered).isValid else {
             throw SteamPlanBuilder.failure("Prepare", "Original game files must be repaired before preparation can continue.")
         }
-        // Detect unsupported unpacking before modifying anything, including for games without an API DLL.
-        for file in payload.manifests.flatMap(\.files) where file.path.lowercased().hasSuffix(".exe") {
-            let executable = directory.appendingPathComponent(try SteamPlanBuilder.relativePath(file.path))
-            if try PEInspector.inspect(executable).requiresSteamStubRuntime {
-                throw SteamPlanBuilder.failure("Prepare", "This game requires SteamStub unpacking before it can launch.")
+        var mutations: [FileMutation] = []
+        let manifestPaths = Set(try payload.manifests.flatMap(\.files).map { try SteamPlanBuilder.relativePath($0.path).lowercased() })
+        for path in executables {
+            let executable = directory.appendingPathComponent(path), backup = directory.appendingPathComponent(path + ".orig")
+            let original = FileManager.default.fileExists(atPath: backup.path) ? backup : executable
+            guard try PEInspector.inspect(original).requiresSteamStubRuntime else { continue }
+            guard let bottle, let runtimeTools else {
+                throw SteamPlanBuilder.failure("Prepare", "This game needs executable preparation in its owned runtime. Retry installation in Big Screen.")
             }
+            guard !manifestPaths.contains((path + ".orig").lowercased()) else {
+                throw SteamPlanBuilder.failure("Prepare", "The executable backup would replace an original game file. Its files have been kept.")
+            }
+            let originalHash = try digest(original)
+            if original == executable { try FileManager.default.copyItem(at: executable, to: backup) }
+            let unpacked = try await SteamUnpacking.unpack(backup, in: bottle, tools: runtimeTools)
+            try Task.checkCancellation()
+            try rejectLinks(in: directory)
+            guard try digest(backup) == originalHash else { throw SteamPlanBuilder.failure("Prepare", "The original executable changed during preparation. Verify files before retrying.") }
+            try unpacked.write(to: executable, options: .atomic)
+            mutations.append(.init(relativePath: path, originalRelativePath: path + ".orig", stagedSHA256: Data(SHA256.hash(data: unpacked))))
         }
-        guard !apis.isEmpty else { return InstallStaging() }
+        guard !apis.isEmpty else { return InstallStaging(mutations: mutations, version: mutations.isEmpty ? 1 : 2) }
         let preparer = try SteamPreparer(assets: GBEAssets.bundled())
         let metadata = PrepareMetadata(installDir: payload.app.installDir, installedDepotIDs: payload.manifests.map(\.depotID),
             dlcAppIDs: payload.ownedDLC, forceDLC: false, ufs: payload.app.ufs)
@@ -64,7 +90,7 @@ public struct SteamInstaller: Installer {
         guard result.steamStubRequirements.isEmpty else {
             throw SteamPlanBuilder.failure("Prepare", "This game requires SteamStub unpacking before it can launch. Its original files are preserved.")
         }
-        var mutations: [FileMutation] = []
+        let stagingVersion = mutations.isEmpty ? 1 : 2
         let canonicalRoot = directory.resolvingSymlinksInPath().path + "/"
         for dll in result.dlls {
             let stagedPath = dll.dll.resolvingSymlinksInPath().path
@@ -80,7 +106,7 @@ public struct SteamInstaller: Installer {
             let backup = String(backupPath.dropFirst(canonicalRoot.count))
             mutations.append(FileMutation(relativePath: relative, originalRelativePath: backup, stagedSHA256: try digest(dll.dll)))
         }
-        return InstallStaging(mutations: mutations, dllOverrides: Array(Set(result.dlls.map { $0.dll.deletingPathExtension().lastPathComponent.lowercased() + "=n,b" })).sorted())
+        return InstallStaging(mutations: mutations, dllOverrides: Array(Set(result.dlls.map { $0.dll.deletingPathExtension().lastPathComponent.lowercased() + "=n,b" })).sorted(), version: stagingVersion)
     }
     public func repair(_ plan: InstallPlan, at directory: URL, staging: InstallStaging?,
                        progress: @escaping @Sendable (InstallProgress) -> Void) async throws {
@@ -104,7 +130,8 @@ public struct SteamInstaller: Installer {
     public func validate(_ plan: InstallPlan, at directory: URL, staging: InstallStaging) async throws -> LaunchSpec {
         let payload = try SteamPlanBuilder.payload(plan, for: gameID)
         try rejectLinks(in: directory)
-        guard Set(try apiPaths(payload)) == Set(staging.mutations.map(\.relativePath)) else {
+        let apis = Set(try apiPaths(payload)), executables = Set(try executablePaths(payload)), changed = Set(staging.mutations.map(\.relativePath))
+        guard apis.isSubset(of: changed), changed.isSubset(of: apis.union(executables)) else {
             throw SteamPlanBuilder.failure("Verify", "Game preparation is incomplete.")
         }
         let verification = try await verifyOriginals(plan, at: directory, staging: staging)
@@ -112,6 +139,19 @@ public struct SteamInstaller: Installer {
         for mutation in staging.mutations {
             let path = try SteamPlanBuilder.relativePath(mutation.relativePath)
             guard try digest(directory.appendingPathComponent(path)) == mutation.stagedSHA256 else { throw SteamPlanBuilder.failure("Verify", "A prepared game file changed unexpectedly.") }
+            if executables.contains(path) {
+                let original = try PEInspector.inspect(directory.appendingPathComponent(mutation.originalRelativePath))
+                let prepared = try PEInspector.inspect(directory.appendingPathComponent(path))
+                guard original.requiresSteamStubRuntime, prepared.architecture == original.architecture,
+                      prepared.entryPointSection != nil, !prepared.requiresSteamStubRuntime else {
+                    throw SteamPlanBuilder.failure("Verify", "The prepared executable does not match its original.")
+                }
+            }
+        }
+        for path in executables {
+            guard try !PEInspector.inspect(directory.appendingPathComponent(path)).requiresSteamStubRuntime else {
+                throw SteamPlanBuilder.failure("Verify", "A game executable still requires preparation. Retry installation.")
+            }
         }
         let executable = directory.appendingPathComponent(try SteamPlanBuilder.relativePath(plan.launchSpec.executableRelativePath))
         guard try !PEInspector.inspect(executable).requiresSteamStubRuntime else {
@@ -142,10 +182,11 @@ public struct SteamInstaller: Installer {
         }.filter { ["steam_api.dll", "steam_api64.dll"].contains(($0 as NSString).lastPathComponent.lowercased()) }.sorted()
     }
     private func replacements(_ staging: InstallStaging, payload: SteamInstallPayload) throws -> [String: String] {
-        let allowed = Set(try apiPaths(payload))
+        let apis = Set(try apiPaths(payload))
+        let allowed = staging.version == 2 ? apis.union(try executablePaths(payload)) : apis
         let manifestPaths = Set(try payload.manifests.flatMap(\.files).map { try SteamPlanBuilder.relativePath($0.path).lowercased() })
         var result: [String: String] = [:]
-        guard staging.version == 1 else { throw SteamPlanBuilder.failure("Verify", "Unsupported preparation receipt version.") }
+        guard [1, 2].contains(staging.version) else { throw SteamPlanBuilder.failure("Verify", "Unsupported preparation receipt version.") }
         for mutation in staging.mutations {
             guard allowed.contains(mutation.relativePath), mutation.originalRelativePath == mutation.relativePath + ".orig",
                   !manifestPaths.contains(mutation.originalRelativePath.lowercased()), mutation.stagedSHA256.count == 32,
@@ -153,11 +194,15 @@ public struct SteamInstaller: Installer {
                 throw SteamPlanBuilder.failure("Verify", "The preparation receipt contains an invalid original-file mapping.")
             }
         }
-        let expected = Set(staging.mutations.map { ($0.relativePath as NSString).lastPathComponent.lowercased().replacingOccurrences(of: ".dll", with: "=n,b") })
+        let expected = Set(staging.mutations.filter { apis.contains($0.relativePath) }.map { ($0.relativePath as NSString).lastPathComponent.lowercased().replacingOccurrences(of: ".dll", with: "=n,b") })
         guard staging.dllOverrides.isEmpty || Set(staging.dllOverrides) == expected else {
             throw SteamPlanBuilder.failure("Verify", "The preparation receipt contains unexpected runtime overrides.")
         }
         return result
+    }
+    private func executablePaths(_ payload: SteamInstallPayload) throws -> [String] {
+        try payload.manifests.flatMap(\.files).filter { !$0.isDirectory && !$0.isSymlink && $0.path.lowercased().hasSuffix(".exe") }
+            .map { try SteamPlanBuilder.relativePath($0.path) }.sorted()
     }
     private func rejectLinks(in directory: URL) throws {
         let keys: [URLResourceKey] = [.isSymbolicLinkKey]

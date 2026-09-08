@@ -316,6 +316,9 @@ Dependencies: M1/M2; upstream chunk-resume work; M0 bottle/prerequisite findings
 - [ ] Implement pinned-manifest download/checkpoints and per-stage pause/cancel/retry behavior.
 - [ ] Implement template versioning and bottle creation with ownership checks and recoverable checkpoints.
 - [ ] Integrate prerequisites, gbe_fork, synthetic offline identity and Steamless where detected/required.
+- [x] Run pinned Steamless for detected SteamStub executables in the owned game bottle; preserve
+  manifest-verified originals and transformed hashes through retry and repair. Real CLI unpacking
+  passed on a disposable BioShock Infinite original; full installation/gameplay acceptance remains.
 - [ ] Implement original-file verification, mutation records, launch-readiness validation and repair.
 - [ ] Implement startup reconciliation, drive reconnect, authentication expiry and disk-full recovery.
 - [ ] Wire minimal game-page and Downloads progress/actions; reuse those components in M5.
@@ -728,3 +731,16 @@ to the recommended drive, so Confirm matches the visible selection. Delayed runt
 the complete regression suite pass. Fresh-profile QR/pairing/timed TV acceptance is still open;
 this checkpoint does not close the overall first-run gate. See
 `docs/validation/2026-09-08-setup-lifecycle.md`.
+
+### 8 September — SteamStub executable preparation checkpoint
+
+SteamStub titles now proceed through executable preparation instead of stopping as unsupported.
+Sources bundles/verifies Steamless 3.1.0.5 and passes its CLI to a source-neutral runtime-tool
+protocol. Runner checks the owned bottle and bounds/cancels the command. Install and missing-runtime
+preparation supply the actual bottle context. Unpacking uses disposable copies; version 2 staging
+receipts preserve `.orig` backups, validate transformed hashes separately and support replay/repair.
+Wine Mono's early API resolution is handled with identical dependency copies in the working folder.
+The real CLI passed with BioShock Infinite's original executable in a disposable bottle; live
+installation and saves stayed untouched. Package/app tests, signed build and bundled-resource
+hash checks pass. Title prerequisites and full game acceptance remain open. See
+`docs/validation/2026-09-08-steamless.md` and the pinned dependency details in `docs/STEAMLESS.md`.

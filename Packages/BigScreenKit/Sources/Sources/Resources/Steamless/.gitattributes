@@ -1,0 +1,2 @@
+# Preserve the upstream release byte-for-byte, including its CRLF and license spacing.
+* -text -whitespace

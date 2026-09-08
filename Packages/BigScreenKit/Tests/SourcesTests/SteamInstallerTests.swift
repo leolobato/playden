@@ -2,6 +2,7 @@ import XCTest
 import CryptoKit
 import Domain
 import SteamCore
+import Runner
 @testable import Sources
 
 final class SteamInstallerTests: XCTestCase {
@@ -110,7 +111,7 @@ final class SteamInstallerTests: XCTestCase {
         let damaged = try await installer.verifyOriginals(plan, at: directory, staging: first)
         XCTAssertEqual(damaged.invalidFiles, ["bin/steam_api64.dll"])
     }
-    func testSteamStubStopsBeforeStagingAndNoAPIGameStillValidates() async throws {
+    func testSteamStubNeedsOwnedRuntimeAndNoAPIGameStillValidates() async throws {
         for stub in [false, true] {
             let bytes = pe(section: stub ? ".bind" : ".text")
             let content = ResolvedSteamContent(app: app(), manifests: [manifest([file("Game.exe", bytes)])], entitlements: .init(appIDs: [100], depotIDs: [101]))
@@ -124,6 +125,76 @@ final class SteamInstallerTests: XCTestCase {
             } catch { XCTAssertTrue(stub) }
             XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent("Game.exe")), bytes)
         }
+    }
+    func testSteamStubPreparationReplayRepairAndSavedReceiptKeepOriginalAndSaves() async throws {
+        for hasAPI in [false, true] {
+            let original = pe(section: ".bind"), unpacked = pe(), tools = FixtureUnpackingTools(output: unpacked)
+            let files = [file("Game.exe", original)] + (hasAPI ? [file("steam_api64.dll", pe())] : [])
+            let content = ResolvedSteamContent(app: app(), manifests: [manifest(files)], entitlements: .init(appIDs: [100], depotIDs: [101]))
+            let backend = FixtureContentBackend(content: content, chunks: [Data(Insecure.SHA1.hash(data: original)): original, Data(Insecure.SHA1.hash(data: unpacked)): unpacked])
+            let installer = SteamInstaller(game: game, backend: backend, runtimeTools: tools)
+            let plan = try await installer.resolve(), directory = try temporaryDirectory()
+            let bottle = GameBottle(gameID: game.id, name: "gn-steam-100", ownershipToken: UUID())
+            try await installer.download(plan, to: directory) { _ in }
+            let save = directory.appendingPathComponent("player.sav")
+            try Data("keep progress".utf8).write(to: save)
+            let first = try await installer.postInstall(plan, at: directory, in: bottle)
+            XCTAssertEqual(first.version, 2)
+            XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent("Game.exe.orig")), original)
+            XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent("Game.exe")), unpacked)
+            let serialized = try JSONEncoder().encode(first)
+            let restored = try JSONDecoder().decode(InstallStaging.self, from: serialized)
+            _ = try await installer.validate(plan, at: directory, staging: restored)
+            let replay = try await installer.postInstall(plan, at: directory, in: bottle)
+            XCTAssertEqual(first, replay)
+            try Data("damaged".utf8).write(to: directory.appendingPathComponent("Game.exe.orig"))
+            try Data("damaged".utf8).write(to: directory.appendingPathComponent("Game.exe"))
+            try await installer.repair(plan, at: directory, staging: restored) { _ in }
+            let repaired = try await installer.postInstall(plan, at: directory, in: bottle)
+            _ = try await installer.validate(plan, at: directory, staging: repaired)
+            XCTAssertEqual(repaired, first)
+            XCTAssertEqual(try Data(contentsOf: save), Data("keep progress".utf8))
+            XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent("Game.exe.orig")), original)
+        }
+    }
+    func testFailedOrInvalidUnpackingDoesNotReplaceOriginalAndCanResumeBeforeReceipt() async throws {
+        for output in [Data("invalid PE".utf8), pe(section: ".bind")] {
+            let original = pe(section: ".bind"), tools = FixtureUnpackingTools(output: output)
+            let content = ResolvedSteamContent(app: app(), manifests: [manifest([file("Game.exe", original)])], entitlements: .init(appIDs: [100], depotIDs: [101]))
+            let backend = FixtureContentBackend(content: content, chunks: [Data(Insecure.SHA1.hash(data: original)): original])
+            let installer = SteamInstaller(game: game, backend: backend, runtimeTools: tools)
+            let plan = try await installer.resolve(), directory = try temporaryDirectory()
+            let bottle = GameBottle(gameID: game.id, name: "gn-steam-100", ownershipToken: UUID())
+            try await installer.download(plan, to: directory) { _ in }
+            do { _ = try await installer.postInstall(plan, at: directory, in: bottle); XCTFail("Invalid unpacked output accepted") } catch {}
+            XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent("Game.exe")), original)
+            XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent("Game.exe.orig")), original)
+            await tools.setOutput(pe())
+            let recovered = try await installer.postInstall(plan, at: directory, in: bottle)
+            _ = try await installer.validate(plan, at: directory, staging: recovered)
+            XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent("Game.exe.orig")), original)
+        }
+    }
+    func testRealSteamlessOnDisposableBioShockOriginalWhenRequested() async throws {
+        guard let path = ProcessInfo.processInfo.environment["BIGSCREEN_STEAMLESS_ORIGINAL"] else {
+            throw XCTSkip("Opt in with an original SteamStub executable; only a disposable copy and bottle are used")
+        }
+        let original = URL(fileURLWithPath: path), before = try Data(contentsOf: original)
+        XCTAssertTrue(try PEInspector.inspect(original).requiresSteamStubRuntime)
+        let id = GameID(source: "probe", value: UUID().uuidString.lowercased())
+        let bottle = GameBottle(gameID: id, name: CrossOverGameBottles.name(for: id), ownershipToken: UUID())
+        let manager = CrossOverGameBottles()
+        do {
+            try await manager.prepare(bottle)
+            let unpacked = try await SteamUnpacking.unpack(original, in: bottle, tools: CrossOverTools(manager: manager))
+            XCTAssertNotEqual(unpacked, before)
+            XCTAssertEqual(try Data(contentsOf: original), before)
+            let output = try temporaryDirectory().appendingPathComponent("unpacked.exe")
+            try unpacked.write(to: output)
+            XCTAssertFalse(try PEInspector.inspect(output).requiresSteamStubRuntime)
+            XCTAssertNotNil(try PEInspector.inspect(output).entryPointSection)
+            try await manager.remove(bottle)
+        } catch { try? await manager.remove(bottle); throw error }
     }
     func testRepairRestoresMissingContentAndOriginalBackupsWithoutReplacingSaves() async throws {
         let bytes = pe()
@@ -164,6 +235,16 @@ final class SteamInstallerTests: XCTestCase {
         for (i, byte) in section.utf8.enumerated() { data[0x188 + i] = byte }
         put(0x1000, at: 0x190); put(0x1000, at: 0x194); put(0x200, at: 0x198)
         return data
+    }
+}
+private actor FixtureUnpackingTools: RuntimeToolRunning {
+    var output: Data
+    init(output: Data) { self.output = output }
+    func setOutput(_ value: Data) { output = value }
+    func runTool(executable: URL, arguments: [String], in bottle: GameBottle) async throws {
+        XCTAssertEqual(executable.lastPathComponent, "Steamless.CLI.exe")
+        let input = String(arguments.last!.dropFirst(2)).replacingOccurrences(of: "\\", with: "/")
+        try output.write(to: URL(fileURLWithPath: input + ".unpacked.exe"))
     }
 }
 private struct FixtureContentBackend: SteamInstallBackend {

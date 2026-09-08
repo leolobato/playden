@@ -1,0 +1,18 @@
+{
+  "ExamplePlugin.zip": "6d856118bfc92349a982c97c810f9f6b64a6f27f249d71e0250d90784e1e81ce",
+  "LICENSE": "2cc025882addeebbc6c8e86e55f2652ba4353aa17fa04c34b9e5c9be50cfc03f",
+  "Plugins/ExamplePlugin.dll": "c6dce0ce7d432fbb8cea249e4dcd1394adc8c2adc819012c745b709c68e585a9",
+  "Plugins/SharpDisasm.dll": "6d3ce990cdf58da228697d25416d16d15994135c5f66571fe1e00e9c975bc2cf",
+  "Plugins/Steamless.API.dll": "d6acc4b0cc768213a46ffad0a6bf6070a6b13f79a22e0588f0ab50c950f9248c",
+  "Plugins/Steamless.Unpacker.Variant10.x86.dll": "c890dcda2e79970e5a5541ee6340e503e829982f1613c36119be7f754c32065d",
+  "Plugins/Steamless.Unpacker.Variant20.x86.dll": "3cca1fb90b1aa3e1703565a095b665acfc8073b889ff44ef97d17f4221fe707f",
+  "Plugins/Steamless.Unpacker.Variant21.x86.dll": "2f92eeaf47accd0f87bbe7fb7cf85fcd3c00830f464dfdbd4f661449bbc92b21",
+  "Plugins/Steamless.Unpacker.Variant30.x64.dll": "81f1d36540fc8756b155b3e58b34f54da4f9bc1f974988cf91d0b17ffc1d14d8",
+  "Plugins/Steamless.Unpacker.Variant30.x86.dll": "fe2102b096d44aa956788d067856225254ee4e43c133c939e3cd5c0a6cc37399",
+  "Plugins/Steamless.Unpacker.Variant31.x64.dll": "790f1974f97258058cb57c20787e8a2fcb5c16cca0911719b698580d74e38918",
+  "Plugins/Steamless.Unpacker.Variant31.x86.dll": "fc7e1ac80a7d2c0121e083d218b7369c4d217eccaf395cd1c0292d000f19446b",
+  "Steamless.CLI.exe": "70cd54354865ede605ec0fbfadf15f5302aa85a777394f28b0de6acfd243e795",
+  "Steamless.CLI.exe.config": "e8decc96235b5494880083eb79c22c84c6d9ef312828baf9490bee7782c350ec",
+  "Steamless.exe": "7d8858454e2065fac487ef23a5cc5f1b7e7c54656ca949c7931c8a17079afb2f",
+  "Steamless.exe.config": "e8decc96235b5494880083eb79c22c84c6d9ef312828baf9490bee7782c350ec"
+}

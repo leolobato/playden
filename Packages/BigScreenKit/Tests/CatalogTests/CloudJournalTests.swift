@@ -116,9 +116,11 @@ final class CloudJournalTests: XCTestCase {
         try store.reserveCloudRecoverySession(preparing, operation: operation)
         XCTAssertThrowsError(try store.reserveCloudRecoverySession(session(installed), operation: operation))
         XCTAssertThrowsError(try store.checkCloudBeforeLaunch(preparing))
-        var prepared = installed; prepared.launchSpec = .init(executableRelativePath: "rebuilt.exe"); prepared.staging = .init()
+        var prepared = installed; prepared.launchSpec = .init(executableRelativePath: "rebuilt.exe"); prepared.staging = .init(version: 2); prepared.stagingVersion = 2
         XCTAssertThrowsError(try store.saveInstallation(prepared))
         var wrong = prepared; wrong.installedBytes += 1
+        XCTAssertThrowsError(try store.saveCloudRecoveryPreparation(wrong, replacing: installed, sessionID: preparing.id))
+        wrong = prepared; wrong.stagingVersion = 3
         XCTAssertThrowsError(try store.saveCloudRecoveryPreparation(wrong, replacing: installed, sessionID: preparing.id))
         XCTAssertThrowsError(try store.saveCloudRecoveryPreparation(prepared, replacing: installed, sessionID: UUID()))
         try store.saveCloudRecoveryPreparation(prepared, replacing: installed, sessionID: preparing.id)

@@ -177,9 +177,9 @@ public actor SessionService: SessionManaging {
             if try await runner.prepare(bottle(installed)) {
                 guard let source = sources[installed.gameID.source], let plan = installed.plan else { throw issue("Prepare game", "The saved install plan is unavailable. Verify or reinstall this game.") }
                 let installer = try source.installer(for: installed.game)
-                let staging = try await installer.postInstall(plan, at: directory)
+                let staging = try await installer.postInstall(plan, at: directory, in: bottle(installed))
                 installed.launchSpec = try await installer.validate(plan, at: directory, staging: staging)
-                installed.staging = staging
+                installed.staging = staging; installed.stagingVersion = staging.version
                 if let session = active, try catalog.cloudOperations(for: installed.gameID).contains(where: { !$0.phase.isTerminal && $0.needsLocalRecovery }) {
                     try catalog.saveCloudRecoveryPreparation(installed, replacing: original, sessionID: session.id)
                 } else { try catalog.saveInstallation(installed) }
