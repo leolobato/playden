@@ -11,12 +11,18 @@ unfinished sessions, zero job claims and zero owned/unreadable Wine processes fo
 The test save checksum and byte count equal their pre-test values. No build, snapshot or game
 command is intentionally left running. Do not relaunch the app merely to restore a test setup.
 
+The user subsequently resumed **only the Oniken startup crash check**. That check passed after
+they clarified the trigger as Play in Oniken's Windows launcher: Stage 1-1 rendered, the user
+confirmed no crash, and the session ended cleanly. Both apps are closed again. Oniken's updated
+gameplay save is retained with a pre-test backup; all other v1 work is still paused. See
+[the updated interface validation](validation/2026-09-08-steam-interfaces.md).
+
 ## Checkout and preservation
 
 - Big Screen is on `main`. Completed checkpoints: `b779c28` drive availability, `f0a76d7`
   informational notifications, `7655667` minimal-environment validation, `e2d6867` game focus.
-- This handoff is committed with the current quit-confirmation implementation as a work-in-progress
-  checkpoint. Find its commit with `git log -1`; confirmed live shutdown acceptance remains open.
+- Quit confirmation was checkpointed in `7b95dfb` as work in progress; confirmed live shutdown
+  acceptance remains open. The subsequent Oniken validation does not close that separate item.
 - Sibling `../GameNative-macos` is on `investigation/ios-runtime` at
   `608a619ee02e0a56ca223dd732d807b013330658`. Big Screen needs this local package API.
   **Do not switch that working checkout to main**: main does not yet contain all required APIs.
@@ -62,6 +68,10 @@ Recent completed work:
   acceptance has not been performed. See `2026-09-08-installation-drives.md`.
 - **README:** end-user setup, features, controller/keyboard controls, Cloud consequences and
   v2/future roadmap are written; `9736267`.
+- **Oniken startup crash:** supplied SteamCore fix is integrated into sibling main (`9ce9f16`)
+  and active history (`13312ff`); preparation regenerated all 17 interfaces. The user clarified
+  and replayed the startup trigger on the later live run and confirmed it no longer crashes.
+  Stage 1-1 and clean exit are recorded in `validation/2026-09-08-steam-interfaces.md`.
 
 ## Work in progress: quitting Big Screen while a game runs
 
@@ -138,11 +148,6 @@ Evidence on this code:
   real originals/settings/saves. Confirm resumable download and Cloud recovery gates at their
   full required scope, not just a narrow fixture result.
 - BioShock Infinite prerequisites passed, but a fresh complete gameplay run remains open.
-- Supplied SteamCore interface fix is integrated into sibling main (`9ce9f16`) and active history
-  (`13312ff`); settings preservation followed. Oniken's live configurations were regenerated
-  through preparation with all 17 interfaces, including STEAMUSERSTATS_INTERFACE_VERSION011.
-  The exact **Store User Data** crash action has not been reproduced; menu/name-entry checks
-  are not equivalent. See `validation/2026-09-08-steam-interfaces.md`.
 - Keep the README/plan/validation notes current, then complete the release acceptance matrix.
 
 ## Save/runtime preservation

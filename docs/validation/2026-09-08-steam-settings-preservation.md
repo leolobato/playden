@@ -1,7 +1,7 @@
 # Steam preparation settings preservation — 8 September 2026
 
 The interface repair is already on GameNative-macos main as `9ce9f16` and in the active
-sibling checkout as `13312ff`. Its live Oniken repair and remaining crash reproduction are
+sibling checkout as `13312ff`. Its live Oniken repair and subsequent startup regression result are
 documented in [the interface validation](2026-09-08-steam-interfaces.md).
 
 A follow-up audit found that SteamPreparer rewrote all three generated `configs.*.ini`
@@ -42,4 +42,5 @@ Validation:
 A read-only check of the live Oniken installation still finds 17 interfaces in
 `~/Games/GameNative/gn-steam-252010/game/DATA/steam_settings/steam_interfaces.txt`, including
 `STEAMUSERSTATS_INTERFACE_VERSION011`. This follow-up did not prepare or launch any live game.
-The exact Store User Data crash action remains an open acceptance item.
+At this checkpoint the Store User Data crash trigger was still unknown. The later user-clarified
+startup replay passed; see [the updated interface validation](2026-09-08-steam-interfaces.md).

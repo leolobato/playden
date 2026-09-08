@@ -40,7 +40,7 @@ existing file, including both original DLLs, `configs.*.ini`, `DATA/save.dat` an
 retained its SHA-256. No files were removed. Evidence inventories: `before.json`,
 `after-preparation.json` and `after-live-test.json` under `.build/oniken-interface-validation/`.
 
-## Live behavior and remaining reproduction
+## Earlier live behavior (before the trigger was clarified)
 
 Launched Oniken through Big Screen, clicked Play in its Windows launcher, skipped the intro,
 reached the mission menu and selected Quit Game. The tracked session
@@ -58,7 +58,34 @@ captures only windows belonging to the tracked Oniken processes. Launcher mouse 
 needed foreground, correctly positioned global mouse events; initial PID-only clicks did not
 activate its Play button.
 
-**The precise UI action that previously triggered Store User Data is not yet confirmed.** Asked
-the user which action it was. Launch/menu/quit is live evidence, but is not proof that the exact
-reported crash action has been replayed. Keep that acceptance item open until the trigger is
-identified and exercised. No Cloud sync behavior is claimed by this interface repair.
+At that checkpoint the precise UI action that triggered Store User Data was unknown. The
+launch/menu and cancelled score-submission checks alone did not close the reproduction item.
+
+## Startup regression passed after user clarification
+
+The user resumed only this check after pausing general v1 work and clarified that the original
+crash occurred when starting the game from its Windows launcher, not when submitting a score.
+On the new live run the user confirmed: “it didn't crash now”.
+
+- Launched the staged Big Screen app with the integrated dependency, opened Library → Oniken
+  → Play, then started the game from **Play in the Oniken Launcher**.
+- Captured the actual game title screen and Stage 1-1 gameplay, including its pause menu.
+  No Store User Data error or crash dialog was observed.
+- Session `468CFB82-D9CC-4001-A00D-C0F8C9CD7406` ended `clean` after approximately 81 seconds:
+  runtime `exited`, exit code `0`, `forced: false`, `hadWindow: true`. Its captured output contains
+  no Store User Data, unhandled-exception or crash message. Both Big Screen and Oniken were
+  closed at the final process check. This run does not validate the unfinished launcher-quit
+  confirmation flow.
+- Before launch, independently rechecked all four interface files: 17 entries each, including
+  `STEAMUSERSTATS_INTERFACE_VERSION011`. Backed up all 39 current game files and their SHA-256
+  inventory. After exit, 38 files retained their hashes; only the 506-byte `DATA/save.dat`
+  changed during gameplay. No files were added or removed. Kept the updated save and its
+  pre-test backup; settings, original DLLs and interface files remain unchanged.
+
+Private evidence is under `.build/oniken-store-user-data-live/`: `before-game/`, `before.json`,
+`after.json`, `launcher.png`, `startup.png`, `title.png` (pause menu), `menu-before-exit.png`
+(Stage 1-1 gameplay), `session-running.json` and `session-after.json`.
+
+**The user-reported startup crash regression is closed.** This is a successful replay of the
+clarified trigger, not an instrumented trace of the Steam API call, a full-game compatibility
+certification, or a Cloud sync test. All other v1 work remains paused.

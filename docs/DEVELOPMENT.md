@@ -8,6 +8,9 @@ test game closed. Read [the next-session handoff](NEXT_SESSION_HANDOFF.md) befor
 The latest quit-confirmation implementation passes 137 app tests and the signed build; complete
 live shutdown and focus validation are still open. Do not automatically run the app or tests
 that take over the desktop while the user is using the Mac.
+The user subsequently resumed only the Oniken startup regression check, which passed with a
+clean exit and user confirmation. Both apps are closed again; other work remains paused.
+See [the interface validation](validation/2026-09-08-steam-interfaces.md).
 
 ## Source layout
 

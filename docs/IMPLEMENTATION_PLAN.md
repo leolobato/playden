@@ -13,6 +13,10 @@ shutdown path remains unverified. Fix the consequence text being replaced by unr
 and investigate the focus warning seen in the interrupted live run. No v1 release sign-off.
 Historical milestone notes below must be read with the current handoff and validation evidence.
 
+The user subsequently resumed only the Oniken startup regression check. Play in its Windows
+launcher reached Stage 1-1 without the reported crash, confirmed by the user; the session ended
+cleanly. That acceptance item is closed. Both apps are closed again and other work remains paused.
+
 Written 2026-09-07 following review of [the PRD](prd/README.md), the sibling Swift implementation,
 and the installed CrossOver command-line help. This is an implementation proposal, not evidence
 that a title or integration already works. Implementation started with a native design preview on 2026-09-07; see the progress note below.
@@ -634,10 +638,11 @@ The fix belongs in GameNative-macos; Big Screen consumes that sibling through
   `dd1b307`. Big Screen now merges its offline connectivity policy. Regression tests cover
   custom settings, original DLLs and saves through preparation retry and repair.
   See `docs/validation/2026-09-08-steam-settings-preservation.md`.
-- [ ] Replay Oniken's Store User Data action and record the live result.
-  Real launch/menu/clean game exit are verified. The exact crash-triggering UI
-  action remains unconfirmed; asked the user. Submit Score leads to a separate leaderboard/name
-  entry flow and was cancelled before submitting anything.
+- [x] Replay Oniken's reported Store User Data crash trigger and record the live result.
+  The user clarified that it was starting the game from its Windows launcher. The new run reached
+  Stage 1-1 without the crash, confirmed by the user, and ended cleanly (exit 0, not forced).
+  Settings/originals/interfaces are unchanged; the gameplay-updated save and its pre-test backup
+  are retained. See `docs/validation/2026-09-08-steam-interfaces.md` for the scoped evidence.
 
 ### 8 September — Cloud UI and production wiring checkpoint
 
