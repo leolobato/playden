@@ -47,6 +47,46 @@ private struct RemovalInspector: RuntimeInspecting {
     func identity(of pid: Int32) -> ProcessIdentity? { identities[pid] }
 }
 final class GameBottleTests: XCTestCase {
+    func testSourcePreparationRemainsPendingAcrossRestartUntilAcknowledged() async throws {
+        let root = try fixture(), bottle = reference(), commands = BottleCommands()
+        let first = CrossOverGameBottles(bottles: root, runtime: ReadyTemplate(), commands: commands, inspector: RemovalInspector())
+        let runner = CrossOverRunner(bottles: root, manager: first, inspector: RemovalInspector())
+        let changed = try await runner.prepare(bottle); XCTAssertTrue(changed)
+        let baseReady = try await first.isReady(bottle); XCTAssertTrue(baseReady)
+        let reopened = CrossOverGameBottles(bottles: root, runtime: ReadyTemplate(), commands: commands, inspector: RemovalInspector())
+        let restarted = CrossOverRunner(bottles: root, manager: reopened, inspector: RemovalInspector())
+        let pending = try await restarted.prepare(bottle); XCTAssertTrue(pending)
+        do {
+            _ = try await restarted.launch(.init(executableRelativePath: "game.exe"), in: bottle, directory: root)
+            XCTFail("Unfinished source preparation launched a writer")
+        } catch let failure as OperationFailure { XCTAssertTrue(failure.reason.contains("preparation has not finished")) }
+        let wrong = GameBottle(gameID: bottle.gameID, name: bottle.name, ownershipToken: UUID())
+        do { try await reopened.completeSourcePreparation(wrong); XCTFail("Foreign ownership acknowledged") } catch {}
+        try await restarted.completePreparation(bottle)
+        let after = CrossOverGameBottles(bottles: root, runtime: ReadyTemplate(), commands: commands, inspector: RemovalInspector())
+        let complete = try await after.requiresSourcePreparation(bottle); XCTAssertFalse(complete)
+        let unchanged = try await CrossOverRunner(bottles: root, manager: after, inspector: RemovalInspector()).prepare(bottle)
+        XCTAssertFalse(unchanged)
+        let copies = await commands.copies; XCTAssertEqual(copies, 1)
+        try await after.remove(bottle)
+        try await after.prepare(bottle)
+        let recreated = try await after.requiresSourcePreparation(bottle); XCTAssertTrue(recreated)
+    }
+    func testLegacyOwnerNeedsOneSourceValidationAndKeepsExistingSave() async throws {
+        let root = try fixture(), bottle = reference(), commands = BottleCommands()
+        let manager = CrossOverGameBottles(bottles: root, runtime: ReadyTemplate(), commands: commands)
+        try await manager.prepare(bottle)
+        let directory = root.appendingPathComponent(bottle.name), marker = directory.appendingPathComponent(".bigscreen-game-owner.json")
+        let save = directory.appendingPathComponent("existing.sav"), bytes = Data("existing progress".utf8)
+        try bytes.write(to: save)
+        var legacy = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: marker)) as? [String: Any])
+        legacy.removeValue(forKey: "sourcePreparationPending")
+        try JSONSerialization.data(withJSONObject: legacy).write(to: marker)
+        let needsValidation = try await manager.requiresSourcePreparation(bottle); XCTAssertTrue(needsValidation)
+        try await manager.completeSourcePreparation(bottle)
+        let completed = try await manager.requiresSourcePreparation(bottle); XCTAssertFalse(completed)
+        XCTAssertEqual(try Data(contentsOf: save), bytes)
+    }
     func testRemovalChecksLiveOmittedAndUnreadableWritersByBirthIdentity() async throws {
         let root = try fixture(), bottle = reference(), commands = BottleCommands()
         try await CrossOverGameBottles(bottles: root, runtime: ReadyTemplate(), commands: commands).prepare(bottle)
@@ -158,8 +198,17 @@ final class GameBottleTests: XCTestCase {
             do {
                 try await manager.prepare(bottle)
                 let ready = try await manager.isReady(bottle); XCTAssertTrue(ready)
+                let pending = try await manager.requiresSourcePreparation(bottle); XCTAssertTrue(pending)
+                try await manager.completeSourcePreparation(bottle)
+                let reopened = CrossOverGameBottles()
+                let acknowledged = try await reopened.requiresSourcePreparation(bottle); XCTAssertFalse(acknowledged)
+                try await reopened.prepare(bottle)
+                let stillAcknowledged = try await reopened.requiresSourcePreparation(bottle); XCTAssertFalse(stillAcknowledged)
                 try await manager.remove(bottle)
                 let removed = try await manager.isReady(bottle); XCTAssertFalse(removed)
+                try await reopened.prepare(bottle)
+                let recreated = try await reopened.requiresSourcePreparation(bottle); XCTAssertTrue(recreated)
+                try await reopened.remove(bottle)
             } catch { try? await manager.remove(bottle); throw error }
         }
         XCTAssertTrue(commands.withLock { $0.contains { $0.tool == "cxbottle" && $0.exitCode == 0 } })

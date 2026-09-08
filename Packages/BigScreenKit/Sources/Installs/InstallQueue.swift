@@ -215,11 +215,18 @@ public actor InstallQueue: InstallQueuing {
             let installer = try source.installer(for: plan.game)
             guard installer.gameID == initial.gameID else { throw Self.failure("Recover", "The installer's game identity does not match this job.") }
             if initial.cancellationRequested == true { try await cleanup(initial, installer: installer); return }
+            if initial.completedStages.contains(.createBottle), try await !bottles.isReady(bottle) {
+                try invalidateRuntimeStages(id)
+            }
             for stage in stages {
                 try checkpoint(id)
                 guard var job = records[id] else { return }
                 if job.completedStages.contains(stage) { continue }
                 job.stage = stage; job.state = .running; try save(job)
+                if [.prerequisites, .stage, .validate, .commit].contains(stage), try await !bottles.isReady(bottle) {
+                    try invalidateRuntimeStages(id)
+                    throw Self.failure("Game runtime", "The game's runtime is missing or incomplete. Retry to prepare it again.")
+                }
                 switch stage {
                 case .reserve:
                     let free = try await storage.freeBytes(on: volume)
@@ -253,14 +260,13 @@ public actor InstallQueue: InstallQueuing {
                     try update(id) { $0.staging = staging }
                 case .validate:
                     guard let staging = job.staging else { throw Self.failure("Verify", "Game preparation has no saved receipt.") }
-                    guard try await bottles.isReady(bottle) else {
-                        try update(id) { $0.completedStages.subtract([.createBottle, .prerequisites]) }
-                        throw Self.failure("Game runtime", "The game's runtime is missing or incomplete. Retry to prepare it again.")
-                    }
                     let launch = try await installer.validate(plan, at: directory(job), staging: staging)
                     try update(id) { $0.launchSpec = launch }
                 case .commit:
                     guard let location = job.location, let staging = job.staging, let launch = job.launchSpec else { throw Self.failure("Finish install", "The installation has not finished validation.") }
+                    // Staging and launch validation are already checkpointed in the job. If
+                    // acknowledgment or the installation commit fails, Retry resumes here.
+                    try await bottles.completeSourcePreparation(bottle)
                     var installation = InstallationRecord(game: plan.game, location: location, bottleID: bottle.name, ownershipToken: bottle.ownershipToken,
                         manifestIDs: plan.manifestIDs, language: plan.language, templateVersion: bottle.templateVersion, recipeVersion: plan.recipeVersion,
                         stagingVersion: staging.version, launchSpec: launch, installedBytes: plan.estimate.installedBytes)
@@ -302,6 +308,12 @@ public actor InstallQueue: InstallQueuing {
             do { try save(job) } catch {
                 persistenceFailure = Self.failure("Save queue", "Install progress could not be saved. Free up space and restart Big Screen to recover the last checkpoint.")
             }
+        }
+    }
+    private func invalidateRuntimeStages(_ id: UUID) throws {
+        try update(id) {
+            $0.completedStages.subtract([.createBottle, .prerequisites, .stage, .validate])
+            $0.launchSpec = nil
         }
     }
     private func cleanup(_ job: JobRecord, installer: any Installer) async throws {

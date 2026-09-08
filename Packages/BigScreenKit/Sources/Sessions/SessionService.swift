@@ -189,6 +189,7 @@ public actor SessionService: SessionManaging {
                 if let session = active, try catalog.cloudOperations(for: installed.gameID).contains(where: { !$0.phase.isTerminal && $0.needsLocalRecovery }) {
                     try catalog.saveCloudRecoveryPreparation(installed, replacing: original, sessionID: session.id)
                 } else { try catalog.saveInstallation(installed) }
+                try await runner.completePreparation(bottle(installed))
             }
             try Task.checkCancellation()
             if let id = active?.id {

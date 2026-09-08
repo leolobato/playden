@@ -84,6 +84,9 @@ private actor FixtureBottles: GameBottleManaging {
     var ready: [String: GameBottle] = [:]
     var removalBlocked = false, failRemoval = false, holdRemoval = false
     var removals = 0
+    var preparations = 0, acknowledgments = 0
+    var failAcknowledgment = false
+    func failAcknowledgmentOnce() { failAcknowledgment = true }
     func setRemoval(blocked: Bool = false, fail: Bool = false, held: Bool = false) { removalBlocked = blocked; failRemoval = fail; holdRemoval = held }
     func checkRemoval(_ bottle: GameBottle, previousRuntime: RunSnapshot?) async throws {
         if removalBlocked { throw OperationFailure(stage: "Game runtime", reason: "A game is still running", output: "") }
@@ -91,7 +94,12 @@ private actor FixtureBottles: GameBottleManaging {
     func verifyRemoved(_ bottle: GameBottle) async throws {
         if ready[bottle.name] != nil { throw SourceFailure.unavailable }
     }
-    func prepare(_ bottle: GameBottle) async throws { ready[bottle.name] = bottle }
+    func prepare(_ bottle: GameBottle) async throws { preparations += 1; ready[bottle.name] = bottle }
+    func completeSourcePreparation(_ bottle: GameBottle) async throws {
+        guard ready[bottle.name] == bottle else { throw SourceFailure.unavailable }
+        acknowledgments += 1
+        if failAcknowledgment { failAcknowledgment = false; throw OperationFailure(stage: "Game runtime", reason: "Retry preparation acknowledgment", output: "fixture") }
+    }
     func isReady(_ bottle: GameBottle) async throws -> Bool { ready[bottle.name] == bottle }
     func remove(_ bottle: GameBottle) async throws {
         removals += 1
@@ -357,6 +365,31 @@ final class InstallQueueTests: XCTestCase {
         XCTAssertEqual(events.filter { $0 == "prerequisites:retry" }.count, 2)
         XCTAssertEqual(events.filter { $0 == "stage:retry" }.count, 1)
         await second.shutdown()
+    }
+    func testMissingRuntimeAtEachPreparationCheckpointRebuildsBeforeRetry() async throws {
+        for step in ["prerequisites", "stage", "validate", "acknowledge"] {
+            let root = try root(), path = root.appendingPathComponent("catalog.sqlite").path
+            let content = OfflineContent(), volumes = FixtureVolumes(root: root), bottles = FixtureBottles()
+            if step == "acknowledge" { await bottles.failAcknowledgmentOnce() }
+            else { await content.failOnce(step + ":retry") }
+            let first = try InstallQueue(catalog: CatalogStore(path: path), sources: [OfflineSource(content: content)], storage: InstallStorage(volumes: volumes), bottles: bottles)
+            let id = try await first.enqueue(first.offer(for: game("retry"), volume: volumes.selection)); try await first.start()
+            let failed = try await waitFor(first, jobID: id, state: .failed)
+            XCTAssertTrue(failed.completedStages.contains(.createBottle))
+            await first.shutdown()
+            try await bottles.remove(XCTUnwrap(failed.bottle))
+            let catalog = try CatalogStore(path: path)
+            let second = try InstallQueue(catalog: catalog, sources: [OfflineSource(content: content)], storage: InstallStorage(volumes: volumes), bottles: bottles)
+            try await second.start(); try await second.retry(id)
+            _ = try await waitFor(second, jobID: id, state: .completed)
+            XCTAssertNotNil(try catalog.snapshot().entries.first?.installation)
+            let preparations = await bottles.preparations; XCTAssertEqual(preparations, 2)
+            let acknowledgments = await bottles.acknowledgments; XCTAssertEqual(acknowledgments, step == "acknowledge" ? 2 : 1)
+            let events = await content.events
+            XCTAssertEqual(events.filter { $0 == "download:retry" }.count, 1)
+            XCTAssertEqual(events.filter { $0 == "prerequisites:retry" }.count, 2)
+            await second.shutdown()
+        }
     }
     func testStorageRejectsUnownedFoldersWrongTokenAndEscapingLocation() async throws {
         let root = try root(), volumes = FixtureVolumes(root: root), storage = InstallStorage(volumes: volumes)

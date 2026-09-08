@@ -49,10 +49,15 @@ public struct RunSnapshot: Codable, Equatable, Sendable {
     }
 }
 public protocol GameRunner: Sendable {
-    /// True when the runtime changed and source staging must be revalidated.
+    /// True while source staging needs validation, including an interrupted previous preparation.
     @discardableResult func prepare(_ bottle: GameBottle) async throws -> Bool
+    /// Acknowledge only after source staging and its validated launch metadata are durably saved.
+    func completePreparation(_ bottle: GameBottle) async throws
     func launch(_ spec: LaunchSpec, in bottle: GameBottle, directory: URL) async throws -> RunningGame
     func observe(_ run: RunningGame) async -> AsyncStream<RunSnapshot>
     func recover(_ snapshot: RunSnapshot) async throws -> RunSnapshot
     func terminate(_ run: RunningGame, force: Bool) async throws
+}
+public extension GameRunner {
+    func completePreparation(_ bottle: GameBottle) async throws {}
 }

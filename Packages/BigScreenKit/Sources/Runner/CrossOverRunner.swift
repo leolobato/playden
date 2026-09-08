@@ -34,12 +34,19 @@ public actor CrossOverRunner: GameRunner {
         guard !observations.processes.contains(where: { $0.kind == .game }) else { throw failure("Prepare game", "This game's bottle already has an application running.") }
         let ready = (try? await manager.isReady(bottle)) == true
         try await manager.prepare(bottle)
-        return !ready
+        let pending = try await manager.requiresSourcePreparation(bottle)
+        return !ready || pending
+    }
+    public func completePreparation(_ bottle: GameBottle) async throws {
+        guard !starting, active == nil else { throw failure("Prepare game", "Quit the current game before completing preparation.") }
+        starting = true; defer { starting = false }
+        try await manager.completeSourcePreparation(bottle)
     }
     public func launch(_ spec: LaunchSpec, in bottle: GameBottle, directory: URL) async throws -> RunningGame {
         guard !starting, active == nil else { throw failure("Launch game", "Quit the current game before starting another game.") }
         starting = true; defer { starting = false }
         guard try await manager.isReady(bottle) else { throw failure("Launch game", "The game's runtime needs to be prepared again.") }
+        guard try await !manager.requiresSourcePreparation(bottle) else { throw failure("Launch game", "The game's preparation has not finished. Retry to continue.") }
         let prefix = try prefix(bottle)
         let baseline = try inspector.inspect(bottle: prefix)
         guard !baseline.processes.contains(where: { $0.kind == .game }) else { throw failure("Launch game", "This game's bottle already has an application running.") }

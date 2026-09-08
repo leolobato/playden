@@ -756,3 +756,14 @@ Regression tests and a real disposable CrossOver probe passed, including native 
 verification and a second pass executing no completed commands. Full fresh installation/gameplay,
 broader recipes and physical missing-bottle Cloud acceptance remain open. See
 `docs/validation/2026-09-08-prerequisites.md`.
+
+### 8 September — Runtime source-preparation recovery checkpoint
+
+Runtime readiness now retains a pending source-preparation acknowledgment across restart. Sessions
+clears it only after validated staging and launch metadata reach Catalog, and the runtime rejects
+launch while it remains pending. Existing ownership markers get one conservative validation;
+normal later launches reuse the acknowledgment. Queue retry rebuilds a missing runtime and reruns
+its preparation checkpoints without repeating the completed download. Failure/restart tests, the
+full regression suite and a disposable real CrossOver marker/clone/delete probe passed. Full live
+missing-bottle Cloud/gameplay acceptance and archived pending-upload recovery remain open. See
+`docs/validation/2026-09-08-runtime-preparation-recovery.md`.

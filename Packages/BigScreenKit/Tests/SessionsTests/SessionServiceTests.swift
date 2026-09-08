@@ -18,6 +18,21 @@ private actor Events {
     var values: [String] = []
     var prerequisiteChecks = 0
     var prerequisiteFailure = false
+    var preparationPending = false
+    var failedPreparationStep: String?
+    func failPreparationOnce(_ step: String) { failedPreparationStep = step }
+    func preparationRequired(changed: Bool) -> Bool {
+        preparationPending = preparationPending || changed
+        return preparationPending
+    }
+    func preparationStep(_ step: String) throws {
+        if step != "acknowledge" { values.append(step) }
+        if failedPreparationStep == step {
+            failedPreparationStep = nil
+            throw OperationFailure(stage: step, reason: "Retry source preparation.", output: "fixture")
+        }
+        if step == "acknowledge" { preparationPending = false }
+    }
     func add(_ event: String) { values.append(event) }
     func failPrerequisiteOnce() { prerequisiteFailure = true }
     func checkPrerequisite() throws {
@@ -61,8 +76,9 @@ private actor Runner: GameRunner {
     func prepare(_ bottle: GameBottle) async throws -> Bool {
         await events.add("prepare")
         while held { try await Task.sleep(for: .milliseconds(5)) }
-        return changed
+        return await events.preparationRequired(changed: changed)
     }
+    func completePreparation(_ bottle: GameBottle) async throws { try await events.preparationStep("acknowledge") }
     func launch(_ spec: LaunchSpec, in bottle: GameBottle, directory: URL) async throws -> RunningGame {
         await events.add("launch:" + spec.executableRelativePath)
         let run = RunningGame(bottle: bottle, launcher: .init(pid: 99999, startSeconds: 1, startMicroseconds: 0))
@@ -111,9 +127,9 @@ private struct Content: Installer {
     func resolve() async throws -> InstallPlan { throw SourceFailure.unavailable }
     func download(_ plan: InstallPlan, to directory: URL, progress: @escaping @Sendable (InstallProgress) -> Void) async throws { throw SourceFailure.unavailable }
     func verifyOriginals(_ plan: InstallPlan, at directory: URL, staging: InstallStaging?) async throws -> VerificationResult { .init(invalidFiles: []) }
-    func postInstall(_ plan: InstallPlan, at directory: URL) async throws -> InstallStaging { await events.add("stage"); return .init() }
+    func postInstall(_ plan: InstallPlan, at directory: URL) async throws -> InstallStaging { try await events.preparationStep("stage"); return .init() }
     func preparePrerequisites(_ plan: InstallPlan, at directory: URL, in bottle: GameBottle) async throws { try await events.checkPrerequisite() }
-    func validate(_ plan: InstallPlan, at directory: URL, staging: InstallStaging) async throws -> LaunchSpec { await events.add("validate"); return .init(executableRelativePath: "rebuilt.exe") }
+    func validate(_ plan: InstallPlan, at directory: URL, staging: InstallStaging) async throws -> LaunchSpec { try await events.preparationStep("validate"); return .init(executableRelativePath: "rebuilt.exe") }
     func uninstall(_ plan: InstallPlan, at directory: URL) async throws {}
     func saveMapping(_ plan: InstallPlan) throws -> SaveMapping {
         .init(rules: [.init(root: .game, directory: "saves", pattern: "*.sav", cloudPrefix: "%GameInstall%saves")], coverage: .metadata)
@@ -417,6 +433,37 @@ final class SessionServiceTests: XCTestCase {
         _ = try await wait(service, phase: .launching)
         let checks = await events.prerequisiteChecks; XCTAssertEqual(checks, 2)
         try await service.quit()
+    }
+
+    func testInterruptedSourcePreparationRetriesAfterSessionAndCatalogRestart() async throws {
+        for step in ["stage", "validate", "acknowledge"] {
+            let root = FileManager.default.temporaryDirectory.appendingPathComponent("BigScreen-source-recovery-" + UUID().uuidString)
+            defer { try? FileManager.default.removeItem(at: root) }
+            let path = root.appendingPathComponent("catalog.sqlite").path
+            let catalog = try CatalogStore(path: path), clock = TestClock(), events = Events(), runner = Runner(events)
+            let game = try installed(catalog), first = try make(catalog, runner, Queue(events), clock, events)
+            await runner.configure(changed: true); await events.failPreparationOnce(step)
+            try await first.start(downloadWhilePlaying: false); try await first.play(game.gameID)
+            let failed = try await wait(first, phase: .idle)
+            XCTAssertEqual(failed.session?.outcome, .launchFailed)
+            let pending = await events.preparationPending; XCTAssertTrue(pending)
+            let before = await events.values; XCTAssertFalse(before.contains(where: { $0.hasPrefix("launch:") }))
+            XCTAssertEqual(try catalog.snapshot().entries.first?.installation?.launchSpec.executableRelativePath,
+                           step == "acknowledge" ? "rebuilt.exe" : "game.exe")
+            try await first.shutdown()
+            let reopened = try CatalogStore(path: path), recoveredRunner = Runner(events)
+            let second = try make(reopened, recoveredRunner, Queue(events), clock, events)
+            try await second.start(downloadWhilePlaying: false); try await second.play(game.gameID)
+            _ = try await wait(second, phase: .launching)
+            let ready = await events.preparationPending; XCTAssertFalse(ready)
+            XCTAssertEqual(try reopened.snapshot().entries.first?.installation?.launchSpec.executableRelativePath, "rebuilt.exe")
+            try await second.quit()
+            try await second.play(game.gameID)
+            _ = try await wait(second, phase: .launching)
+            let after = await events.values
+            XCTAssertEqual(after.filter { $0 == "stage" }.count, 2, "Completed source staging should not repeat on ordinary launches")
+            try await second.quit(); try await second.shutdown()
+        }
     }
 
     func testPendingPublicationCanRebuildRecipeButCannotLaunchOrGoOfflineBeforeRecovery() async throws {

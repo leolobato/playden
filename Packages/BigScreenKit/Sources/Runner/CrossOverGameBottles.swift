@@ -6,6 +6,8 @@ import Domain
 public protocol GameBottleManaging: Sendable {
     func prepare(_ bottle: GameBottle) async throws
     func isReady(_ bottle: GameBottle) async throws -> Bool
+    func requiresSourcePreparation(_ bottle: GameBottle) async throws -> Bool
+    func completeSourcePreparation(_ bottle: GameBottle) async throws
     /// Returns a physical, ownership-checked ready root for descriptor-relative save access.
     /// Does not create a bottle or establish that its game process has stopped.
     func ownedDirectory(_ bottle: GameBottle) async throws -> URL
@@ -17,6 +19,8 @@ public protocol GameBottleManaging: Sendable {
 }
 
 extension GameBottleManaging {
+    public func requiresSourcePreparation(_ bottle: GameBottle) async throws -> Bool { false }
+    public func completeSourcePreparation(_ bottle: GameBottle) async throws {}
     public func verifyRemoved(_ bottle: GameBottle) async throws {
         throw OperationFailure(stage: "Uninstall", reason: "Runtime removal cannot be verified.", output: "")
     }
@@ -70,6 +74,21 @@ public actor CrossOverGameBottles: GameBottleManaging {
         let directory = URL(fileURLWithPath: String(cString: physical))
         guard try readMarker(at: directory, matching: bottle).ready else { throw problem("The game's save folder changed during verification.") }
         return directory
+    }
+    public func requiresSourcePreparation(_ bottle: GameBottle) async throws -> Bool {
+        guard !busy.contains(bottle.name), try isReady(bottle) else { throw problem("The game's runtime is not ready for source preparation.") }
+        // Older ownership markers have no acknowledgment. Validate them once before trusting
+        // their source preparation, including runtimes left ready by an interrupted old build.
+        return try readMarker(at: bottles.appendingPathComponent(bottle.name), matching: bottle).sourcePreparationPending ?? true
+    }
+    public func completeSourcePreparation(_ bottle: GameBottle) async throws {
+        try Task.checkCancellation()
+        guard !busy.contains(bottle.name), try isReady(bottle) else { throw problem("The game's runtime changed during source preparation.") }
+        let directory = bottles.appendingPathComponent(bottle.name)
+        var marker = try readMarker(at: directory, matching: bottle)
+        if marker.sourcePreparationPending == false { return }
+        marker.sourcePreparationPending = false
+        try write(marker, at: directory)
     }
     public func prepare(_ bottle: GameBottle) async throws {
         try validateIdentity(bottle)
@@ -184,7 +203,11 @@ public actor CrossOverGameBottles: GameBottleManaging {
         .init(directory: bottles.appendingPathComponent(bottle.name),
             receipt: bottles.appendingPathComponent(".bigscreen-removing-\(bottle.ownershipToken.uuidString).json"), owner: bottle)
     }
-    private struct Marker: Codable, Equatable { let bottle: GameBottle; var ready: Bool }
+    private struct Marker: Codable, Equatable {
+        let bottle: GameBottle
+        var ready: Bool
+        var sourcePreparationPending: Bool? = true
+    }
     private let markerName = ".bigscreen-game-owner.json"
     private func validateIdentity(_ bottle: GameBottle) throws {
         guard bottle.name == Self.name(for: bottle.gameID), bottle.name != templateName,
