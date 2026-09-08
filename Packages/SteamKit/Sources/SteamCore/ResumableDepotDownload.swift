@@ -34,7 +34,11 @@ public struct ResumableDepotDownload: Sendable {
             let key = SHA256.hash(data: Data(entry.path.utf8)).map { String(format: "%02x", $0) }.joined()
             let base = ".gn-download/\(manifest.depotID)/\(manifest.gid)/\(key)"
             let writer = try ChunkCheckpointWriter(workspace: workspace, file: entry.file, base: base)
-            let resumed = try await writer.restore()
+            let resumed = try await writer.restore { checked, checkTotal, retained in
+                onProgress(DownloadProgress(depotID: manifest.depotID, file: entry.path,
+                    bytesDone: before + retained, bytesTotal: total, bytesWritten: freshBefore,
+                    verification: .init(bytesChecked: checked, bytesTotal: checkTotal)))
+            }
             var completed = resumed.bytes
             onProgress(DownloadProgress(depotID: manifest.depotID, file: entry.path, bytesDone: done + completed, bytesTotal: total, bytesWritten: written))
             let pending = entry.file.chunks.enumerated().filter { !resumed.indices.contains($0.offset) }
@@ -218,16 +222,29 @@ private actor ChunkCheckpointWriter {
             journal.completed = [:]; try handle.truncate(atOffset: 0)
         }
     }
-    func restore() throws -> (indices: Set<Int>, bytes: UInt64) {
+    func restore(onVerification: @Sendable (UInt64, UInt64, UInt64) -> Void) throws -> (indices: Set<Int>, bytes: UInt64) {
         var retained: [Int: Data] = [:], bytes: UInt64 = 0
-        for (index, hash) in journal.completed {
+        // Dictionary order causes random seeks across multi-GB partials on external disks.
+        let saved = journal.completed.filter { file.chunks.indices.contains($0.key) }
+            .sorted { file.chunks[$0.key].offset < file.chunks[$1.key].offset }
+        let total = saved.reduce(UInt64(0)) { $0 + UInt64(file.chunks[$1.key].uncompressedSize) }
+        var checked: UInt64 = 0
+        var lastReport = ContinuousClock.now
+        if total > 0 { onVerification(0, total, 0) }
+        for (index, hash) in saved {
             try Task.checkCancellation()
-            guard file.chunks.indices.contains(index) else { continue }
             let chunk = file.chunks[index]
-            try handle.seek(toOffset: chunk.offset)
-            let data = try handle.read(upToCount: Int(chunk.uncompressedSize)) ?? Data()
-            guard Data(SHA256.hash(data: data)) == hash, (try? chunk.validate(data)) != nil else { continue }
-            retained[index] = hash; bytes += UInt64(data.count)
+            let valid = try autoreleasepool {
+                try handle.seek(toOffset: chunk.offset)
+                let data = try handle.read(upToCount: Int(chunk.uncompressedSize)) ?? Data()
+                return Data(SHA256.hash(data: data)) == hash && (try? chunk.validate(data)) != nil
+            }
+            if valid { retained[index] = hash; bytes += UInt64(chunk.uncompressedSize) }
+            // Checked ranges include rejected chunks; only valid bytes count as retained.
+            checked += UInt64(chunk.uncompressedSize)
+            if checked == total || lastReport.duration(to: .now) >= .milliseconds(250) {
+                onVerification(checked, total, bytes); lastReport = .now
+            }
         }
         journal.completed = retained
         return (Set(retained.keys), bytes)

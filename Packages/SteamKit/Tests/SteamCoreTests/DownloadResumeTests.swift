@@ -79,7 +79,7 @@ final class DownloadResumeTests: XCTestCase {
         let samples = ProgressSamples()
         var resumed = download(root); resumed.onProgress = samples.append
         try await resumed.download(manifest: manifest, fetchChunk: Feed(pieces).fetch)
-        XCTAssertEqual(samples.values.first?.bytesDone, 5)
+        XCTAssertEqual(samples.values.first(where: { $0.verification == nil })?.bytesDone, 5)
         XCTAssertEqual(samples.values.first?.bytesWritten, 0)
         XCTAssertEqual(samples.values.last?.bytesDone, 16)
         XCTAssertEqual(samples.values.last?.bytesWritten, 11)
@@ -106,6 +106,24 @@ final class DownloadResumeTests: XCTestCase {
         XCTAssertEqual(reused.values.filter { $0.verification != nil }.last?.verification?.bytesChecked, manifest.totalSize)
         XCTAssertTrue(reused.values.allSatisfy { $0.bytesWritten == 0 })
         XCTAssertNil(reused.values.last?.verification)
+    }
+    func testResumeReportsSavedChunkChecksIncludingCorruptionBeforeFetching() async throws {
+        let root = try root(), manifest = fixture(), initial = Feed(pieces, failAt: 11)
+        do { try await download(root).download(manifest: manifest, fetchChunk: initial.fetch) } catch {}
+        let handle = try FileHandle(forWritingTo: partial(root))
+        try handle.write(contentsOf: Data("WRONG".utf8)); try handle.close()
+        let samples = ProgressSamples()
+        var resumed = download(root); resumed.onProgress = samples.append
+        try await resumed.download(manifest: manifest, fetchChunk: Feed(pieces).fetch)
+        let checks = Array(samples.values.prefix { $0.verification != nil })
+        XCTAssertEqual(checks.first?.verification?.bytesChecked, 0)
+        XCTAssertEqual(checks.last?.verification?.bytesChecked, 11)
+        XCTAssertTrue(checks.allSatisfy { $0.verification?.bytesTotal == 11 && $0.file == "Game/data.bin" })
+        XCTAssertTrue(checks.allSatisfy { $0.bytesWritten == 0 })
+        XCTAssertEqual(checks.last?.bytesDone, 6, "Corrupt saved chunks must not count as retained bytes")
+        XCTAssertEqual(samples.values.first(where: { $0.verification == nil })?.bytesDone, 6)
+        XCTAssertEqual(samples.values.last?.bytesWritten, 10)
+        XCTAssertNil(samples.values.last?.verification)
     }
     func testCorruptRetainedChunkIsFetchedAgain() async throws {
         let root = try root(), manifest = fixture(), feed = Feed(pieces, failAt: 11)

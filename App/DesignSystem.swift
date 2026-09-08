@@ -54,13 +54,16 @@ extension View { func focusRing(_ active: Bool, compact: Bool = false) -> some V
 
 struct Artwork: View {
     let url: URL?
+    var fallbackURL: URL?
     var title = ""
     var placeholderID: GameID?
     var fit = false
     var transparent = false
     var fadeIn = false
     @State private var image: NSImage?
-    @State private var loadedURL: URL?
+    private struct Request: Hashable { let url: URL?; let fallback: URL? }
+    private var request: Request { .init(url: url, fallback: fallbackURL) }
+    @State private var loadedRequest: Request?
     var body: some View {
         GeometryReader { geometry in
             ZStack {
@@ -70,19 +73,34 @@ struct Artwork: View {
                         Color(hue: Double(byte) / 255, saturation: 0.22, brightness: 0.21)
                     } else { Color(hex: 0x2A2623) }
                 }
-                if let displayed = loadedURL == url ? image : ArtworkCache.shared.cachedImage(for: url) {
-                    Image(nsImage: displayed).resizable().aspectRatio(contentMode: fit ? .fit : .fill)
-                        .frame(width: geometry.size.width, height: geometry.size.height, alignment: fit ? .leading : .center)
+                if let displayed = loadedRequest == request ? image : ArtworkCache.shared.cachedImage(for: url, fallbackURL: fallbackURL) {
+                    if fallbackURL != nil && displayed.size.width > displayed.size.height {
+                        // Preserve landscape artwork inside a portrait card; never stretch or
+                        // crop away its title. Compact download thumbnails only need the image.
+                        VStack(spacing: 16) {
+                            Image(nsImage: displayed).resizable().scaledToFit()
+                            if !title.isEmpty {
+                                Text(title).font(Design.condensed(min(30, geometry.size.width * 0.14)))
+                                    .multilineTextAlignment(.center).lineLimit(4).minimumScaleFactor(0.85).padding(.horizontal, 12)
+                            }
+                        }
+                        .frame(width: geometry.size.width, height: geometry.size.height * 0.75, alignment: .center)
+                        .frame(height: geometry.size.height, alignment: .top)
                         .transition(.opacity)
+                    } else {
+                        Image(nsImage: displayed).resizable().aspectRatio(contentMode: fit ? .fit : .fill)
+                            .frame(width: geometry.size.width, height: geometry.size.height, alignment: fit ? .leading : .center)
+                            .transition(.opacity)
+                    }
                 } else if !title.isEmpty {
                     Text(title).font(Design.condensed(36)).multilineTextAlignment(.center).padding(20)
                 }
             }.frame(width: geometry.size.width, height: geometry.size.height).clipped()
         }
-        .task(id: url) {
-            image = ArtworkCache.shared.cachedImage(for: url); loadedURL = url
-            guard image == nil, let url else { return }
-            let result = await ArtworkCache.shared.image(for: url)
+        .task(id: request) {
+            image = ArtworkCache.shared.cachedImage(for: url, fallbackURL: fallbackURL); loadedRequest = request
+            guard image == nil else { return }
+            let result = await ArtworkCache.shared.image(for: url, fallbackURL: fallbackURL)
             guard !Task.isCancelled else { return }
             withAnimation(fadeIn ? .easeInOut(duration: 0.25) : nil) { image = result }
         }
@@ -183,6 +201,9 @@ struct GameTile: View {
     var paused = false
     var job: JobRecord? = nil
     var running = false
+    var verification: InstallFileVerification? = nil
+    var transferProgress: Double { verification?.fraction ?? job?.displayProgress ?? 0.43 }
+    var transferTitle: String { verification == nil ? (job?.statusTitle ?? (paused ? "Paused" : "Downloading")) : "Verifying file" }
     var width: CGFloat { home ? 213 : 210 }
     var height: CGFloat { home ? 320 : 315 }
     var showsDownloadMark: Bool { !running && game.status == .notInstalled && game.compatibility != .broken }
@@ -198,7 +219,7 @@ struct GameTile: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
             ZStack(alignment: .bottomLeading) {
-                Artwork(url: game.coverURL, title: game.title, placeholderID: game.id)
+                Artwork(url: game.coverURL, fallbackURL: game.coverFallbackURL, title: game.title, placeholderID: game.id)
                 if focused && !home {
                     LinearGradient(colors: [.clear, Design.background.opacity(0.92)], startPoint: .top, endPoint: .bottom).frame(height: 105)
                     VStack(alignment: .leading, spacing: 4) {
@@ -208,8 +229,8 @@ struct GameTile: View {
                 }
                 if game.status == .downloading {
                     VStack(spacing: 8) {
-                        HStack { Text(job?.statusTitle ?? (paused ? "Paused" : "Downloading")); Spacer(); if job == nil || job?.stage == .download { Text(job.map { $0.displayProgress.formatted(.percent.precision(.fractionLength(0))) } ?? "43%") } }.font(Design.body(16, weight: "SemiBold"))
-                        ProgressTrack(value: job?.displayProgress ?? 0.43, height: 6)
+                        HStack { Text(transferTitle); Spacer(); if job == nil || job?.stage == .download { Text(transferProgress.formatted(.percent.precision(.fractionLength(0)))) } }.font(Design.body(16, weight: "SemiBold"))
+                        ProgressTrack(value: transferProgress, height: 6)
                     }.padding(12).background(LinearGradient(colors: [.clear, Design.background.opacity(0.9)], startPoint: .top, endPoint: .bottom))
                 }
             }

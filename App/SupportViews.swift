@@ -198,7 +198,7 @@ struct DownloadCard: View {
         let job = model.isPreview ? nil : model.liveJob(for: row.game.id)
         let active = job.map { $0.id == model.activeInstallID } ?? (row.game.status == .downloading)
         HStack(alignment: active ? .top : .center, spacing: 24) {
-            Artwork(url: row.game.coverURL).frame(width: active ? 120 : 60, height: active ? 180 : 90).clipShape(RoundedRectangle(cornerRadius: 6))
+            Artwork(url: row.game.coverURL, fallbackURL: row.game.coverFallbackURL).frame(width: active ? 120 : 60, height: active ? 180 : 90).clipShape(RoundedRectangle(cornerRadius: 6))
             VStack(alignment: .leading, spacing: active ? 16 : 8) {
                 Text(row.game.title).font(Design.condensed(active ? 36 : 30)).lineLimit(1)
                 if let job {

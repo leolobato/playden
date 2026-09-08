@@ -19,6 +19,7 @@ implemented; final controller/TV acceptance and broader game testing are still i
 
 - **Browse from the couch.** Cover art, game details, search, sorting and filters, with keyboard
   and mouse support alongside the controller. Recently added follows Steam acquisition dates.
+  Games without Steam portrait covers use cached landscape artwork with a readable title.
 - **Pick up where you left off.** Home shows up to 15 Continue Playing games and a Library card,
   plus downloads, recent installs, favorites and pinned collections.
 - **Make the library yours.** Create collections, favorite or hide games, and keep your own

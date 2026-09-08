@@ -25,7 +25,7 @@ extension LibraryModel {
     func transferSpeedLabel(for job: JobRecord) -> String? {
         guard job.id == activeInstallID, job.state == .running, job.stage == .download else { return nil }
         guard fileVerification(for: job) == nil else { return nil }
-        guard let rate = installTransfer else { return "Measuring speed…" }
+        guard let rate = installTransfer else { return "Measuring…" }
         let formatter = ByteCountFormatter(); formatter.countStyle = .file; formatter.allowsNonnumericFormatting = false
         let bytes = Int64(min(Double(Int64.max / 2), max(0, rate.bytesPerSecond.isFinite ? rate.bytesPerSecond : 0)))
         return formatter.string(fromByteCount: bytes) + "/s"

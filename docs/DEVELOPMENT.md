@@ -233,6 +233,8 @@ ten seconds of samples, and updates at most every five seconds; stalls clear it 
 once the speed window detects no transfer. The download card gives byte progress and speed
 fixed column widths, uses tabular digits, and rounds time remaining to minutes.
 Whole-file checks during downloading report file-local bytes checked, including reused files.
+Resume checks also report progress across saved chunks, in file-offset order to avoid random
+seeks. Rejected chunks count as checked but never as retained or freshly downloaded bytes.
 The row shows verification progress and hides speed/ETA until downloading resumes. These
 counters are transient and never advance downloaded bytes or the durable install stage.
 Steam progress sequence numbers reject delayed callbacks; phase transitions publish immediately.

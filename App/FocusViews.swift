@@ -12,7 +12,7 @@ struct FocusedLibraryGrid: View {
             ForEach(Array(model.libraryVisibleIndices), id: \.self) { index in
                 if let game = games[safe: index] {
                     GameTile(game: game, focused: model.libraryCursor.index == index && !model.railFocused,
-                             reducedMotion: model.reducedMotion, paused: model.downloadPaused, job: model.isPreview ? nil : model.liveJob(for: game.id), running: model.isGameRunning(game.id))
+                             reducedMotion: model.reducedMotion, paused: model.downloadPaused, job: model.isPreview ? nil : model.liveJob(for: game.id), running: model.isGameRunning(game.id), verification: model.liveJob(for: game.id).flatMap { model.fileVerification(for: $0) })
                         .offset(x: 24 + Double(index % 6) * 234,
                                 y: 24 + Double(index / 6) * 339 - model.libraryScrollOffset)
                         .zIndex(model.libraryCursor.index == index ? 1 : 0)
@@ -41,7 +41,7 @@ struct FocusedHomeRows: View {
                                 if let game = row.games[safe: column] {
                                     GameTile(game: game, focused: !model.tabsFocused && model.homeRow == index && model.homeColumns[index, default: 0] == column,
                                              home: true, reducedMotion: model.reducedMotion,
-                                             subtitle: model.isPreview && index == 0 && column == 0 ? "31 h played · yesterday" : nil, paused: model.downloadPaused, job: model.isPreview ? nil : model.liveJob(for: game.id), running: model.isGameRunning(game.id))
+                                             subtitle: model.isPreview && index == 0 && column == 0 ? "31 h played · yesterday" : nil, paused: model.downloadPaused, job: model.isPreview ? nil : model.liveJob(for: game.id), running: model.isGameRunning(game.id), verification: model.liveJob(for: game.id).flatMap { model.fileVerification(for: $0) })
                                         .onTapGesture { model.homeRow = index; model.homeColumns[index] = column; model.openGame(game) }
                                 } else if row.showsLibraryCard && column == row.games.count {
                                     HomeLibraryCard(focused: !model.tabsFocused && model.homeRow == index && model.homeColumns[index, default: 0] == column,

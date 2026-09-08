@@ -1,6 +1,7 @@
 import AppKit
 import CryptoKit
 import ImageIO
+import Domain
 
 /// UI access is memory-only. File access and eager image decoding belong to the loader actor.
 @MainActor
@@ -17,6 +18,16 @@ final class ArtworkCache {
     func cachedImage(for url: URL?) -> NSImage? {
         guard let url else { return nil }
         return memory.object(forKey: url as NSURL)
+    }
+
+    func cachedImage(for url: URL?, fallbackURL: URL?) -> NSImage? {
+        cachedImage(for: url) ?? cachedImage(for: fallbackURL)
+    }
+
+    func image(for url: URL?, fallbackURL: URL?) async -> NSImage? {
+        if let url, let image = await image(for: url) { return image }
+        guard !Task.isCancelled, let fallbackURL, fallbackURL != url else { return nil }
+        return await image(for: fallbackURL)
     }
 
     func image(for url: URL) async -> NSImage? {
@@ -217,5 +228,14 @@ actor ArtworkLoader {
               bytes <= maximumFileBytes else { throw URLError(.cannotDecodeContentData) }
         try Task.checkCancellation()
         return try Data(contentsOf: file)
+    }
+}
+
+// A Steam header is available for many older games without a portrait library cover.
+// Keep this source-specific fallback out of generic artwork URLs (heroes, logos, other stores).
+extension Game {
+    var coverFallbackURL: URL? {
+        guard id.source == "steam", let appID = UInt32(id.value) else { return nil }
+        return URL(string: "https://cdn.cloudflare.steamstatic.com/steam/apps/\(appID)/header.jpg")
     }
 }

@@ -174,10 +174,10 @@ struct BottomBar: View {
                             Image(systemName: job.kind == .uninstall ? "trash" : "arrow.down.to.line").foregroundStyle(Design.accent)
                             Text(download.title).lineLimit(1).truncationMode(.tail)
                             Spacer(minLength: 4)
-                            Text(job.statusTitle + (job.stage == .download ? " · " + job.displayProgress.formatted(.percent.precision(.fractionLength(0))) : ""))
+                            Text(model.downloadStatusTitle(for: job) + (job.stage == .download ? " · " + model.downloadProgress(for: job).formatted(.percent.precision(.fractionLength(0))) : ""))
                                 .foregroundStyle(Design.secondary)
                         }.font(Design.body(18, weight: "SemiBold"))
-                        ProgressTrack(value: job.displayProgress, height: 4)
+                        ProgressTrack(value: model.downloadProgress(for: job), height: 4)
                         Text(model.downloadStats(for: job)).font(Design.body(16)).foregroundStyle(Design.secondary).lineLimit(1)
                     }.frame(width: 490).padding(.horizontal, 14).padding(.vertical, 9)
                         .background(Design.panel, in: RoundedRectangle(cornerRadius: 8))
@@ -279,9 +279,9 @@ struct GamePage: View {
                     }
                     if !model.isPreview, let job = model.liveJob(for: game.id), ![.completed, .cancelled].contains(job.state) {
                         VStack(alignment: .leading, spacing: 12) {
-                            HStack { Text(job.statusTitle); Spacer(); if job.stage == .download { Text(job.displayProgress.formatted(.percent.precision(.fractionLength(0)))) } }.font(Design.body(22, weight: "Medium"))
+                            HStack { Text(model.downloadStatusTitle(for: job)); Spacer(); if job.stage == .download { Text(model.downloadProgress(for: job).formatted(.percent.precision(.fractionLength(0)))) } }.font(Design.body(22, weight: "Medium"))
                             Text(model.downloadStats(for: job)).font(Design.body(22)).foregroundStyle(Design.secondary)
-                            ProgressTrack(value: job.displayProgress, height: 8)
+                            ProgressTrack(value: model.downloadProgress(for: job), height: 8)
                             if let failure = job.failure { Text(failure.reason).font(Design.body(20)).foregroundStyle(Design.amber).lineLimit(2) }
                         }.padding(20).background(Design.text.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
                     }

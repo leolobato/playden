@@ -1,6 +1,7 @@
 import XCTest
 import AppKit
 import ImageIO
+import Domain
 @testable import BigScreen
 
 private actor ArtworkTransport {
@@ -52,6 +53,46 @@ final class ArtworkCacheTests: XCTestCase {
         while await transport.stats().calls.count < count, Date() < deadline { try await Task.sleep(for: .milliseconds(5)) }
         let calls = await transport.stats().calls.count
         XCTAssertGreaterThanOrEqual(calls, count)
+    }
+
+    @MainActor func testMissingCoverFallsBackAndCachedHeaderWorksOffline() async throws {
+        let directory = try directory(), data = try png(width: 46, height: 21)
+        let cover = url("missing-cover"), header = url("header")
+        let loader = ArtworkLoader(directory: directory, fetch: { address in
+            if address == cover { throw URLError(.fileDoesNotExist) }
+            return data
+        })
+        let cache = ArtworkCache(loader: loader)
+        let result = await cache.image(for: cover, fallbackURL: header)
+        XCTAssertNotNil(result)
+        XCTAssertTrue(result === cache.cachedImage(for: header))
+        XCTAssertTrue(result === cache.cachedImage(for: cover, fallbackURL: header))
+        XCTAssertNil(cache.cachedImage(for: cover), "Do not store landscape art under the portrait's URL")
+        let offline = ArtworkCache(loader: ArtworkLoader(directory: directory, fetch: { _ in throw URLError(.notConnectedToInternet) }))
+        let restored = await offline.image(for: cover, fallbackURL: header)
+        XCTAssertNotNil(restored)
+        XCTAssertGreaterThan(try XCTUnwrap(restored).size.width, try XCTUnwrap(restored).size.height)
+    }
+
+    @MainActor func testPortraitWinsAndCancellationDoesNotFetchFallback() async throws {
+        let directory = try directory(), data = try png(width: 2, height: 3)
+        let cover = url("cover"), header = url("header")
+        let transport = ArtworkTransport(data: data)
+        await transport.release()
+        let cache = ArtworkCache(loader: ArtworkLoader(directory: directory, fetch: { try await transport.fetch($0) }))
+        let result = await cache.image(for: cover, fallbackURL: header)
+        XCTAssertNotNil(result)
+        let calls = await transport.stats().calls; XCTAssertEqual(calls, [cover])
+        let paused = ArtworkTransport(data: data)
+        let cancelledCache = ArtworkCache(loader: ArtworkLoader(directory: try self.directory(), fetch: { try await paused.fetch($0) }))
+        let task = Task { await cancelledCache.image(for: cover, fallbackURL: header) }
+        try await Self.waitForCalls(1, transport: paused)
+        task.cancel()
+        let cancelled = await task.value; XCTAssertNil(cancelled)
+        await paused.release()
+        let cancelledCalls = await paused.stats().calls; XCTAssertEqual(cancelledCalls, [cover])
+        XCTAssertNotNil(Game(id: .init(source: "steam", value: "18700"), title: "Test").coverFallbackURL)
+        XCTAssertNil(Game(id: .init(source: "other", value: "18700"), title: "Test").coverFallbackURL)
     }
 
     @MainActor func testConcurrentConsumersShareOneLoadAndCancelIndependently() async throws {

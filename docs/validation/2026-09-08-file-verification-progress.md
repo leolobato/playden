@@ -26,3 +26,17 @@ Validation:
 - Debug and Release builds passed, including strict code-signature verification.
 
 The running interactive app and download were not restarted or replaced.
+
+## Resume-check follow-up
+
+The later zero-speed report was a separate path: `ChunkCheckpointWriter.restore` was reading
+and validating saved chunks in the 9,785,030,483-byte `Data1.bdt` partial. That path did not
+report progress, leaving the preceding file's name and download speed visible. It now reports
+checked bytes against the saved ranges, while only valid chunks contribute to retained bytes.
+Saved chunks are read in offset order and buffers are released after each read. The mini
+panel, game-details panel and tile also use verification status and percentage.
+
+All 14 SteamKit download/resume tests passed, including the new case with corrupted saved
+chunks: every saved range is checked, only valid chunks are retained, and refetched bytes
+remain separate. The two focused download presentation tests also passed.
+The Release build and strict code-signature verification passed.
