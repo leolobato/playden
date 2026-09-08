@@ -806,3 +806,12 @@ build pass. A 720-game paging benchmark reduced model CPU work from 5.243 ms to 
 this is not a rendered-frame measurement. Missing artwork now has an identity-derived color.
 PRD library/exit wording was reconciled with board 3b and the existing implementation plan.
 See [navigation validation](validation/2026-09-08-library-navigation-performance.md).
+
+### 8 September — Game status and exit destination audit
+
+Fixed four concrete v1 gaps: Library-launched games now return to Home after exit; game details
+show the recorded last-session outcome independently of compatibility; tiles show Running and
+user-set Works/Playable badges; and the context menu exposes state-specific primary actions and
+the existing guarded Uninstall flow. Details content accounts for long notes and job failures so
+it stays above the footer. All 102 app tests pass. Physical acceptance remains open. See
+[game status validation](validation/2026-09-08-game-status.md).

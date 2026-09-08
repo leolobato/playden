@@ -12,6 +12,9 @@ extension LibraryModel {
         } else { sessionIssue = nil }
     }
     var hasActiveSession: Bool { session.phase != .idle }
+    func isGameRunning(_ id: GameID) -> Bool {
+        session.session?.gameID == id && (session.phase == .running || session.phase == .stopping)
+    }
     var isLaunchingGame: Bool { session.phase == .preparing || session.phase == .launching || session.phase == .syncingSaves }
     var sessionGame: Game? {
         guard let record = session.game else { return nil }
@@ -52,9 +55,19 @@ extension LibraryModel {
             if sessionIssue?.stage == "Return to game" { sessionIssue = nil }
             setExitOverlay(false); sessionBusy = false
             reloadCatalog()
-            tab = sessionOrigin
-            detailID = snapshot.session?.outcome == .launchFailed || sessionOrigin != .home ? snapshot.session?.gameID : nil
-            detailAction = 0; reconcileFocus()
+            let launchFailed = snapshot.session?.outcome == .launchFailed
+            tab = launchFailed ? sessionOrigin : .home
+            detailID = launchFailed ? snapshot.session?.gameID : nil
+            tabsFocused = false; detailAction = 0
+            if !launchFailed {
+                homeRow = 0; homeColumns[0] = 0
+                if let id = snapshot.session?.gameID,
+                   let row = rows.firstIndex(where: { $0.games.contains { $0.id == id } }),
+                   let column = rows[row].games.firstIndex(where: { $0.id == id }) {
+                    homeRow = row; homeColumns[row] = column
+                }
+            }
+            reconcileFocus()
             if snapshot.session?.outcome == .crash && sessionIssue == nil {
                 sessionIssue = .init(stage: "Game closed unexpectedly", reason: "\(snapshot.game?.title ?? "The game") closed unexpectedly. View logs for details.", output: snapshot.session?.runtime?.output ?? "")
             }

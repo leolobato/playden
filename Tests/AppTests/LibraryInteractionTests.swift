@@ -5,6 +5,25 @@ import Catalog
 @testable import BigScreen
 
 final class LibraryInteractionTests: XCTestCase {
+    @MainActor func testContextInstallAndUninstallUseExistingConfirmationFlows() throws {
+        let model = LibraryModel()
+        let installed = try XCTUnwrap(model.games.first { $0.status == .installed })
+        model.openGame(installed); model.show(.context)
+        XCTAssertEqual(model.contextActions.first, "Play")
+        model.panelIndex = try XCTUnwrap(model.contextActions.firstIndex(of: "Uninstall"))
+        model.perform(.confirm)
+        XCTAssertEqual(model.panel, .uninstall(installed.id))
+        XCTAssertEqual(model.games.first { $0.id == installed.id }?.status, .installed)
+        model.perform(.back)
+        XCTAssertNil(model.panel)
+        let available = try XCTUnwrap(model.games.first { $0.status == .notInstalled })
+        model.openGame(available); model.show(.context)
+        XCTAssertEqual(model.contextActions.first, "Install")
+        XCTAssertFalse(model.contextActions.contains("Uninstall"))
+        model.perform(.confirm)
+        XCTAssertEqual(model.panel, .confirmation(.install(available.id)))
+        XCTAssertEqual(model.games.first { $0.id == available.id }?.status, .notInstalled)
+    }
     @MainActor func testModalTrapsNavigationAndRestoresGridFocus() {
         let model = LibraryModel()
         model.selectTab(.library)

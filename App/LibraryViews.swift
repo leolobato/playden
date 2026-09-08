@@ -284,9 +284,20 @@ struct GamePage: View {
                             if let failure = job.failure { Text(failure.reason).font(Design.body(20)).foregroundStyle(Design.amber).lineLimit(2) }
                         }.padding(20).background(Design.text.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
                     }
-                    Text(game.summary).font(Design.body(26)).foregroundStyle(Color(hex: 0xD6D0C8)).lineSpacing(7).lineLimit(hasInstallProgress ? 2 : 4)
+                    if !hasInstallProgress {
+                        Text(game.summary).font(Design.body(26)).foregroundStyle(Color(hex: 0xD6D0C8)).lineSpacing(7).lineLimit(model.compatibilityNotes[game.id]?.isEmpty == false ? 2 : 3)
+                    }
                     if !hasInstallProgress { HStack(spacing: 12) {
-                        ForEach(game.genres, id: \.self) { tag in Text(tag).font(Design.body(20, weight: "Medium")).padding(.horizontal, 16).padding(.vertical, 8).background(Design.text.opacity(0.1), in: RoundedRectangle(cornerRadius: 6)) }
+                        if let outcome = game.lastSessionOutcome {
+                            Label("Last session · \(outcome.displayTitle)", systemImage: outcome.symbol)
+                                .font(Design.body(20, weight: "Medium"))
+                                .foregroundStyle(outcome == .crash || outcome == .launchFailed ? Design.amber : Design.secondary)
+                                .fixedSize().padding(.trailing, 8)
+                        }
+                        ForEach(Array(game.genres.prefix(game.lastSessionOutcome == nil ? 4 : 2)), id: \.self) { tag in
+                            Text(tag).font(Design.body(20, weight: "Medium")).lineLimit(1)
+                                .padding(.horizontal, 16).padding(.vertical, 8).background(Design.text.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+                        }
                     } }
                     if !hasInstallProgress, let note = model.compatibilityNotes[game.id], !note.isEmpty {
                         Text(note).font(Design.body(20)).foregroundStyle(Design.secondary).lineLimit(2)
@@ -296,7 +307,7 @@ struct GamePage: View {
                     HStack(alignment: .top, spacing: 40) { metadata("Playtime", game.hoursPlayed == 0 ? "Never played" : "\(game.hoursPlayed) hours"); metadata(game.status == .installed ? "Size" : "Download", game.size) }
                     HStack(alignment: .top, spacing: 40) { metadata("Source", game.id.source.capitalized); metadata("Compatibility", game.compatibility.rawValue) }
                     HStack(alignment: .top, spacing: 40) {
-                        metadata("Controller", model.isPreview ? "Full support" : game.controllerSupport == .full ? "Full support" : game.controllerSupport == .partial ? "Partial support" : "Unknown")
+                        metadata("Controller", model.isPreview ? "Full support" : game.controllerSupport == .full ? "Full support" : game.controllerSupport == .partial ? "Partial support" : game.controllerSupport == .none ? "No support" : "Unknown")
                         if let date = game.lastPlayedAt { metadata("Last played", date.formatted(.dateTime.month(.abbreviated).day())) }
                     }
                 }.frame(width: 520)

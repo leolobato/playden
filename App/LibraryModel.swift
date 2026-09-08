@@ -332,7 +332,10 @@ final class LibraryModel {
         else { primary = switch game.status { case .installed: "Play"; case .downloading: downloadPaused ? "Resume download" : "Pause download"; case .queued: "View download"; case .driveDisconnected: "Drive disconnected"; case .notInstalled: "Install" } }
         return [primary, game.isFavorite ? "Favorited" : "Favorite", "Add to collection", game.isHidden ? "Unhide" : "Hide", "Set compatibility"] + (game.status == .installed ? (primary == "Verify files" ? ["Uninstall", "Cloud saves"] : ["Verify files", "Uninstall", "Cloud saves"]) : []) + ["View logs"]
     }
-    var contextActions: [String] { ["Open game", focusedGame?.isFavorite == true ? "Unfavorite" : "Favorite", "Set compatibility", focusedGame?.isHidden == true ? "Unhide" : "Hide", "View logs", "Add to collection"] }
+    var contextActions: [String] {
+        [detailActions.first ?? "Open game", focusedGame?.isFavorite == true ? "Unfavorite" : "Favorite", "Set compatibility", focusedGame?.isHidden == true ? "Unhide" : "Hide", "View logs", "Add to collection"]
+        + (detailActions.contains("Uninstall") ? ["Uninstall"] : [])
+    }
     var panelActions: [String] {
         switch panel {
         case .context: contextActions
@@ -571,11 +574,12 @@ final class LibraryModel {
         case .persistenceFailure:
             if panelIndex == 0 { retryPersistence() } else { panel = nil }
         case .context:
-            if label == "Open game", let game = focusedGame { openGame(game) }
+            if panelIndex == 0, let game = focusedGame { openGame(game); activateDetail() }
             else if label == "Favorite" || label == "Unfavorite" { toggleFavorite(); panel = nil }
             else if label == "Set compatibility" { show(.compatibility) }
             else if label == "Hide" || label == "Unhide" { hideFocused(); panel = nil }
             else if label == "Add to collection", let id = focusedGame?.id { show(.collections(id)) }
+            else if label == "Uninstall", let id = focusedGame?.id { beginUninstall(id) }
             else if let id = focusedGame?.id { show(.logs(id)) }
         case .compatibility:
             if label == "Edit note", let id = focusedGame?.id { beginText(.compatibilityNote(id)) }

@@ -182,13 +182,17 @@ struct GameTile: View {
     var subtitle: String? = nil
     var paused = false
     var job: JobRecord? = nil
+    var running = false
     var width: CGFloat { home ? 213 : 210 }
     var height: CGFloat { home ? 320 : 315 }
-    var showsDownloadMark: Bool { game.status == .notInstalled && game.compatibility != .broken }
+    var showsDownloadMark: Bool { !running && game.status == .notInstalled && game.compatibility != .broken }
     var badge: (String, Color)? {
+        if running { return ("Running", Design.green) }
         if game.status == .queued { return (job?.statusTitle ?? "Queued", job?.state == .failed ? Design.amber : Design.secondary) }
         if game.status == .driveDisconnected { return ("Drive disconnected", Design.amber) }
         if game.compatibility == .broken { return ("Broken", Design.red) }
+        if game.compatibility == .works { return ("Works", Design.green) }
+        if game.compatibility == .playable { return ("Playable", Design.amber) }
         return nil
     }
     var body: some View {
@@ -235,6 +239,26 @@ struct GameTile: View {
             }
         }.frame(width: width, height: home ? 400 : height, alignment: .topLeading)
             .animation(reducedMotion ? nil : .easeOut(duration: 0.18), value: focused)
+    }
+}
+
+extension SessionOutcome {
+    var displayTitle: String {
+        switch self {
+        case .clean: "Clean exit"
+        case .crash: "Crashed"
+        case .forced: "Force quit"
+        case .launchFailed: "Did not start"
+        case .interrupted: "Interrupted"
+        }
+    }
+    var symbol: String {
+        switch self {
+        case .clean: "checkmark.circle"
+        case .crash, .launchFailed: "exclamationmark.circle"
+        case .forced: "stop.circle"
+        case .interrupted: "questionmark.circle"
+        }
     }
 }
 struct ProgressTrack: View {

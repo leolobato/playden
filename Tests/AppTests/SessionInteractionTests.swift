@@ -40,7 +40,7 @@ final class SessionInteractionTests: XCTestCase {
         played.runtime = .init(run: .init(bottle: bottle, launcher: identity), phase: .running, window: .init(id: 1, process: identity), hadWindow: true)
         return .init(phase: phase, game: game, session: played)
     }
-    func testFirstWindowHandsOffOnceAndReturnRestoresGameFocus() {
+    func testFirstWindowHandsOffOnceAndExitReturnsHome() {
         let model = LibraryModel()
         var handoffs = 0, exits = 0
         model.onGameWindow = { _ in handoffs += 1 }; model.onGameEnded = { exits += 1 }
@@ -53,7 +53,7 @@ final class SessionInteractionTests: XCTestCase {
         model.perform(.back); XCTAssertFalse(model.exitOverlay); XCTAssertEqual(handoffs, 2)
         running.phase = .idle; running.session?.endedAt = .now; running.session?.outcome = .clean
         model.receiveSession(running)
-        XCTAssertEqual(exits, 1); XCTAssertEqual(model.detailID, id); XCTAssertEqual(model.detailAction, 0)
+        XCTAssertEqual(exits, 1); XCTAssertEqual(model.tab, .home); XCTAssertNil(model.detailID); XCTAssertEqual(model.detailAction, 0)
     }
     func testLaunchingTrapsNavigationAndOverlayRemainsEscapeHatch() {
         let model = LibraryModel(); model.session = snapshot(phase: .launching)
@@ -102,6 +102,47 @@ final class SessionInteractionTests: XCTestCase {
             XCTAssertEqual(model.tab, .home)
             XCTAssertEqual(model.detailID, failed ? id : nil)
         }
+    }
+    func testExitFromLibraryFocusesPlayedGameOrVisibleHomeFallbackWithoutChangingRating() {
+        for hidden in [false, true] {
+            let model = LibraryModel(preview: false)
+            let other = GameID(source: "fixture", value: "other")
+            model.games = [Game(id: other, title: "Other", lastPlayedAt: Date(timeIntervalSince1970: 3)),
+                           Game(id: id, title: "A Short Hike", status: .installed, compatibility: .works,
+                                isHidden: hidden, lastPlayedAt: Date(timeIntervalSince1970: 2))]
+            model.sessionOrigin = .library; model.tab = .library
+            var value = snapshot()
+            model.receiveSession(value)
+            XCTAssertTrue(model.isGameRunning(id)); XCTAssertFalse(model.isGameRunning(other))
+            value.phase = .idle; value.session?.endedAt = .now; value.session?.outcome = .crash
+            model.receiveSession(value)
+            XCTAssertEqual(model.tab, .home); XCTAssertNil(model.detailID)
+            XCTAssertEqual(model.focusedGame?.id, hidden ? other : id)
+            XCTAssertEqual(model.games.first { $0.id == id }?.compatibility, .works)
+            XCTAssertFalse(model.isGameRunning(id))
+            XCTAssertNotNil(model.sessionIssue)
+            model.stopServices()
+        }
+    }
+    func testLaunchFailureFromLibraryKeepsGameDetails() {
+        let model = LibraryModel(); model.sessionOrigin = .library
+        var value = snapshot(phase: .idle)
+        value.session?.endedAt = .now; value.session?.outcome = .launchFailed
+        model.receiveSession(value)
+        XCTAssertEqual(model.tab, .library); XCTAssertEqual(model.detailID, id)
+    }
+    func testTileBadgesDistinguishRunningAndUserCompatibility() {
+        var game = Game(id: id, title: "A Short Hike", status: .installed, compatibility: .works)
+        XCTAssertEqual(GameTile(game: game, focused: false).badge?.0, "Works")
+        XCTAssertEqual(GameTile(game: game, focused: false, running: true).badge?.0, "Running")
+        game.compatibility = .playable
+        XCTAssertEqual(GameTile(game: game, focused: false).badge?.0, "Playable")
+        game.status = .notInstalled
+        XCTAssertTrue(GameTile(game: game, focused: false).showsDownloadMark)
+        XCTAssertFalse(GameTile(game: game, focused: false, running: true).showsDownloadMark)
+        game.compatibility = .broken
+        XCTAssertEqual(GameTile(game: game, focused: false).badge?.0, "Broken")
+        XCTAssertFalse(GameTile(game: game, focused: false).showsDownloadMark)
     }
     func testPlayUsesServiceAndSecondGameRequiresConfirmation() async throws {
         let game = SourceGameRecord(id: id, title: "A Short Hike"), catalog = try CatalogStore()
