@@ -3,6 +3,12 @@
 The [root README](../README.md) covers player setup, controls, current features and the roadmap.
 Run the commands below from the `big-screen` repository root.
 
+**Current checkpoint:** development is paused at the user's request, with Big Screen and the
+test game closed. Read [the next-session handoff](NEXT_SESSION_HANDOFF.md) before resuming.
+The latest quit-confirmation implementation passes 137 app tests and the signed build; complete
+live shutdown and focus validation are still open. Do not automatically run the app or tests
+that take over the desktop while the user is using the Mac.
+
 ## Source layout
 
 ```text

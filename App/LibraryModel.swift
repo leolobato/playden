@@ -91,6 +91,10 @@ final class LibraryModel {
     var sessionIssueIndex = 0
     var sessionOrigin: AppTab = .library
     var exitOverlay = false
+    var launcherQuitRequest: LauncherQuitRequest?
+    @ObservationIgnored var launcherQuitApproval: LauncherQuitRequest?
+    @ObservationIgnored var onLauncherQuit: (() -> Void)?
+    var launcherQuitting = false
     var exitIndex = 0
     var sessionBusy = false
     @ObservationIgnored var installObserver: Task<Void, Never>?
@@ -452,6 +456,7 @@ final class LibraryModel {
         for (i, row) in rows.enumerated() { homeColumns[i] = min(homeColumns[i, default: 0], max(0, row.itemCount - 1)) }
     }
     func perform(_ action: InputAction) {
+        if performLauncherQuitInput(action) { return }
         if performResetInput(action) { return }
         if performUninstallInput(action) { return }
         if performCloudInput(action) { return }
@@ -676,6 +681,7 @@ final class LibraryModel {
     }
     func performController(_ action: InputAction) {
         keyboardNavigation = false
+        if performLauncherQuitInput(action) { return }
         guard panel != .controllerTest else { return }
         perform(action)
     }

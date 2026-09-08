@@ -112,6 +112,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 self.window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
             }
             model.onExitOverlayChanged = { [weak self] visible in self?.presentExitOverlay(visible) }
+            model.onLauncherQuit = { NSApp.terminate(nil) }
             gameActivationObserver = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] _ in
                 Task { @MainActor [weak self] in self?.clearResolvedGameActivationIssue() }
             }
@@ -155,11 +156,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        guard model.hasActiveSession else { return true }
+        NSApp.terminate(nil)
+        return false
+    }
     private var terminating = false
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard model.installQueue != nil || model.sessions != nil else { return .terminateNow }
         guard !terminating else { return .terminateLater }
+        if model.hasActiveSession && !model.consumeLauncherQuitApproval() {
+            model.requestLauncherQuit()
+            return .terminateCancel
+        }
         terminating = true
+        model.launcherQuitting = true
         Task {
             await model.resetTask?.value
             await model.sessionStartup?.value
@@ -172,6 +183,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 model.stopServices(); await model.flushLogs(); sender.reply(toApplicationShouldTerminate: true)
             } catch {
                 terminating = false
+                model.resetLauncherQuit()
                 model.reportSessionIssue(model.sessionFailure(error, stage: "Quit game"), gameID: model.session.session?.gameID)
                 sender.reply(toApplicationShouldTerminate: false)
                 if model.hasActiveSession { model.setExitOverlay(true) }
@@ -297,10 +309,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         case 115: action = .home
         case 116: action = .previousPage
         case 121: action = .nextPage
-        case 51 where model.isEditingText: hideCursorForNavigation(); model.eraseText(); return nil
+        case 51 where model.isEditingText && !model.exitOverlay: hideCursorForNavigation(); model.eraseText(); return nil
         default:
             let text = event.characters ?? ""
-            if model.isEditingText && !text.isEmpty && !event.modifierFlags.contains(.control) {
+            if model.isEditingText && !model.exitOverlay && !text.isEmpty && !event.modifierFlags.contains(.control) {
                 hideCursorForNavigation(); model.insertText(text); return nil
             }
             action = switch text.lowercased() {
@@ -403,7 +415,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let requestedScreens: Set<String>? = arguments.firstIndex(of: "--snapshot-screens").flatMap { index in
                 arguments.indices.contains(index + 1) ? Set(arguments[index + 1].split(separator: ",").map(String.init)) : nil
             }
-            for screen in ["game-drive-disconnected", "game-drive-checking", "context-drive-disconnected", "library-drive-disconnected", "toast-complete", "toast-failed", "toast-connected", "toast-disconnected", "uninstall-confirm", "uninstall-unsynced", "uninstall-checking", "cloud-ready", "cloud-conflict", "cloud-account", "cloud-pending", "cloud-syncing", "cloud-recovery", "home", "home-tabs", "home-library-card", "home-playstation", "home-large-library", "home-large-library-end", "home-collection-end", "library-large", "library-large-end", "library", "library-playstation", "library-paged", "library-return", "game", "game-status-clean", "game-status-crash", "library-running", "context-uninstall", "downloads", "downloads-queued", "settings", "settings-about", "settings-reset", "settings-reset-blocked", "settings-reset-error", "settings-reset-busy", "settings-display", "settings-runtime", "settings-runtime-missing", "settings-runtime-busy", "collections", "keyboard", "keyboard-playstation", "keyboard-generic", "keyboard-space", "keyboard-long", "compatibility", "uninstall", "logs", "logs-retry", "logs-long", "logs-long-end", "logs-long-return", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom", "library-download-glyph", "library-download-focused", "game-unknown-size", "game-favorite", "install-offer", "install-offer-space", "install-queue", "install-history-failed", "install-history-completed", "install-mini-progress", "install-storage-shortage", "install-storage-unavailable", "install-game-progress", "launching", "exit-overlay", "exit-overlay-quit", "notification", "notification-focused"] {
+            for screen in ["launcher-quit", "launcher-quitting", "game-drive-disconnected", "game-drive-checking", "context-drive-disconnected", "library-drive-disconnected", "toast-complete", "toast-failed", "toast-connected", "toast-disconnected", "uninstall-confirm", "uninstall-unsynced", "uninstall-checking", "cloud-ready", "cloud-conflict", "cloud-account", "cloud-pending", "cloud-syncing", "cloud-recovery", "home", "home-tabs", "home-library-card", "home-playstation", "home-large-library", "home-large-library-end", "home-collection-end", "library-large", "library-large-end", "library", "library-playstation", "library-paged", "library-return", "game", "game-status-clean", "game-status-crash", "library-running", "context-uninstall", "downloads", "downloads-queued", "settings", "settings-about", "settings-reset", "settings-reset-blocked", "settings-reset-error", "settings-reset-busy", "settings-display", "settings-runtime", "settings-runtime-missing", "settings-runtime-busy", "collections", "keyboard", "keyboard-playstation", "keyboard-generic", "keyboard-space", "keyboard-long", "compatibility", "uninstall", "logs", "logs-retry", "logs-long", "logs-long-end", "logs-long-return", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom", "library-download-glyph", "library-download-focused", "game-unknown-size", "game-favorite", "install-offer", "install-offer-space", "install-queue", "install-history-failed", "install-history-completed", "install-mini-progress", "install-storage-shortage", "install-storage-unavailable", "install-game-progress", "launching", "exit-overlay", "exit-overlay-quit", "notification", "notification-focused"] {
                 if let requestedScreens, !requestedScreens.contains(screen) { continue }
                 // Keep each capture independent of the requested screen order.
                 let model = LibraryModel()
@@ -448,7 +460,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 case "game-status-clean", "game-status-crash", "library-running", "context-uninstall": model.configureGameStatusSnapshot(screen)
                 case "uninstall-confirm", "uninstall-unsynced", "uninstall-checking": model.configureUninstallSnapshot(screen)
                 case "cloud-ready", "cloud-conflict", "cloud-account", "cloud-pending", "cloud-syncing", "cloud-recovery": model.configureCloudSnapshot(screen)
-                case "launching", "exit-overlay", "exit-overlay-quit", "notification", "notification-focused": model.configureSessionSnapshot(screen)
+                case "launcher-quit", "launcher-quitting", "launching", "exit-overlay", "exit-overlay-quit", "notification", "notification-focused": model.configureSessionSnapshot(screen)
                 case "library-download-glyph", "library-download-focused":
                     model.selectTab(.library); model.filter = .all
                     if let index = model.games.firstIndex(where: { $0.title == "Disco Elysium" }) { model.games[index].status = .notInstalled }

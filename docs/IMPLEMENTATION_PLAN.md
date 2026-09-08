@@ -1,5 +1,18 @@
 # Big Screen — v1 implementation plan
 
+## Current checkpoint — paused 8 September 2026
+
+The user needs the Mac; interactive testing is paused. Big Screen and the test game are closed.
+Resume from [NEXT_SESSION_HANDOFF.md](NEXT_SESSION_HANDOFF.md), which records the current code,
+test evidence, preserved user files, dependency revision and remaining acceptance work.
+
+Notifications (`f0a76d7`) and installed-drive availability (`b779c28`) are implemented and have
+app-test/native-render evidence. Launcher quit confirmation is a work-in-progress checkpoint:
+137 app tests and signed build pass, and the live confirmation appeared, but its full affirmative
+shutdown path remains unverified. Fix the consequence text being replaced by unrelated errors
+and investigate the focus warning seen in the interrupted live run. No v1 release sign-off.
+Historical milestone notes below must be read with the current handoff and validation evidence.
+
 Written 2026-09-07 following review of [the PRD](prd/README.md), the sibling Swift implementation,
 and the installed CrossOver command-line help. This is an implementation proposal, not evidence
 that a title or integration already works. Implementation started with a native design preview on 2026-09-07; see the progress note below.

@@ -54,3 +54,12 @@ and are not substituted for this final pass.
 
 This verifies keyboard focus and menu interaction for A Short Hike. It does not establish
 physical DS4/TV handoff, controller input leakage, or every other game's window lifecycle.
+
+## Later interrupted run
+
+During launcher-quit testing, session `F2B9E84D-DD4B-4B5D-8B6B-38B602D9A7B8` had Terminal as
+the foreground app, an inactive tracked game, and a keyboard-focus warning in the quit dialog.
+The cause was not established before the user paused desktop work. The earlier successful
+run remains valid evidence for that run, but does not close focus reliability acceptance.
+See [the handoff](../NEXT_SESSION_HANDOFF.md) and private evidence under
+`.build/launcher-quit-live/`. No further interactive investigation should run until the user resumes.

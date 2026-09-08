@@ -38,6 +38,10 @@ extension LibraryModel {
         session = .init(phase: screen == "launching" ? .launching : .running, game: record, session: played)
         exitOverlay = screen != "launching"; exitIndex = screen == "exit-overlay-quit" ? 1 : 0
         controllerName = "DUALSHOCK 4"; keyboardNavigation = false
+        if screen.hasPrefix("launcher-quit") {
+            requestLauncherQuit()
+            if screen == "launcher-quitting" { launcherQuitting = true; exitIndex = 1 }
+        }
         if screen.hasPrefix("notification") {
             session.phase = .idle; exitOverlay = false; detailID = nil
             reportSessionIssue(.init(stage: "Game closed unexpectedly", reason: "TUNIC closed unexpectedly. Retry or view the session log for details.", output: "Snapshot fixture"), gameID: game.id, recovery: .play(game.id))

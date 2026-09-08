@@ -24,6 +24,7 @@ implemented; final controller/TV acceptance and broader game testing are still i
   compatibility ratings and notes.
 - **Install and manage games.** Choose a games drive, queue downloads, pause/resume, reorder,
   retry failures, verify files and uninstall. Download checkpoints survive restarting the app.
+  Disconnected games stay in the library; Play waits for their recorded drive to return.
 - **Play through CrossOver.** Per-game runtime preparation, game controls for returning or
   quitting, session playtime and recorded exit results. Downloads can pause while you play.
 - **Sync supported Steam Cloud saves.** Download before playing, upload after exit, review
@@ -110,8 +111,10 @@ Search, collection names and notes accept ordinary typing or the on-screen keybo
 editing with a controller, L1/R1 moves the text cursor, Square deletes, Triangle inserts a space,
 and Options switches symbols. Choose Done to finish. Command-Return finishes keyboard entry.
 
-When a failure notification appears, **Triangle / T** focuses its actions. Use Left/Right and
+When a persistent game failure notification appears, **Triangle / T** focuses its actions. Use Left/Right and
 Select for Retry, View logs or Dismiss. In logs, Up/Down scrolls and Left/Right chooses an action.
+Download and controller toasts are informational. For an installation failure, open Downloads
+for Retry or View logs. Controller disconnect warnings remain until reconnection.
 
 ## Saves and offline play
 
@@ -145,14 +148,15 @@ run remains open. Multiplayer, anti-cheat, achievements UI and DLC management ar
 | Library is empty or stale | Settings → Account to check sign-in; Settings → Library → Refresh library |
 | CrossOver setup failed | Settings → Library → Runtime, then Check again or Retry setup |
 | Download or installation failed | Downloads → More → Retry or View logs |
+| Game shows Drive disconnected | Reconnect its drive and allow access; Big Screen checks it automatically |
 | Game fails to launch | Retry on the failure notification; game page → View logs or Verify files |
 | Cloud sync needs attention | Game page → Cloud saves |
 | Controller input seems wrong | Settings → Controller → Button test |
 | Game did not take focus | Return to game; if macOS declines, select the game in the Dock |
 
-Automatic game focus and return from the overlay have been checked with A Short Hike using
-keyboard input. Physical controller reconnect and other games' handoff behavior still need final
-testing. Keep Big Screen
+Automatic game focus and return from the overlay have passed A Short Hike keyboard checks,
+but a later interrupted run showed the focus warning again. Focus reliability, physical
+controller reconnect and other games' handoff behavior still need final testing. Keep Big Screen
 open while downloading or playing: background operation after quitting the launcher is planned
 for v2. Game updates, moving existing installations between drives, native macOS builds and
 importing official Steam macOS installations are also not available in v1.
@@ -180,4 +184,4 @@ optional local save retention, controller remapping and kiosk conveniences. Thes
 not features of the current build.
 
 [Product requirements](docs/prd/README.md) · [Implementation and acceptance plan](docs/IMPLEMENTATION_PLAN.md) ·
-[Developer setup](docs/DEVELOPMENT.md)
+[Developer setup](docs/DEVELOPMENT.md) · [Current development handoff](docs/NEXT_SESSION_HANDOFF.md)

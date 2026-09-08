@@ -40,6 +40,7 @@ extension LibraryModel {
     func receiveSession(_ snapshot: SessionSnapshot) {
         let previous = session
         session = snapshot
+        reconcileLauncherQuitRequest()
         if previous.session?.id != snapshot.session?.id || snapshot.phase == .idle { gameWindowHandedOff = false }
         if let status = snapshot.cloudStatus { cloudStatuses[status.gameID] = status }
         if snapshot.phase == .awaitingCloud, let id = snapshot.session?.gameID {
@@ -91,7 +92,7 @@ extension LibraryModel {
         if sessionIssue?.stage == "Return to game" { sessionIssue = nil }
     }
     func beginPlay(_ id: GameID) {
-        guard !resetBusy else { return }
+        guard !resetBusy, !launcherQuitting else { return }
         guard !sessionBusy else { return }
         if (!hasActiveSession || session.session?.gameID != id), installationDriveBlocked(id) {
             if let game = games.first(where: { $0.id == id }) { openGame(game) }
@@ -143,6 +144,7 @@ extension LibraryModel {
     }
     func returnToGame() {
         guard hasActiveSession else { return }
+        if !launcherQuitting { launcherQuitRequest = nil; launcherQuitApproval = nil }
         setExitOverlay(false)
         if let window = session.session?.runtime?.window { onGameWindow?(window) }
     }
@@ -156,6 +158,7 @@ extension LibraryModel {
         }
     }
     func performSessionInput(_ action: InputAction) -> Bool {
+        if performLauncherQuitInput(action) { return true }
         if session.phase == .syncingSaves {
             switch action {
             case .back, .holdHome: if let id = session.session?.gameID { showCloud(id) }

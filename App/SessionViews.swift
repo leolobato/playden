@@ -48,16 +48,21 @@ struct GameExitOverlay: View {
                     Artwork(url: model.sessionGame?.coverURL, title: model.sessionGame?.title ?? "Game")
                         .frame(width: 64, height: 96).clipShape(RoundedRectangle(cornerRadius: 4))
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(model.sessionGame?.title ?? "Game").font(Design.condensed(40)).lineLimit(2)
+                        Text(model.isConfirmingLauncherQuit ? "Quit Big Screen?" : model.sessionGame?.title ?? "Game").font(Design.condensed(40)).lineLimit(2)
+                        if model.isConfirmingLauncherQuit { Text(model.sessionGame?.title ?? "Game").font(Design.body(24)).foregroundStyle(Design.secondary).lineLimit(1) }
                         Text(status).font(Design.body(24)).foregroundStyle(Design.secondary)
                     }
                     Spacer(minLength: 0)
                 }
                 VStack(spacing: 12) {
-                    exitButton("Return to game", index: 0) { model.returnToGame() }
-                    exitButton(model.sessionBusy ? "Quitting…" : "Quit game", index: 1) { model.quitGame() }
+                    exitButton(model.isConfirmingLauncherQuit ? "Keep launcher open" : "Return to game", index: 0) {
+                        model.isConfirmingLauncherQuit ? model.keepLauncherOpen() : model.returnToGame()
+                    }
+                    exitButton(model.launcherQuitting || model.sessionBusy ? "Quitting…" : model.isConfirmingLauncherQuit ? "Quit game and launcher" : "Quit game", index: 1) {
+                        model.isConfirmingLauncherQuit ? model.confirmLauncherQuit() : model.quitGame()
+                    }
                 }
-                Text(model.sessionIssue?.reason ?? "Quit asks the game to close first and forces it after 10 seconds. Unsaved progress may be lost.")
+                Text(model.sessionIssue?.reason ?? (model.isConfirmingLauncherQuit ? "This closes the game and Big Screen. Unsaved progress may be lost. Downloads pause so you can resume them later." : "Quit asks the game to close first and forces it after 10 seconds. Unsaved progress may be lost."))
                     .font(Design.body(21)).foregroundStyle(model.sessionIssue == nil ? Design.muted : Design.amber)
                     .lineSpacing(5).multilineTextAlignment(.center).frame(maxWidth: .infinity)
             }.padding(44).frame(width: 810)
@@ -66,11 +71,12 @@ struct GameExitOverlay: View {
                 .shadow(color: .black.opacity(0.4), radius: 50, y: 24)
             HStack(spacing: 32) {
                 LegendItem(glyph: model.controllerName == nil || model.keyboardNavigation ? "↵" : model.playStationGlyphs ? "✕" : "A", title: "Select")
-                LegendItem(glyph: model.controllerName == nil || model.keyboardNavigation ? "ESC" : model.playStationGlyphs ? "○" : "B", title: "Return to game")
+                LegendItem(glyph: model.controllerName == nil || model.keyboardNavigation ? "ESC" : model.playStationGlyphs ? "○" : "B", title: model.isConfirmingLauncherQuit ? "Keep launcher open" : "Return to game")
             }.offset(y: 466)
         }.frame(width: 1920, height: 1080).foregroundStyle(Design.text)
     }
     private var status: String {
+        if model.launcherQuitting { return "Closing game and saving session…" }
         if model.sessionBusy || model.session.phase == .stopping { return "Stopping game…" }
         if model.isLaunchingGame { return "Launching…" }
         let minutes = (model.session.session?.playedSeconds ?? 0) / 60
@@ -83,7 +89,7 @@ struct GameExitOverlay: View {
                 .background(index == 0 ? Design.accent : .clear, in: RoundedRectangle(cornerRadius: 8))
                 .overlay(RoundedRectangle(cornerRadius: 8).stroke(index == 0 ? .clear : Design.text.opacity(0.2), lineWidth: 2))
                 .focusRing(model.exitIndex == index)
-        }.buttonStyle(.plain).disabled(model.sessionBusy)
+        }.buttonStyle(.plain).disabled(model.launcherQuitting || (model.sessionBusy && (index == 1 || !model.isConfirmingLauncherQuit)))
     }
 }
 struct ScaledGameExitOverlay: View {
