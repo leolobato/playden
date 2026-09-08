@@ -260,11 +260,12 @@ struct GamePage: View {
                     HStack(spacing: 14) {
                         ForEach(Array(model.detailActions.enumerated()), id: \.offset) { index, title in
                             ActionButton(title: title,
-                                         primary: index == 0, detail: title == "Install" ? game.knownSize : nil, focused: model.detailAction == index, large: index == 0, reducedMotion: model.reducedMotion,
+                                         primary: index == 0 && model.detailActionEnabled(at: index), detail: title == "Install" ? game.knownSize : nil, focused: model.detailAction == index, large: index == 0, reducedMotion: model.reducedMotion,
                                          systemImage: index == 1 ? (game.isFavorite ? "heart.fill" : "heart") : title == "Play" ? "play.fill" : nil,
                                          iconOnly: index == 1, highlighted: index == 1 && game.isFavorite) {
                                 model.detailAction = index; model.activateDetail()
-                            }.help(index == 1 ? (game.isFavorite ? "Remove from favorites" : "Add to favorites") : title).id(index)
+                            }.disabled(!model.detailActionEnabled(at: index))
+                                .help(index == 1 ? (game.isFavorite ? "Remove from favorites" : "Add to favorites") : title).id(index)
                         }
                     }.padding(.horizontal, 24).padding(.vertical, 18)
                 }.scrollIndicators(.hidden).scrollClipDisabled()
@@ -272,6 +273,10 @@ struct GamePage: View {
             }.frame(width: 1776, height: 120).offset(x: 72, y: 622)
             HStack(alignment: .top, spacing: 80) {
                 VStack(alignment: .leading, spacing: 24) {
+                    if let message = model.installationDriveMessage {
+                        Label(message, systemImage: "externaldrive.badge.exclamationmark")
+                            .font(Design.body(22)).foregroundStyle(Design.amber).lineLimit(2)
+                    }
                     if !model.isPreview, let job = model.liveJob(for: game.id), ![.completed, .cancelled].contains(job.state) {
                         VStack(alignment: .leading, spacing: 12) {
                             HStack { Text(job.statusTitle); Spacer(); if job.stage == .download { Text(job.displayProgress.formatted(.percent.precision(.fractionLength(0)))) } }.font(Design.body(22, weight: "Medium"))
@@ -280,7 +285,7 @@ struct GamePage: View {
                             if let failure = job.failure { Text(failure.reason).font(Design.body(20)).foregroundStyle(Design.amber).lineLimit(2) }
                         }.padding(20).background(Design.text.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
                     }
-                    if !hasInstallProgress {
+                    if !hasInstallProgress && model.installationDriveMessage == nil {
                         Text(game.summary).font(Design.body(26)).foregroundStyle(Color(hex: 0xD6D0C8)).lineSpacing(7).lineLimit(model.compatibilityNotes[game.id]?.isEmpty == false ? 2 : 3)
                     }
                     if !hasInstallProgress { HStack(spacing: 12) {
@@ -300,7 +305,7 @@ struct GamePage: View {
                     }
                 }.frame(width: 1128, alignment: .leading)
                 VStack(alignment: .leading, spacing: 18) {
-                    HStack(alignment: .top, spacing: 40) { metadata("Playtime", game.hoursPlayed == 0 ? "Never played" : "\(game.hoursPlayed) hours"); metadata(game.status == .installed ? "Size" : "Download", game.size) }
+                    HStack(alignment: .top, spacing: 40) { metadata("Playtime", game.hoursPlayed == 0 ? "Never played" : "\(game.hoursPlayed) hours"); metadata([.installed, .driveDisconnected].contains(game.status) ? "Size" : "Download", game.size) }
                     HStack(alignment: .top, spacing: 40) { metadata("Source", game.id.source.capitalized); metadata("Compatibility", game.compatibility.rawValue) }
                     HStack(alignment: .top, spacing: 40) {
                         metadata("Controller", model.isPreview ? "Full support" : game.controllerSupport == .full ? "Full support" : game.controllerSupport == .partial ? "Partial support" : game.controllerSupport == .none ? "No support" : "Unknown")

@@ -82,11 +82,13 @@
 		CA2CD29BB2A361B7CCF5F01C /* PreviewCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB21DA9AE3F1CFE573775A04 /* PreviewCatalog.swift */; };
 		CAF7A51F716DA804FB81BE04 /* Barlow-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 4622DF2E186C3B6F638C30B1 /* Barlow-Regular.ttf */; };
 		CC095A8EDAF0E84A70F765E7 /* PairingControllerArt.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB83A4AB9B30E5196BC6109C /* PairingControllerArt.swift */; };
+		D084C6C050979536666D0562 /* InstallationDriveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B45A0E1DFA770018CBA9711 /* InstallationDriveTests.swift */; };
 		D4018573EFE69AF20732859B /* DownloadHistoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3547F87915CA6A6B8343BBC8 /* DownloadHistoryTests.swift */; };
 		E108FAB25FA90058BE9F3817 /* LogInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8EF3BC8EB5579E9F0CD05B8 /* LogInteractionTests.swift */; };
 		E212FB90F85E26DF6504930A /* ResetModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55F98FF85521FE1A2C0FE973 /* ResetModel.swift */; };
 		E300DF2DD1D21F5FB5FAE32A /* DownloadTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90B31D8170237DFF98E1AF7E /* DownloadTransfer.swift */; };
 		E53A16F2F3E415CBBBCF149C /* CloudInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BACF032FD9723FDCA2CB64FF /* CloudInteractionTests.swift */; };
+		E577CDE12288AD594BF92EFF /* InstallationDrives.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A48045CEA8F762BF55638F0 /* InstallationDrives.swift */; };
 		E6DCE418F15DD7F86998A57D /* CloudViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2323ED64517ABA447A116F10 /* CloudViews.swift */; };
 		F1B4A1FB95046FCBED1C109D /* SessionInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAD5F2E37317C6DA181E77C1 /* SessionInteractionTests.swift */; };
 		F2DA9DFDEA33D570E8F5757B /* CloudSnapshots.swift in Sources */ = {isa = PBXBuildFile; fileRef = B937D52D98A5C57034AC4FCD /* CloudSnapshots.swift */; };
@@ -115,6 +117,7 @@
 		0FC8F14943DF9C8CD25F2BFC /* ArtworkCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkCache.swift; sourceTree = "<group>"; };
 		18AA50524F3D0D3487AA3084 /* DownloadsStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadsStorage.swift; sourceTree = "<group>"; };
 		1A0E83CFC6AB17E9B61ACC5A /* ResetInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResetInteractionTests.swift; sourceTree = "<group>"; };
+		1B45A0E1DFA770018CBA9711 /* InstallationDriveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallationDriveTests.swift; sourceTree = "<group>"; };
 		1EF000111188A66D0F1EE7F7 /* CloudModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudModel.swift; sourceTree = "<group>"; };
 		1FADC172BAC9928A178979ED /* ResetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResetView.swift; sourceTree = "<group>"; };
 		2282843F7F4162EBF4E8583C /* InstallSnapshots.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallSnapshots.swift; sourceTree = "<group>"; };
@@ -122,6 +125,7 @@
 		281D1CCE073CC4C5E8961058 /* AccountInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountInteractionTests.swift; sourceTree = "<group>"; };
 		290BD195A4CE920AC4FD05D0 /* InstallModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallModel.swift; sourceTree = "<group>"; };
 		298A7FE3903DF49BE93D4156 /* DownloadsStorageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadsStorageTests.swift; sourceTree = "<group>"; };
+		2A48045CEA8F762BF55638F0 /* InstallationDrives.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallationDrives.swift; sourceTree = "<group>"; };
 		2ABB68A7CE89083ACCBE20BC /* LibraryEditing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryEditing.swift; sourceTree = "<group>"; };
 		35357DB7608B2221B9BCA89A /* HomeNavigation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeNavigation.swift; sourceTree = "<group>"; };
 		3547F87915CA6A6B8343BBC8 /* DownloadHistoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadHistoryTests.swift; sourceTree = "<group>"; };
@@ -223,6 +227,7 @@
 				825D548FA12B76980D9AE991 /* DownloadTransferTests.swift */,
 				6C3A1AA3E40F9A6067DD0D52 /* GameActivationTests.swift */,
 				BFF46CA81D6E2F684129B207 /* HomeNavigationTests.swift */,
+				1B45A0E1DFA770018CBA9711 /* InstallationDriveTests.swift */,
 				766C5E1AA303977304DFD467 /* InstallInteractionTests.swift */,
 				BAA058B561808E36274C4A53 /* LibraryEditingTests.swift */,
 				4C9C86672EFCA75AD8158EA9 /* LibraryFilterTests.swift */,
@@ -275,6 +280,7 @@
 				3F8702FA8C0998A1511EBD2C /* GameDisplay.swift */,
 				DAC0CDDDECE591309D86C1B6 /* GameExitShortcut.swift */,
 				35357DB7608B2221B9BCA89A /* HomeNavigation.swift */,
+				2A48045CEA8F762BF55638F0 /* InstallationDrives.swift */,
 				290BD195A4CE920AC4FD05D0 /* InstallModel.swift */,
 				2282843F7F4162EBF4E8583C /* InstallSnapshots.swift */,
 				2ABB68A7CE89083ACCBE20BC /* LibraryEditing.swift */,
@@ -527,6 +533,7 @@
 				6AE3400A3B47BD3BA5A4B4E3 /* HomeNavigation.swift in Sources */,
 				38E2837AB3519707459E65EF /* InstallModel.swift in Sources */,
 				3D06C7DD0B318C2EDB32000C /* InstallSnapshots.swift in Sources */,
+				E577CDE12288AD594BF92EFF /* InstallationDrives.swift in Sources */,
 				026CD25A5A7A4881AC6252AE /* LibraryEditing.swift in Sources */,
 				8F6786AF7BABC6BECC836D3F /* LibraryFilters.swift in Sources */,
 				B25B1F80C0B90AEC6CA8BC60 /* LibraryModel.swift in Sources */,
@@ -569,6 +576,7 @@
 				6C86441D7B9FCC0D4F0BAA46 /* GameActivationTests.swift in Sources */,
 				89F0722369DD8D572D97E15F /* HomeNavigationTests.swift in Sources */,
 				A87C77D05E6DD17B5E85C9BD /* InstallInteractionTests.swift in Sources */,
+				D084C6C050979536666D0562 /* InstallationDriveTests.swift in Sources */,
 				F97B357CF2C84140B4D6FD9C /* LibraryEditingTests.swift in Sources */,
 				47D3331506D352A34D2918D0 /* LibraryFilterTests.swift in Sources */,
 				339B25E5D038DDAF8B50576E /* LibraryInteractionTests.swift in Sources */,

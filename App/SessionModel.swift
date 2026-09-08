@@ -93,6 +93,10 @@ extension LibraryModel {
     func beginPlay(_ id: GameID) {
         guard !resetBusy else { return }
         guard !sessionBusy else { return }
+        if (!hasActiveSession || session.session?.gameID != id), installationDriveBlocked(id) {
+            if let game = games.first(where: { $0.id == id }) { openGame(game) }
+            return
+        }
         guard let sessions else {
             show(.information(isPreview ? "Play is available in the live app." : "The game service is unavailable. Restart Big Screen to try again.")); return
         }

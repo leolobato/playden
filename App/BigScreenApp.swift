@@ -51,6 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let gameActivation = GameActivationWaiter(system: MacGameActivationSystem())
     private var gameActivationTask: Task<Void, Never>?
     private var gameActivationObserver: Any?
+    private var volumeObservers: [NSObjectProtocol] = []
     private var pendingDisplayID: UInt32?
     private var resumeFullscreenAfterMove = false
 
@@ -116,6 +117,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }
             if model.shouldStartFullscreen(arguments: args) { setFullscreen(true) }
             model.startServices()
+            for name in [NSWorkspace.didMountNotification, NSWorkspace.didUnmountNotification,
+                         NSWorkspace.didRenameVolumeNotification, NSWorkspace.didWakeNotification] {
+                volumeObservers.append(NSWorkspace.shared.notificationCenter.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.model.requestInstallationDriveRefresh() }
+                })
+            }
             model.startSetupServices()
             controller.onAction = { [weak self] action in
                 if case .holdHome = action, self?.model.hasActiveSession == true { self?.model.performController(action); return }
@@ -178,6 +185,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         exitShortcut.stop()
         gameActivationTask?.cancel()
         if let gameActivationObserver { NSWorkspace.shared.notificationCenter.removeObserver(gameActivationObserver) }
+        for observer in volumeObservers { NSWorkspace.shared.notificationCenter.removeObserver(observer) }
         if let keyboardMonitor { NSEvent.removeMonitor(keyboardMonitor) }
         if let mouseMonitor { NSEvent.removeMonitor(mouseMonitor) }
         restoreCursor()
@@ -185,6 +193,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationDidResignActive(_ notification: Notification) { model.launcherActive = false; restoreCursor() }
     func applicationDidBecomeActive(_ notification: Notification) {
         model.launcherActive = true
+        model.requestInstallationDriveRefresh()
         restoreCursor()
     }
     func applicationDidChangeScreenParameters(_ notification: Notification) { refreshDisplays() }
@@ -394,7 +403,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let requestedScreens: Set<String>? = arguments.firstIndex(of: "--snapshot-screens").flatMap { index in
                 arguments.indices.contains(index + 1) ? Set(arguments[index + 1].split(separator: ",").map(String.init)) : nil
             }
-            for screen in ["toast-complete", "toast-failed", "toast-connected", "toast-disconnected", "uninstall-confirm", "uninstall-unsynced", "uninstall-checking", "cloud-ready", "cloud-conflict", "cloud-account", "cloud-pending", "cloud-syncing", "cloud-recovery", "home", "home-tabs", "home-library-card", "home-playstation", "home-large-library", "home-large-library-end", "home-collection-end", "library-large", "library-large-end", "library", "library-playstation", "library-paged", "library-return", "game", "game-status-clean", "game-status-crash", "library-running", "context-uninstall", "downloads", "downloads-queued", "settings", "settings-about", "settings-reset", "settings-reset-blocked", "settings-reset-error", "settings-reset-busy", "settings-display", "settings-runtime", "settings-runtime-missing", "settings-runtime-busy", "collections", "keyboard", "keyboard-playstation", "keyboard-generic", "keyboard-space", "keyboard-long", "compatibility", "uninstall", "logs", "logs-retry", "logs-long", "logs-long-end", "logs-long-return", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom", "library-download-glyph", "library-download-focused", "game-unknown-size", "game-favorite", "install-offer", "install-offer-space", "install-queue", "install-history-failed", "install-history-completed", "install-mini-progress", "install-storage-shortage", "install-storage-unavailable", "install-game-progress", "launching", "exit-overlay", "exit-overlay-quit", "notification", "notification-focused"] {
+            for screen in ["game-drive-disconnected", "game-drive-checking", "context-drive-disconnected", "library-drive-disconnected", "toast-complete", "toast-failed", "toast-connected", "toast-disconnected", "uninstall-confirm", "uninstall-unsynced", "uninstall-checking", "cloud-ready", "cloud-conflict", "cloud-account", "cloud-pending", "cloud-syncing", "cloud-recovery", "home", "home-tabs", "home-library-card", "home-playstation", "home-large-library", "home-large-library-end", "home-collection-end", "library-large", "library-large-end", "library", "library-playstation", "library-paged", "library-return", "game", "game-status-clean", "game-status-crash", "library-running", "context-uninstall", "downloads", "downloads-queued", "settings", "settings-about", "settings-reset", "settings-reset-blocked", "settings-reset-error", "settings-reset-busy", "settings-display", "settings-runtime", "settings-runtime-missing", "settings-runtime-busy", "collections", "keyboard", "keyboard-playstation", "keyboard-generic", "keyboard-space", "keyboard-long", "compatibility", "uninstall", "logs", "logs-retry", "logs-long", "logs-long-end", "logs-long-return", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom", "library-download-glyph", "library-download-focused", "game-unknown-size", "game-favorite", "install-offer", "install-offer-space", "install-queue", "install-history-failed", "install-history-completed", "install-mini-progress", "install-storage-shortage", "install-storage-unavailable", "install-game-progress", "launching", "exit-overlay", "exit-overlay-quit", "notification", "notification-focused"] {
                 if let requestedScreens, !requestedScreens.contains(screen) { continue }
                 // Keep each capture independent of the requested screen order.
                 let model = LibraryModel()
@@ -407,6 +416,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 model.uninstallBusy = false; model.uninstallReview = nil; model.uninstallError = nil; model.uninstallPhase = .confirm
                 model.setupBusy = false; model.runtimeChecking = false; model.setupFailure = nil; model.setupIndex = 0; model.onboarding = false
                 switch screen {
+                case "game-drive-disconnected", "game-drive-checking", "context-drive-disconnected", "library-drive-disconnected":
+                    model.selectTab(.library)
+                    model.controllerName = "DUALSHOCK 4"
+                    if let index = model.games.firstIndex(where: { $0.title == "A Short Hike" }) {
+                        model.games[index].status = screen == "game-drive-checking" ? .installed : .driveDisconnected
+                        let game = model.games[index]
+                        if screen == "game-drive-checking" {
+                            model.installationDriveTargets[game.id] = .init(installationID: UUID(), location: .init(volumeID: "snapshot", lastKnownRoot: URL(fileURLWithPath: "/snapshot"), relativePath: "game"))
+                            model.checkingInstallationDrives = [game.id]
+                        }
+                        model.libraryCursor = .init(index: model.filteredGames.firstIndex { $0.id == game.id } ?? 0)
+                        if screen != "library-drive-disconnected" { model.openGame(game) }
+                        if screen == "context-drive-disconnected" { model.show(.context) }
+                    }
                 case "toast-complete", "toast-failed", "toast-connected", "toast-disconnected":
                     model.selectTab(.library)
                     model.controllerName = "DUALSHOCK 4"

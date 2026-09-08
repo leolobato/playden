@@ -8,6 +8,7 @@ enum AuthenticationScreen { case qr, credentials, approval, guardCode }
 extension LibraryModel {
     func startServices() {
         startLogServices()
+        requestInstallationDriveRefresh()
         guard !isPreview, let source else { return }
         startInstallServices()
         startCloudServices()
@@ -28,6 +29,7 @@ extension LibraryModel {
         }
     }
     func stopServices() {
+        installationDriveTask?.cancel(); installationDriveTask = nil; installationDriveGeneration = UUID()
         notifications = []; notificationJobs = nil
         logObserver?.cancel(); logObserver = nil
         cancelAuthentication(); syncTask?.cancel(); periodicSyncTask?.cancel(); setupTask?.cancel()

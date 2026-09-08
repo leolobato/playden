@@ -123,6 +123,11 @@ final class LibraryModel {
     var availableVolumes: [GamesVolume] = []
     var selectedVolumeID: String?
     var gamesVolume: GamesVolumeSelection?
+    @ObservationIgnored var installationDriveTargets: [GameID: InstallationDriveTarget] = [:]
+    @ObservationIgnored var installationDriveTask: Task<Void, Never>?
+    @ObservationIgnored var installationDriveGeneration = UUID()
+    var installationDriveAvailable: [GameID: Bool] = [:]
+    var checkingInstallationDrives: Set<GameID> = []
     var displays: [DisplayChoice] = []
     var selectedDisplayID: UInt32?
     var selectedDisplayUUID: String?
@@ -329,7 +334,7 @@ final class LibraryModel {
         let result: [(HomeRow.ID, String, [Game])] = [
             (.continuePlaying, "Continue playing", isPreview ? ["Hades", "Cuphead", "Hollow Knight", "Dead Cells", "Stardew Valley", "Slay the Spire", "Celeste", "Outer Wilds"].compactMap { title in visible.first { $0.title == title } } : visible.filter { $0.lastPlayedAt != nil }.sorted { $0.lastPlayedAt! > $1.lastPlayedAt! }),
             (.downloading, "Downloading now", visible.filter { [.queued, .downloading].contains($0.status) }.sorted { $0.status == .downloading && $1.status != .downloading }),
-            (.recentlyInstalled, "Recently installed", isPreview ? visible.filter { $0.status == .installed && $0.hoursPlayed <= 9 } : visible.filter { $0.status == .installed && $0.installedAt != nil }.sorted { $0.installedAt! > $1.installedAt! }),
+            (.recentlyInstalled, "Recently installed", isPreview ? visible.filter { $0.status == .installed && $0.hoursPlayed <= 9 } : visible.filter { [.installed, .driveDisconnected].contains($0.status) && $0.installedAt != nil }.sorted { $0.installedAt! > $1.installedAt! }),
             (.favorites, "Favorites", visible.filter(\.isFavorite)),
         ] + collections.filter(\.isPinned).map { collection in
             (.collection(collection.id), collection.name, visible.filter { collection.gameIDs.contains($0.id) })
@@ -357,6 +362,8 @@ final class LibraryModel {
         else if hasActiveSession, session.session?.gameID == game.id { primary = "Return to game" }
         else if cloudBusy(game.id) { primary = "Cloud saves" }
         else if !isPreview, let job = liveJob(for: game.id), ![.completed, .cancelled].contains(job.state) { primary = job.kind == .uninstall ? "View removal" : job.kind == .repair ? "View verification" : "View download" }
+        else if game.status == .driveDisconnected { primary = "Drive disconnected" }
+        else if isCheckingInstallationDrive(game.id) { primary = "Checking drive…" }
         else if gamesNeedingRepair.contains(game.id) { primary = "Verify files" }
         else { primary = switch game.status { case .installed: "Play"; case .downloading: downloadPaused ? "Resume download" : "Pause download"; case .queued: "View download"; case .driveDisconnected: "Drive disconnected"; case .notInstalled: "Install" } }
         return [primary, game.isFavorite ? "Favorited" : "Favorite", "Add to collection", game.isHidden ? "Unhide" : "Hide", "Set compatibility"] + (game.status == .installed ? (primary == "Verify files" ? ["Uninstall", "Cloud saves"] : ["Verify files", "Uninstall", "Cloud saves"]) : []) + ["View logs"]
@@ -570,6 +577,7 @@ final class LibraryModel {
     func activateDetail() {
         guard let label = detailActions[safe: detailAction] else { return }
         switch label {
+        case "Drive disconnected", "Checking drive…": return
         case "Cloud saves", "Review saves": if let id = focusedGame?.id { showCloud(id) }
         case "Play": if let id = focusedGame?.id { beginPlay(id) }
         case "Return to game": returnToGame()
@@ -604,6 +612,7 @@ final class LibraryModel {
         case .persistenceFailure:
             if panelIndex == 0 { retryPersistence() } else { panel = nil }
         case .context:
+            if !panelActionEnabled(at: panelIndex) { return }
             if panelIndex == 0, let game = focusedGame { openGame(game); activateDetail() }
             else if label == "Favorite" || label == "Unfavorite" { toggleFavorite(); panel = nil }
             else if label == "Set compatibility" { show(.compatibility) }

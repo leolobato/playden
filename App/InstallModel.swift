@@ -102,6 +102,7 @@ extension LibraryModel {
             else if [.queued, .paused, .failed].contains(job.state) { games[index].status = .queued }
             else if job.state == .cancelled, games[index].status != .installed { games[index].status = .notInstalled }
         }
+        applyInstallationDriveStatuses()
     }
     func game(for job: JobRecord) -> Game {
         if let game = games.first(where: { $0.id == job.gameID }) { return game }

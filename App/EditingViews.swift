@@ -18,7 +18,8 @@ struct PanelActionList: View {
                     }.padding(.horizontal, 18).frame(width: 520, height: 68)
                         .background(model.panelIndex == index ? Design.text.opacity(0.1) : .clear, in: RoundedRectangle(cornerRadius: 8))
                         .focusRing(model.panelIndex == index, compact: true)
-                }.buttonStyle(.plain).offset(x: 12, y: 12 + Double(index) * 80 - offset)
+                }.buttonStyle(.plain).disabled(!model.panelActionEnabled(at: index))
+                    .offset(x: 12, y: 12 + Double(index) * 80 - offset)
             }
         }.frame(width: 544, height: min(560, Double(model.panelActions.count) * 80 + 24), alignment: .topLeading)
             .clipped().padding(.leading, -12)

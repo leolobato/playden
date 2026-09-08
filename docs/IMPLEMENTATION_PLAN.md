@@ -393,12 +393,14 @@ Dependencies: M2–M4 services.
   bottom-right toasts. They never take focus, wait behind modals/games, and dismiss after five
   visible seconds; controller disconnect persists until reconnection. Retry and View logs remain
   in Downloads. See [notification validation](validation/2026-09-08-transient-notifications.md).
-- [ ] Close the live disconnected-drive gap (FR-STOR-2). Current catalog mapping marks every
-  recorded installation as installed; the disconnected state is only supplied by preview data.
-  Resolve each installation's recorded volume, update on mount/unmount, preserve library focus,
-  and disable Play with a reconnect reason. The current disconnected primary action falls into
-  a placeholder and repair-needed state can override it. Cover reconnect and multiple recorded
-  volumes without changing game files or mounting a different drive under the same path.
+- [x] Close the disconnected-drive implementation gap (FR-STOR-2). Each installation now uses
+  its recorded volume identity/bookmark. Refresh on mount/unmount, volume rename, wake, app
+  activation and installation changes. Keep disconnected games in Installed and Recently
+  installed; disable Play with a reconnect reason, including keyboard/controller activation.
+  Queue recovery remains accessible. Tests cover separate drives, reconnection, stale reads,
+  replacement installs and a real resolver rejecting another UUID at the same existing path.
+  See [drive-availability validation](validation/2026-09-08-installation-drives.md). Physical
+  disconnect/reconnect remains a separate release-acceptance check.
 - [ ] Bound/redact per-job/session logs and rotate to the last 10 per game; keep technical names in diagnostics.
 
 Gate: every v1 user journey and error action is reachable from the DS4. Snapshot all screens at 1080p

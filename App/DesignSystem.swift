@@ -279,7 +279,7 @@ extension Game {
         switch status {
         case .queued: knownSize.map { "Queued · \($0)" } ?? "Queued"
         case .downloading: "43% · 38 MB/s"
-        case .driveDisconnected: "On VM · not mounted"
+        case .driveDisconnected: "Reconnect your games drive"
         case .notInstalled: knownSize.map { "Not installed · \($0)" } ?? "Not installed"
         case .installed: "\(hoursPlayed) h played"
         }
