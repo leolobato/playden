@@ -42,7 +42,20 @@ final class GameActivationTests: XCTestCase {
         let waiter = GameActivationWaiter(system: system, wait: { waits += 1 })
         let result = await waiter.activate(window)
         XCTAssertEqual(result, .timedOut)
-        XCTAssertEqual(waits, 20); XCTAssertEqual(system.requests, [window])
+        XCTAssertEqual(waits, 50); XCTAssertEqual(system.requests, Array(repeating: window, count: 10))
+    }
+
+    func testActiveAppOnAnotherSpaceDoesNotCompleteUntilWindowIsVisible() async {
+        let system = ActivationFixture(.hidden)
+        var waits = 0
+        let waiter = GameActivationWaiter(system: system, wait: {
+            waits += 1
+            if waits == 7 { system.state = .active }
+        })
+        let result = await waiter.activate(window)
+        XCTAssertEqual(result, .active)
+        XCTAssertEqual(waits, 7)
+        XCTAssertEqual(system.requests, [window, window])
     }
 
     func testDisappearingOrReplacedTargetCannotCompleteHandoff() async {

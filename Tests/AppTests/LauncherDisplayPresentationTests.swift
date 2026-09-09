@@ -32,6 +32,7 @@ import Runner
         }
         launcherFullscreen = enabled
     }
+    func showLauncherForRestore() async throws { events.append("show") }
     func setLauncherFrame(_ frame: CGRect) { events.append("position"); launcherFrame = frame }
     func switchLayout() {
         XCTAssertFalse(launcherFullscreen, "Never change the main display while Playden owns a fullscreen Space")
@@ -58,7 +59,7 @@ import Runner
 }
 
 @MainActor final class LauncherDisplayPresentationTests: XCTestCase {
-    func testWindowAndFullscreenSpaceStayOnSameMonitorAcrossSwitchAndRollback() async throws {
+    func testLauncherStaysOnGameDesktopAndRestoresFullscreenOnlyAtExit() async throws {
         for fullscreen in [false, true] {
             let window = WindowFixture(), presentation = LauncherDisplayPresentation()
             presentation.window = window
@@ -70,9 +71,9 @@ import Runner
                 window.switchLayout(); return base
             }
             XCTAssertEqual(window.launcherScreen?.uuid, "asus")
-            XCTAssertEqual(window.launcherFullscreen, fullscreen)
-            if fullscreen { XCTAssertEqual(window.events, ["leave", "switch", "position", "enter"]) }
-            else { XCTAssertEqual(window.launcherFrame, originalFrame.offsetBy(dx: 1920, dy: -612)) }
+            XCTAssertFalse(window.launcherFullscreen, "No separate fullscreen Space during game handoff")
+            if fullscreen { XCTAssertEqual(window.events, ["leave", "switch", "position"]) }
+            XCTAssertEqual(window.launcherFrame, originalFrame.offsetBy(dx: 1920, dy: -612))
             await lease.release(); await lease.release()
             XCTAssertEqual(base.releases, 1)
             XCTAssertEqual(window.launcherScreen?.uuid, "asus")
@@ -95,19 +96,21 @@ import Runner
         XCTAssertEqual(window.launcherScreen?.uuid, "asus")
         XCTAssertFalse(presentation.isChanging)
     }
-    func testFailedFullscreenReentryRollsBackAcquiredNativeLease() async throws {
+    func testFailedFullscreenRestoreReportsErrorAfterReleasingNativeLease() async throws {
         let window = WindowFixture(), presentation = LauncherDisplayPresentation()
         presentation.window = window; window.setLauncherFullscreen(true)
         let base = DisplayLeaseFixture(window: window)
-        do {
-            _ = try await presentation.acquire(target: base.target) { _ in
-                window.switchLayout(); window.rejectEntry = true; return base
-            }
-            XCTFail("Unexpected acquisition")
-        } catch {}
+        var failures: [Error] = []
+        presentation.reportFailure = { failures.append($0) }
+        let lease = try await presentation.acquire(target: base.target) { _ in
+            window.switchLayout(); return base
+        }
+        window.rejectEntry = true
+        await lease.release()
         XCTAssertEqual(base.releases, 1)
         XCTAssertEqual(window.launcherScreens, window.original)
         XCTAssertEqual(window.launcherScreen?.uuid, "asus")
+        XCTAssertEqual(failures.count, 1)
         XCTAssertFalse(presentation.isChanging)
     }
     func testCancelledLaunchRollsBackAndRestoresFullscreen() async throws {

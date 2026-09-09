@@ -29,6 +29,12 @@ struct LauncherWindowPosition: Equatable {
         frame.origin.y = min(max(frame.minY, screen.visibleFrame.minY), screen.visibleFrame.maxY - frame.height)
         return frame
     }
+    func restoringFullscreen(_ fullscreen: Bool) -> LauncherWindowPosition {
+        .init(displayUUID: displayUUID, relativeFrame: relativeFrame, fullscreen: fullscreen)
+    }
+    private init(displayUUID: String, relativeFrame: CGRect, fullscreen: Bool) {
+        self.displayUUID = displayUUID; self.relativeFrame = relativeFrame; self.fullscreen = fullscreen
+    }
 }
 
 @MainActor protocol LauncherWindowControlling: AnyObject {
@@ -39,6 +45,7 @@ struct LauncherWindowPosition: Equatable {
     var launcherFullscreenTransitioning: Bool { get }
     func setLauncherFullscreen(_ enabled: Bool)
     func setLauncherFrame(_ frame: CGRect)
+    func showLauncherForRestore() async throws
 }
 
 /// Coordinates the app's fullscreen Space around *both* Core Graphics transactions.
@@ -65,7 +72,9 @@ struct LauncherWindowPosition: Equatable {
             try Task.checkCancellation()
             let lease = try await start(target)
             acquired = lease
-            try await restore(position)
+            // Reentering fullscreen here creates a separate Space immediately before Wine
+            // opens its window. Stay on the desktop for handoff; restore fullscreen at exit.
+            try await restore(position.restoringFullscreen(false))
             try Task.checkCancellation()
             return PresentedPrimaryDisplay(base: lease, presentation: self, position: position)
         } catch {
@@ -86,6 +95,7 @@ struct LauncherWindowPosition: Equatable {
         defer { isChanging = false }
         var position = fallback
         do { position = try await prepare() } catch { reportFailure(error) }
+        position = position.restoringFullscreen(fallback.fullscreen)
         // A failed UI transition must not leave the temporary system configuration held.
         await base.release()
         do { try await restore(position) } catch { reportFailure(error) }
@@ -135,6 +145,8 @@ struct LauncherWindowPosition: Equatable {
         }
         window.setLauncherFrame(position.frame(on: screen))
         if position.fullscreen {
+            // AppKit may reject fullscreen changes for a background window in another Space.
+            try await window.showLauncherForRestore()
             window.setLauncherFullscreen(true)
             try await waitForTransition()
             guard window.launcherFullscreen, window.launcherScreen?.uuid == position.displayUUID else {

@@ -34,13 +34,14 @@ saved monitor produces an actionable launch error rather than promoting a fallba
    session or permanent configuration write. It is not isolated to Playden's windows.
 4. Wait for a JSON acknowledgement confirming the UUID, main-display flag and zero
    origin, then pass freshly captured geometry to the Windows display helper and
-   reposition Playden using the monitor’s new AppKit frame, restore its fullscreen
-   state, then start the game. Failure or cancellation rolls back both the native
+   reposition Playden using the monitor’s new AppKit frame. Keep it windowed during
+   play so Wine opens on the desktop without a competing launcher fullscreen Space.
+   Failure or cancellation rolls back both the native
    helper and launcher presentation before returning.
 5. Keep the pipe open until the tracked game ends, even if the launcher exits first.
    Leave Playden’s fullscreen Space, close the pipe and wait for helper exit, then
-   restore Playden’s monitor-relative window position and fullscreen state before
-   publishing game completion. Normal preferred-monitor centering is suppressed
+   restore Playden’s monitor-relative window position. Bring it onto the active Space
+   before restoring its original fullscreen state, then publish game completion. Normal preferred-monitor centering is suppressed
    for that return to the launcher. The helper
    also watches its parent's process lifetime. macOS restores the session/permanent
    display configuration when the helper exits, including after a crash.
@@ -129,7 +130,8 @@ Real AppKit tests on the connected ASUS exercised a fullscreen Playden window,
 actual CrossOverRunner, the native helper, an eight-second naturally exiting Windows
 fixture, and a muted 30-second Blades run. Both retained Playden’s ASUS UUID/fullscreen
 state, restored the original monitor configuration, and recovered its exact normal
-window frame after leaving fullscreen. The Blades run kept High resolution requested
+window frame after leaving fullscreen. Those checks did not assert game visibility
+or the absence of a window-mode popup; the desktop handoff follow-up below adds both. The Blades run kept High resolution requested
 On, wrote effective RetinaMode=n, and produced a 1920×1080 game window on ASUS.
 The initial live test used an outdated hardcoded monitor UUID and stopped before the
 game launch; the test was corrected to discover the connected ASUS UUID dynamically.
@@ -144,3 +146,29 @@ saved opt-in `LiveDisplayFixTests.swift` in the local evidence directory above.
 The follow-up regression run passed 314 PlaydenKit XCTest cases (six opt-in cases
 skipped), five Swift Testing cases, and 54 selected app tests. The live fixture and
 Blades tests were explicitly enabled for this session and are not part of normal CI.
+
+## Desktop handoff follow-up
+
+The first window-preservation fix reentered Playden’s fullscreen Space before Wine
+opened. Blades could remain on another desktop until its Dock icon was clicked, and
+an automatic fullscreen transition could leave the generic window-mode warning.
+Playden now stays windowed on its original physical monitor during the temporary
+primary-display lease and restores its original fullscreen state when the game ends.
+Restoration waits for foreground activation and the launcher’s active Space before
+asking AppKit to enter fullscreen. Automatic transition failures are checked and
+reported by the presentation coordinator after cleanup; manual failures retain the
+normal window-mode warning.
+
+Game handoff now requires both an active app and an onscreen tracked window. It
+retries activation at most twice per second for five seconds while the target’s PID,
+birth identity, and window ID remain valid. This prevents an active app with a hidden
+window on another Space from being treated as a successful handoff.
+
+The follow-up passed 35 focused app tests and two opt-in live AppKit runs: muted
+Blades of Time and the naturally exiting window fixture. Both asserted automatic
+visible activation, no generic warning panel or presentation error, fullscreen
+restoration on ASUS, the exact original display layout, and the original normal
+window frame. Blades was observed onscreen at (0,0,1920,1080) without a Dock click.
+Evidence: `handoff-blades-fullscreen.json`, `handoff-lifetime-fullscreen.json`, and
+`LiveDisplayFixTests.swift` in the local evidence directory. Slay the Spire II was
+reported working by the user; it was not rerun in this follow-up.

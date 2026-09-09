@@ -289,6 +289,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Laun
         setFullscreen(enabled)
     }
     func setLauncherFrame(_ frame: CGRect) { window?.setFrame(frame, display: true) }
+    func showLauncherForRestore() async throws {
+        window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        let start = ContinuousClock.now
+        while !NSApp.isActive || window?.isOnActiveSpace != true {
+            try Task.checkCancellation()
+            guard start.duration(to: .now) < .seconds(3) else {
+                throw OperationFailure(stage: "Restore launcher", reason: "macOS could not bring Playden back to its desktop.", output: "The launcher must be on the active Space before restoring fullscreen.")
+            }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+    }
     private func launcherDisplayScreen(_ screen: NSScreen) -> LauncherDisplayScreen? {
         guard let id = (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value,
               let uuid = CGDisplayCreateUUIDFromDisplayID(id)?.takeRetainedValue() else { return nil }
@@ -323,6 +335,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Laun
     private func fullscreenFailed() {
         model.isFullscreen = window.styleMask.contains(.fullScreen); model.fullscreenTransitioning = false
         pendingDisplayID = nil; resumeFullscreenAfterMove = false
+        // The presentation coordinator checks the requested state and reports a real
+        // failure after cleanup. Do not leave a duplicate generic popup behind a game.
+        guard !model.displayPresentation.isChanging else { return }
         model.show(.information("macOS could not switch the window mode. Try again from Settings → Display."))
     }
     private func restoreCursor() { NSCursor.setHiddenUntilMouseMoves(false) }
@@ -389,7 +404,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Laun
                 model.recordGameWindowHandoff(gameWindow)
                 window.level = .normal; window.orderBack(nil)
             case .timedOut:
-                model.reportSessionIssue(.init(stage: "Return to game", reason: "The game is open, but could not take keyboard focus. Use the Dock to return to it.", output: "The tracked game did not become the foreground app within two seconds."), gameID: model.session.session?.gameID)
+                model.reportSessionIssue(.init(stage: "Return to game", reason: "The game is open, but its window could not be brought forward. Use the Dock to return to it.", output: "The tracked game window did not become visible and active within five seconds."), gameID: model.session.session?.gameID)
             case .unavailable:
                 // Startup windows can disappear before they become activatable. Session updates
                 // will request handoff for the replacement until one is acknowledged.
