@@ -23,7 +23,8 @@ let package = Package(
     targets: [
         .target(name: "Artwork"),
         .testTarget(name: "ArtworkTests", dependencies: ["Artwork"]),
-        .target(name: "Domain"),
+        .target(name: "Domain", resources: [.copy("Resources/profiles.json")]),
+        .testTarget(name: "DomainTests", dependencies: ["Domain"]),
         .target(name: "Sessions", dependencies: ["Domain", "Catalog", "Installs"]),
         .testTarget(name: "SessionsTests", dependencies: ["Sessions", "Domain", "Catalog"]),
         .target(name: "Runner", dependencies: ["Domain"]),

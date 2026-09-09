@@ -220,4 +220,15 @@ final class CatalogStoreTests: XCTestCase {
         let spaced = DiagnosticRedactor.redact(#"{"password":"words with spaces", "account_name":"private user", "guardCode":"12345"}"#)
         for secret in ["words", "spaces", "private", "user\"", "12345"] { XCTAssertFalse(spaced.contains(secret)) }
     }
+    func testEditsForReadsSingleRowAndDefaultsWhenMissing() throws {
+        let store = try CatalogStore()
+        XCTAssertEqual(try store.edits(for: steam), GameEdits())
+        var edit = GameEdits(isFavorite: true)
+        edit.runtime = RuntimeProfile(base: "modern-dx12", overrides: [.graphics: .scalar("dxvk")], source: .user)
+        try store.saveEdits(edit, for: steam)
+        XCTAssertEqual(try store.edits(for: steam), edit)
+        XCTAssertEqual(try store.edits(for: other), GameEdits())
+        try store.replaceSourceCatalog(source: steam.source, games: [game(steam)])
+        XCTAssertEqual(try store.snapshot().entries.first?.edits, edit)
+    }
 }

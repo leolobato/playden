@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "profiles": [
+    {
+      "id": "playden-default",
+      "name": "Playden default",
+      "tryWhen": "Every game starts here.",
+      "shortHint": "Every game starts here",
+      "settings": {},
+      "fallbackHint": null
+    },
+    {
+      "id": "modern-dx12",
+      "name": "Modern DX12",
+      "tryWhen": "Recent DirectX 12 games that stutter, show corrupted shadows or crash under the default.",
+      "shortHint": "Stutter or crashes in new games",
+      "settings": {
+        "graphics": "d3dmetal",
+        "synchronization": "msync",
+        "windowsVersion": "win10",
+        "frameLimit": "60",
+        "highResolution": "off",
+        "environmentVariables": ["D3DM_SUPPORT_DXR=0"]
+      },
+      "fallbackHint": null
+    },
+    {
+      "id": "dx11-alternative",
+      "name": "DX11 alternative",
+      "tryWhen": "DirectX 11 games with flicker, missing effects or a black screen under D3DMetal.",
+      "shortHint": "Flicker or black screen",
+      "settings": {
+        "graphics": "dxmt",
+        "synchronization": "msync",
+        "windowsVersion": "win10"
+      },
+      "fallbackHint": "If DXMT still fails to start, switch Graphics to DXVK."
+    },
+    {
+      "id": "older-3d-game",
+      "name": "Older 3D game",
+      "tryWhen": "DirectX 9 or 10 games from roughly 2005 to 2013.",
+      "shortHint": "2005–2013, DirectX 9/10",
+      "settings": {
+        "graphics": "dxvk",
+        "synchronization": "esync",
+        "windowsVersion": "win7",
+        "virtualDesktop": "1920x1080",
+        "largeAddressAware": "on"
+      },
+      "fallbackHint": null
+    },
+    {
+      "id": "unity-unreal-launcher",
+      "name": "Unity or Unreal launcher",
+      "tryWhen": "Games that open a small settings window first and then hang or never start.",
+      "shortHint": "Small window then hang",
+      "settings": {
+        "launchArguments": ["-nolauncher"]
+      },
+      "fallbackHint": null
+    },
+    {
+      "id": "web-launcher",
+      "name": "Web-based launcher",
+      "tryWhen": "Store launchers built on Electron or Chromium that show a blank white window.",
+      "shortHint": "Blank white launcher",
+      "settings": {
+        "libraryOverrides": ["libglesv2=d", "d3dcompiler_47=n"]
+      },
+      "fallbackHint": null
+    },
+    {
+      "id": "fewer-cores",
+      "name": "Hides too many cores",
+      "tryWhen": "Games that stutter or crash on start on M-series Pro, Max and Ultra chips.",
+      "shortHint": "M-series Pro, Max, Ultra",
+      "settings": {
+        "environmentVariables": ["WINE_CPU_TOPOLOGY=8:0,1,2,3,4,5,6,7"]
+      },
+      "fallbackHint": null
+    },
+    {
+      "id": "native-dualsense",
+      "name": "Native DualSense",
+      "tryWhen": "Games with real DualShock or DualSense support (adaptive triggers, touchpad).",
+      "shortHint": "Adaptive triggers, touchpad",
+      "settings": {
+        "controller": "native"
+      },
+      "fallbackHint": null
+    }
+  ]
+}

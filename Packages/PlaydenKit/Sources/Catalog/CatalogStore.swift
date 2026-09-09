@@ -167,6 +167,12 @@ public final class CatalogStore: Sendable {
     public func saveEdits(_ edits: GameEdits, for id: GameID) throws {
         try database.write { try Self.putGame($0, table: "game_edits", id: id, value: edits) }
     }
+    public func edits(for id: GameID) throws -> GameEdits {
+        try database.read { db in
+            try Data.fetchOne(db, sql: "SELECT payload FROM game_edits WHERE source = ? AND game = ?", arguments: [id.source, id.value])
+                .map { try Self.decode(GameEdits.self, $0) } ?? GameEdits()
+        }
+    }
     public func preferences() throws -> LibraryPreferences {
         try database.read { db in
             try Data.fetchOne(db, sql: "SELECT payload FROM preferences WHERE id = 1")
