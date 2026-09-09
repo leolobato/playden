@@ -7,6 +7,18 @@ private struct ReadyGame: GameBottleManaging {
     func isReady(_ bottle: GameBottle) async throws -> Bool { true }
     func remove(_ bottle: GameBottle) async throws {}
 }
+/// Every launch now applies runtime settings unconditionally, so a fixture that never inspects
+/// those commands still needs one that always succeeds without touching a real CrossOver install.
+/// A real `wineserver -k` ends every process in the bottle, so this mirrors that for whichever
+/// inspector fixture is under test.
+private actor NoOpCommands: CommandExecuting {
+    let clearing: InspectionFixture?
+    init(clearing: InspectionFixture? = nil) { self.clearing = clearing }
+    func run(executable: URL, arguments: [String], timeout: TimeInterval) async throws -> CommandResult {
+        if arguments.last == "-k" { clearing?.set(.init(processes: [])) }
+        return .init(exitCode: 0, output: "")
+    }
+}
 private final class ProcessFixture: GameProcess, GameProcessLaunching, @unchecked Sendable {
     let identity = ProcessIdentity(pid: 100, startSeconds: 1, startMicroseconds: 0)
     let lock = NSLock()
@@ -43,6 +55,8 @@ final class CrossOverRunnerTests: XCTestCase {
         try Data("fixture".utf8).write(to: root.appendingPathComponent("game.exe"))
         struct Receipt: Encodable { let bottle: GameBottle }
         try JSONEncoder().encode(Receipt(bottle: bottle)).write(to: root.appendingPathComponent(bottle.name + "/.playden-game-owner.json"))
+        try Data("[EnvironmentVariables]\n\"XDG_CONFIG_HOME\" = \"${WINEPREFIX}/.playden-folders\"\n\"CX_DIRECT_DESKTOP\" = \"1\"\n".utf8)
+            .write(to: root.appendingPathComponent(bottle.name + "/cxbottle.conf"))
         addTeardownBlock { try FileManager.default.removeItem(at: root) }
         return (root, bottle)
     }
@@ -62,13 +76,19 @@ final class CrossOverRunnerTests: XCTestCase {
             let (root, bottle) = try fixture(), inspector = InspectionFixture(), child = ProcessFixture()
             let helper = root.appendingPathComponent("game.exe")
             let runner = CrossOverRunner(bottles: root, manager: ReadyGame(), inspector: inspector,
-                launcher: child, displayHelper: helper, audioDeviceUID: { uid })
+                launcher: child, commands: NoOpCommands(), displayHelper: helper, audioDeviceUID: { uid },
+                runtimeSettings: { _ in RuntimeSettings(graphics: .dxvk, performanceOverlay: true, frameLimit: .fps60) })
             let run = try await runner.launch(.init(executableRelativePath: "game.exe", arguments: ["argument"],
                                                    environment: ["GAME_FLAG": "yes"]), in: bottle, directory: root)
             let launch = try XCTUnwrap(child.launched())
             XCTAssertEqual(launch.environment["PLAYDEN_AUDIO_DEVICE_UID"], uid)
             XCTAssertEqual(launch.environment["GAME_FLAG"], "yes")
+            XCTAssertEqual(launch.environment["DXVK_FRAME_RATE"], "60")
+            XCTAssertEqual(launch.environment["MTL_HUD_ENABLED"], "1")
+            XCTAssertEqual(launch.environment["DXVK_HUD"], "fps")
             XCTAssertFalse(launch.arguments.contains("argument"))
+            let winverIndex = try XCTUnwrap(launch.arguments.firstIndex(of: "--winver"))
+            XCTAssertEqual(launch.arguments[winverIndex + 1], "win10")
             XCTAssertEqual(Array(try XCTUnwrap(launch.input).prefix(24)), Array(repeating: 0, count: 24))
             child.exit(0); _ = try await wait(runner, run, phase: .exited)
         }
@@ -78,7 +98,7 @@ final class CrossOverRunnerTests: XCTestCase {
     }
     func testWrapperExitDoesNotEndLiveGameAndServicesDoNotKeepItAlive() async throws {
         let (root, bottle) = try fixture(), inspector = InspectionFixture(), child = ProcessFixture()
-        let runner = CrossOverRunner(bottles: root, manager: ReadyGame(), inspector: inspector, launcher: child)
+        let runner = CrossOverRunner(bottles: root, manager: ReadyGame(), inspector: inspector, launcher: child, commands: NoOpCommands())
         let run = try await runner.launch(.init(executableRelativePath: "game.exe"), in: bottle, directory: root)
         let game = process(101, .game), server = process(102, .server)
         inspector.set(.init(processes: [game, server], windows: [.init(id: 1, process: game.identity)]))
@@ -96,6 +116,7 @@ final class CrossOverRunnerTests: XCTestCase {
         let (root, bottle) = try fixture(), inspector = InspectionFixture(), child = ProcessFixture(), commands = StopCommands()
         let runner = CrossOverRunner(bottles: root, manager: ReadyGame(), inspector: inspector, launcher: child, commands: commands)
         let run = try await runner.launch(.init(executableRelativePath: "game.exe"), in: bottle, directory: root)
+        let callsAfterLaunch = await commands.calls.count
         let game = process(101, .game), server = process(102, .server)
         inspector.set(.init(processes: [game, server], windows: [.init(id: 1, process: game.identity)]))
         _ = try await wait(runner, run, phase: .running)
@@ -105,12 +126,12 @@ final class CrossOverRunnerTests: XCTestCase {
         inspector.set(.init(processes: [game, process(102, .server, birth: 2)]))
         try await runner.terminate(run, force: true)
         let calls = await commands.calls
-        XCTAssertTrue(calls.isEmpty)
+        XCTAssertEqual(calls.count, callsAfterLaunch)
         _ = try await wait(runner, run, phase: .exited)
     }
     func testEarlyExitReportsLaunchFailureAndSingleGameIsEnforced() async throws {
         let (root, bottle) = try fixture(), inspector = InspectionFixture(), child = ProcessFixture()
-        let runner = CrossOverRunner(bottles: root, manager: ReadyGame(), inspector: inspector, launcher: child)
+        let runner = CrossOverRunner(bottles: root, manager: ReadyGame(), inspector: inspector, launcher: child, commands: NoOpCommands())
         let run = try await runner.launch(.init(executableRelativePath: "game.exe"), in: bottle, directory: root)
         do { _ = try await runner.launch(.init(executableRelativePath: "game.exe"), in: bottle, directory: root); XCTFail("Second game accepted") } catch {}
         child.exit(9)
@@ -122,7 +143,7 @@ final class CrossOverRunnerTests: XCTestCase {
     }
     func testMissingPrefixObservationDoesNotEndProcessesWithMatchingBirthIdentity() async throws {
         let (root, bottle) = try fixture(), inspector = InspectionFixture(), child = ProcessFixture()
-        let runner = CrossOverRunner(bottles: root, manager: ReadyGame(), inspector: inspector, launcher: child)
+        let runner = CrossOverRunner(bottles: root, manager: ReadyGame(), inspector: inspector, launcher: child, commands: NoOpCommands())
         let run = try await runner.launch(.init(executableRelativePath: "game.exe"), in: bottle, directory: root)
         let game = process(101, .game), server = process(102, .server)
         inspector.set(.init(processes: [game, server], windows: [.init(id: 1, process: game.identity)]))
@@ -136,7 +157,7 @@ final class CrossOverRunnerTests: XCTestCase {
     }
     func testBootstrapApplicationExitDoesNotAbortALiveLauncherBeforeItsFirstWindow() async throws {
         let (root, bottle) = try fixture(), inspector = InspectionFixture(), child = ProcessFixture()
-        let runner = CrossOverRunner(bottles: root, manager: ReadyGame(), inspector: inspector, launcher: child)
+        let runner = CrossOverRunner(bottles: root, manager: ReadyGame(), inspector: inspector, launcher: child, commands: NoOpCommands())
         let run = try await runner.launch(.init(executableRelativePath: "game.exe"), in: bottle, directory: root)
         inspector.set(.init(processes: [process(103, .game), process(102, .server)]))
         try await Task.sleep(for: .milliseconds(200))
@@ -151,7 +172,9 @@ final class CrossOverRunnerTests: XCTestCase {
     func testAnIdleBaselineServerCanExpireBeforeTheNewGameStarts() async throws {
         let (root, bottle) = try fixture(), inspector = InspectionFixture(), child = ProcessFixture()
         inspector.set(.init(processes: [process(102, .server)]))
-        let runner = CrossOverRunner(bottles: root, manager: ReadyGame(), inspector: inspector, launcher: child)
+        // A real `wineserver -k`, run while applying settings, ends this idle baseline server;
+        // the fixture mirrors that so the post-settings idle check still sees an empty bottle.
+        let runner = CrossOverRunner(bottles: root, manager: ReadyGame(), inspector: inspector, launcher: child, commands: NoOpCommands(clearing: inspector))
         let run = try await runner.launch(.init(executableRelativePath: "game.exe"), in: bottle, directory: root)
         inspector.set(.init(processes: [process(104, .wrapper), process(102, .server)]))
         try await Task.sleep(for: .milliseconds(200))
@@ -258,32 +281,40 @@ private actor ControllerCommands: CommandExecuting {
 }
 
 extension CrossOverRunnerTests {
-    func testControllerModeAppliesToOwnedBottleBeforeLaunching() async throws {
-        for mode in ControllerMode.allCases {
+    func testRuntimeSettingsApplyToOwnedBottleBeforeLaunching() async throws {
+        for controller in ControllerMode.allCases {
             let (root, bottle) = try fixture(), inspector = InspectionFixture(), child = ProcessFixture()
             let commands = ControllerCommands()
             let runner = CrossOverRunner(bottles: root, manager: ReadyGame(), inspector: inspector,
-                launcher: child, commands: commands, controllerMode: { _ in mode })
+                launcher: child, commands: commands, runtimeSettings: { _ in RuntimeSettings(controller: controller) })
             let run = try await runner.launch(.init(executableRelativePath: "game.exe"), in: bottle, directory: root)
             let calls = await commands.calls
             XCTAssertEqual(calls.count, 3)
-            XCTAssertTrue(calls[0].contains("DisableHidraw"))
-            let dataIndex = try XCTUnwrap(calls[0].firstIndex(of: "/d"))
-            XCTAssertEqual(calls[0][dataIndex + 1], mode == .xboxCompatible ? "1" : "0")
+            let bottlePath = root.appendingPathComponent(bottle.name).path
+            XCTAssertEqual(Array(calls[0].prefix(4)), ["--bottle", bottlePath, "--no-gui", "--wait-children"])
+            XCTAssertEqual(calls[0][calls[0].count - 2], "import")
+            let script = try XCTUnwrap(calls[0].last)
+            XCTAssertTrue(script.hasPrefix("Z:\\"))
+            XCTAssertTrue(script.hasSuffix(".playden-settings.reg"))
             XCTAssertEqual(calls[1].suffix(3), ["--ux-app", "wineserver", "-k"])
-            XCTAssertEqual(calls[2].last, "-w")
-            for call in calls { XCTAssertEqual(call[1], root.appendingPathComponent(bottle.name).path) }
+            XCTAssertEqual(calls[2].suffix(3), ["--ux-app", "wineserver", "-w"])
+            for call in calls { XCTAssertEqual(call[1], bottlePath) }
+            let scriptPath = String(script.dropFirst(2)).replacingOccurrences(of: "\\", with: "/")
+            let data = try Data(contentsOf: URL(fileURLWithPath: scriptPath))
+            XCTAssertEqual(data.prefix(2), Data([0xFF, 0xFE]))
+            let text = try XCTUnwrap(String(data: data.dropFirst(2), encoding: .utf16LittleEndian))
+            XCTAssertTrue(text.contains("\"DisableHidraw\"=dword:0000000\(controller == .xboxCompatible ? "1" : "0")"))
             XCTAssertNotNil(child.launched())
             child.exit(0); _ = try await wait(runner, run, phase: .exited)
         }
     }
-    func testControllerFailureAndBusyRuntimeNeverLaunchGame() async throws {
+    func testRuntimeSettingsFailureAndBusyRuntimeNeverLaunchGame() async throws {
         for busy in [false, true] {
             let (root, bottle) = try fixture(), inspector = InspectionFixture(), child = ProcessFixture()
             if busy { inspector.set(.init(processes: [process(555, .game)])) }
             let commands = ControllerCommands(fails: true)
             let runner = CrossOverRunner(bottles: root, manager: ReadyGame(), inspector: inspector,
-                launcher: child, commands: commands, controllerMode: { _ in .xboxCompatible })
+                launcher: child, commands: commands, runtimeSettings: { _ in RuntimeSettings(controller: .xboxCompatible) })
             do {
                 _ = try await runner.launch(.init(executableRelativePath: "game.exe"), in: bottle, directory: root)
                 XCTFail("Unsafe launch accepted")

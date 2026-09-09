@@ -13,7 +13,7 @@ public actor CrossOverRunner: GameRunner {
     private let displayHelper: URL?
     private let displayTarget: @Sendable () async throws -> GameDisplayTarget?
     private let audioDeviceUID: @Sendable () async throws -> String?
-    private let controllerMode: @Sendable (GameID) async throws -> ControllerMode?
+    private let runtimeSettings: @Sendable (GameID) async throws -> RuntimeSettings
     private var starting = false
     private var active: RunningGame?
     private var child: (any GameProcess)?
@@ -26,10 +26,10 @@ public actor CrossOverRunner: GameRunner {
                 launcher: any GameProcessLaunching = GameProcessLauncher(), commands: any CommandExecuting = CommandExecutor(),
                 displayHelper: URL? = nil, displayTarget: @escaping @Sendable () async throws -> GameDisplayTarget? = { nil },
                 audioDeviceUID: @escaping @Sendable () async throws -> String? = { nil },
-                controllerMode: @escaping @Sendable (GameID) async throws -> ControllerMode? = { _ in nil }) {
+                runtimeSettings: @escaping @Sendable (GameID) async throws -> RuntimeSettings = { _ in .playdenDefault }) {
         self.application = application; self.bottles = bottles; self.manager = manager; self.inspector = inspector
         self.launcher = launcher; self.commands = commands
-        self.displayHelper = displayHelper; self.displayTarget = displayTarget; self.audioDeviceUID = audioDeviceUID; self.controllerMode = controllerMode
+        self.displayHelper = displayHelper; self.displayTarget = displayTarget; self.audioDeviceUID = audioDeviceUID; self.runtimeSettings = runtimeSettings
     }
     @discardableResult public func prepare(_ bottle: GameBottle) async throws -> Bool {
         guard !starting, active == nil else { throw failure("Prepare game", "Quit the current game before preparing another game.") }
@@ -59,17 +59,17 @@ public actor CrossOverRunner: GameRunner {
         guard audioUID.map({ !$0.isEmpty && $0.utf16.count < 440 && !$0.utf8.contains(0) && !$0.contains("\\") }) ?? true else {
             throw failure("Launch game", "The preferred audio device is invalid. Choose it again in Settings → Audio.")
         }
+        let settings = try await runtimeSettings(bottle.gameID)
+        let spec = try RuntimeMechanisms.effectiveSpec(spec, settings: settings)
         let useHelper = displayHelper != nil || target != nil || audioUID != nil
-        let plainArguments = try Self.arguments(spec, bottle: prefix, directory: directory)
+        let plainArguments = try Self.arguments(spec, bottle: prefix, directory: directory, winver: RuntimeMechanisms.winver(settings))
         let input = try useHelper ? GameDisplayTarget.launchInput(display: target, executable: plainArguments[plainArguments.count - spec.arguments.count - 1], arguments: spec.arguments) : nil
-        let arguments = try Self.arguments(spec, bottle: prefix, directory: directory, display: target, helper: displayHelper, forceHelper: useHelper)
-        if let mode = try await controllerMode(bottle.gameID) {
-            try verifyOwnership(bottle, at: prefix)
-            try await configureController(mode, bottle: bottle, prefix: prefix, knownProcesses: baseline.processes)
-            baseline = try inspector.inspect(bottle: prefix)
-            guard baseline.processes.isEmpty else {
-                throw failure("Configure controller", "The game runtime is still busy. Close its other applications and retry.")
-            }
+        let arguments = try Self.arguments(spec, bottle: prefix, directory: directory, winver: RuntimeMechanisms.winver(settings), display: target, helper: displayHelper, forceHelper: useHelper)
+        try verifyOwnership(bottle, at: prefix)
+        try await applyRuntimeSettings(settings, bottle: bottle, prefix: prefix, knownProcesses: baseline.processes)
+        baseline = try inspector.inspect(bottle: prefix)
+        guard baseline.processes.isEmpty else {
+            throw failure("Apply game settings", "The game runtime is still busy. Close its other applications and retry.")
         }
         try Task.checkCancellation()
         let process = try launcher.start(executable: tool("cxstart"), arguments: arguments, environment: spec.environment.merging(audioUID.map { ["PLAYDEN_AUDIO_DEVICE_UID": $0] } ?? [:]) { _, preferred in preferred }, input: input)
@@ -79,37 +79,40 @@ public actor CrossOverRunner: GameRunner {
         return run
     }
     /// Settings are applied only at launch, after ownership and executable validation.
-    /// Restart the owned idle runtime so WineBus reloads the registry before the game starts.
-    private func configureController(_ mode: ControllerMode, bottle: GameBottle, prefix: URL, knownProcesses: [RuntimeProcess]) async throws {
+    /// Restart the owned idle runtime so WineBus and the bottle configuration reload before the
+    /// game starts.
+    private func applyRuntimeSettings(_ settings: RuntimeSettings, bottle: GameBottle, prefix: URL, knownProcesses: [RuntimeProcess]) async throws {
         var knownPIDs = Set(knownProcesses.map { $0.identity.pid })
         func requireIdle() throws {
             try verifyOwnership(bottle, at: prefix)
             let current = try inspector.inspect(bottle: prefix)
             guard current.unreadablePIDs.isDisjoint(with: knownPIDs), !current.processes.contains(where: { $0.kind == .game }) else {
-                throw failure("Configure controller", "Close this game’s other applications before changing controller mode.")
+                throw failure("Apply game settings", "Close this game's other applications before changing game settings.")
             }
             knownPIDs.formUnion(current.processes.map { $0.identity.pid })
         }
         try requireIdle()
-        let set = try await commands.run(executable: tool("cxstart"), arguments: [
-            "--bottle", prefix.path, "--no-gui", "--wait-children", "reg.exe", "add",
-            #"HKLM\System\CurrentControlSet\Services\WineBus"#, "/v", "DisableHidraw",
-            "/t", "REG_DWORD", "/d", mode == .xboxCompatible ? "1" : "0", "/f"
+        _ = try RuntimeMechanisms.rewriteBottleEnvironment(at: prefix.appendingPathComponent("cxbottle.conf"), values: RuntimeMechanisms.bottleEnvironment(settings))
+        let script = prefix.appendingPathComponent(".playden-settings.reg")
+        try RuntimeMechanisms.registryData(settings).write(to: script, options: .atomic)
+        let imported = try await commands.run(executable: tool("cxstart"), arguments: [
+            "--bottle", prefix.path, "--no-gui", "--wait-children", "reg.exe", "import",
+            "Z:" + script.path.replacingOccurrences(of: "/", with: "\\")
         ], timeout: 30)
-        try controllerCommandSucceeded(set)
+        try settingsCommandSucceeded(imported)
         try requireIdle()
         for flag in ["-k", "-w"] {
             try Task.checkCancellation()
             let result = try await commands.run(executable: tool("wine"), arguments: [
                 "--bottle", prefix.path, "--ux-app", "wineserver", flag
             ], timeout: 15)
-            try controllerCommandSucceeded(result)
+            try settingsCommandSucceeded(result)
         }
     }
-    private func controllerCommandSucceeded(_ result: CommandResult) throws {
+    private func settingsCommandSucceeded(_ result: CommandResult) throws {
         if result.cancelled || Task.isCancelled { throw CancellationError() }
         guard !result.timedOut, result.exitCode == 0 else {
-            throw failure("Configure controller", "Controller mode could not be applied. Retry the launch.", output: result.output)
+            throw failure("Apply game settings", "Game settings could not be applied. Retry the launch.", output: result.output)
         }
     }
     public func observe(_ run: RunningGame) -> AsyncStream<RunSnapshot> {
@@ -263,7 +266,7 @@ public actor CrossOverRunner: GameRunner {
               lstat(marker.path, &info) == 0, info.st_mode & S_IFMT == S_IFREG, info.st_nlink == 1,
               try JSONDecoder().decode(Receipt.self, from: Data(contentsOf: marker)).bottle == bottle else { throw failure("Game runtime", "The game's runtime ownership could not be verified.") }
     }
-    static func arguments(_ spec: LaunchSpec, bottle: URL, directory: URL, display: GameDisplayTarget? = nil, helper: URL? = nil, forceHelper: Bool = false) throws -> [String] {
+    static func arguments(_ spec: LaunchSpec, bottle: URL, directory: URL, winver: String? = nil, display: GameDisplayTarget? = nil, helper: URL? = nil, forceHelper: Bool = false) throws -> [String] {
         func path(_ value: String, folder: Bool) throws -> URL {
             let normalized = value.replacingOccurrences(of: "\\", with: "/")
             let components = normalized.split(separator: "/", omittingEmptySubsequences: false)
@@ -279,10 +282,10 @@ public actor CrossOverRunner: GameRunner {
         guard spec.environment.keys.allSatisfy({ key in
             key.range(of: #"^[A-Za-z_][A-Za-z0-9_]*$"#, options: .regularExpression) != nil &&
             !["HOME", "PATH", "WINEPREFIX", "CX_BOTTLE", "CX_ROOT", "XDG_CONFIG_HOME", "CX_DIRECT_DESKTOP", "CODEX_HOME", "PLAYDEN_AUDIO_DEVICE_UID"].contains(key) && !key.hasPrefix("DYLD_")
-        }), spec.dllOverrides.allSatisfy({ $0.range(of: #"^[A-Za-z0-9_.*-]+=[nb](,[nb])?$"#, options: .regularExpression) != nil }) else { throw CocoaError(.fileReadCorruptFile) }
+        }), spec.dllOverrides.allSatisfy({ $0.range(of: #"^[A-Za-z0-9_.*-]+=(n|b|d|n,b|b,n)$"#, options: .regularExpression) != nil }) else { throw CocoaError(.fileReadCorruptFile) }
         let executable = try path(spec.executableRelativePath, folder: false), working = try path(spec.workingDirectoryRelativePath, folder: true)
         func windows(_ path: URL) -> String { "Z:" + path.path.replacingOccurrences(of: "/", with: "\\") }
-        var result = ["--bottle", bottle.path, "--no-gui", "--no-convert", "--wait-children", "--workdir", windows(working)]
+        var result = ["--bottle", bottle.path, "--no-gui"] + (winver.map { ["--winver", $0] } ?? []) + ["--no-convert", "--wait-children", "--workdir", windows(working)]
         for value in spec.dllOverrides { result += ["--dll", value] }
         if display != nil || forceHelper {
             guard let helper, helper.isFileURL, !helper.path.utf8.contains(0),

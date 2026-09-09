@@ -107,6 +107,16 @@ final class GameBottleTests: XCTestCase {
         try await manager.checkRemoval(bottle, previousRuntime: previous)
         XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent(bottle.name).path))
     }
+    func testCheckConfigurationAcceptsAlternativeGraphicsAndSyncModesButRejectsUnknownBackend() async throws {
+        let root = try fixture(), bottle = reference(), commands = BottleCommands()
+        let manager = CrossOverGameBottles(bottles: root, runtime: ReadyTemplate(), commands: commands)
+        try await manager.prepare(bottle)
+        let conf = root.appendingPathComponent(bottle.name).appendingPathComponent("cxbottle.conf")
+        _ = try RuntimeMechanisms.rewriteBottleEnvironment(at: conf, values: ["CX_GRAPHICS_BACKEND": "dxvk", "WINEMSYNC": "0", "WINEESYNC": "1"])
+        let ready = try await manager.isReady(bottle); XCTAssertTrue(ready)
+        _ = try RuntimeMechanisms.rewriteBottleEnvironment(at: conf, values: ["CX_GRAPHICS_BACKEND": "wined3d"])
+        do { _ = try await manager.isReady(bottle); XCTFail("Unknown graphics backend accepted") } catch {}
+    }
     func testInterruptedDeleteWithoutInternalConfigRecoversFromExternalOwnership() async throws {
         let root = try fixture(), bottle = reference(), commands = BottleCommands(interruptDelete: true)
         let manager = CrossOverGameBottles(bottles: root, runtime: ReadyTemplate(), commands: commands)

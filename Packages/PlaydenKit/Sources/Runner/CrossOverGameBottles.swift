@@ -258,7 +258,10 @@ public actor CrossOverGameBottles: GameBottleManaging {
                 values[String(line[..<equals]).trimmingCharacters(in: .whitespaces)] = String(line[line.index(after: equals)...]).trimmingCharacters(in: .whitespaces)
             }
         }
-        guard values["\"WINEMSYNC\""] == "\"1\"", values["\"CX_GRAPHICS_BACKEND\""] == "\"d3dmetal\"" else { throw problem("The game runtime settings do not match the template.") }
+        let validGraphics = ["\"d3dmetal\"", "\"dxvk\"", "\"dxmt\""], validSync = ["\"0\"", "\"1\""]
+        guard let graphics = values["\"CX_GRAPHICS_BACKEND\""], validGraphics.contains(graphics),
+              let sync = values["\"WINEMSYNC\""], validSync.contains(sync),
+              values["\"WINEESYNC\""].map({ validSync.contains($0) }) ?? true else { throw problem("The game runtime settings do not match the template.") }
     }
     private func write(_ marker: Marker, at directory: URL) throws {
         let destination = directory.appendingPathComponent(markerName)
