@@ -557,7 +557,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                                 if let index = model.settingsRows(for: game.id).firstIndex(of: .setting(.graphics)) { model.settingsFocus = index }
                                 model.showSettingPicker(game.id, .graphics)
                                 if let dxvkIndex = model.pickerChoices(game.id, .graphics).firstIndex(where: { $0.value == "dxvk" }) { model.pickerIndex = dxvkIndex }
-                            case "profile-chooser": model.showProfileChooser(game.id)
+                            case "profile-chooser":
+                                // Compare the default profile against "Older 3D game" so the table shows its changes.
+                                model.runtimeProfiles[game.id] = nil
+                                model.showProfileChooser(game.id)
+                                if let index = model.chooserRows(game.id).firstIndex(where: { $0?.id == "older-3d-game" }) { model.chooserIndex = index }
                             default: break
                             }
                         }
