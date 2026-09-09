@@ -24,6 +24,6 @@ enum GameDisplay {
         let hasSavedPreference = preferences.selectedDisplayUUID != nil || preferences.selectedDisplayID != nil
         let uuid = (!hasSavedPreference || preferred != nil) ? CGDisplayCreateUUIDFromDisplayID(displayID)?.takeRetainedValue() : nil
         return .init(bounds: CGDisplayBounds(displayID), primaryBounds: CGDisplayBounds(CGMainDisplayID()),
-                     displayUUID: uuid.map { CFUUIDCreateString(nil, $0) as String })
+                     displayUUID: uuid.map { CFUUIDCreateString(nil, $0) as String }, backingScaleFactor: screen.backingScaleFactor)
     }
 }

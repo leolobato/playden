@@ -77,6 +77,7 @@ final class LibraryModel {
     @ObservationIgnored var onGameWindow: ((GameWindow) -> Void)?
     @ObservationIgnored var onGameStarted: (() -> Void)?
     @ObservationIgnored var onGameEnded: (() -> Void)?
+    @ObservationIgnored let displayPresentation = LauncherDisplayPresentation()
     @ObservationIgnored var onExitOverlayChanged: ((Bool) -> Void)?
     var session = SessionSnapshot()
     var sessionReady = false
@@ -274,14 +275,17 @@ final class LibraryModel {
         if let sessions { self.sessions = sessions }
         else if !preview, installQueue == nil, let catalog, let source, let queue = self.installQueue {
             do {
+                let presentation = displayPresentation
                 let runner = CrossOverRunner(manager: CrossOverGameBottles(runtime: runtime ?? CrossOverRuntime()),
                     displayHelper: Bundle.main.url(forResource: "PlaydenDisplay", withExtension: "exe"),
                     displayTarget: { @MainActor in GameDisplay.target(preferences: try catalog.preferences()) },
-                    primaryDisplay: { target in
+                    primaryDisplay: { @MainActor target in
                         guard let helper = Bundle.main.url(forResource: "PlaydenPrimaryDisplay", withExtension: nil) else {
                             throw OperationFailure(stage: "Prepare game display", reason: "The temporary display helper is missing. Reinstall Playden or turn off Make game monitor primary.", output: "PlaydenPrimaryDisplay was not bundled.")
                         }
-                        return try await TemporaryPrimaryDisplay.acquire(target: target, helper: helper)
+                        return try await presentation.acquire(target: target) { target in
+                            try await TemporaryPrimaryDisplay.acquire(target: target, helper: helper)
+                        }
                     },
                     audioDeviceUID: { @MainActor in try catalog.preferences().selectedAudioDeviceUID },
                     runtimeSettings: { @MainActor id in (try? catalog.edits(for: id).runtimeProfile).map { RuntimeResolver.settings($0, catalog: CuratedProfileCatalog.bundled()) } ?? .playdenDefault })

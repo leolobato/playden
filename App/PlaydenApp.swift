@@ -21,7 +21,7 @@ struct PlaydenApp {
 }
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, LauncherWindowControlling {
     let model: LibraryModel
     private static var isTestProcess: Bool {
         let args = ProcessInfo.processInfo.arguments
@@ -112,6 +112,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.contentAspectRatio = NSSize(width: 16, height: 9)
         window.minSize = NSSize(width: 960, height: 540)
         window.delegate = self
+        model.displayPresentation.window = self
+        model.displayPresentation.reportFailure = { [weak self] error in
+            self?.model.reportSessionIssue(error as? OperationFailure ?? .init(stage: "Prepare game display", reason: error.localizedDescription, output: ""), gameID: self?.model.session.session?.gameID)
+        }
         window.acceptsMouseMovedEvents = true
         window.contentView = NSHostingView(rootView: LauncherView(model: model))
         if isSnapshot, let snapshotIndex, args.indices.contains(snapshotIndex + 1) {
@@ -135,7 +139,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 guard let self else { return }
                 self.gameActivationTask?.cancel(); self.gameActivationTask = nil
                 self.exitShortcut.stop(); self.exitPanel?.orderOut(nil)
-                self.restorePreferredDisplay()
+                if !self.model.displayPresentation.consumePreservedWindow() { self.restorePreferredDisplay() }
                 self.window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
             }
             model.onExitOverlayChanged = { [weak self] visible in self?.presentExitOverlay(visible) }
@@ -244,7 +248,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         if model.setupScreen == .display { model.setupIndex = min(model.setupIndex, model.displays.count) }
         model.currentDisplayName = window?.screen?.localizedName
-        restorePreferredDisplay()
+        if !model.displayPresentation.isChanging { restorePreferredDisplay() }
     }
     private func restorePreferredDisplay() {
         guard window != nil, !model.hasActiveSession else { return }
@@ -273,6 +277,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         guard !model.fullscreenTransitioning, window.styleMask.contains(.fullScreen) != enabled else { return }
         model.fullscreenTransitioning = true
         window.toggleFullScreen(nil)
+    }
+    var launcherFrame: CGRect { window?.frame ?? .zero }
+    var launcherScreen: LauncherDisplayScreen? { window?.screen.flatMap(launcherDisplayScreen) }
+    var launcherScreens: [LauncherDisplayScreen] { NSScreen.screens.compactMap(launcherDisplayScreen) }
+    var launcherFullscreen: Bool { window?.styleMask.contains(.fullScreen) == true }
+    var launcherFullscreenTransitioning: Bool { model.fullscreenTransitioning }
+    func setLauncherFullscreen(_ enabled: Bool) {
+        // This transaction supersedes pending preference-driven window moves.
+        pendingDisplayID = nil; resumeFullscreenAfterMove = false
+        setFullscreen(enabled)
+    }
+    func setLauncherFrame(_ frame: CGRect) { window?.setFrame(frame, display: true) }
+    private func launcherDisplayScreen(_ screen: NSScreen) -> LauncherDisplayScreen? {
+        guard let id = (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value,
+              let uuid = CGDisplayCreateUUIDFromDisplayID(id)?.takeRetainedValue() else { return nil }
+        return .init(uuid: CFUUIDCreateString(nil, uuid) as String, frame: screen.frame, visibleFrame: screen.visibleFrame)
     }
     func windowDidChangeScreen(_ notification: Notification) { model.currentDisplayName = window?.screen?.localizedName }
     func windowWillEnterFullScreen(_ notification: Notification) { model.fullscreenTransitioning = true }

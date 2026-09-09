@@ -119,3 +119,20 @@ final class RuntimeMechanismsTests: XCTestCase {
         XCTAssertThrowsError(try CrossOverRunner.arguments(.init(executableRelativePath: "game.exe", dllOverrides: ["foo=x"]), bottle: root, directory: root))
     }
 }
+
+extension RuntimeMechanismsTests {
+    func testHighResolutionOnlyUsesRetinaOnDisplaysWithRetinaBacking() {
+        for requested in [false, true] {
+            let saved = RuntimeSettings(highResolution: requested, virtualDesktop: .init(rawValue: "1920x1080")!)
+            for scale: Double? in [1, 2, nil] {
+                let target = GameDisplayTarget(bounds: CGRect(x: 0, y: 0, width: 1920, height: 1080),
+                                               primaryBounds: CGRect(x: 0, y: 0, width: 1920, height: 1080), backingScaleFactor: scale)
+                let effective = RuntimeMechanisms.displaySettings(saved, target: target)
+                XCTAssertEqual(effective.highResolution, requested && scale != 1)
+                XCTAssertEqual(effective.virtualDesktop, saved.virtualDesktop)
+                XCTAssertEqual(saved.highResolution, requested, "Do not rewrite the saved preference")
+                XCTAssertTrue(RuntimeMechanisms.registryScript(effective).contains("\"RetinaMode\"=\"\(effective.highResolution ? "y" : "n")\""))
+            }
+        }
+    }
+}

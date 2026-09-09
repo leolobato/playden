@@ -20,9 +20,13 @@ saved monitor produces an actionable launch error rather than promoting a fallba
 
 ## Lifetime and ordering
 
-1. Validate the game, display identity and bottle ownership. Apply existing bottle
+1. Validate the game, display identity and bottle ownership. Resolve High resolution
+   against the selected monitor’s AppKit backing scale: a 1× monitor uses RetinaMode=n,
+   preserving the saved preference for future 2× displays. Apply the effective bottle
    settings, stop its idle Wine server and wait for it to exit.
-2. Start `PlaydenPrimaryDisplay --apply DISPLAY_UUID` with a private stdin pipe.
+2. Capture Playden’s physical monitor UUID and its normal window frame relative to
+   that monitor. Leave its fullscreen Space before changing display configuration.
+   Start `PlaydenPrimaryDisplay --apply DISPLAY_UUID` with a private stdin pipe.
    The helper translates every display's origin by the same offset, placing the
    chosen display at (0,0), preserving their relative arrangement and display modes.
 3. Commit using `CGCompleteDisplayConfiguration(..., .forAppOnly)`. This is a
@@ -30,9 +34,14 @@ saved monitor produces an actionable launch error rather than promoting a fallba
    session or permanent configuration write. It is not isolated to Playden's windows.
 4. Wait for a JSON acknowledgement confirming the UUID, main-display flag and zero
    origin, then pass freshly captured geometry to the Windows display helper and
-   start the game. Failure or cancellation stops the native helper before returning.
+   reposition Playden using the monitor’s new AppKit frame, restore its fullscreen
+   state, then start the game. Failure or cancellation rolls back both the native
+   helper and launcher presentation before returning.
 5. Keep the pipe open until the tracked game ends, even if the launcher exits first.
-   Close it and wait for helper exit before publishing game completion. The helper
+   Leave Playden’s fullscreen Space, close the pipe and wait for helper exit, then
+   restore Playden’s monitor-relative window position and fullscreen state before
+   publishing game completion. Normal preferred-monitor centering is suppressed
+   for that return to the launcher. The helper
    also watches its parent's process lifetime. macOS restores the session/permanent
    display configuration when the helper exits, including after a crash.
 
@@ -96,11 +105,11 @@ These are startup and fixture checks, not a full gameplay or multi-game compatib
 ## Remaining limits
 
 - macOS can reject display reconfiguration while another application is fullscreen.
-  The prototype reports a launch error; leave fullscreen and retry. It does not yet
-  automatically take the launcher out of its fullscreen Space and restore that Space.
-- Retina scaling is independent: a 1920×1080 Wine virtual desktop with Retina enabled
-  can occupy only 960×540 Mac points. For the tested ASUS fullscreen setup, use High
-  resolution off. This option does not silently alter either setting.
+  Playden now leaves and restores its own fullscreen Space around both transactions;
+  it does not change other applications’ fullscreen state.
+- Retina virtual-desktop dimensions remain Wine pixels. On a 2× display, 1920×1080
+  therefore occupies 960×540 Mac points. On ASUS (1×), it occupies 1920×1080 even
+  when the saved High resolution preference is On.
 - Raw mouse look, extended gameplay, additional games/runtime versions, fullscreen
   Spaces, unplugging a display during play, and concurrent changes in System Settings
   need further testing. Existing app-scoped configurations from other display tools
@@ -108,3 +117,30 @@ These are startup and fixture checks, not a full gameplay or multi-game compatib
 
 API contract: the installed SDK's `CGDisplayConfiguration.h`, especially
 `CGConfigureDisplayOrigin` and `CGCompleteDisplayConfiguration` / `kCGConfigureForAppOnly`.
+
+## Window and sizing regression fix
+
+The original prototype did not preserve Playden’s fullscreen Space and applied
+Wine RetinaMode=y indiscriminately on ASUS. The app now wraps the native lease with
+`LauncherDisplayPresentation`, including failed/cancelled-launch rollback, and resolves
+Retina against `GameDisplayTarget.backingScaleFactor` without rewriting user preferences.
+
+Real AppKit tests on the connected ASUS exercised a fullscreen Playden window,
+actual CrossOverRunner, the native helper, an eight-second naturally exiting Windows
+fixture, and a muted 30-second Blades run. Both retained Playden’s ASUS UUID/fullscreen
+state, restored the original monitor configuration, and recovered its exact normal
+window frame after leaving fullscreen. The Blades run kept High resolution requested
+On, wrote effective RetinaMode=n, and produced a 1920×1080 game window on ASUS.
+The initial live test used an outdated hardcoded monitor UUID and stopped before the
+game launch; the test was corrected to discover the connected ASUS UUID dynamically.
+
+Regression coverage includes monitor-relative AppKit coordinate translation, windowed
+and fullscreen switch/restore, native failure, failed fullscreen reentry, cancellation
+while leaving fullscreen and after acquiring the helper, and target-dependent Retina
+settings reaching the registry without changing the requested virtual-desktop size.
+Evidence: `fixed-lifetime-fullscreen.json`, `fixed-blades-fullscreen.json`, and the
+saved opt-in `LiveDisplayFixTests.swift` in the local evidence directory above.
+
+The follow-up regression run passed 314 PlaydenKit XCTest cases (six opt-in cases
+skipped), five Swift Testing cases, and 54 selected app tests. The live fixture and
+Blades tests were explicitly enabled for this session and are not part of normal CI.

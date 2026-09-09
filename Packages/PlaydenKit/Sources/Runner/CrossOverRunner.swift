@@ -64,7 +64,7 @@ public actor CrossOverRunner: GameRunner {
         guard audioUID.map({ !$0.isEmpty && $0.utf16.count < 440 && !$0.utf8.contains(0) && !$0.contains("\\") }) ?? true else {
             throw failure("Launch game", "The preferred audio device is invalid. Choose it again in Settings → Audio.")
         }
-        let settings = try await runtimeSettings(bottle.gameID)
+        let settings = RuntimeMechanisms.displaySettings(try await runtimeSettings(bottle.gameID), target: target)
         if settings.temporaryPrimaryDisplay {
             guard let uuid = target?.displayUUID, UUID(uuidString: uuid) != nil else {
                 throw failure("Prepare game display", PrimaryDisplayError.unavailable.localizedDescription)

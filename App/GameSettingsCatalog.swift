@@ -125,14 +125,14 @@ enum GameSettingsCatalog {
         case .highResolution:
             return RuntimeSettingDefinition(
                 id: .highResolution, title: "High resolution mode",
-                effect: "Renders at the display’s full pixel count. Sharper text and HUDs on a 4K TV, at a performance cost.",
+                effect: "Uses full-resolution rendering on Retina displays for sharper text and HUDs, at a performance cost. Standard displays keep their native 1× size.",
                 alsoCalled: "High Resolution Mode, Retina Mode · RetinaMode", tier: .tier2,
                 kind: .choices([
                     RuntimeSettingChoice(value: "on", name: "On", shortName: "On",
-                                         explanation: "The game sees the full pixel count of your display. Sharper and heavier.",
-                                         technicalNames: "RetinaMode=y"),
+                                         explanation: "Uses 2× rendering on a Retina game monitor. On a standard monitor, a 1920×1080 virtual desktop remains 1920×1080.",
+                                         technicalNames: "RetinaMode=y on Retina displays; n on standard displays"),
                     RuntimeSettingChoice(value: "off", name: "Off", shortName: "Off",
-                                         explanation: "The game sees a halved size that macOS scales up. Softer and faster.",
+                                         explanation: "Uses 1× rendering. On Retina displays, macOS scales it up: softer and faster. Standard displays stay at native size.",
                                          technicalNames: "RetinaMode=n"),
                 ]))
         case .virtualDesktop:

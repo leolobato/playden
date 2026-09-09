@@ -57,7 +57,8 @@ public actor TemporaryPrimaryDisplay: PrimaryDisplayHolding {
                     try Task.checkCancellation()
                     guard process.isRunning else { break }
                     let bounds = CGRect(x: 0, y: 0, width: Int(screen.width), height: Int(screen.height))
-                    return TemporaryPrimaryDisplay(target: .init(bounds: bounds, primaryBounds: bounds, displayUUID: screen.uuid),
+                    return TemporaryPrimaryDisplay(target: .init(bounds: bounds, primaryBounds: bounds, displayUUID: screen.uuid,
+                                                                 backingScaleFactor: target.backingScaleFactor),
                                                    process: process, lifetime: input.fileHandleForWriting, output: output.fileHandleForReading)
                 }
                 if received.count > 8192 || !process.isRunning || count == 0 { break }

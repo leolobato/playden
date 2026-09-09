@@ -7,8 +7,11 @@ public struct GameDisplayTarget: Equatable, Sendable {
     public var primaryBounds: CGRect
     /// Stable identity for the native primary-display helper. Nil when a saved display is unavailable.
     public var displayUUID: String?
-    public init(bounds: CGRect, primaryBounds: CGRect, displayUUID: String? = nil) {
+    /// AppKit backing scale of the selected physical display; nil for older/headless callers.
+    public var backingScaleFactor: Double?
+    public init(bounds: CGRect, primaryBounds: CGRect, displayUUID: String? = nil, backingScaleFactor: Double? = nil) {
         self.bounds = bounds; self.primaryBounds = primaryBounds; self.displayUUID = displayUUID
+        self.backingScaleFactor = backingScaleFactor
     }
     func arguments() throws -> [String] {
         let values = [bounds.minX, bounds.minY, bounds.width, bounds.height, primaryBounds.width, primaryBounds.height]

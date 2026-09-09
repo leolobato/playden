@@ -6,6 +6,15 @@ import Domain
 /// script imported through `reg.exe`. Kept side-effect free so each mapping is independently
 /// unit-testable; `CrossOverRunner` owns the ordering and process supervision around them.
 enum RuntimeMechanisms {
+    /// Wine's RetinaMode is bottle-wide and applies 2x even on a non-Retina monitor.
+    /// Resolve only the launch copy; keep the user's preference for future Retina displays.
+    static func displaySettings(_ settings: RuntimeSettings, target: GameDisplayTarget?) -> RuntimeSettings {
+        var effective = settings
+        if let scale = target?.backingScaleFactor, scale.isFinite, scale > 0, scale < 2 {
+            effective.highResolution = false
+        }
+        return effective
+    }
     /// Environment keys Playden manages on the game's behalf. A user-supplied value for any of
     /// these would silently collide with a mechanism above, so `effectiveSpec` rejects it instead.
     static let managedKeys: Set<String> = [

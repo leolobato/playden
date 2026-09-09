@@ -398,3 +398,20 @@ extension CrossOverRunnerTests {
         }
     }
 }
+
+extension CrossOverRunnerTests {
+    func testNative1080VirtualDesktopIsNotHalvedOnNonRetinaGameMonitor() async throws {
+        let (root, bottle) = try fixture(), child = ProcessFixture()
+        let target = GameDisplayTarget(bounds: CGRect(x: 0, y: 0, width: 1920, height: 1080),
+                                       primaryBounds: CGRect(x: 0, y: 0, width: 1920, height: 1080), backingScaleFactor: 1)
+        let runner = CrossOverRunner(bottles: root, manager: ReadyGame(), inspector: InspectionFixture(), launcher: child,
+            commands: NoOpCommands(), displayHelper: root.appendingPathComponent("game.exe"), displayTarget: { target },
+            runtimeSettings: { _ in RuntimeSettings(highResolution: true, virtualDesktop: .init(rawValue: "1920x1080")!) })
+        let run = try await runner.launch(.init(executableRelativePath: "game.exe"), in: bottle, directory: root)
+        let data = try Data(contentsOf: root.appendingPathComponent(bottle.name + "/.playden-settings.reg"))
+        let registry = try XCTUnwrap(String(data: data.dropFirst(2), encoding: .utf16LittleEndian))
+        XCTAssertTrue(registry.contains("\"RetinaMode\"=\"n\""))
+        XCTAssertTrue(registry.contains("\"Default\"=\"1920x1080\""))
+        child.exit(0); _ = try await wait(runner, run, phase: .exited)
+    }
+}
