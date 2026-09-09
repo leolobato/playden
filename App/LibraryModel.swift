@@ -217,7 +217,6 @@ final class LibraryModel {
     var runtimeProfiles: [GameID: RuntimeProfile] = [:]
     let profileCatalog = CuratedProfileCatalog.bundled()
     var settingsFocus = 0            // index into settingsRows
-    var moreSettingsExpanded = false
     var settingsScrollOffset = 0.0
     var settingsChangedCount = 0     // overrides changed since the sheet opened
     var pickerIndex = 0

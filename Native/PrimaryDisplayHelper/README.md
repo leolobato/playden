@@ -7,7 +7,7 @@ still need testing.
 
 ## Setting
 
-Game settings → More settings → **Make game monitor primary → While playing**.
+Game settings → Display → **Make game monitor primary → While playing**.
 Uses the monitor selected in Playden's Display settings, or the launcher's monitor
 when no preference is saved. It is off by default and independent of Virtual desktop.
 Compatibility profiles cannot enable it; a per-game user override is required.

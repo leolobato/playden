@@ -3,9 +3,9 @@ import Domain
 import Input
 import Focus
 
-enum GameSettingsRow: Equatable { case profile, moreSettings, setting(RuntimeSettingID), resetAll }
+enum GameSettingsRow: Equatable { case profile, setting(RuntimeSettingID), resetAll }
 
-/// Validates the free-text Tier 3 settings (`launchArguments`, `environmentVariables`, `libraryOverrides`)
+/// Validates the free-text Advanced settings (`launchArguments`, `environmentVariables`, `libraryOverrides`)
 /// before they're saved as overrides. Mirrors the launch-time checks in `CrossOverRunner.arguments` and
 /// `RuntimeMechanisms.managedKeys` (`Packages/PlaydenKit/Sources/Runner/CrossOverRunner.swift` and
 /// `RuntimeSettingsApplication.swift`); duplicated here since `RuntimeMechanisms` is `internal` to Runner.
@@ -111,11 +111,9 @@ extension LibraryModel {
         RuntimeResolver.values(profile(for: id), catalog: profileCatalog)
     }
     func settingsRows(for id: GameID) -> [GameSettingsRow] {
-        var rows: [GameSettingsRow] = [.profile] + GameSettingsCatalog.rows(in: .tier1).map { .setting($0.id) } + [.moreSettings]
-        if moreSettingsExpanded { rows += GameSettingsCatalog.rows(in: .tier2).map { .setting($0.id) } }
-        rows += GameSettingsCatalog.rows(in: .advanced).map { .setting($0.id) }
-        rows.append(.resetAll)
-        return rows
+        [.profile] + RuntimeSettingSection.allCases.flatMap { section in
+            GameSettingsCatalog.rows(in: section).map { .setting($0.id) }
+        } + [.resetAll]
     }
     var focusedSettingsRow: GameSettingsRow? {
         guard case .gameSettings(let id) = panel else { return nil }
@@ -127,7 +125,7 @@ extension LibraryModel {
     func rowDiffers(_ id: GameID, _ setting: RuntimeSettingID) -> Bool { profile(for: id).overrides[setting] != nil }
 
     func showGameSettings(_ id: GameID) {
-        settingsFocus = 0; moreSettingsExpanded = false; settingsScrollOffset = 0; settingsChangedCount = 0
+        settingsFocus = 0; settingsScrollOffset = 0; settingsChangedCount = 0
         gameSettingsError = nil
         show(.gameSettings(id))
     }
@@ -285,9 +283,6 @@ extension LibraryModel {
             case .confirm:
                 switch rows[safe: settingsFocus] {
                 case .profile: showProfileChooser(id)
-                case .moreSettings:
-                    moreSettingsExpanded.toggle()
-                    settingsFocus = min(settingsFocus, max(0, settingsRows(for: id).count - 1))
                 case .setting(let setting):
                     switch GameSettingsCatalog.definition(setting).kind {
                     case .choices, .launchOption: showSettingPicker(id, setting)

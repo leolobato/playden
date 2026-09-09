@@ -586,7 +586,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Laun
                             model.showGameSettings(game.id)
                             switch screen {
                             case "game-settings-more", "game-settings-custom":
-                                model.moreSettingsExpanded = true
                                 if let index = model.settingsRows(for: game.id).firstIndex(of: .setting(.virtualDesktop)) { model.settingsFocus = index }
                             case "picker-graphics":
                                 if let index = model.settingsRows(for: game.id).firstIndex(of: .setting(.graphics)) { model.settingsFocus = index }

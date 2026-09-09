@@ -121,17 +121,18 @@ import Catalog
         XCTAssertTrue(notification.detail.contains("apply on next launch"))
     }
 
-    func testMoreSettingsTogglesTierTwoRowsAndResetAllClearsOverrides() throws {
+    func testAllSettingsAreReachableWithoutExpandingAndResetAllClearsOverrides() throws {
         let catalog = try CatalogStore()
         let model = try makeModel(catalog)
         model.showGameSettings(id)
-        let collapsedCount = model.settingsRows(for: id).count
-        let moreIndex = try XCTUnwrap(model.settingsRows(for: id).firstIndex(of: .moreSettings))
-        for _ in 0..<moreIndex { model.perform(.move(.down)) }
+        let rows = model.settingsRows(for: id)
+        XCTAssertEqual(rows.count, RuntimeSettingID.allCases.count + 2)
+        let displayIndex = try XCTUnwrap(rows.firstIndex(of: .setting(.virtualDesktop)))
+        for _ in 0..<displayIndex { model.perform(.move(.down)) }
         model.perform(.confirm)
-        XCTAssertTrue(model.moreSettingsExpanded)
-        XCTAssertGreaterThan(model.settingsRows(for: id).count, collapsedCount)
-        XCTAssertTrue(model.settingsRows(for: id).contains(.setting(.virtualDesktop)))
+        XCTAssertEqual(model.panel, .settingPicker(id, .virtualDesktop))
+        model.perform(.back)
+        XCTAssertEqual(model.focusedSettingsRow, .setting(.virtualDesktop))
         model.setOverride(id, .virtualDesktop, .scalar("1920x1080"))
         XCTAssertTrue(model.profile(for: id).isCustom)
         let resetIndex = try XCTUnwrap(model.settingsRows(for: id).firstIndex(of: .resetAll))

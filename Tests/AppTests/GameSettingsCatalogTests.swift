@@ -3,15 +3,17 @@ import Domain
 @testable import Playden
 
 @MainActor final class GameSettingsCatalogTests: XCTestCase {
-    func testAllCoversEveryIDOnceInOrderAndTiersHaveExpectedCounts() {
+    func testSectionsKeepCommonSettingsFirstThenDisplayAndRemainingOptions() {
         XCTAssertEqual(GameSettingsCatalog.all.map(\.id), RuntimeSettingID.allCases)
-        XCTAssertEqual(GameSettingsCatalog.rows(in: .tier1).count, 5)
-        XCTAssertEqual(GameSettingsCatalog.rows(in: .tier2).count, 7)
-        XCTAssertEqual(GameSettingsCatalog.rows(in: .advanced).count, 3)
-        XCTAssertEqual(GameSettingsCatalog.rows(in: .tier1).map(\.id), [.graphics, .synchronization, .controller, .windowsVersion, .launchOption])
-        XCTAssertEqual(GameSettingsCatalog.rows(in: .tier2).map(\.id),
-                        [.highResolution, .virtualDesktop, .temporaryPrimaryDisplay, .steamOverlay, .performanceOverlay, .frameLimit, .largeAddressAware])
-        XCTAssertEqual(GameSettingsCatalog.rows(in: .advanced).map(\.id), [.launchArguments, .environmentVariables, .libraryOverrides])
+        XCTAssertEqual(RuntimeSettingSection.allCases, [.settings, .display, .compatibility, .advanced])
+        XCTAssertEqual(GameSettingsCatalog.rows(in: .settings).map(\.id),
+                       [.graphics, .synchronization, .controller, .windowsVersion, .launchOption])
+        XCTAssertEqual(GameSettingsCatalog.rows(in: .display).map(\.id),
+                       [.highResolution, .virtualDesktop, .temporaryPrimaryDisplay])
+        XCTAssertEqual(GameSettingsCatalog.rows(in: .compatibility).map(\.id),
+                       [.steamOverlay, .performanceOverlay, .frameLimit, .largeAddressAware])
+        XCTAssertEqual(GameSettingsCatalog.rows(in: .advanced).map(\.id),
+                       [.launchArguments, .environmentVariables, .libraryOverrides])
     }
 
     func testChoiceValuesParseIntoDomainEnumsAndDefaultIsAChoice() throws {

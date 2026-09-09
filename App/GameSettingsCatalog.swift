@@ -1,8 +1,17 @@
 import Foundation
 import Domain
 
-enum RuntimeSettingTier: Equatable {
-    case tier1, tier2, advanced
+enum RuntimeSettingSection: CaseIterable {
+    case settings, display, compatibility, advanced
+
+    var title: String {
+        switch self {
+        case .settings: "Settings"
+        case .display: "Display"
+        case .compatibility: "Compatibility & performance"
+        case .advanced: "Advanced"
+        }
+    }
 }
 
 struct RuntimeSettingChoice: Equatable {
@@ -33,14 +42,14 @@ struct RuntimeSettingDefinition: Equatable {
     let title: String
     let effect: String
     let alsoCalled: String
-    let tier: RuntimeSettingTier
+    let section: RuntimeSettingSection
     let kind: RuntimeSettingKind
     let changesBottle: Bool
 
-    init(id: RuntimeSettingID, title: String, effect: String, alsoCalled: String, tier: RuntimeSettingTier,
+    init(id: RuntimeSettingID, title: String, effect: String, alsoCalled: String, section: RuntimeSettingSection,
          kind: RuntimeSettingKind, changesBottle: Bool = false) {
         self.id = id; self.title = title; self.effect = effect; self.alsoCalled = alsoCalled
-        self.tier = tier; self.kind = kind; self.changesBottle = changesBottle
+        self.section = section; self.kind = kind; self.changesBottle = changesBottle
     }
 }
 
@@ -60,7 +69,7 @@ enum GameSettingsCatalog {
             return RuntimeSettingDefinition(
                 id: .graphics, title: "Graphics",
                 effect: "Picks the translator that turns the game’s DirectX graphics into the Mac’s Metal. Decides whether most games render at all, and how fast.",
-                alsoCalled: "D3DMetal, DXVK, DXMT · CX_GRAPHICS_BACKEND", tier: .tier1,
+                alsoCalled: "D3DMetal, DXVK, DXMT · CX_GRAPHICS_BACKEND", section: .settings,
                 kind: .choices([
                     RuntimeSettingChoice(value: "d3dmetal", name: "Default", shortName: "D3DMetal", tag: "D3DMetal",
                                          explanation: "Apple’s own translator for DirectX 11 and 12. Usually the fastest for modern games.",
@@ -76,7 +85,7 @@ enum GameSettingsCatalog {
             return RuntimeSettingDefinition(
                 id: .synchronization, title: "Synchronization",
                 effect: "A speed boost for how the game’s many tasks wait for each other. The fastest mode makes a few games hang; try switching after Graphics.",
-                alsoCalled: "MSync (WINEMSYNC), ESync (WINEESYNC)", tier: .tier1,
+                alsoCalled: "MSync (WINEMSYNC), ESync (WINEESYNC)", section: .settings,
                 kind: .choices([
                     RuntimeSettingChoice(value: "msync", name: "Default", shortName: "MSync", tag: "MSync",
                                          explanation: "The fastest method, Mac-only. Occasionally confuses a game into hanging.",
@@ -92,7 +101,7 @@ enum GameSettingsCatalog {
             return RuntimeSettingDefinition(
                 id: .controller, title: "Controller",
                 effect: "How the game sees your pad. Xbox compatible works with nearly every game; Native passes a DualShock or DualSense through.",
-                alsoCalled: "hidraw, WineBus · DisableHidraw", tier: .tier1,
+                alsoCalled: "hidraw, WineBus · DisableHidraw", section: .settings,
                 kind: .choices([
                     RuntimeSettingChoice(value: "xboxCompatible", name: "Xbox compatible", shortName: "Xbox compatible",
                                          explanation: "Presents the pad as a standard Xbox controller, which most PC games expect.",
@@ -105,7 +114,7 @@ enum GameSettingsCatalog {
             return RuntimeSettingDefinition(
                 id: .windowsVersion, title: "Windows version",
                 effect: "Which Windows the game is told it runs on. Older games sometimes refuse to start on Windows 10.",
-                alsoCalled: "Windows Version · winecfg, cxstart --winver", tier: .tier1,
+                alsoCalled: "Windows Version · winecfg, cxstart --winver", section: .settings,
                 kind: .choices([
                     RuntimeSettingChoice(value: "win10", name: "Windows 10", shortName: "Windows 10",
                                          explanation: "What Playden’s runtime claims by default.",
@@ -121,12 +130,12 @@ enum GameSettingsCatalog {
             return RuntimeSettingDefinition(
                 id: .launchOption, title: "Launch option",
                 effect: "Which of the game’s launch entries to start. Games often ship separate DirectX 11 and DirectX 12 executables as launch options.",
-                alsoCalled: "Steam launch options · appinfo launch config", tier: .tier1, kind: .launchOption)
+                alsoCalled: "Steam launch options · appinfo launch config", section: .settings, kind: .launchOption)
         case .highResolution:
             return RuntimeSettingDefinition(
                 id: .highResolution, title: "High resolution mode",
                 effect: "Uses full-resolution rendering on Retina displays for sharper text and HUDs, at a performance cost. Standard displays keep their native 1× size.",
-                alsoCalled: "High Resolution Mode, Retina Mode · RetinaMode", tier: .tier2,
+                alsoCalled: "High Resolution Mode, Retina Mode · RetinaMode", section: .display,
                 kind: .choices([
                     RuntimeSettingChoice(value: "on", name: "On", shortName: "On",
                                          explanation: "Uses 2× rendering on a Retina game monitor. On a standard monitor, a 1920×1080 virtual desktop remains 1920×1080.",
@@ -139,7 +148,7 @@ enum GameSettingsCatalog {
             return RuntimeSettingDefinition(
                 id: .virtualDesktop, title: "Virtual desktop",
                 effect: "Runs the game inside a fixed-size Windows desktop. Rescues games that break in fullscreen or change the TV resolution. If it opens on the wrong monitor, try Make game monitor primary.",
-                alsoCalled: "Emulate a virtual desktop · winecfg", tier: .tier2,
+                alsoCalled: "Emulate a virtual desktop · winecfg", section: .display,
                 kind: .choices([
                     RuntimeSettingChoice(value: "off", name: "Off", shortName: "Off",
                                          explanation: "The game takes over the screen as usual.",
@@ -158,7 +167,7 @@ enum GameSettingsCatalog {
             return RuntimeSettingDefinition(
                 id: .temporaryPrimaryDisplay, title: "Make game monitor primary",
                 effect: "Temporarily makes the game’s monitor the Mac’s main display. Can help games open on the correct monitor, including with Virtual desktop.",
-                alsoCalled: "Applies to the whole Mac while playing", tier: .tier2,
+                alsoCalled: "Applies to the whole Mac while playing", section: .display,
                 kind: .choices([
                     RuntimeSettingChoice(value: "off", name: "Off", shortName: "Off",
                                          explanation: "Keeps your Mac’s main display unchanged.", technicalNames: ""),
@@ -171,7 +180,7 @@ enum GameSettingsCatalog {
             return RuntimeSettingDefinition(
                 id: .steamOverlay, title: "Steam features",
                 effect: "Options of the built-in Steam stand-in. Offline only in this version.",
-                alsoCalled: "GBE Fork · steam_settings, configs.overlay.ini", tier: .tier2,
+                alsoCalled: "GBE Fork · steam_settings, configs.overlay.ini", section: .compatibility,
                 kind: .choices([
                     RuntimeSettingChoice(value: "off", name: "Overlay off", shortName: "Overlay off",
                                          explanation: "No in-game overlay. Most games run best this way.",
@@ -184,7 +193,7 @@ enum GameSettingsCatalog {
             return RuntimeSettingDefinition(
                 id: .performanceOverlay, title: "Performance overlay",
                 effect: "Shows a frames-per-second counter and GPU load in the corner while playing.",
-                alsoCalled: "Metal HUD (MTL_HUD_ENABLED), DXVK HUD", tier: .tier2,
+                alsoCalled: "Metal HUD (MTL_HUD_ENABLED), DXVK HUD", section: .compatibility,
                 kind: .choices([
                     RuntimeSettingChoice(value: "off", name: "Off", shortName: "Off",
                                          explanation: "No counter.", technicalNames: ""),
@@ -196,7 +205,7 @@ enum GameSettingsCatalog {
             return RuntimeSettingDefinition(
                 id: .frameLimit, title: "Frame limit",
                 effect: "Caps frames per second. Steadier on a 60 Hz TV and cooler laptop. DXVK only in this version.",
-                alsoCalled: "DXVK_FRAME_RATE", tier: .tier2,
+                alsoCalled: "DXVK_FRAME_RATE", section: .compatibility,
                 kind: .choices([
                     RuntimeSettingChoice(value: "off", name: "Off", shortName: "Off",
                                          explanation: "The game runs as fast as it can.", technicalNames: ""),
@@ -214,7 +223,7 @@ enum GameSettingsCatalog {
             return RuntimeSettingDefinition(
                 id: .largeAddressAware, title: "Large address aware",
                 effect: "Lets a 32-bit game use more than 2 GB of memory. Old games with big mods, or that crash after an hour, often need it.",
-                alsoCalled: "WINE_LARGE_ADDRESS_AWARE", tier: .tier2,
+                alsoCalled: "WINE_LARGE_ADDRESS_AWARE", section: .compatibility,
                 kind: .choices([
                     RuntimeSettingChoice(value: "off", name: "Off", shortName: "Off",
                                          explanation: "The game keeps Windows’ usual 2 GB limit for 32-bit programs.", technicalNames: ""),
@@ -226,22 +235,22 @@ enum GameSettingsCatalog {
             return RuntimeSettingDefinition(
                 id: .launchArguments, title: "Launch arguments",
                 effect: "Extra text passed to the game executable. Common ones: -windowed, -dx11, -nolauncher, -skipintro.",
-                alsoCalled: "Steam launch options, cxstart arguments", tier: .advanced, kind: .text)
+                alsoCalled: "Steam launch options, cxstart arguments", section: .advanced, kind: .text)
         case .environmentVariables:
             return RuntimeSettingDefinition(
                 id: .environmentVariables, title: "Environment variables",
                 effect: "Named switches read by CrossOver, Wine or the graphics layer at start. Allowlisted keys only, written KEY=VALUE.",
-                alsoCalled: "cxbottle.conf [EnvironmentVariables]", tier: .advanced, kind: .text)
+                alsoCalled: "cxbottle.conf [EnvironmentVariables]", section: .advanced, kind: .text)
         case .libraryOverrides:
             return RuntimeSettingDefinition(
                 id: .libraryOverrides, title: "Library overrides",
                 effect: "Tells Wine to use the game’s own copy of a Windows library, or to ignore it. Fixes crashes in input, audio and shader libraries.",
-                alsoCalled: "DLL overrides · winecfg Libraries, WINEDLLOVERRIDES, cxstart --dll", tier: .advanced, kind: .text)
+                alsoCalled: "DLL overrides · winecfg Libraries, WINEDLLOVERRIDES, cxstart --dll", section: .advanced, kind: .text)
         }
     }
 
-    static func rows(in tier: RuntimeSettingTier) -> [RuntimeSettingDefinition] {
-        all.filter { $0.tier == tier }
+    static func rows(in section: RuntimeSettingSection) -> [RuntimeSettingDefinition] {
+        all.filter { $0.section == section }
     }
 
     /// Row value text. `.choices` falls back to the Playden default when `value` is nil, and to the

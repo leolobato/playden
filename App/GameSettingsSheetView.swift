@@ -3,7 +3,7 @@ import Domain
 import Focus
 
 /// Board 4a/4b. Right-anchored sheet listing the game's runtime profile and settings, grouped into
-/// Settings / More settings (collapsible) / Advanced, with a fixed footer for the legend and reset.
+/// always-visible sections, with a fixed footer for the legend and reset.
 struct GameSettingsSheet: View {
     @Bindable var model: LibraryModel
     let gameID: GameID
@@ -33,7 +33,6 @@ struct GameSettingsSheet: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
         .transition(model.reducedMotion ? .identity : .move(edge: .trailing))
         .onChange(of: model.settingsFocus) { _, _ in revealSettingsFocus() }
-        .onChange(of: model.moreSettingsExpanded) { _, _ in revealSettingsFocus() }
     }
 
     // MARK: - Scrolling list
@@ -83,11 +82,11 @@ struct GameSettingsSheet: View {
     private struct SettingsListItem { let entry: SettingsListEntry; let top: Double; let height: Double }
 
     /// Fixed row heights so the scroll math in `revealSettingsFocus` lines up exactly with what's drawn:
-    /// `rowHeight` for the profile and setting rows, 52 for section headers and the "More settings" row.
+    /// `rowHeight` for the profile and setting rows, 52 for section headers.
     private func settingsListLayout(for gameID: GameID) -> (items: [SettingsListItem], contentHeight: Double) {
         var items: [SettingsListItem] = []
         var y = Self.topInset
-        var section: RuntimeSettingTier?
+        var section: RuntimeSettingSection?
         func place(_ entry: SettingsListEntry, height: Double) {
             if !items.isEmpty { y += Self.rowGap }
             items.append(SettingsListItem(entry: entry, top: y, height: height))
@@ -98,13 +97,12 @@ struct GameSettingsSheet: View {
             case .profile:
                 place(.row(row, index: index), height: Self.rowHeight)
             case .setting(let id):
-                let tier = GameSettingsCatalog.definition(id).tier
-                if tier == .tier1 && section != .tier1 { place(.header("Settings"), height: 52); section = .tier1 }
-                if tier == .advanced && section != .advanced { place(.header("Advanced"), height: 52); section = .advanced }
+                let rowSection = GameSettingsCatalog.definition(id).section
+                if section != rowSection {
+                    place(.header(rowSection.title), height: 52)
+                    section = rowSection
+                }
                 place(.row(row, index: index), height: Self.rowHeight)
-            case .moreSettings:
-                place(.row(row, index: index), height: 52)
-                section = .tier2
             case .resetAll:
                 break // rendered in the fixed footer, not the scrolling list
             }
@@ -117,7 +115,7 @@ struct GameSettingsSheet: View {
         switch entry {
         case .header(let title): sectionHeader(title)
         case .row(let row, let index):
-            if row == .moreSettings { moreSettingsRow(index: index) } else { settingsRow(row, index: index) }
+            settingsRow(row, index: index)
         }
     }
 
@@ -125,23 +123,6 @@ struct GameSettingsSheet: View {
         Text(title.uppercased()).font(Design.condensed(20)).tracking(2.4).foregroundStyle(Design.secondary)
             .padding(.top, 22).padding(.horizontal, 24).padding(.bottom, 10)
             .frame(maxWidth: .infinity, alignment: .leading).frame(height: 52)
-    }
-
-    private func moreSettingsRow(index: Int) -> some View {
-        let focused = model.settingsFocus == index
-        return Button {
-            model.settingsFocus = index
-            model.perform(.confirm)
-        } label: {
-            HStack {
-                Text("More settings".uppercased()).font(Design.condensed(20)).tracking(2.4).foregroundStyle(Design.secondary)
-                Spacer()
-                Text(model.moreSettingsExpanded ? "Expanded" : "Collapsed").font(Design.body(18)).foregroundStyle(Design.muted)
-            }
-            .padding(.top, 22).padding(.horizontal, 24).padding(.bottom, 10)
-            .frame(maxWidth: .infinity, alignment: .leading).frame(height: 52)
-            .focusRing(focused)
-        }.buttonStyle(.plain)
     }
 
     // MARK: - Setting / profile rows
@@ -200,28 +181,28 @@ struct GameSettingsSheet: View {
         switch row {
         case .profile: GameSettingsCatalog.profileTitle
         case .setting(let id): GameSettingsCatalog.definition(id).title
-        case .moreSettings, .resetAll: ""
+        case .resetAll: ""
         }
     }
     private func effect(for row: GameSettingsRow) -> String {
         switch row {
         case .profile: GameSettingsCatalog.profileEffect
         case .setting(let id): GameSettingsCatalog.definition(id).effect
-        case .moreSettings, .resetAll: ""
+        case .resetAll: ""
         }
     }
     private func alsoCalled(for row: GameSettingsRow) -> String {
         switch row {
         case .profile: GameSettingsCatalog.profileAlsoCalled
         case .setting(let id): GameSettingsCatalog.definition(id).alsoCalled
-        case .moreSettings, .resetAll: ""
+        case .resetAll: ""
         }
     }
     private func value(for row: GameSettingsRow) -> String {
         switch row {
         case .profile: model.profileLabel(gameID)
         case .setting(let id): model.rowValueLabel(gameID, id)
-        case .moreSettings, .resetAll: ""
+        case .resetAll: ""
         }
     }
 
