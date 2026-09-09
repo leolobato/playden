@@ -162,4 +162,88 @@ import Catalog
         let decoded = try JSONDecoder().decode(GameEdits.self, from: JSONSerialization.data(withJSONObject: json))
         XCTAssertNil(decoded.runtime)
     }
+
+    // MARK: - RuntimeTextValidation
+
+    func testRuntimeTextValidationParsesLaunchArgumentsHonoringQuotes() {
+        switch RuntimeTextValidation.parse("-windowed \"-mod dir\" -nolauncher", for: .launchArguments) {
+        case .success(let values): XCTAssertEqual(values, ["-windowed", "-mod dir", "-nolauncher"])
+        case .failure(let error): XCTFail(error.message)
+        }
+    }
+
+    func testRuntimeTextValidationParsesEnvironmentVariableAndDedupesKeepingLastValue() {
+        switch RuntimeTextValidation.parse("WINE_CPU_TOPOLOGY=8 WINE_CPU_TOPOLOGY=4", for: .environmentVariables) {
+        case .success(let values): XCTAssertEqual(values, ["WINE_CPU_TOPOLOGY=4"])
+        case .failure(let error): XCTFail(error.message)
+        }
+    }
+
+    func testRuntimeTextValidationDedupesLibraryOverridesKeepingLastValue() {
+        switch RuntimeTextValidation.parse("d3d9=n d3d9=b,n", for: .libraryOverrides) {
+        case .success(let values): XCTAssertEqual(values, ["d3d9=b,n"])
+        case .failure(let error): XCTFail(error.message)
+        }
+    }
+
+    func testRuntimeTextValidationRejectsManagedEnvironmentKey() {
+        switch RuntimeTextValidation.parse("WINEMSYNC=0", for: .environmentVariables) {
+        case .success: XCTFail("Expected a reserved-key failure")
+        case .failure(let error):
+            XCTAssertEqual(error, .reservedKey("WINEMSYNC"))
+            XCTAssertEqual(error.message, "WINEMSYNC is set by Playden. Use the matching setting instead.")
+        }
+    }
+
+    func testRuntimeTextValidationRejectsDenylistedEnvironmentKey() {
+        switch RuntimeTextValidation.parse("PATH=x", for: .environmentVariables) {
+        case .success: XCTFail("Expected a reserved-key failure")
+        case .failure(let error):
+            XCTAssertEqual(error, .reservedKey("PATH"))
+            XCTAssertEqual(error.message, "PATH can’t be changed here.")
+        }
+    }
+
+    func testRuntimeTextValidationRejectsMalformedEnvironmentToken() {
+        switch RuntimeTextValidation.parse("FOO", for: .environmentVariables) {
+        case .success: XCTFail("Expected a malformed failure")
+        case .failure(let error):
+            XCTAssertEqual(error, .malformed("FOO"))
+            XCTAssertEqual(error.message, "FOO isn’t KEY=VALUE.")
+        }
+    }
+
+    func testRuntimeTextValidationRejectsInvalidLibraryOverride() {
+        switch RuntimeTextValidation.parse("foo=x", for: .libraryOverrides) {
+        case .success: XCTFail("Expected an invalid-override failure")
+        case .failure(let error):
+            XCTAssertEqual(error, .invalidOverride("foo=x"))
+            XCTAssertEqual(error.message, "foo=x isn’t a library override. Use name=n,b, name=b or name=d.")
+        }
+    }
+
+    // MARK: - Environment variables text editor
+
+    func testEnvironmentVariablesTextEditorValidatesBeforePersisting() throws {
+        let catalog = try CatalogStore()
+        let model = try makeModel(catalog)
+        model.showGameSettings(id)
+        let rowIndex = try XCTUnwrap(model.settingsRows(for: id).firstIndex(of: .setting(.environmentVariables)))
+        model.settingsFocus = rowIndex
+        model.perform(.confirm)
+        XCTAssertEqual(model.panel, .textEditor(.runtimeText(id, .environmentVariables)))
+        // A reserved key stays on the editor and surfaces the error instead of saving.
+        model.insertText("WINEMSYNC=0")
+        model.finishText()
+        XCTAssertEqual(model.panel, .textEditor(.runtimeText(id, .environmentVariables)))
+        XCTAssertEqual(model.gameSettingsError, "WINEMSYNC is set by Playden. Use the matching setting instead.")
+        XCTAssertNil(model.runtimeProfiles[id]?.overrides[.environmentVariables])
+        // Fixing the text and confirming again persists the override and returns to the sheet.
+        for _ in 0..<model.textEditor.text.count { model.eraseText() }
+        model.insertText("WINE_CPU_TOPOLOGY=8:0,1,2,3,4,5,6,7")
+        model.finishText()
+        XCTAssertEqual(model.panel, .gameSettings(id))
+        XCTAssertNil(model.gameSettingsError)
+        XCTAssertEqual(model.runtimeProfiles[id]?.overrides[.environmentVariables], .list(["WINE_CPU_TOPOLOGY=8:0,1,2,3,4,5,6,7"]))
+    }
 }

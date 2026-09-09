@@ -5,6 +5,100 @@ import Focus
 
 enum GameSettingsRow: Equatable { case profile, moreSettings, setting(RuntimeSettingID), resetAll }
 
+/// Validates the free-text Tier 3 settings (`launchArguments`, `environmentVariables`, `libraryOverrides`)
+/// before they're saved as overrides. Mirrors the launch-time checks in `CrossOverRunner.arguments` and
+/// `RuntimeMechanisms.managedKeys` (`Packages/PlaydenKit/Sources/Runner/CrossOverRunner.swift` and
+/// `RuntimeSettingsApplication.swift`); duplicated here since `RuntimeMechanisms` is `internal` to Runner.
+enum RuntimeTextValidation {
+    /// Environment keys CrossOver/Wine itself needs; a user value would collide with the process launch.
+    fileprivate static let deniedEnvironmentKeys: Set<String> = [
+        "HOME", "PATH", "WINEPREFIX", "CX_BOTTLE", "CX_ROOT", "XDG_CONFIG_HOME", "CX_DIRECT_DESKTOP", "CODEX_HOME", "PLAYDEN_AUDIO_DEVICE_UID"
+    ]
+    /// Environment keys Playden itself manages through other settings rows.
+    fileprivate static let managedEnvironmentKeys: Set<String> = [
+        "CX_GRAPHICS_BACKEND", "WINEMSYNC", "WINEESYNC", "DXVK_FRAME_RATE", "MTL_HUD_ENABLED", "DXVK_HUD", "WINE_LARGE_ADDRESS_AWARE"
+    ]
+    private static let environmentKeyPattern = #"^[A-Za-z_][A-Za-z0-9_]*$"#
+    private static let libraryOverridePattern = #"^[A-Za-z0-9_.*-]+=(n|b|d|n,b|b,n)$"#
+
+    static func parse(_ text: String, for setting: RuntimeSettingID) -> Result<[String], RuntimeTextError> {
+        switch setting {
+        case .launchArguments: launchArguments(text)
+        case .environmentVariables: environmentVariables(text)
+        case .libraryOverrides: libraryOverrides(text)
+        default: .success([])
+        }
+    }
+
+    private static func launchArguments(_ text: String) -> Result<[String], RuntimeTextError> {
+        guard !text.unicodeScalars.contains(where: { $0.value == 0 }) else { return .failure(.malformed("")) }
+        let tokens = splitHonoringQuotes(text)
+        guard tokens.count <= 20, tokens.allSatisfy({ $0.count <= 200 }) else { return .failure(.malformed("")) }
+        return .success(tokens)
+    }
+    /// Whitespace-splits `text`, treating a double-quoted span as a single argument with the quotes removed.
+    private static func splitHonoringQuotes(_ text: String) -> [String] {
+        var tokens: [String] = [], current = "", inQuotes = false, hasToken = false
+        for character in text {
+            if character == "\"" { inQuotes.toggle(); hasToken = true; continue }
+            if character.isWhitespace && !inQuotes {
+                if hasToken { tokens.append(current); current = ""; hasToken = false }
+                continue
+            }
+            current.append(character); hasToken = true
+        }
+        if hasToken { tokens.append(current) }
+        return tokens
+    }
+
+    /// Later occurrences of a duplicate key win, but the key keeps its first-seen position.
+    private static func environmentVariables(_ text: String) -> Result<[String], RuntimeTextError> {
+        guard !text.unicodeScalars.contains(where: { $0.value == 0 }) else { return .failure(.malformed("")) }
+        var order: [String] = [], values: [String: String] = [:]
+        for token in text.split(whereSeparator: \.isWhitespace).map(String.init) {
+            guard let equals = token.firstIndex(of: "=") else { return .failure(.malformed(token)) }
+            let key = String(token[token.startIndex..<equals]), value = String(token[token.index(after: equals)...])
+            guard key.range(of: environmentKeyPattern, options: .regularExpression) != nil, value.count <= 500 else {
+                return .failure(.malformed(token))
+            }
+            guard !managedEnvironmentKeys.contains(key), !deniedEnvironmentKeys.contains(key), !key.hasPrefix("DYLD_") else {
+                return .failure(.reservedKey(key))
+            }
+            if values[key] == nil { order.append(key) }
+            values[key] = value
+        }
+        return .success(order.map { "\($0)=\(values[$0]!)" })
+    }
+
+    /// Later occurrences of a duplicate library name win, but the name keeps its first-seen position.
+    private static func libraryOverrides(_ text: String) -> Result<[String], RuntimeTextError> {
+        guard !text.unicodeScalars.contains(where: { $0.value == 0 }) else { return .failure(.malformed("")) }
+        var order: [String] = [], values: [String: String] = [:]
+        for token in text.split(whereSeparator: \.isWhitespace).map(String.init) {
+            guard let equals = token.firstIndex(of: "="), token.range(of: libraryOverridePattern, options: .regularExpression) != nil else {
+                return .failure(.invalidOverride(token))
+            }
+            let name = String(token[token.startIndex..<equals])
+            if values[name] == nil { order.append(name) }
+            values[name] = token
+        }
+        return .success(order.map { values[$0]! })
+    }
+}
+
+enum RuntimeTextError: Error, Equatable {
+    case malformed(String), reservedKey(String), invalidOverride(String)
+    var message: String {
+        switch self {
+        case .malformed(let token): token.isEmpty ? "Check the text and try again." : "\(token) isn’t KEY=VALUE."
+        case .reservedKey(let key):
+            RuntimeTextValidation.managedEnvironmentKeys.contains(key)
+                ? "\(key) is set by Playden. Use the matching setting instead." : "\(key) can’t be changed here."
+        case .invalidOverride(let token): "\(token) isn’t a library override. Use name=n,b, name=b or name=d."
+        }
+    }
+}
+
 extension LibraryModel {
     func profile(for id: GameID) -> RuntimeProfile { runtimeProfiles[id] ?? RuntimeProfile() }
     func profileLabel(_ id: GameID) -> String { RuntimeResolver.displayName(profile(for: id), catalog: profileCatalog) }
