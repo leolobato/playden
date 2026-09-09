@@ -405,6 +405,55 @@ final class SteamInstallerTests: XCTestCase {
         _ = try await installer.validate(plan, at: directory, staging: repaired)
         XCTAssertEqual(repaired, staging)
     }
+    func testApplyRuntimeOptionsWritesOverlayIniPreservingOtherSectionsAndFiles() async throws {
+        let bytes = pe()
+        let content = ResolvedSteamContent(app: app(), manifests: [manifest([file("Game.exe", bytes), file("steam_api64.dll", bytes)])], entitlements: .init(appIDs: [100], depotIDs: [101]))
+        let installer = SteamInstaller(game: game, backend: FixtureContentBackend(content: content, chunks: [Data(Insecure.SHA1.hash(data: bytes)): bytes]))
+        let plan = try await installer.resolve(), directory = try temporaryDirectory()
+        try await installer.download(plan, to: directory) { _ in }
+        _ = try await installer.postInstall(plan, at: directory)
+        let settings = directory.appendingPathComponent("steam_settings")
+        let overlay = settings.appendingPathComponent("configs.overlay.ini")
+        try Data("[overlay::foo]\nbar=1\n".utf8).write(to: overlay)
+        let appBefore = try Data(contentsOf: settings.appendingPathComponent("configs.app.ini"))
+        try await installer.applyRuntimeOptions(["steam.overlay": "1"], plan: plan, at: directory)
+        var text = try String(contentsOf: overlay, encoding: .utf8)
+        XCTAssertTrue(text.contains("enable_experimental_overlay=1"))
+        XCTAssertTrue(text.contains("[overlay::foo]"))
+        XCTAssertTrue(text.contains("bar=1"))
+        try await installer.applyRuntimeOptions(["steam.overlay": "0"], plan: plan, at: directory)
+        text = try String(contentsOf: overlay, encoding: .utf8)
+        XCTAssertTrue(text.contains("enable_experimental_overlay=0"))
+        XCTAssertTrue(text.contains("[overlay::foo]"))
+        XCTAssertTrue(text.contains("bar=1"))
+        XCTAssertEqual(try Data(contentsOf: settings.appendingPathComponent("configs.app.ini")), appBefore)
+    }
+    func testApplyRuntimeOptionsRejectsSymlinkedSteamSettings() async throws {
+        let bytes = pe()
+        let content = ResolvedSteamContent(app: app(), manifests: [manifest([file("Game.exe", bytes), file("steam_api64.dll", bytes)])], entitlements: .init(appIDs: [100], depotIDs: [101]))
+        let installer = SteamInstaller(game: game, backend: FixtureContentBackend(content: content, chunks: [Data(Insecure.SHA1.hash(data: bytes)): bytes]))
+        let plan = try await installer.resolve(), directory = try temporaryDirectory()
+        try await installer.download(plan, to: directory) { _ in }
+        _ = try await installer.postInstall(plan, at: directory)
+        let settings = directory.appendingPathComponent("steam_settings")
+        let elsewhere = directory.deletingLastPathComponent().appendingPathComponent("PlaydenSteamSettings-\(UUID().uuidString)")
+        try FileManager.default.moveItem(at: settings, to: elsewhere)
+        addTeardownBlock { try? FileManager.default.removeItem(at: elsewhere) }
+        try FileManager.default.createSymbolicLink(at: settings, withDestinationURL: elsewhere)
+        do {
+            try await installer.applyRuntimeOptions(["steam.overlay": "1"], plan: plan, at: directory)
+            XCTFail("Symlinked steam_settings accepted")
+        } catch {}
+    }
+    func testApplyRuntimeOptionsIsNoOpWithoutStagedSteamAPI() async throws {
+        let bytes = Data("test".utf8)
+        let content = ResolvedSteamContent(app: app(), manifests: [manifest([file("Game.exe", bytes)])], entitlements: .init(appIDs: [100], depotIDs: [101]))
+        let installer = SteamInstaller(game: game, backend: FixtureContentBackend(content: content, chunks: [Data(Insecure.SHA1.hash(data: bytes)): bytes]))
+        let plan = try await installer.resolve(), directory = try temporaryDirectory()
+        try await installer.download(plan, to: directory) { _ in }
+        try await installer.applyRuntimeOptions(["steam.overlay": "1"], plan: plan, at: directory)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent("steam_settings").path))
+    }
     private func temporaryDirectory() throws -> URL {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("PlaydenInstaller-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)

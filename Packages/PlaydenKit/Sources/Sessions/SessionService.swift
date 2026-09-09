@@ -57,6 +57,7 @@ public actor SessionService: SessionManaging {
     private var value = SessionSnapshot()
     private var active: PlaySessionRecord?
     private var activeLaunchOption: LaunchOption?
+    private var activeSettings: RuntimeSettings?
     private var worker: Task<Void, Never>?
     private var observers: [UUID: AsyncStream<SessionSnapshot>.Continuation] = [:]
     private var playAnchor: TimeInterval?
@@ -145,7 +146,21 @@ public actor SessionService: SessionManaging {
         guard let installation = try catalog.snapshot().entries.first(where: { $0.id == gameID })?.installation else {
             throw issue("Launch game", "This game is not installed. Install it from your library first.")
         }
-        let option = try launchOptions(for: installation).first { $0.id == launchOptionID }
+        var resolvedID = launchOptionID
+        var settings: RuntimeSettings?
+        var settingsReadFailed = false
+        if launchOptionID == nil {
+            do {
+                let profile = try catalog.edits(for: gameID).runtimeProfile
+                let resolved = RuntimeResolver.settings(profile, catalog: CuratedProfileCatalog.bundled())
+                settings = resolved; resolvedID = resolved.launchOptionID
+            } catch {
+                settings = .playdenDefault; settingsReadFailed = true
+            }
+        }
+        let option = try launchOptions(for: installation).first { $0.id == resolvedID }
+        // An explicitly requested option (play(_:launchOptionID:)) must still fail loudly if it is gone.
+        // A profile-resolved id that no longer matches silently falls back to the default spec below.
         guard launchOptionID == nil || option != nil else {
             throw issue("Launch game", "The selected launch option is no longer available. Choose another option.")
         }
@@ -156,8 +171,14 @@ public actor SessionService: SessionManaging {
             try catalog.reserveCloudRecoverySession(session, operation: pending)
         } else { try catalog.saveSession(session) }
         activeLaunchOption = option
+        activeSettings = settings
         active = session; value = .init(phase: .preparing, game: installation.game, session: session)
         playAnchor = nil; baseSeconds = 0; lastSave = clock.uptime; lastPublish = clock.uptime
+        if settingsReadFailed {
+            catalog.captureDiagnosticEvent(for: session.id, message: "Game settings · saved settings unavailable, using default", at: clock.wallTime)
+        } else if launchOptionID == nil, resolvedID != nil, option == nil {
+            catalog.captureDiagnosticEvent(for: session.id, message: "Launch option · saved choice unavailable, using default", at: clock.wallTime)
+        }
         publish()
         worker = Task { await self.launch(installation) }
     }
@@ -235,6 +256,11 @@ public actor SessionService: SessionManaging {
             try Task.checkCancellation()
             guard let preparing = active else { throw CancellationError() }
             try catalog.checkCloudBeforeLaunch(preparing)
+            if let plan = installed.plan, let source = sources[installed.gameID.source] {
+                try await source.installer(for: installed.game).applyRuntimeOptions(
+                    activeSettings?.sourceOptions ?? RuntimeSettings.playdenDefault.sourceOptions, plan: plan, at: directory)
+                catalog.captureDiagnosticEvent(for: preparing.id, message: "Game settings · source options applied", at: clock.wallTime)
+            }
             var spec = installed.launchSpec
             if let option = activeLaunchOption {
                 guard try launchOptions(for: installed).contains(option) else {

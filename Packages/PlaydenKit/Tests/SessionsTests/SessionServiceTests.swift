@@ -20,6 +20,8 @@ private actor Events {
     var prerequisiteFailure = false
     var preparationPending = false
     var failedPreparationStep: String?
+    var appliedOptions: [[String: String]] = []
+    func recordAppliedOptions(_ options: [String: String]) { appliedOptions.append(options) }
     func failPreparationOnce(_ step: String) { failedPreparationStep = step }
     func preparationRequired(changed: Bool) -> Bool {
         preparationPending = preparationPending || changed
@@ -132,6 +134,7 @@ private struct Content: Installer {
     func postInstall(_ plan: InstallPlan, at directory: URL) async throws -> InstallStaging { try await events.preparationStep("stage"); return .init() }
     func preparePrerequisites(_ plan: InstallPlan, at directory: URL, in bottle: GameBottle) async throws { try await events.checkPrerequisite() }
     func validate(_ plan: InstallPlan, at directory: URL, staging: InstallStaging) async throws -> LaunchSpec { try await events.preparationStep("validate"); return .init(executableRelativePath: "rebuilt.exe") }
+    func applyRuntimeOptions(_ options: [String: String], plan: InstallPlan, at directory: URL) async throws { await events.recordAppliedOptions(options) }
     func uninstall(_ plan: InstallPlan, at directory: URL) async throws {}
     func saveMapping(_ plan: InstallPlan) throws -> SaveMapping {
         .init(rules: [.init(root: .game, directory: "saves", pattern: "*.sav", cloudPrefix: "%GameInstall%saves")], coverage: .metadata)
@@ -219,6 +222,56 @@ final class SessionServiceTests: XCTestCase {
         _ = try await wait(service, phase: .launching)
         let next = await runner.lastLaunchSpec
         XCTAssertEqual(next?.executableRelativePath, "rebuilt.exe", "One-time selection must not leak to the next session")
+        await runner.emit(exit: 0); _ = try await wait(service, phase: .idle)
+    }
+    func testStoredRuntimeProfileLaunchOptionSelectsMatchingSpec() async throws {
+        let catalog = try CatalogStore(), clock = TestClock(), events = Events(), runner = Runner(events), queue = Queue(events)
+        var game = try installed(catalog)
+        let first = LaunchOption(id: "dx10", title: "DirectX 10", spec: .init(executableRelativePath: "DX10.exe"))
+        let second = LaunchOption(id: "dx11", title: "DirectX 11", spec: .init(executableRelativePath: "Alternate.exe", workingDirectoryRelativePath: "Bin", arguments: ["-dx11"]))
+        game.plan = .init(game: game.game, manifestIDs: [:], estimate: .init(downloadBytes: 1, installedBytes: 1, requiredBytes: 1),
+            launchSpec: game.launchSpec, sourcePayload: Data(), launchOptions: [first, second])
+        try catalog.saveInstallation(game)
+        var edits = GameEdits(); edits.runtime = RuntimeProfile(overrides: [.launchOption: .scalar("dx11")])
+        try catalog.saveEdits(edits, for: game.gameID)
+        let service = try make(catalog, runner, queue, clock, events)
+        try await service.start(downloadWhilePlaying: false)
+        try await service.play(game.gameID)
+        _ = try await wait(service, phase: .launching)
+        let actual = await runner.lastLaunchSpec
+        XCTAssertEqual(actual, second.spec)
+        await runner.emit(exit: 0); _ = try await wait(service, phase: .idle)
+    }
+    func testStoredRuntimeProfileLaunchOptionMissingFallsBackToDefaultWithoutError() async throws {
+        let catalog = try CatalogStore(), clock = TestClock(), events = Events(), runner = Runner(events), queue = Queue(events)
+        let game = try installed(catalog)
+        var edits = GameEdits(); edits.runtime = RuntimeProfile(overrides: [.launchOption: .scalar("missing")])
+        try catalog.saveEdits(edits, for: game.gameID)
+        let service = try make(catalog, runner, queue, clock, events)
+        try await service.start(downloadWhilePlaying: false)
+        try await service.play(game.gameID)
+        _ = try await wait(service, phase: .launching)
+        let actual = await runner.lastLaunchSpec
+        XCTAssertEqual(actual?.executableRelativePath, game.launchSpec.executableRelativePath)
+        await runner.emit(exit: 0); _ = try await wait(service, phase: .idle)
+    }
+    func testRuntimeProfileSourceOptionsAreAppliedOnEveryLaunch() async throws {
+        let catalog = try CatalogStore(), clock = TestClock(), events = Events(), runner = Runner(events), queue = Queue(events)
+        let game = try installed(catalog)
+        var edits = GameEdits(); edits.runtime = RuntimeProfile(overrides: [.steamOverlay: .scalar("on")])
+        try catalog.saveEdits(edits, for: game.gameID)
+        let service = try make(catalog, runner, queue, clock, events)
+        try await service.start(downloadWhilePlaying: false)
+        try await service.play(game.gameID)
+        _ = try await wait(service, phase: .launching)
+        var applied = await events.appliedOptions
+        XCTAssertEqual(applied.last?["steam.overlay"], "1")
+        await runner.emit(exit: 0); _ = try await wait(service, phase: .idle)
+        try await service.play(game.gameID)
+        _ = try await wait(service, phase: .launching)
+        applied = await events.appliedOptions
+        XCTAssertEqual(applied.count, 2, "Source options must be re-applied on every launch")
+        XCTAssertEqual(applied.last?["steam.overlay"], "1")
         await runner.emit(exit: 0); _ = try await wait(service, phase: .idle)
     }
     private func installed(_ catalog: CatalogStore, id: String = "one") throws -> InstallationRecord {

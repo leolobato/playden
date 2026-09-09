@@ -212,6 +212,20 @@ public struct SteamInstaller: Installer {
         var spec = plan.launchSpec; spec.dllOverrides = staging.dllOverrides
         return spec
     }
+    public func applyRuntimeOptions(_ options: [String: String], plan: InstallPlan, at directory: URL) async throws {
+        let payload = try SteamPlanBuilder.payload(plan, for: gameID)
+        let apis = try apiPaths(payload)
+        guard !apis.isEmpty else { return }
+        try rejectLinks(in: directory)
+        let overlayOn = options["steam.overlay"] == "1"
+        for path in apis {
+            let backup = directory.appendingPathComponent(path + ".orig")
+            guard FileManager.default.fileExists(atPath: backup.path) else { continue }
+            let settings = directory.appendingPathComponent(path).deletingLastPathComponent().appendingPathComponent("steam_settings")
+            try SteamSettingsINI.write("[overlay::general]\nenable_experimental_overlay=\(overlayOn ? 1 : 0)\n",
+                to: settings.appendingPathComponent("configs.overlay.ini"))
+        }
+    }
     public func uninstall(_ plan: InstallPlan, at directory: URL) async throws {
         _ = try SteamPlanBuilder.payload(plan, for: gameID)
         try Task.checkCancellation()
