@@ -6,11 +6,11 @@ import Domain
     func testAllCoversEveryIDOnceInOrderAndTiersHaveExpectedCounts() {
         XCTAssertEqual(GameSettingsCatalog.all.map(\.id), RuntimeSettingID.allCases)
         XCTAssertEqual(GameSettingsCatalog.rows(in: .tier1).count, 5)
-        XCTAssertEqual(GameSettingsCatalog.rows(in: .tier2).count, 6)
+        XCTAssertEqual(GameSettingsCatalog.rows(in: .tier2).count, 7)
         XCTAssertEqual(GameSettingsCatalog.rows(in: .advanced).count, 3)
         XCTAssertEqual(GameSettingsCatalog.rows(in: .tier1).map(\.id), [.graphics, .synchronization, .controller, .windowsVersion, .launchOption])
         XCTAssertEqual(GameSettingsCatalog.rows(in: .tier2).map(\.id),
-                        [.highResolution, .virtualDesktop, .steamOverlay, .performanceOverlay, .frameLimit, .largeAddressAware])
+                        [.highResolution, .virtualDesktop, .temporaryPrimaryDisplay, .steamOverlay, .performanceOverlay, .frameLimit, .largeAddressAware])
         XCTAssertEqual(GameSettingsCatalog.rows(in: .advanced).map(\.id), [.launchArguments, .environmentVariables, .libraryOverrides])
     }
 
@@ -23,7 +23,7 @@ import Domain
             case .windowsVersion: return { WindowsVersion(rawValue: $0) != nil }
             case .virtualDesktop: return { VirtualDesktopSize(rawValue: $0) != nil }
             case .frameLimit: return { FrameLimit(rawValue: $0) != nil }
-            case .highResolution, .steamOverlay, .performanceOverlay, .largeAddressAware:
+            case .highResolution, .temporaryPrimaryDisplay, .steamOverlay, .performanceOverlay, .largeAddressAware:
                 return { $0 == "on" || $0 == "off" }
             case .launchOption, .launchArguments, .environmentVariables, .libraryOverrides:
                 return { _ in true }

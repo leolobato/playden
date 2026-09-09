@@ -6,6 +6,10 @@ only Windows system DLLs. It does not change macOS display arrangement, ask for 
 access, inject code, or edit game files. The helper only moves windows whose process ID matches
 the child it created; retaining that process handle prevents PID reuse during observation.
 
+The separate, opt-in [native primary display helper](../PrimaryDisplayHelper/README.md) can
+temporarily change the macOS main display before this Windows helper launches. That setting
+applies to the whole Mac and is off by default, including when Virtual desktop is enabled.
+
 The Xcode post-build phase compiles `main.c` with Homebrew LLVM/LLD, then includes the result in the
 signed app resources. No Windows SDK or C runtime is needed; `win32.h` declares the small x64 ABI
 surface, with layout assertions. The helper also launches 32-bit games through CrossOver's WOW64

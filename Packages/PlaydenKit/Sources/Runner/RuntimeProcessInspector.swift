@@ -42,7 +42,7 @@ public struct RuntimeProcessInspector: RuntimeInspecting {
             var path = [CChar](repeating: 0, count: Int(4 * MAXPATHLEN))
             guard proc_pidpath(pid, &path, UInt32(path.count)) > 0 else { unreadable.insert(pid); continue }
             let executable = String(cString: path)
-            guard executable.lowercased().hasSuffix(".exe") || executable.hasSuffix("/wineserver") || executable.hasSuffix("/wine") else { continue }
+            guard Self.isWineExecutable(executable) else { continue }
             guard let arguments = Self.arguments(pid) else { unreadable.insert(pid); continue }
             guard let value = arguments.environment["WINEPREFIX"], URL(fileURLWithPath: value).resolvingSymlinksInPath().path == prefix else { continue }
             guard self.identity(of: pid) == identity else { continue }
@@ -69,6 +69,13 @@ public struct RuntimeProcessInspector: RuntimeInspecting {
                   let bounds = value[kCGWindowBounds as String] as? [String: Double], bounds["Width", default: 0] >= 64, bounds["Height", default: 0] >= 64 else { return nil }
             return .init(id: id, process: identity)
         }
+    }
+    static func isWineExecutable(_ path: String) -> Bool {
+        // CrossOver can rename a running .exe's native loader back to wineloader.
+        // Keep it eligible; WINEPREFIX and birth identity still decide bottle ownership,
+        // and argv[0] decides whether this is the game or a Wine service/wrapper.
+        let name = path.split(separator: "/").last.map(String.init)?.lowercased() ?? ""
+        return name.hasSuffix(".exe") || ["wine", "wine64", "wineloader", "wineserver"].contains(name)
     }
     static func kind(_ argv0: String) -> RuntimeProcessKind {
         let path = argv0.replacingOccurrences(of: "\\", with: "/").lowercased()

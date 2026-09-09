@@ -21,6 +21,9 @@ enum GameDisplay {
         // Keep a disconnected preference saved; this launch follows the launcher's current screen.
         guard let screen = preferred ?? NSApp.mainWindow?.screen ?? NSScreen.main ?? NSScreen.screens.first,
               let displayID = id(screen) else { return nil }
-        return .init(bounds: CGDisplayBounds(displayID), primaryBounds: CGDisplayBounds(CGMainDisplayID()))
+        let hasSavedPreference = preferences.selectedDisplayUUID != nil || preferences.selectedDisplayID != nil
+        let uuid = (!hasSavedPreference || preferred != nil) ? CGDisplayCreateUUIDFromDisplayID(displayID)?.takeRetainedValue() : nil
+        return .init(bounds: CGDisplayBounds(displayID), primaryBounds: CGDisplayBounds(CGMainDisplayID()),
+                     displayUUID: uuid.map { CFUUIDCreateString(nil, $0) as String })
     }
 }

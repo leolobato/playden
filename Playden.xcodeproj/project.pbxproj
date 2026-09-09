@@ -420,6 +420,7 @@
 				285F4DA724115AC17A3FFA14 /* Sources */,
 				DA13783217B8156B589CFC42 /* Resources */,
 				71952CF4CBE28E9863DE54C6 /* Frameworks */,
+				2D31EF1C6C7643FF9F41D8AC /* Build native primary display helper */,
 				8CEBF1DE242D46F34CCFBAE6 /* Build Windows display helper */,
 				33552DEFA82625E3EE3B7962 /* Embed Steam runtime libraries */,
 			);
@@ -522,6 +523,26 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		2D31EF1C6C7643FF9F41D8AC /* Build native primary display helper */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Build native primary display helper";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/PlaydenPrimaryDisplay",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "#!/bin/sh\nset -eu\ncd \"$SRCROOT\"\nhelper_build=\"$DERIVED_FILE_DIR/PrimaryDisplayHelper\"\nhelper_resources=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH\"\nmkdir -p \"$helper_build\" \"$helper_resources\"\nset --\nfor arch in $ARCHS; do\n    binary=\"$helper_build/PlaydenPrimaryDisplay-$arch\"\n    xcrun swiftc -O -swift-version 6 -sdk \"$SDKROOT\" \\\n        -target \"${arch}-apple-macosx${MACOSX_DEPLOYMENT_TARGET}\" \\\n        Packages/PlaydenKit/Sources/Runner/PrimaryDisplayLayout.swift \\\n        Native/PrimaryDisplayHelper/main.swift -o \"$binary\"\n    set -- \"$@\" \"$binary\"\ndone\nxcrun lipo -create \"$@\" -output \"$helper_resources/PlaydenPrimaryDisplay\"\nif [ \"${CODE_SIGNING_ALLOWED:-YES}\" != NO ]; then\n    # Distribution builds request a secure timestamp for every nested executable.\n    case \" ${OTHER_CODE_SIGN_FLAGS:-} \" in\n        *\" --timestamp \"*) set -- --timestamp ;;\n        *) set -- --timestamp=none ;;\n    esac\n    /usr/bin/codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY:--}\" \\\n        --options runtime \"$@\" \"$helper_resources/PlaydenPrimaryDisplay\"\nfi\n";
+		};
 		33552DEFA82625E3EE3B7962 /* Embed Steam runtime libraries */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;

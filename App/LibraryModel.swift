@@ -277,6 +277,12 @@ final class LibraryModel {
                 let runner = CrossOverRunner(manager: CrossOverGameBottles(runtime: runtime ?? CrossOverRuntime()),
                     displayHelper: Bundle.main.url(forResource: "PlaydenDisplay", withExtension: "exe"),
                     displayTarget: { @MainActor in GameDisplay.target(preferences: try catalog.preferences()) },
+                    primaryDisplay: { target in
+                        guard let helper = Bundle.main.url(forResource: "PlaydenPrimaryDisplay", withExtension: nil) else {
+                            throw OperationFailure(stage: "Prepare game display", reason: "The temporary display helper is missing. Reinstall Playden or turn off Make game monitor primary.", output: "PlaydenPrimaryDisplay was not bundled.")
+                        }
+                        return try await TemporaryPrimaryDisplay.acquire(target: target, helper: helper)
+                    },
                     audioDeviceUID: { @MainActor in try catalog.preferences().selectedAudioDeviceUID },
                     runtimeSettings: { @MainActor id in (try? catalog.edits(for: id).runtimeProfile).map { RuntimeResolver.settings($0, catalog: CuratedProfileCatalog.bundled()) } ?? .playdenDefault })
                 self.sessions = try SessionService(catalog: catalog, sources: [source], runner: runner, queue: queue,

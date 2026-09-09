@@ -325,3 +325,76 @@ extension CrossOverRunnerTests {
         }
     }
 }
+
+private actor PrimaryLeaseFixture: PrimaryDisplayHolding {
+    nonisolated let target: GameDisplayTarget
+    var releases = 0
+    init(uuid: String) {
+        let bounds = CGRect(x: 0, y: 0, width: 1920, height: 1080)
+        target = .init(bounds: bounds, primaryBounds: bounds, displayUUID: uuid)
+    }
+    func release() { releases += 1 }
+}
+private struct FailingLaunch: GameProcessLaunching {
+    func start(executable: URL, arguments: [String], environment: [String: String], input: Data?) throws -> any GameProcess {
+        throw CocoaError(.executableLoad)
+    }
+}
+extension CrossOverRunnerTests {
+    private var preferredMonitor: GameDisplayTarget {
+        .init(bounds: CGRect(x: -1920, y: 0, width: 1920, height: 1080),
+              primaryBounds: CGRect(x: 0, y: 0, width: 3008, height: 1692), displayUUID: "C1A51D2B-DB73-484B-8861-6BDF0DCEEB44")
+    }
+    func testPrimaryDisplayLivesThroughWrapperExitAndReleasesAfterActualGame() async throws {
+        let (root, bottle) = try fixture(), inspector = InspectionFixture(), child = ProcessFixture()
+        let target = preferredMonitor, lease = PrimaryLeaseFixture(uuid: preferredMonitor.displayUUID!)
+        let commands = ControllerCommands()
+        let runner = CrossOverRunner(bottles: root, manager: ReadyGame(), inspector: inspector,
+            launcher: child, commands: commands, displayHelper: root.appendingPathComponent("game.exe"), displayTarget: { target },
+            primaryDisplay: { requested in
+                XCTAssertEqual(requested, target)
+                let calls = await commands.calls
+                XCTAssertEqual(calls.count, 3, "Wine must be stopped before changing its display topology")
+                return lease
+            }, runtimeSettings: { _ in RuntimeSettings(temporaryPrimaryDisplay: true) })
+        let run = try await runner.launch(.init(executableRelativePath: "game.exe"), in: bottle, directory: root)
+        let launch = try XCTUnwrap(child.launched())
+        let expected = try GameDisplayTarget.launchInput(display: lease.target, executable: "Z:" + root.appendingPathComponent("game.exe").path.replacingOccurrences(of: "/", with: "\\"), arguments: [])
+        XCTAssertEqual(launch.input, expected)
+        let game = process(101, .game)
+        inspector.set(.init(processes: [game], windows: [.init(id: 1, process: game.identity)]))
+        child.exit(0)
+        _ = try await wait(runner, run, phase: .running)
+        let during = await lease.releases
+        XCTAssertEqual(during, 0)
+        inspector.set(.init(processes: []))
+        _ = try await wait(runner, run, phase: .exited)
+        let after = await lease.releases
+        XCTAssertEqual(after, 1)
+    }
+    func testPrimaryDisplayNeverAcquiredWithoutOptInOrForAlreadyPrimaryTarget() async throws {
+        for enabled in [false, true] {
+            let (root, bottle) = try fixture(), child = ProcessFixture()
+            let target = enabled ? PrimaryLeaseFixture(uuid: preferredMonitor.displayUUID!).target : preferredMonitor
+            let runner = CrossOverRunner(bottles: root, manager: ReadyGame(), inspector: InspectionFixture(),
+                launcher: child, commands: NoOpCommands(), displayHelper: root.appendingPathComponent("game.exe"), displayTarget: { target },
+                primaryDisplay: { _ in XCTFail("Unexpected display switch"); throw CocoaError(.featureUnsupported) },
+                runtimeSettings: { _ in RuntimeSettings(virtualDesktop: .init(rawValue: "1920x1080")!, temporaryPrimaryDisplay: enabled) })
+            let run = try await runner.launch(.init(executableRelativePath: "game.exe"), in: bottle, directory: root)
+            child.exit(0); _ = try await wait(runner, run, phase: .exited)
+        }
+    }
+    func testFailedLaunchReleasesPrimaryDisplayAndMissingTargetFailsBeforeRuntimeChanges() async throws {
+        for missing in [false, true] {
+            let (root, bottle) = try fixture(), commands = ControllerCommands()
+            let target = missing ? nil : preferredMonitor, lease = PrimaryLeaseFixture(uuid: preferredMonitor.displayUUID!)
+            let runner = CrossOverRunner(bottles: root, manager: ReadyGame(), inspector: InspectionFixture(),
+                launcher: FailingLaunch(), commands: commands, displayHelper: root.appendingPathComponent("game.exe"), displayTarget: { target },
+                primaryDisplay: { _ in return lease }, runtimeSettings: { _ in RuntimeSettings(temporaryPrimaryDisplay: true) })
+            do { _ = try await runner.launch(.init(executableRelativePath: "game.exe"), in: bottle, directory: root); XCTFail("Unexpected launch") } catch {}
+            let releases = await lease.releases, calls = await commands.calls
+            XCTAssertEqual(releases, missing ? 0 : 1)
+            XCTAssertEqual(calls.count, missing ? 0 : 3)
+        }
+    }
+}

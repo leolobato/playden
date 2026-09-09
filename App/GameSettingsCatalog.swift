@@ -138,7 +138,7 @@ enum GameSettingsCatalog {
         case .virtualDesktop:
             return RuntimeSettingDefinition(
                 id: .virtualDesktop, title: "Virtual desktop",
-                effect: "Runs the game inside a fixed-size Windows desktop. Rescues games that break in fullscreen or change the TV resolution.",
+                effect: "Runs the game inside a fixed-size Windows desktop. Rescues games that break in fullscreen or change the TV resolution. If it opens on the wrong monitor, try Make game monitor primary.",
                 alsoCalled: "Emulate a virtual desktop · winecfg", tier: .tier2,
                 kind: .choices([
                     RuntimeSettingChoice(value: "off", name: "Off", shortName: "Off",
@@ -153,6 +153,19 @@ enum GameSettingsCatalog {
                     RuntimeSettingChoice(value: "3840x2160", name: "3840×2160", shortName: "3840×2160",
                                          explanation: "A fake Windows desktop of this size; the game runs inside it.",
                                          technicalNames: "Desktops\\Default=3840x2160"),
+                ]))
+        case .temporaryPrimaryDisplay:
+            return RuntimeSettingDefinition(
+                id: .temporaryPrimaryDisplay, title: "Make game monitor primary",
+                effect: "Temporarily makes the game’s monitor the Mac’s main display. Can help games open on the correct monitor, including with Virtual desktop.",
+                alsoCalled: "Applies to the whole Mac while playing", tier: .tier2,
+                kind: .choices([
+                    RuntimeSettingChoice(value: "off", name: "Off", shortName: "Off",
+                                         explanation: "Keeps your Mac’s main display unchanged.", technicalNames: ""),
+                    RuntimeSettingChoice(value: "on", name: "While playing", shortName: "While playing",
+                                         tag: "Changes Mac display layout", tagIsWarning: true,
+                                         explanation: "Other windows, the Dock and menu bar may move. Restores the display configuration when the game ends or Playden quits. Applies on the next launch.",
+                                         technicalNames: ""),
                 ]))
         case .steamOverlay:
             return RuntimeSettingDefinition(

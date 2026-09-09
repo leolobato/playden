@@ -12,6 +12,8 @@ public actor CrossOverRunner: GameRunner {
     private let commands: any CommandExecuting
     private let displayHelper: URL?
     private let displayTarget: @Sendable () async throws -> GameDisplayTarget?
+    private let primaryDisplay: @Sendable (GameDisplayTarget) async throws -> any PrimaryDisplayHolding
+    private var primaryDisplayLease: (any PrimaryDisplayHolding)?
     private let audioDeviceUID: @Sendable () async throws -> String?
     private let runtimeSettings: @Sendable (GameID) async throws -> RuntimeSettings
     private var starting = false
@@ -25,11 +27,14 @@ public actor CrossOverRunner: GameRunner {
                 manager: any GameBottleManaging = CrossOverGameBottles(), inspector: any RuntimeInspecting = RuntimeProcessInspector(),
                 launcher: any GameProcessLaunching = GameProcessLauncher(), commands: any CommandExecuting = CommandExecutor(),
                 displayHelper: URL? = nil, displayTarget: @escaping @Sendable () async throws -> GameDisplayTarget? = { nil },
+                primaryDisplay: @escaping @Sendable (GameDisplayTarget) async throws -> any PrimaryDisplayHolding = { _ in
+                    throw OperationFailure(stage: "Prepare game display", reason: "The temporary display helper is unavailable.", output: "No native display helper was configured.")
+                },
                 audioDeviceUID: @escaping @Sendable () async throws -> String? = { nil },
                 runtimeSettings: @escaping @Sendable (GameID) async throws -> RuntimeSettings = { _ in .playdenDefault }) {
         self.application = application; self.bottles = bottles; self.manager = manager; self.inspector = inspector
         self.launcher = launcher; self.commands = commands
-        self.displayHelper = displayHelper; self.displayTarget = displayTarget; self.audioDeviceUID = audioDeviceUID; self.runtimeSettings = runtimeSettings
+        self.displayHelper = displayHelper; self.displayTarget = displayTarget; self.primaryDisplay = primaryDisplay; self.audioDeviceUID = audioDeviceUID; self.runtimeSettings = runtimeSettings
     }
     @discardableResult public func prepare(_ bottle: GameBottle) async throws -> Bool {
         guard !starting, active == nil else { throw failure("Prepare game", "Quit the current game before preparing another game.") }
@@ -54,29 +59,56 @@ public actor CrossOverRunner: GameRunner {
         let prefix = try prefix(bottle)
         var baseline = try inspector.inspect(bottle: prefix)
         guard !baseline.processes.contains(where: { $0.kind == .game }) else { throw failure("Launch game", "This game's bottle already has an application running.") }
-        let target = try await displayTarget()
+        var target = try await displayTarget()
         let audioUID = try await audioDeviceUID()
         guard audioUID.map({ !$0.isEmpty && $0.utf16.count < 440 && !$0.utf8.contains(0) && !$0.contains("\\") }) ?? true else {
             throw failure("Launch game", "The preferred audio device is invalid. Choose it again in Settings → Audio.")
         }
         let settings = try await runtimeSettings(bottle.gameID)
+        if settings.temporaryPrimaryDisplay {
+            guard let uuid = target?.displayUUID, UUID(uuidString: uuid) != nil else {
+                throw failure("Prepare game display", PrimaryDisplayError.unavailable.localizedDescription)
+            }
+        }
         let spec = try RuntimeMechanisms.effectiveSpec(spec, settings: settings)
         let useHelper = displayHelper != nil || target != nil || audioUID != nil
         let plainArguments = try Self.arguments(spec, bottle: prefix, directory: directory, winver: RuntimeMechanisms.winver(settings))
-        let input = try useHelper ? GameDisplayTarget.launchInput(display: target, executable: plainArguments[plainArguments.count - spec.arguments.count - 1], arguments: spec.arguments) : nil
-        let arguments = try Self.arguments(spec, bottle: prefix, directory: directory, winver: RuntimeMechanisms.winver(settings), display: target, helper: displayHelper, forceHelper: useHelper)
+        var input = try useHelper ? GameDisplayTarget.launchInput(display: target, executable: plainArguments[plainArguments.count - spec.arguments.count - 1], arguments: spec.arguments) : nil
+        var arguments = try Self.arguments(spec, bottle: prefix, directory: directory, winver: RuntimeMechanisms.winver(settings), display: target, helper: displayHelper, forceHelper: useHelper)
         try verifyOwnership(bottle, at: prefix)
         try await applyRuntimeSettings(settings, bottle: bottle, prefix: prefix, knownProcesses: baseline.processes)
         baseline = try inspector.inspect(bottle: prefix)
         guard baseline.processes.isEmpty else {
             throw failure("Apply game settings", "The game runtime is still busy. Close its other applications and retry.")
         }
-        try Task.checkCancellation()
-        let process = try launcher.start(executable: tool("cxstart"), arguments: arguments, environment: spec.environment.merging(audioUID.map { ["PLAYDEN_AUDIO_DEVICE_UID": $0] } ?? [:]) { _, preferred in preferred }, input: input)
-        let run = RunningGame(bottle: bottle, launcher: process.identity)
-        active = run; child = process; latest[run.id] = .init(run: run, processes: baseline.processes)
-        worker = Task { await self.watch(run, process: process) }
-        return run
+        var pendingDisplay: (any PrimaryDisplayHolding)?
+        do {
+            try Task.checkCancellation()
+            if settings.temporaryPrimaryDisplay, let requested = target, requested.bounds.origin != .zero {
+                let lease = try await primaryDisplay(requested)
+                pendingDisplay = lease
+                guard lease.target.displayUUID?.caseInsensitiveCompare(requested.displayUUID ?? "") == .orderedSame,
+                      lease.target.bounds.origin == .zero else {
+                    throw failure("Prepare game display", "The game monitor did not become primary.")
+                }
+                target = lease.target
+                // All coordinates are now relative to the new main display. Do not send the
+                // pre-switch negative origin to the Windows helper, even for a virtual desktop.
+                input = try GameDisplayTarget.launchInput(display: target, executable: plainArguments[plainArguments.count - spec.arguments.count - 1], arguments: spec.arguments)
+                arguments = try Self.arguments(spec, bottle: prefix, directory: directory, winver: RuntimeMechanisms.winver(settings), display: target, helper: displayHelper, forceHelper: useHelper)
+            }
+            try Task.checkCancellation()
+            let process = try launcher.start(executable: tool("cxstart"), arguments: arguments, environment: spec.environment.merging(audioUID.map { ["PLAYDEN_AUDIO_DEVICE_UID": $0] } ?? [:]) { _, preferred in preferred }, input: input)
+            let run = RunningGame(bottle: bottle, launcher: process.identity)
+            primaryDisplayLease = pendingDisplay
+            active = run; child = process; latest[run.id] = .init(run: run, processes: baseline.processes)
+            worker = Task { await self.watch(run, process: process) }
+            return run
+        } catch {
+            // A failed/cancelled launch must never leave the helper holding the display layout.
+            await pendingDisplay?.release()
+            throw error
+        }
     }
     /// Settings are applied only at launch, after ownership and executable validation.
     /// Restart the owned idle runtime so WineBus and the bottle configuration reload before the
@@ -219,7 +251,7 @@ public actor CrossOverRunner: GameRunner {
                     if !snapshot.hadWindow && !snapshot.forced {
                         snapshot.failure = failure("Launch game", "The game exited before opening a window.", output: poll.output)
                     }
-                    finish(snapshot, process: process); return
+                    await finish(snapshot, process: process); return
                 }
                 latest[run.id] = snapshot; publish(snapshot)
             } catch {
@@ -232,7 +264,9 @@ public actor CrossOverRunner: GameRunner {
             do { try await Task.sleep(for: .milliseconds(100)) } catch { return }
         }
     }
-    private func finish(_ snapshot: RunSnapshot, process: any GameProcess) {
+    private func finish(_ snapshot: RunSnapshot, process: any GameProcess) async {
+        let display = primaryDisplayLease; primaryDisplayLease = nil
+        await display?.release()
         latest[snapshot.run.id] = snapshot; publish(snapshot)
         for stream in observers.removeValue(forKey: snapshot.run.id)?.values ?? [:].values { stream.finish() }
         active = nil; child = nil; worker = nil

@@ -131,3 +131,19 @@ final class RuntimeSettingsTests: XCTestCase {
         XCTAssertEqual(off.sourceOptions["steam.overlay"], "0")
     }
 }
+
+extension RuntimeSettingsTests {
+    func testTemporaryPrimaryRequiresExplicitOverrideEvenWhenProfileEnablesVirtualDesktop() throws {
+        let catalog = CuratedProfileCatalog(profiles: [
+            .init(id: "vd", name: "VD", tryWhen: "", shortHint: "", settings: [
+                .virtualDesktop: .scalar("1920x1080"), .temporaryPrimaryDisplay: .scalar("on")
+            ])
+        ])
+        XCTAssertFalse(RuntimeSettings.playdenDefault.temporaryPrimaryDisplay)
+        XCTAssertFalse(RuntimeResolver.settings(.init(base: "vd"), catalog: catalog).temporaryPrimaryDisplay)
+        let profile = RuntimeProfile(base: "vd", overrides: [.temporaryPrimaryDisplay: .scalar("on")], source: .user)
+        let saved = try JSONDecoder().decode(RuntimeProfile.self, from: JSONEncoder().encode(profile))
+        XCTAssertTrue(RuntimeResolver.settings(saved, catalog: catalog).temporaryPrimaryDisplay)
+        XCTAssertEqual(RuntimeResolver.normalized(saved, catalog: catalog).overrides[.temporaryPrimaryDisplay], .scalar("on"))
+    }
+}

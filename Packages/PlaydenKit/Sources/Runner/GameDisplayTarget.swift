@@ -5,8 +5,10 @@ import Foundation
 public struct GameDisplayTarget: Equatable, Sendable {
     public var bounds: CGRect
     public var primaryBounds: CGRect
-    public init(bounds: CGRect, primaryBounds: CGRect) {
-        self.bounds = bounds; self.primaryBounds = primaryBounds
+    /// Stable identity for the native primary-display helper. Nil when a saved display is unavailable.
+    public var displayUUID: String?
+    public init(bounds: CGRect, primaryBounds: CGRect, displayUUID: String? = nil) {
+        self.bounds = bounds; self.primaryBounds = primaryBounds; self.displayUUID = displayUUID
     }
     func arguments() throws -> [String] {
         let values = [bounds.minX, bounds.minY, bounds.width, bounds.height, primaryBounds.width, primaryBounds.height]

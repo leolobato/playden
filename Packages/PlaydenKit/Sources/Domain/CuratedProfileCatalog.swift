@@ -55,9 +55,10 @@ public enum RuntimeResolver {
     }
 
     /// Resolved map and base-profile map for the UI: resolved = defaults ⊕ base profile ⊕ overrides; base = defaults ⊕ base profile.
+    /// A base profile cannot enable temporaryPrimaryDisplay; only a user override can.
     public static func values(_ profile: RuntimeProfile, catalog: CuratedProfileCatalog) -> (resolved: [RuntimeSettingID: RuntimeSettingValue], base: [RuntimeSettingID: RuntimeSettingValue]) {
         var base = defaultValues
-        if let id = profile.base, let curated = catalog[id] { for (key, value) in curated.settings { base[key] = value } }
+        if let id = profile.base, let curated = catalog[id] { for (key, value) in curated.settings where key != .temporaryPrimaryDisplay { base[key] = value } }
         var resolved = base
         for (key, value) in profile.overrides { resolved[key] = value }
         return (resolved, base)
@@ -70,6 +71,8 @@ public enum RuntimeResolver {
         .windowsVersion: .scalar(WindowsVersion.playdenDefault.rawValue),
         .highResolution: .scalar(RuntimeToggle(true).rawValue),
         .virtualDesktop: .scalar(VirtualDesktopSize.playdenDefault.rawValue),
+        // A system-wide display change requires a per-game user override; profiles cannot enable it.
+        .temporaryPrimaryDisplay: .scalar("off"),
         .steamOverlay: .scalar(RuntimeToggle(false).rawValue),
         .performanceOverlay: .scalar(RuntimeToggle(false).rawValue),
         .frameLimit: .scalar(FrameLimit.playdenDefault.rawValue),
@@ -108,6 +111,7 @@ public enum RuntimeResolver {
         if let raw = scalar(.windowsVersion), let value = WindowsVersion(rawValue: raw) { settings.windowsVersion = value }
         if let raw = scalar(.highResolution), let value = RuntimeToggle(rawValue: raw) { settings.highResolution = value.boolValue }
         if let raw = scalar(.virtualDesktop), let value = VirtualDesktopSize(rawValue: raw) { settings.virtualDesktop = value }
+        if let raw = scalar(.temporaryPrimaryDisplay), let value = RuntimeToggle(rawValue: raw) { settings.temporaryPrimaryDisplay = value.boolValue }
         if let raw = scalar(.performanceOverlay), let value = RuntimeToggle(rawValue: raw) { settings.performanceOverlay = value.boolValue }
         if let raw = scalar(.frameLimit), let value = FrameLimit(rawValue: raw) { settings.frameLimit = value }
         if let raw = scalar(.largeAddressAware), let value = RuntimeToggle(rawValue: raw) { settings.largeAddressAware = value.boolValue }
