@@ -1,11 +1,12 @@
 # Playden
 
-Your Steam library, on the TV. Playden is a native Mac app for browsing, installing and
-playing Windows games from the couch with a controller.
+**Windows games on your Mac, from the couch.**
 
-**The current focus is Steam and CrossOver on Apple Silicon.** Playden downloads your games
-and prepares an isolated CrossOver environment for each one. Support for other engines and
-stores is planned.
+Playden is a controller-first launcher for your Steam library on Apple Silicon. It installs
+each Windows game into its own CrossOver environment and gets you from the sofa to the game
+without bottles, shortcuts or the desktop.
+
+**The current focus is Steam and CrossOver.** Support for other engines and stores is planned.
 
 ![Playden Library with sample games](docs/images/library.png)
 
@@ -232,3 +233,17 @@ not features of the current build.
 
 [Product requirements](docs/prd/README.md) · [Implementation and acceptance plan](docs/IMPLEMENTATION_PLAN.md) ·
 [Developer setup](docs/DEVELOPMENT.md)
+
+## License
+
+Playden is free software, licensed under the [GNU General Public License v3.0](LICENSE) or
+any later version. Parts of the Steam library descend from
+[GameNative](https://github.com/utkarshdalal/GameNative) and
+[Pluvia](https://github.com/oxters168/Pluvia), which are also GPL-3.0. Bundled and linked
+third-party components and their licenses are listed in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). The bundled Steamless release is
+CC BY-NC-ND 4.0, so redistributing Playden with it is limited to noncommercial use.
+
+Playden is an independent project and is not affiliated with Valve Corporation or
+CodeWeavers, Inc. Steam is a trademark of Valve Corporation. CrossOver is a trademark of
+CodeWeavers, Inc.
