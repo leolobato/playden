@@ -38,9 +38,13 @@ implemented.
   quitting, session playtime and recorded exit results. Downloads can pause while you play.
 - **Sync supported Steam Cloud saves.** Download before playing, upload after exit, review
   conflicts and retry pending transfers. Save support depends on a verified mapping for the game.
-- **Tune each game.** Game settings offers Xbox-compatible controller mapping (the default)
-  or native controller input, applied on the next launch. The More menu holds game management
-  actions, and Cloud saves shows the latest save timestamp when available.
+- **Tune each game.** Game settings holds a per-game runtime profile: pick a curated profile
+  such as Older 3D game or Modern DX12, then change single settings. Graphics translator
+  (D3DMetal, DXVK, DXMT), synchronization, controller mode, Windows version, launch entry, high
+  resolution mode, virtual desktop, Steam overlay, performance overlay, frame limit, large
+  address aware, plus typed launch arguments, environment variables and library overrides.
+  Every change applies on the next launch. The More menu holds game management actions, and
+  Cloud saves shows the latest save timestamp when available.
 - **Set up your display.** Choose the preferred monitor for Playden and game placement,
   toggle fullscreen, start in fullscreen, and reduce animation.
 - **Troubleshoot on the TV.** Visible failure stages, Retry controls, scrollable logs, a runtime
@@ -122,10 +126,9 @@ Maintainers can build a signed, notarized DMG with `scripts/distribute.sh`; see
 5. Open a game, select **Install**, then **Play** when installation finishes. A Short Hike is the
    most thoroughly exercised title so far.
 
-If a game has multiple launch options, **Play** asks which one to use. Select **Always use this**
-to remember your choice for that game. Open the game's **More → Launch options** menu to change
-it, or clear **Always use this** to be asked each time. Only options for the installed public
-branch and included DLC are offered.
+If a game has multiple launch options, **Play** starts the game's default entry. Choose another
+one under **Game settings → Launch option**; the choice is kept for that game. Only options for
+the installed public branch and included DLC are offered.
 
 macOS may ask for access to the Steam sign-in item in Keychain. Playden stores sign-in tokens
 there; it does not store your Mac password. See [signing and permissions](docs/DEVELOPMENT.md#signing-and-permissions)

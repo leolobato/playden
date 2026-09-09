@@ -95,6 +95,17 @@ boundary cancels authenticated work on sign-out and uses memory-only depot keys.
 CM hello and expanded suites pass. The installer factory, pinned plan and durable orchestration remain
 the next integration work.
 
+Per-game runtime profiles landed on 9 September 2026 (design boards 4a–4e, PRD
+`prd/playden-per-game-settings-profiles-and-a-community-database.md` with its decisions section). Each
+game stores a base curated profile plus overrides in its edits; eight profiles ship as data in the Domain
+bundle. Before every launch the runner rewrites the graphics and synchronization keys in the game's own
+bottle configuration, imports controller, high-resolution and virtual-desktop registry values as one
+file, restarts the idle wineserver, passes the Windows version with `--winver`, and merges the remaining
+settings into the launch environment; the Steam installer writes the emulator overlay switch. The sheet,
+picker and profile chooser follow the boards; Language, Windows components, Start directly, DLC
+unlocking, the community banner and profile export are deferred, as recorded in the PRD. A live launch
+under a non-default profile has not yet been exercised on hardware.
+
 ## 1. Planning defaults and PRD corrections
 
 Use these defaults to make the work concrete. Reconcile the referenced PRD requirements during
