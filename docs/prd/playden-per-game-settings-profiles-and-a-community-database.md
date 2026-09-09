@@ -205,7 +205,7 @@ Agreed while planning the v1 slice on branch `feat/game-settings`. Boards 4a–4
 
 **Scope**
 
-- Ship the settings sheet, the picker, the profile chooser, the close toast and the Tier 3 text rows. Work lands as one branch with one commit per slice: data model and profiles, runner application, sheet, picker, chooser, text entry.
+- Ship the settings sheet, the picker, the profile chooser, the close toast and the Tier 3 text rows. Work lands as one branch with one commit per slice: data model and profiles, runner application, Steam options and launch resolution, app model, sheet, picker, chooser, text entry, docs.
 - The existing controller-mode dialog and the Launch options panel are replaced by the sheet. "Launch options" leaves the More menu. No backwards compatibility with the two per-game values stored so far; they become part of the runtime profile.
 - Curated profiles ship as `profiles.json` in the app bundle, as proposed in section 2. "Save current as my profile" (chooser △) is deferred with the export and import UI.
 
@@ -213,12 +213,13 @@ Agreed while planning the v1 slice on branch `feat/game-settings`. Boards 4a–4
 
 - **Language**: not shown. Installs are English only today and a language change means new depot downloads. Revisit with multi-language installs.
 - **Windows components**: deferred. CrossOver 26 has no command-line installer for redistributables, and Playden only runs installers that ship inside a game's own depot through pinned per-game recipes. Later options, in order: (A) "Run the game's own installers" driven by `installscript.vdf` and `_CommonRedist`, with the rest of the checklist shown disabled; (B) Playden downloads the Microsoft redistributables from pinned URLs with pinned hashes, winetricks style, cached on the games volume.
-- **Start directly**: lists the game's Steam launch entries only. No executable browser over the install folder.
-- **Steam features**: which sub-settings ship is still open (DLC unlock, overlay, account name). The name shown in game is currently the fixed string "Playden".
+- **Start directly**: not shown. Restricted to the game's launch entries it is the same choice as Launch option, so one row covers both. An executable browser over the install folder can bring the row back later.
+- **Steam features**: only the overlay toggle ships. "Unlock all DLC" is not exposed: it makes the emulator claim every DLC as owned regardless of the account, and the depots only contain owned DLC, so it is an ownership bypass rather than a compatibility fix. The account name shown in game stays the fixed string "Playden".
+- **Large address aware** becomes a visible Tier 2 row (On · Off) at the end of More settings so the profile comparison table can show it and users can toggle it without typing.
 
 **How settings apply**
 
-- Nothing in this slice writes to the bottle. Graphics and Synchronization are passed as environment variables at launch; Windows version uses the `--winver` launch flag. The "Changes bottle" tag is dropped from the sheet and picker. A short probe must confirm that CrossOver honors `CX_GRAPHICS_BACKEND` from the process environment; the fallback is rewriting `cxbottle.conf` and relaxing the bottle readiness check.
-- High resolution mode and Virtual desktop are registry values, applied before launch the same way controller mode is today (registry write, then a wineserver restart of the idle bottle).
-- Large address aware is a first-class setting so the profile comparison table can show it; it resolves to `WINE_LARGE_ADDRESS_AWARE=1`.
-- Tier 3 values are validated by the runner's existing environment-key allowlist and DLL-override format.
+- A probe on CrossOver 26.2 showed that the process environment does not override `[EnvironmentVariables]` in the bottle's `cxbottle.conf`. Graphics and Synchronization therefore rewrite three keys in the game's bottle before launch (`CX_GRAPHICS_BACKEND`, `WINEMSYNC`, `WINEESYNC`), only when they differ and only while the bottle is idle. The template is never modified, and the bottle readiness check accepts the allowed values instead of demanding the template's. These two rows keep the "Changes bottle" tag.
+- Windows version uses the `--winver` launch flag and does not change the bottle.
+- Controller, High resolution mode and Virtual desktop are registry values, applied before every launch as one registry import followed by a wineserver restart of the idle bottle, the way controller mode works today.
+- Performance overlay, Frame limit and Large address aware are environment variables passed at launch. Tier 3 environment variables and library overrides are validated by the runner's existing allowlist and override format; keys that Playden manages itself cannot be typed.

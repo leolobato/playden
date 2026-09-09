@@ -51,4 +51,4 @@ When the sheet closes with pending changes: bottom-right toast (see components s
 `4a-game-settings-tier1.png`, `4b-game-settings-custom-tier2.png`, `4c-picker-graphics.png`, `4d-profile-chooser.png`, `4e-components-job.png`, `4f-community-banner-states.png`.
 
 ## Implementation decisions
-See "Decisions for the first implementation" at the end of the PRD. In short: no Language row, Windows components deferred, Start directly lists launch entries only, no "Changes bottle" tag (nothing in v1 writes to the bottle), community banner and profile export deferred.
+See "Decisions for the first implementation" at the end of the PRD. In short: no Language, Windows components or Start directly rows; Large address aware is a visible Tier 2 row; Steam features is an overlay toggle only; "Changes bottle" stays on Graphics and Synchronization only (they rewrite the game's bottle before launch, Windows version does not); community banner and profile export deferred.
