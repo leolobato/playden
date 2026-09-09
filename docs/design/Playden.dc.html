@@ -19,6 +19,247 @@ a{color:#F0863A}a:hover{color:#ffa566}
 
 <section style="padding:48px 64px;display:flex;flex-direction:column;gap:40px;border-bottom:1px solid rgba(243,239,233,.1)">
   <div style="display:flex;flex-direction:column;gap:6px;max-width:900px">
+    <div style="font:600 14px/1 'Barlow Condensed';letter-spacing:.14em;text-transform:uppercase;color:#a8a29e">Turn 4</div>
+    <h1 style="margin:0;font:600 34px/1.1 'Barlow Condensed';color:#f3efe9">Game settings: runtime profile per game</h1>
+    <p style="margin:0;font:400 15px/1.5 Barlow;color:#a8a29e;text-wrap:pretty">A 960 px sheet over the game page. Every row: what it does in one sentence, then the CrossOver/Wine name for people who read a fix online. <a href="#4a">4a</a> Tier 1 on the "Older 3D game" profile; <a href="#4b">4b</a> Custom after changes, More settings expanded; <a href="#4c">4c</a> picker sheet for Graphics; <a href="#4d">4d</a> full-screen profile chooser; <a href="#4e">4e</a> Windows components running as a job; <a href="#4f">4f</a> the community banner states.</p>
+  </div>
+
+  <div style="display:flex;flex-wrap:wrap;gap:48px;align-items:flex-start">
+    <sc-for list="{{ sheetBoards }}" as="b" hint-placeholder-count="4">
+      <div id="{{ b.id }}" style="display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span style="font:700 13px/1 'Barlow Condensed';letter-spacing:.1em;padding:6px 9px;border-radius:6px;background:#F0863A;color:#1a1210">{{ b.id }}</span>
+          <span style="font:500 17px/1 'Barlow Condensed';color:#f3efe9">{{ b.label }}</span>
+          <span style="font:400 14px/1 Barlow;color:#a8a29e">{{ b.note }}</span>
+        </div>
+        <div style="position:relative;width:1920px;height:1080px;overflow:hidden;background:#0e0d0c;border-radius:4px;box-shadow:0 30px 80px rgba(0,0,0,.5)" data-screen-label="{{ b.label }}">
+          <!-- game page behind -->
+          <img src="{{ disco.hero }}" alt="" style="position:absolute;left:0;top:0;width:1920px;height:620px;object-fit:cover;display:block">
+          <div style="position:absolute;left:0;top:0;width:1920px;height:620px;background:linear-gradient(180deg,rgba(14,13,12,.4),rgba(14,13,12,0) 30%,rgba(14,13,12,0) 75%,#0e0d0c)"></div>
+          <div style="position:absolute;left:96px;top:54px;display:flex;align-items:center;gap:12px;color:#f3efe9;font:500 24px/1 Barlow"><span style="width:36px;height:36px;border-radius:50%;border:2px solid #f3efe9;display:inline-flex;align-items:center;justify-content:center;font:600 18px/1 Barlow">{{ g.back }}</span>Library</div>
+          <img src="{{ disco.logo }}" alt="Disco Elysium" style="position:absolute;left:96px;top:430px;width:460px;height:160px;object-fit:contain;object-position:left bottom;display:block;filter:drop-shadow(0 8px 30px rgba(0,0,0,.6))">
+          <div style="position:absolute;left:96px;right:96px;top:640px;display:flex;flex-direction:column;gap:30px">
+            <div style="display:flex;align-items:center;gap:26px;flex:none">
+              <div style="display:flex;align-items:center;gap:16px;padding:0 44px;height:84px;border-radius:8px;background:#F0863A;color:#1a1210"><span style="width:0;height:0;border-left:20px solid #1a1210;border-top:12px solid transparent;border-bottom:12px solid transparent"></span><span style="font:600 38px/1 'Barlow Condensed';letter-spacing:.02em">Play</span></div>
+              <div style="display:flex;gap:10px">
+                <div style="width:60px;height:60px;border-radius:8px;border:2px solid rgba(243,239,233,.2);display:flex;align-items:center;justify-content:center;font:600 22px/1 Barlow;color:#f3efe9">{{ g.favorite }}</div>
+                <div style="padding:0 22px;height:60px;border-radius:8px;border:2px solid rgba(243,239,233,.35);background:rgba(243,239,233,.1);display:flex;align-items:center;font:500 26px/1 'Barlow Condensed';color:#f3efe9;white-space:nowrap;flex:none">Game settings</div>
+                <div style="padding:0 22px;height:60px;border-radius:8px;border:2px solid rgba(243,239,233,.2);display:flex;align-items:center;font:500 26px/1 'Barlow Condensed';color:#f3efe9;white-space:nowrap;flex:none">Add to collection</div>
+                <div style="padding:0 22px;height:60px;border-radius:8px;border:2px solid rgba(243,239,233,.2);display:flex;align-items:center;font:500 26px/1 'Barlow Condensed';color:#f3efe9;white-space:nowrap;flex:none">Set compatibility</div>
+                <div style="padding:0 22px;height:60px;border-radius:8px;border:2px solid rgba(243,239,233,.2);display:flex;align-items:center;font:500 26px/1 'Barlow Condensed';color:#f3efe9;white-space:nowrap;flex:none">Verify files</div>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px 40px;width:760px">
+              <div style="display:flex;flex-direction:column;gap:6px"><span style="font:600 16px/1 'Barlow Condensed';letter-spacing:.1em;text-transform:uppercase;color:#a8a29e">Playtime</span><span style="font:500 26px/1 Barlow;color:#f3efe9">14 h 20 min</span></div>
+              <div style="display:flex;flex-direction:column;gap:6px"><span style="font:600 16px/1 'Barlow Condensed';letter-spacing:.1em;text-transform:uppercase;color:#a8a29e">Compatibility</span><span style="display:inline-flex;align-items:center;gap:10px;font:500 26px/1 Barlow;color:#f3efe9"><span style="width:10px;height:10px;border-radius:50%;background:#e2b53c"></span>Playable</span></div>
+              <div style="display:flex;flex-direction:column;gap:6px"><span style="font:600 16px/1 'Barlow Condensed';letter-spacing:.1em;text-transform:uppercase;color:#a8a29e">Profile</span><span style="font:500 26px/1 Barlow;color:#f3efe9">{{ b.profile }}</span></div>
+              <div style="display:flex;flex-direction:column;gap:6px"><span style="font:600 16px/1 'Barlow Condensed';letter-spacing:.1em;text-transform:uppercase;color:#a8a29e">Last played</span><span style="font:500 26px/1 Barlow;color:#f3efe9">Yesterday</span></div>
+            </div>
+          </div>
+          <div style="position:absolute;inset:0;background:rgba(14,13,12,.6)"></div>
+
+          <!-- settings sheet -->
+          <div style="position:absolute;right:0;top:0;bottom:0;width:960px;background:#16140f;border-left:1px solid rgba(243,239,233,.1);box-shadow:-40px 0 80px rgba(0,0,0,.5);display:flex;flex-direction:column;transform:translateX({{ b.sheetShift }}px);filter:brightness({{ b.sheetDim }})">
+            <div style="padding:54px 60px 0;display:flex;flex-direction:column;gap:24px;flex:1;min-height:0;overflow:hidden">
+              <div style="display:flex;align-items:baseline;justify-content:space-between">
+                <span style="font:600 44px/1 'Barlow Condensed';color:#f3efe9">Game settings</span>
+                <span style="font:400 22px/1 Barlow;color:#a8a29e">Disco Elysium</span>
+              </div>
+
+              <!-- community banner -->
+              <sc-if value="{{ b.showBanner }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;align-items:center;gap:18px;padding:18px 22px;border-radius:8px;background:rgba(240,134,58,.1);border:1px solid rgba(240,134,58,.35)">
+                  <span style="width:12px;height:12px;border-radius:50%;background:#7bbf6a;flex:none"></span>
+                  <div style="display:flex;flex-direction:column;gap:5px;flex:1;min-width:0">
+                    <span style="font:600 24px/1 'Barlow Condensed';color:#f3efe9">{{ b.bannerTitle }}</span>
+                    <span style="font:400 18px/1.3 Barlow;color:#a8a29e">{{ b.bannerSub }}</span>
+                  </div>
+                  <span style="padding:0 18px;height:46px;display:inline-flex;align-items:center;border-radius:8px;background:#F0863A;color:#1a1210;font:600 22px/1 'Barlow Condensed';white-space:nowrap">{{ b.bannerAction }}</span>
+                </div>
+              </sc-if>
+
+              <!-- rows -->
+              <div style="display:flex;flex-direction:column;gap:6px;margin-top:{{ b.scroll }}px">
+                <sc-for list="{{ b.rows }}" as="r" hint-placeholder-count="7">
+                  <sc-if value="{{ r.isSection }}" hint-placeholder-val="{{ false }}">
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:22px 24px 10px">
+                      <span style="font:600 20px/1 'Barlow Condensed';letter-spacing:.12em;text-transform:uppercase;color:#a8a29e">{{ r.name }}</span>
+                      <span style="font:400 18px/1 Barlow;color:#6b655f">{{ r.hint }}</span>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ r.isRow }}" hint-placeholder-val="{{ true }}">
+                    <div style="position:relative;display:grid;grid-template-columns:1fr auto;gap:24px;align-items:center;padding:18px 24px;border-radius:8px;background:{{ r.bg }}">
+                      <div style="display:flex;flex-direction:column;gap:7px;min-width:0">
+                        <div style="display:flex;align-items:center;gap:12px">
+                          <sc-if value="{{ r.changed }}" hint-placeholder-val="{{ false }}"><span style="width:10px;height:10px;border-radius:50%;background:#F0863A;flex:none"></span></sc-if>
+                          <span style="font:600 28px/1 'Barlow Condensed';color:#f3efe9">{{ r.name }}</span>
+                          <sc-if value="{{ r.bottle }}" hint-placeholder-val="{{ false }}"><span style="font:600 13px/1 Barlow;letter-spacing:.06em;text-transform:uppercase;padding:4px 7px;border-radius:4px;border:1px solid rgba(243,239,233,.25);color:#a8a29e">Changes bottle</span></sc-if>
+                        </div>
+                        <span style="font:400 19px/1.3 Barlow;color:#d6d0c8;text-wrap:pretty">{{ r.effect }}</span>
+                        <span style="font:400 16px/1.3 Barlow;color:#6b655f"><span style="color:#a8a29e">Also called</span> {{ r.also }}</span>
+                      </div>
+                      <div style="display:flex;align-items:center;gap:14px;white-space:nowrap">
+                        <span style="font:500 24px/1 Barlow;color:{{ r.valueColor }}">{{ r.value }}</span>
+                        <span style="font:400 24px/1 Barlow;color:#6b655f">›</span>
+                      </div>
+                      <sc-if value="{{ r.focused }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:-6px;border-radius:13px;border:4px solid #F0863A;box-shadow:0 0 30px rgba(240,134,58,.45);pointer-events:none"></div></sc-if>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ r.isJob }}" hint-placeholder-val="{{ false }}">
+                    <div style="display:flex;flex-direction:column;gap:14px;padding:22px 24px;border-radius:8px;background:rgba(243,239,233,.08)">
+                      <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font:600 26px/1 'Barlow Condensed';color:#f3efe9">Installing Windows components</span><span style="font:500 22px/1 Barlow;color:#F0863A">2 of 4</span></div>
+                      <div style="height:8px;border-radius:4px;background:rgba(243,239,233,.15)"><div style="width:44%;height:8px;border-radius:4px;background:#F0863A"></div></div>
+                      <div style="display:flex;flex-direction:column;gap:10px;font:400 20px/1 Barlow">
+                        <div style="display:flex;align-items:center;gap:12px;color:#a8a29e"><span style="width:10px;height:10px;border-radius:50%;background:#7bbf6a"></span>DirectX (June 2010)</div>
+                        <div style="display:flex;align-items:center;gap:12px;color:#f3efe9"><span style="width:10px;height:10px;border-radius:50%;border:3px solid #F0863A;border-top-color:transparent;box-sizing:border-box"></span>Visual C++ 2010 to 2013 · 38 s left</div>
+                        <div style="display:flex;align-items:center;gap:12px;color:#6b655f"><span style="width:10px;height:10px;border-radius:50%;border:2px solid #6b655f;box-sizing:border-box"></span>XAudio</div>
+                        <div style="display:flex;align-items:center;gap:12px;color:#6b655f"><span style="width:10px;height:10px;border-radius:50%;border:2px solid #6b655f;box-sizing:border-box"></span>Run the game's own installers</div>
+                      </div>
+                      <span style="font:400 17px/1.3 Barlow;color:#6b655f">Runs inside this game's bottle. Play is unavailable until it finishes; you can leave this screen.</span>
+                    </div>
+                  </sc-if>
+                </sc-for>
+              </div>
+            </div>
+            <div style="height:120px;margin-top:-120px;background:linear-gradient(180deg,rgba(22,20,15,0),#16140f 70%);pointer-events:none;flex:none"></div>
+            <div style="padding:0 60px 54px;display:flex;align-items:center;justify-content:space-between;flex:none">
+              <div style="display:flex;align-items:center;gap:26px">
+                <div style="display:flex;align-items:center;gap:10px"><span style="width:36px;height:36px;border-radius:50%;border:2px solid #f3efe9;display:inline-flex;align-items:center;justify-content:center;font:600 18px/1 Barlow;color:#f3efe9">{{ g.confirm }}</span><span style="font:500 22px/1 Barlow;color:#f3efe9">Change</span></div>
+                <div style="display:flex;align-items:center;gap:10px"><span style="width:36px;height:36px;border-radius:50%;border:2px solid #f3efe9;display:inline-flex;align-items:center;justify-content:center;font:600 18px/1 Barlow;color:#f3efe9">{{ g.back }}</span><span style="font:500 22px/1 Barlow;color:#f3efe9">Close</span></div>
+              </div>
+              <span style="padding:0 18px;height:46px;display:inline-flex;align-items:center;border-radius:8px;border:2px solid rgba(243,239,233,.2);color:{{ b.resetColor }};font:500 22px/1 'Barlow Condensed';white-space:nowrap">Reset all to profile</span>
+            </div>
+          </div>
+
+          <!-- picker sheet (4c) -->
+          <sc-if value="{{ b.picker }}" hint-placeholder-val="{{ false }}">
+            <div style="position:absolute;right:0;top:0;bottom:0;width:960px;background:#1a1813;border-left:1px solid rgba(243,239,233,.12);box-shadow:-40px 0 80px rgba(0,0,0,.6);display:flex;flex-direction:column">
+              <div style="padding:54px 60px 0;display:flex;flex-direction:column;gap:22px;flex:1">
+                <div style="display:flex;align-items:center;gap:14px;color:#a8a29e;font:400 20px/1 Barlow"><span style="width:30px;height:30px;border-radius:50%;border:2px solid #a8a29e;display:inline-flex;align-items:center;justify-content:center;font:600 15px/1 Barlow">{{ g.back }}</span>Game settings</div>
+                <div style="display:flex;flex-direction:column;gap:12px">
+                  <div style="display:flex;align-items:center;gap:14px"><span style="font:600 44px/1 'Barlow Condensed';color:#f3efe9">Graphics</span><span style="font:600 13px/1 Barlow;letter-spacing:.06em;text-transform:uppercase;padding:4px 7px;border-radius:4px;border:1px solid rgba(243,239,233,.25);color:#a8a29e">Changes bottle</span></div>
+                  <span style="font:400 22px/1.4 Barlow;color:#d6d0c8;text-wrap:pretty">Picks the translator that turns the game's DirectX graphics into the Mac's Metal. This decides whether most games render at all, and how fast.</span>
+                  <span style="font:400 17px/1.3 Barlow;color:#6b655f"><span style="color:#a8a29e">Also called</span> D3DMetal, DXVK, DXMT · bottle setting CX_GRAPHICS_BACKEND in cxbottle.conf</span>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
+                  <sc-for list="{{ graphicsChoices }}" as="c" hint-placeholder-count="3">
+                    <div style="position:relative;display:grid;grid-template-columns:44px 1fr auto;gap:18px;align-items:start;padding:22px 24px;border-radius:8px;background:{{ c.bg }}">
+                      <span style="width:32px;height:32px;margin-top:2px;border-radius:50%;border:2px solid {{ c.ringColor }};background:{{ c.ringBg }};display:inline-flex;align-items:center;justify-content:center"><sc-if value="{{ c.selected }}" hint-placeholder-val="{{ false }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1a1210" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 12 10 18 20 6"></polyline></svg></sc-if></span>
+                      <div style="display:flex;flex-direction:column;gap:7px;min-width:0">
+                        <div style="display:flex;align-items:center;gap:12px"><span style="font:600 30px/1 'Barlow Condensed';color:#f3efe9">{{ c.name }}</span><span style="font:500 16px/1 Barlow;color:{{ c.tagColor }}">{{ c.tag }}</span></div>
+                        <span style="font:400 20px/1.35 Barlow;color:#d6d0c8;text-wrap:pretty">{{ c.effect }}</span>
+                        <span style="font:400 16px/1.3 Barlow;color:#6b655f">{{ c.also }}</span>
+                      </div>
+                      <span style="font:400 17px/1 Barlow;color:#6b655f;white-space:nowrap;margin-top:6px">{{ c.meta }}</span>
+                      <sc-if value="{{ c.focused }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:-6px;border-radius:13px;border:4px solid #F0863A;box-shadow:0 0 30px rgba(240,134,58,.45);pointer-events:none"></div></sc-if>
+                    </div>
+                  </sc-for>
+                </div>
+                <span style="font:400 18px/1.4 Barlow;color:#6b655f;margin-top:6px">Profile "Older 3D game" sets DXVK. Choosing another value turns the profile into Custom. Applies on next launch.</span>
+              </div>
+              <div style="padding:0 60px 54px;display:flex;align-items:center;gap:26px">
+                <div style="display:flex;align-items:center;gap:10px"><span style="width:36px;height:36px;border-radius:50%;border:2px solid #f3efe9;display:inline-flex;align-items:center;justify-content:center;font:600 18px/1 Barlow;color:#f3efe9">{{ g.confirm }}</span><span style="font:500 22px/1 Barlow;color:#f3efe9">Select</span></div>
+                <div style="display:flex;align-items:center;gap:10px"><span style="width:36px;height:36px;border-radius:50%;border:2px solid #f3efe9;display:inline-flex;align-items:center;justify-content:center;font:600 18px/1 Barlow;color:#f3efe9">{{ g.back }}</span><span style="font:500 22px/1 Barlow;color:#f3efe9">Back</span></div>
+                <div style="display:flex;align-items:center;gap:10px"><span style="width:36px;height:36px;border-radius:50%;border:2px solid #f3efe9;display:inline-flex;align-items:center;justify-content:center;font:600 18px/1 Barlow;color:#f3efe9">{{ g.context }}</span><span style="font:500 22px/1 Barlow;color:#f3efe9">Reset to profile</span></div>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </sc-for>
+
+    <!-- 4d profile chooser -->
+    <div id="4d" style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="font:700 13px/1 'Barlow Condensed';letter-spacing:.1em;padding:6px 9px;border-radius:6px;background:#F0863A;color:#1a1210">4d</span>
+        <span style="font:500 17px/1 'Barlow Condensed';color:#f3efe9">Profile chooser — full screen</span>
+        <span style="font:400 14px/1 Barlow;color:#a8a29e">Opened from the Profile row; right panel compares the focused profile with current values</span>
+      </div>
+      <div style="position:relative;width:1920px;height:1080px;overflow:hidden;background:#0e0d0c;border-radius:4px;box-shadow:0 30px 80px rgba(0,0,0,.5)" data-screen-label="Profile chooser">
+        <img src="{{ disco.hero }}" alt="" style="position:absolute;inset:-80px;width:2080px;height:1240px;object-fit:cover;filter:blur(70px);opacity:.18">
+        <div style="position:absolute;left:96px;top:54px;display:flex;align-items:center;gap:12px;color:#f3efe9;font:500 24px/1 Barlow"><span style="width:36px;height:36px;border-radius:50%;border:2px solid #f3efe9;display:inline-flex;align-items:center;justify-content:center;font:600 18px/1 Barlow">{{ g.back }}</span>Game settings</div>
+        <div style="position:absolute;right:96px;top:54px;font:400 22px/1 Barlow;color:#a8a29e">Disco Elysium</div>
+        <div style="position:absolute;left:96px;top:130px;display:flex;flex-direction:column;gap:8px">
+          <span style="font:600 56px/1 'Barlow Condensed';color:#f3efe9">Choose a profile</span>
+          <span style="font:400 24px/1.4 Barlow;color:#a8a29e">A profile sets several settings at once. You can still change any of them afterwards.</span>
+        </div>
+        <div style="position:absolute;left:96px;top:270px;width:640px;display:flex;flex-direction:column;gap:6px">
+          <sc-for list="{{ profiles }}" as="p" hint-placeholder-count="9">
+            <div style="position:relative;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 22px;border-radius:8px;background:{{ p.bg }}">
+              <div style="display:flex;align-items:center;gap:14px"><span style="font:600 28px/1 'Barlow Condensed';color:{{ p.color }}">{{ p.name }}</span><sc-if value="{{ p.current }}" hint-placeholder-val="{{ false }}"><span style="font:600 13px/1 Barlow;letter-spacing:.06em;text-transform:uppercase;padding:4px 7px;border-radius:4px;background:rgba(243,239,233,.14);color:#f3efe9">Current</span></sc-if></div>
+              <span style="font:400 18px/1 Barlow;color:#6b655f;white-space:nowrap">{{ p.meta }}</span>
+              <sc-if value="{{ p.focused }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:-6px;border-radius:13px;border:4px solid #F0863A;box-shadow:0 0 30px rgba(240,134,58,.45);pointer-events:none"></div></sc-if>
+            </div>
+          </sc-for>
+        </div>
+        <div style="position:absolute;left:820px;top:270px;width:1004px;display:flex;flex-direction:column;gap:26px;padding:34px 40px;border-radius:12px;background:rgba(22,20,15,.9);border:1px solid rgba(243,239,233,.1)">
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <span style="font:600 40px/1 'Barlow Condensed';color:#f3efe9">Older 3D game</span>
+            <span style="font:400 22px/1.4 Barlow;color:#d6d0c8;text-wrap:pretty"><span style="color:#a8a29e">Try it when</span> the game uses DirectX 9 or 10 and was released between roughly 2005 and 2013. Disco Elysium's DirectX 11 build also runs better this way on many Macs.</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <div style="display:grid;grid-template-columns:1fr 200px 30px 200px;gap:16px;padding:6px 16px;font:600 16px/1 'Barlow Condensed';letter-spacing:.1em;text-transform:uppercase;color:#6b655f"><span>Setting</span><span>Current</span><span></span><span>This profile</span></div>
+            <sc-for list="{{ compareRows }}" as="c" hint-placeholder-count="8">
+              <div style="display:grid;grid-template-columns:1fr 200px 30px 200px;gap:16px;align-items:center;padding:12px 16px;border-radius:6px;background:{{ c.bg }}">
+                <span style="font:500 22px/1 Barlow;color:#f3efe9">{{ c.name }}</span>
+                <span style="font:400 22px/1 Barlow;color:#a8a29e">{{ c.cur }}</span>
+                <span style="font:400 22px/1 Barlow;color:{{ c.arrowColor }}">→</span>
+                <span style="font:500 22px/1 Barlow;color:{{ c.newColor }}">{{ c.next }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <span style="font:400 18px/1.4 Barlow;color:#6b655f">5 settings change. Graphics, Synchronization and Windows version rewrite this game's bottle. Windows components install on first launch as a job.</span>
+        </div>
+        <div style="position:absolute;left:96px;right:96px;bottom:54px;height:40px;display:flex;align-items:center;gap:30px">
+          <div style="display:flex;align-items:center;gap:10px"><span style="width:36px;height:36px;border-radius:50%;border:2px solid #f3efe9;display:inline-flex;align-items:center;justify-content:center;font:600 18px/1 Barlow;color:#f3efe9">{{ g.confirm }}</span><span style="font:500 22px/1 Barlow;color:#f3efe9">Use this profile</span></div>
+          <div style="display:flex;align-items:center;gap:10px"><span style="width:36px;height:36px;border-radius:50%;border:2px solid #f3efe9;display:inline-flex;align-items:center;justify-content:center;font:600 18px/1 Barlow;color:#f3efe9">{{ g.back }}</span><span style="font:500 22px/1 Barlow;color:#f3efe9">Back</span></div>
+          <div style="display:flex;align-items:center;gap:10px"><span style="width:36px;height:36px;border-radius:50%;border:2px solid #f3efe9;display:inline-flex;align-items:center;justify-content:center;font:600 18px/1 Barlow;color:#f3efe9">{{ g.context }}</span><span style="font:500 22px/1 Barlow;color:#f3efe9">Save current as my profile</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4f banner states -->
+    <div id="4f" style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="font:700 13px/1 'Barlow Condensed';letter-spacing:.1em;padding:6px 9px;border-radius:6px;background:#F0863A;color:#1a1210">4f</span>
+        <span style="font:500 17px/1 'Barlow Condensed';color:#f3efe9">Community banner states</span>
+        <span style="font:400 14px/1 Barlow;color:#a8a29e">Top of the sheet, above Profile. v2 preview; v1 shows nothing</span>
+      </div>
+      <div style="width:960px;background:#16140f;border-radius:4px;padding:54px 60px;display:flex;flex-direction:column;gap:40px;box-shadow:0 30px 80px rgba(0,0,0,.5)" data-screen-label="Banner states">
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <span style="font:600 18px/1 'Barlow Condensed';letter-spacing:.12em;text-transform:uppercase;color:#6b655f">No reports yet</span>
+          <div style="display:flex;align-items:center;gap:18px;padding:18px 22px;border-radius:8px;background:rgba(243,239,233,.04);border:1px solid rgba(243,239,233,.08)">
+            <span style="width:12px;height:12px;border-radius:50%;background:#6b655f;flex:none"></span>
+            <div style="display:flex;flex-direction:column;gap:5px;flex:1"><span style="font:600 24px/1 'Barlow Condensed';color:#f3efe9">No community recipe for this game yet</span><span style="font:400 18px/1.3 Barlow;color:#a8a29e">After you play, Playden can share what worked with one press.</span></div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <span style="font:600 18px/1 'Barlow Condensed';letter-spacing:.12em;text-transform:uppercase;color:#6b655f">Recipe available</span>
+          <div style="display:flex;align-items:center;gap:18px;padding:18px 22px;border-radius:8px;background:rgba(240,134,58,.1);border:1px solid rgba(240,134,58,.35)">
+            <span style="width:12px;height:12px;border-radius:50%;background:#7bbf6a;flex:none"></span>
+            <div style="display:flex;flex-direction:column;gap:5px;flex:1"><span style="font:600 24px/1 'Barlow Condensed';color:#f3efe9">Community recipe: worked for 12 of 14 on CrossOver 26</span><span style="font:400 18px/1.3 Barlow;color:#a8a29e">Based on "Older 3D game" + 2 changes · 9 reports from Macs like yours</span></div>
+            <span style="padding:0 18px;height:46px;display:inline-flex;align-items:center;border-radius:8px;background:#F0863A;color:#1a1210;font:600 22px/1 'Barlow Condensed';white-space:nowrap">Apply</span>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <span style="font:600 18px/1 'Barlow Condensed';letter-spacing:.12em;text-transform:uppercase;color:#6b655f">Applied</span>
+          <div style="display:flex;align-items:center;gap:18px;padding:18px 22px;border-radius:8px;background:rgba(243,239,233,.06);border:1px solid rgba(243,239,233,.12)">
+            <span style="width:12px;height:12px;border-radius:50%;background:#7bbf6a;flex:none"></span>
+            <div style="display:flex;flex-direction:column;gap:5px;flex:1"><span style="font:600 24px/1 'Barlow Condensed';color:#f3efe9">Using the community recipe</span><span style="font:400 18px/1.3 Barlow;color:#a8a29e">Applied today · changing any setting keeps a copy so you can revert</span></div>
+            <span style="padding:0 18px;height:46px;display:inline-flex;align-items:center;border-radius:8px;border:2px solid rgba(243,239,233,.2);color:#f3efe9;font:500 22px/1 'Barlow Condensed';white-space:nowrap">Revert</span>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <span style="font:600 18px/1 'Barlow Condensed';letter-spacing:.12em;text-transform:uppercase;color:#6b655f">Toast on close after changes</span>
+          <div style="display:flex;align-items:center;gap:16px;padding:18px 22px;border-radius:8px;background:#0e0d0c;border:1px solid rgba(243,239,233,.12);box-shadow:0 20px 50px rgba(0,0,0,.5);width:560px"><span style="width:12px;height:12px;border-radius:50%;background:#F0863A;flex:none"></span><div style="display:flex;flex-direction:column;gap:4px"><span style="font:600 24px/1 'Barlow Condensed';color:#f3efe9">Settings saved · Custom profile</span><span style="font:400 18px/1 Barlow;color:#a8a29e">3 changes apply on next launch</span></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section style="padding:48px 64px;display:flex;flex-direction:column;gap:40px;border-bottom:1px solid rgba(243,239,233,.1)">
+  <div style="display:flex;flex-direction:column;gap:6px;max-width:900px">
     <div style="font:600 14px/1 'Barlow Condensed';letter-spacing:.14em;text-transform:uppercase;color:#a8a29e">Turn 3</div>
     <h1 style="margin:0;font:600 34px/1.1 'Barlow Condensed';color:#f3efe9">Installed vs. not installed without fading the art</h1>
     <p style="margin:0;font:400 15px/1.5 Barlow;color:#a8a29e;text-wrap:pretty">All covers at full color. <a href="#3a">3a</a> marks installed tiles with a small check pill and leaves the rest bare. <a href="#3b">3b</a> does the opposite: not-installed tiles carry a small download glyph. <a href="#3c">3c</a> gives installed tiles a light frame and lifts them, so the whole grid reads as "on this Mac" vs. "in the cloud" at a glance.</p>
@@ -392,12 +633,12 @@ a{color:#F0863A}a:hover{color:#ffa566}
         </div>
         <div style="position:absolute;left:900px;top:250px;width:924px;display:flex;flex-direction:column;gap:14px">
           <div style="position:relative;display:grid;grid-template-columns:1fr auto;gap:20px;align-items:center;padding:26px 30px;border-radius:8px;background:rgba(243,239,233,.1)">
-            <div style="display:flex;flex-direction:column;gap:10px"><span style="font:600 36px/1 'Barlow Condensed';color:#f3efe9">VM</span><span style="font:400 22px/1 Barlow;color:#a8a29e">External SSD · /Volumes/VM/Playden/games</span><div style="height:8px;border-radius:4px;background:rgba(243,239,233,.15);margin-top:6px"><div style="width:32%;height:8px;border-radius:4px;background:#f3efe9"></div></div></div>
+            <div style="display:flex;flex-direction:column;gap:10px"><span style="font:600 36px/1 'Barlow Condensed';color:#f3efe9">VM</span><span style="font:400 22px/1 Barlow;color:#a8a29e">External SSD · /Volumes/VM/GameNative/games</span><div style="height:8px;border-radius:4px;background:rgba(243,239,233,.15);margin-top:6px"><div style="width:32%;height:8px;border-radius:4px;background:#f3efe9"></div></div></div>
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px"><span style="font:600 34px/1 'Barlow Condensed';color:#f3efe9">1.35 TB free</span><span style="font:400 20px/1 Barlow;color:#a8a29e">of 2 TB</span></div>
             <div style="position:absolute;inset:-7px;border-radius:13px;border:4px solid #F0863A;box-shadow:0 0 44px rgba(240,134,58,.55)"></div>
           </div>
           <div style="display:grid;grid-template-columns:1fr auto;gap:20px;align-items:center;padding:26px 30px;border-radius:8px;background:rgba(243,239,233,.04)">
-            <div style="display:flex;flex-direction:column;gap:10px"><span style="font:600 36px/1 'Barlow Condensed';color:#f3efe9">Macintosh HD</span><span style="font:400 22px/1 Barlow;color:#a8a29e">Internal · ~/Games/Playden</span><div style="height:8px;border-radius:4px;background:rgba(243,239,233,.15);margin-top:6px"><div style="width:78%;height:8px;border-radius:4px;background:#a8a29e"></div></div></div>
+            <div style="display:flex;flex-direction:column;gap:10px"><span style="font:600 36px/1 'Barlow Condensed';color:#f3efe9">Macintosh HD</span><span style="font:400 22px/1 Barlow;color:#a8a29e">Internal · ~/Games/GameNative</span><div style="height:8px;border-radius:4px;background:rgba(243,239,233,.15);margin-top:6px"><div style="width:78%;height:8px;border-radius:4px;background:#a8a29e"></div></div></div>
             <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px"><span style="font:600 34px/1 'Barlow Condensed';color:#f3efe9">221 GB free</span><span style="font:400 20px/1 Barlow;color:#a8a29e">of 1 TB</span></div>
           </div>
           <div style="display:grid;grid-template-columns:1fr auto;gap:20px;align-items:center;padding:26px 30px;border-radius:8px;background:rgba(243,239,233,.04);opacity:.5">
@@ -515,7 +756,7 @@ a{color:#F0863A}a:hover{color:#ffa566}
             <div style="width:84px;height:44px;border-radius:22px;background:rgba(243,239,233,.2);position:relative"><div style="position:absolute;left:4px;top:4px;width:36px;height:36px;border-radius:50%;background:#a8a29e"></div></div>
           </div>
           <div style="display:grid;grid-template-columns:1fr auto;gap:30px;align-items:center;padding:26px 30px;border-radius:8px;background:rgba(243,239,233,.04)">
-            <div style="display:flex;flex-direction:column;gap:8px"><span style="font:600 30px/1 'Barlow Condensed';color:#f3efe9">Runtime</span><span style="font:400 22px/1 Barlow;color:#a8a29e">CrossOver 26.0 detected · template playden-template-3</span></div>
+            <div style="display:flex;flex-direction:column;gap:8px"><span style="font:600 30px/1 'Barlow Condensed';color:#f3efe9">Runtime</span><span style="font:400 22px/1 Barlow;color:#a8a29e">CrossOver 26.0 detected · template gn-template-3</span></div>
             <span style="font:500 26px/1 Barlow;color:#a8a29e">Recreate template ›</span>
           </div>
         </div>
@@ -654,8 +895,8 @@ a{color:#F0863A}a:hover{color:#ffa566}
 21:31:04 stage Reserve space   ok
 21:31:05 stage Download        ok   3m 12s · 5.1 GB · 27 MB/s avg
 21:34:17 stage Create bottle   FAIL
-21:34:17   cxbottle --copy playden-template-3 --bottle playden-steam-972660
-21:34:19   cxbottle: error: template 'playden-template-3' not found
+21:34:17   cxbottle --copy gn-template-3 --bottle gn-steam-972660
+21:34:19   cxbottle: error: template 'gn-template-3' not found
 21:34:19 reason: bottle creation failed (template missing). Retry re-creates the template first.</pre>
               <div style="display:flex;gap:26px;padding:16px 24px;border-top:1px solid rgba(243,239,233,.1);font:500 20px/1 Barlow;color:#a8a29e"><span>{{ g.confirm }} Retry from Create bottle</span><span>{{ g.context }} Reveal in Finder</span><span>{{ g.back }} Close</span></div>
             </div>
@@ -670,7 +911,7 @@ a{color:#F0863A}a:hover{color:#ffa566}
 <section style="padding:48px 64px;display:flex;flex-direction:column;gap:40px">
   <div style="display:flex;flex-direction:column;gap:6px;max-width:900px">
     <div style="font:600 14px/1 'Barlow Condensed';letter-spacing:.14em;text-transform:uppercase;color:#a8a29e">Turn 1</div>
-    <h1 style="margin:0;font:600 34px/1.1 'Barlow Condensed';color:#f3efe9">Playden — Home, Library, Game page</h1>
+    <h1 style="margin:0;font:600 34px/1.1 'Barlow Condensed';color:#f3efe9">GameNative Big Screen — Home, Library, Game page</h1>
     <p style="margin:0;font:400 15px/1.5 Barlow;color:#a8a29e;text-wrap:pretty">1920 × 1080, dark, 5% safe area (96 / 54 px). <a href="#1a">1a</a>–<a href="#1b">1b</a> compare focus rings on Home. <a href="#1d">1d</a>–<a href="#1f">1f</a> compare hero compositions on the game page (not installed). Legend glyphs switch between PlayStation and generic in Tweaks.</p>
   </div>
 
@@ -1179,8 +1420,62 @@ class Component extends DCLogic {
       if (variant === 'frame' && bare) x.opacity = 1;
       return x;
     });
+    const ROW = (name, effect, also, value, o = {}) => ({ isRow: true, name, effect, also, value, bg: o.focused ? 'rgba(243,239,233,.1)' : 'rgba(243,239,233,.04)', valueColor: o.changed ? '#F0863A' : '#f3efe9', ...o });
+    const SEC = (name, hint) => ({ isSection: true, name, hint });
+    const tier1 = (chg = {}, foc = '') => [
+      ROW('Profile', 'A ready-made bundle of the settings below. Pick one, then change anything you like.', 'runtime profile · stored with the install', chg.profile || 'Older 3D game', { focused: foc === 'profile' }),
+      SEC('Settings', ''),
+      ROW('Graphics', "Picks the translator that turns the game's DirectX graphics into the Mac's Metal. Decides whether most games render at all, and how fast.", 'D3DMetal, DXVK, DXMT · CX_GRAPHICS_BACKEND', chg.graphics || 'DXVK', { bottle: true, changed: !!chg.graphics, focused: foc === 'graphics' }),
+      ROW('Synchronization', "A speed boost for how the game's many tasks wait for each other. The fastest mode makes a few games hang; try switching after Graphics.", 'MSync (WINEMSYNC), ESync (WINEESYNC)', chg.sync || 'ESync', { bottle: true, changed: !!chg.sync }),
+      ROW('Controller', 'How the game sees your pad. Xbox compatible works with nearly every game; Native passes a DualShock or DualSense through.', 'hidraw, WineBus · DisableHidraw', chg.controller || 'Xbox compatible', { changed: !!chg.controller }),
+      ROW('Windows version', 'Which Windows the game is told it runs on. Older games sometimes refuse to start on Windows 10.', 'Windows Version · winecfg', chg.winver || 'Windows 7', { bottle: true, changed: !!chg.winver }),
+      ROW('Launch option', "Which of the game's launch entries to start. Many games ship DirectX 11 and 12 executables as separate entries.", 'Steam launch options · appinfo', 'Play Disco Elysium'),
+      ROW('Start directly', "Skip the game's own launcher window and start the game executable. Fixes launchers that hang or show a blank window.", '"skip launcher", cxstart executable path', 'Off'),
+    ];
+    const tier2 = [
+      SEC('More settings', 'Expanded'),
+      ROW('High resolution mode', "Renders at the display's full pixel count. Sharper text and HUDs on a 4K TV, at a performance cost.", 'High Resolution Mode, Retina Mode · RetinaMode', 'Off', { changed: true }),
+      ROW('Virtual desktop', 'Runs the game inside a fixed-size Windows desktop. Rescues games that break in fullscreen or change the TV resolution.', 'Emulate a virtual desktop · winecfg', '1920×1080'),
+      ROW('Windows components', 'Installs the runtime libraries the game expects Windows to have. Steam normally does this silently; Playden has to do it itself.', '_CommonRedist · winetricks vcrun2022, dotnet48, d3dx9, xact', '3 installed', { focused: true }),
+      ROW('Steam features', 'Options of the built-in Steam stand-in: unlock DLC, hide the overlay, the name shown in game. Offline only in this version.', 'GBE Fork · steam_settings', 'DLC unlocked'),
+      ROW('Performance overlay', 'Frames per second and GPU load in the corner while playing. Handy when writing a community report.', 'Metal HUD (MTL_HUD_ENABLED), DXVK HUD', 'On', { changed: true }),
+      ROW('Frame limit', 'Caps frames per second. Steadier on a 60 Hz TV. DXVK only in this version.', 'DXVK_FRAME_RATE', '60', { changed: true }),
+    ];
+    const jobRows = [
+      ROW('Profile', 'A ready-made bundle of the settings below. Pick one, then change anything you like.', 'runtime profile · stored with the install', 'Older 3D game'),
+      SEC('More settings', 'Expanded'),
+      ROW('Windows components', 'Installs the runtime libraries the game expects Windows to have. Steam normally does this silently; Playden has to do it itself.', '_CommonRedist · winetricks vcrun2022, dotnet48, d3dx9, xact', 'Installing…', { focused: true, valueColor: '#F0863A' }),
+      { isJob: true },
+      ROW('Steam features', 'Options of the built-in Steam stand-in: unlock DLC, hide the overlay, the name shown in game. Offline only in this version.', 'GBE Fork · steam_settings', 'DLC unlocked'),
+    ];
+    const sheetBoard = (id, label, note, o) => ({ id, label, note, sheetShift: 0, sheetDim: 1, scroll: 0, showBanner: true, bannerTitle: 'Community recipe: worked for 12 of 14 on CrossOver 26', bannerSub: 'Based on "Older 3D game" + 2 changes · 9 reports from Macs like yours', bannerAction: 'Apply', resetColor: '#6b655f', picker: false, ...o });
+    const graphicsChoices = [
+      { name: 'Default', tag: 'D3DMetal', tagColor: '#a8a29e', effect: "Apple's own translator for DirectX 11 and 12. Usually the fastest for modern games.", also: 'D3DMetal · Game Porting Toolkit', meta: 'Playden default', selected: false, focused: false, bg: 'rgba(243,239,233,.04)', ringColor: 'rgba(243,239,233,.3)', ringBg: 'transparent' },
+      { name: 'DXVK', tag: 'Community', tagColor: '#a8a29e', effect: 'Turns DirectX 9, 10 and 11 into Vulkan, then MoltenVK turns that into Metal. Slower, very mature, fixes many visual bugs in older games.', also: 'DXVK, MoltenVK, Vulkan', meta: 'From profile', selected: true, focused: true, bg: 'rgba(243,239,233,.1)', ringColor: '#F0863A', ringBg: '#F0863A' },
+      { name: 'DXMT', tag: 'Community · experimental', tagColor: '#e2b53c', effect: 'Turns DirectX 11 straight into Metal. Often faster than DXVK and renders some games correctly where D3DMetal glitches.', also: 'DXMT', meta: 'CrossOver marks experimental', selected: false, focused: false, bg: 'rgba(243,239,233,.04)', ringColor: 'rgba(243,239,233,.3)', ringBg: 'transparent' },
+    ];
+    const P = (name, meta, o = {}) => ({ name, meta, color: o.dim ? '#a8a29e' : '#f3efe9', bg: o.focused ? 'rgba(243,239,233,.1)' : 'transparent', ...o });
+    const profiles = [
+      P('Playden default', 'Every game starts here'), P('Modern DX12', 'Stutter or crashes in new games'), P('DX11 alternative', 'Flicker or black screen'),
+      P('Older 3D game', '2005–2013, DirectX 9/10', { focused: true }), P('Unity or Unreal launcher', 'Small window then hang'), P('Web-based launcher', 'Blank white launcher'),
+      P('Hides too many cores', 'M-series Pro, Max, Ultra'), P('Native DualSense', 'Adaptive triggers, touchpad'), P('Custom', 'Your current changes', { current: true, dim: true }),
+    ];
+    const C = (name, cur, next) => { const ch = cur !== next; return { name, cur, next, bg: ch ? 'rgba(240,134,58,.08)' : 'transparent', arrowColor: ch ? '#F0863A' : '#3a3632', newColor: ch ? '#f3efe9' : '#6b655f' }; };
+    const compareRows = [
+      C('Graphics', 'Default (D3DMetal)', 'DXVK'), C('Synchronization', 'Default (MSync)', 'ESync'), C('Windows version', 'Windows 10', 'Windows 7'),
+      C('Controller', 'Xbox compatible', 'Xbox compatible'), C('Virtual desktop', 'Off', '1920×1080'), C('High resolution mode', 'On', 'On'),
+      C('Large address aware', 'Off', 'On'), C('Windows components', 'None', 'DirectX 2010, VC++ 2010–13, XAudio'),
+    ];
     return {
       g: glyphs,
+      disco: art(G.disco),
+      graphicsChoices, profiles, compareRows,
+      sheetBoards: [
+        sheetBoard('4a', 'Game settings — Tier 1 on "Older 3D game"', 'Every row: name, effect, then the CrossOver/Wine name', { profile: 'Older 3D game', rows: tier1({}, 'graphics') }),
+        sheetBoard('4b', 'Custom after changes — More settings expanded', 'Orange dot and value on changed rows; list scrolled', { profile: 'Custom', rows: [...tier1({ profile: 'Custom · from Older 3D game', graphics: 'DXMT' }).slice(7), ...tier2], scroll: 0, showBanner: false, resetColor: '#f3efe9' }),
+        sheetBoard('4c', 'Picker sheet — Graphics', 'Second sheet slides over; explanations per choice', { profile: 'Older 3D game', rows: tier1({}, 'graphics'), picker: true, sheetShift: -60, sheetDim: 0.6 }),
+        sheetBoard('4e', 'Windows components as a job', 'Runs inside the bottle; Play disabled until done', { profile: 'Older 3D game', rows: jobRows, showBanner: false }),
+      ],
       altBoards: [
         { id: '3a', label: 'Installed check', note: 'Accent check bottom-left on installed tiles; not installed is bare', tiles: alt('check') },
         { id: '3b', label: 'Download glyph', note: 'Not-installed tiles carry a quiet download mark bottom-right', tiles: alt('get') },

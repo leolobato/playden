@@ -116,6 +116,7 @@ Covers are never dimmed. State is carried by a small mark in the bottom-right co
 - Placeholders to replace: QR panel (render from `SteamAuth` challenge), controller illustration, game descriptions and log text (illustrative), compatibility "Broken" on Spiritfarer (demo only).
 
 ## Files
+- `GAME_SETTINGS.md` — per-game runtime profile sheet, picker, profile chooser, components job, community banner (boards 4a–4f).
 - `screenshots/` — one PNG per artboard at 1920×1080 (components sheet is taller). Files named `<board>-<screen>.png`; `-reference` suffix marks rejected explorations kept for context.
 - `Playden.dc.html` — all artboards. Turn 2 (top): 2a–2l. Turn 1 (below): 1a–1g. Ids are anchors (`#2d`).
 - `prd/` — the PRD and `GUI_DESIGN_BRIEF.md` these screens implement.
