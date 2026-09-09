@@ -53,10 +53,7 @@ struct GameSettingPicker: View {
                     if definition.changesBottle { changesBottleTag }
                 }
                 Text(definition.effect).font(Design.body(22)).lineSpacing(6).foregroundStyle(Color(hex: 0xD6D0C8))
-                HStack(spacing: 6) {
-                    Text("Also called").font(Design.body(17)).foregroundStyle(Design.secondary)
-                    Text(definition.alsoCalled).font(Design.body(17)).foregroundStyle(Design.muted)
-                }
+                Text(definition.alsoCalled).font(Design.body(17)).foregroundStyle(Design.muted)
             }
         }.padding(.bottom, 32)
     }

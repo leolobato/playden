@@ -40,20 +40,23 @@ struct GameSettingsSheet: View {
 
     private var listViewport: some View {
         GeometryReader { geo in
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 12) {
                 ForEach(Array(settingsListLayout(for: gameID).items.enumerated()), id: \.offset) { _, item in
                     listEntryView(item.entry)
                 }
             }
-            // A 12 pt inset on both ends keeps the focus ring's outward bleed from being clipped by the
-            // viewport edge when the first or last row is focused; `settingsListLayout` bakes in the same inset.
-            .padding(.vertical, 12)
+            // The top inset keeps the focus ring's glow inside the viewport on the first row; the bottom
+            // inset adds the fade height so the last row can scroll clear of it. `settingsListLayout` bakes in both.
+            .padding(.top, Self.topInset).padding(.bottom, Self.bottomInset)
+            .padding(.horizontal, Self.sideInset)
             .frame(width: geo.size.width, alignment: .topLeading)
             .offset(y: -model.settingsScrollOffset)
             .onAppear { listViewportHeight = geo.size.height; revealSettingsFocus() }
             .onChange(of: geo.size.height) { _, newValue in listViewportHeight = newValue; revealSettingsFocus() }
         }
         .clipped()
+        // Let the focus ring bleed past the rows' horizontal edges without leaving the clip region.
+        .padding(.horizontal, -Self.sideInset)
         .overlay(alignment: .bottom) {
             LinearGradient(colors: [.clear, Design.panel], startPoint: .top, endPoint: .bottom)
                 .frame(height: 120).allowsHitTesting(false)
@@ -69,35 +72,36 @@ struct GameSettingsSheet: View {
         withAnimation(model.reducedMotion ? nil : .easeOut(duration: 0.2)) {
             model.settingsScrollOffset = FocusViewport.reveal(offset: model.settingsScrollOffset,
                 itemMin: item.top, itemMax: item.top + item.height, viewport: listViewportHeight,
-                content: layout.contentHeight, margin: 100)
+                content: layout.contentHeight, margin: 130)
         }
     }
 
     // MARK: - Layout
 
+    private static let topInset = 28.0, bottomInset = 148.0, sideInset = 16.0, rowGap = 12.0, rowHeight = 124.0
     private enum SettingsListEntry { case header(String), row(GameSettingsRow, index: Int) }
     private struct SettingsListItem { let entry: SettingsListEntry; let top: Double; let height: Double }
 
     /// Fixed row heights so the scroll math in `revealSettingsFocus` lines up exactly with what's drawn:
-    /// 118 for the profile and setting rows, 52 for section headers and the "More settings" row.
+    /// `rowHeight` for the profile and setting rows, 52 for section headers and the "More settings" row.
     private func settingsListLayout(for gameID: GameID) -> (items: [SettingsListItem], contentHeight: Double) {
         var items: [SettingsListItem] = []
-        var y = 12.0
+        var y = Self.topInset
         var section: RuntimeSettingTier?
         func place(_ entry: SettingsListEntry, height: Double) {
-            if !items.isEmpty { y += 6 }
+            if !items.isEmpty { y += Self.rowGap }
             items.append(SettingsListItem(entry: entry, top: y, height: height))
             y += height
         }
         for (index, row) in model.settingsRows(for: gameID).enumerated() {
             switch row {
             case .profile:
-                place(.row(row, index: index), height: 118)
+                place(.row(row, index: index), height: Self.rowHeight)
             case .setting(let id):
                 let tier = GameSettingsCatalog.definition(id).tier
                 if tier == .tier1 && section != .tier1 { place(.header("Settings"), height: 52); section = .tier1 }
                 if tier == .advanced && section != .advanced { place(.header("Advanced"), height: 52); section = .advanced }
-                place(.row(row, index: index), height: 118)
+                place(.row(row, index: index), height: Self.rowHeight)
             case .moreSettings:
                 place(.row(row, index: index), height: 52)
                 section = .tier2
@@ -105,7 +109,7 @@ struct GameSettingsSheet: View {
                 break // rendered in the fixed footer, not the scrolling list
             }
         }
-        return (items, y + 12)
+        return (items, y + Self.bottomInset)
     }
 
     @ViewBuilder
@@ -149,7 +153,7 @@ struct GameSettingsSheet: View {
             model.perform(.confirm)
         } label: {
             HStack(alignment: .top, spacing: 24) {
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: 8) {
                     nameLine(row)
                     Text(effect(for: row)).font(Design.body(19)).lineSpacing(3)
                         .foregroundStyle(Color(hex: 0xD6D0C8))
@@ -159,7 +163,7 @@ struct GameSettingsSheet: View {
                 valueGroup(row)
             }
             .padding(.vertical, 18).padding(.horizontal, 24)
-            .frame(maxWidth: .infinity, alignment: .topLeading).frame(height: 118)
+            .frame(maxWidth: .infinity, alignment: .topLeading).frame(height: Self.rowHeight)
             .background(Design.text.opacity(focused ? 0.10 : 0.04), in: RoundedRectangle(cornerRadius: 8))
             .focusRing(focused)
         }.buttonStyle(.plain)
@@ -181,8 +185,7 @@ struct GameSettingsSheet: View {
     }
 
     private func alsoCalledLine(_ row: GameSettingsRow) -> some View {
-        (Text("Also called ").foregroundStyle(Design.secondary) + Text(alsoCalled(for: row)).foregroundStyle(Design.muted))
-            .font(Design.body(16))
+        Text(alsoCalled(for: row)).font(Design.body(16)).foregroundStyle(Design.muted).lineLimit(1)
     }
 
     private func valueGroup(_ row: GameSettingsRow) -> some View {
