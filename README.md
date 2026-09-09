@@ -3,8 +3,11 @@
 **Windows games on your Mac, from the couch.**
 
 Playden is a controller-first launcher for your Steam library on Apple Silicon. It installs
-each Windows game into its own CrossOver environment and gets you from the sofa to the game
-without bottles, shortcuts or the desktop.
+each Windows game into its own [CrossOver](https://www.codeweavers.com/crossover) environment
+and gets you from the sofa to the game without bottles, shortcuts or the desktop.
+
+**Playden requires CrossOver.** It is a separate, paid product from CodeWeavers with a free
+trial; Playden does not include it, and games cannot be prepared or played without it.
 
 **The current focus is Steam and CrossOver.** Support for other engines and stores is planned.
 
