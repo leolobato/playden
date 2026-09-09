@@ -54,26 +54,59 @@ final class RuntimeMechanismsTests: XCTestCase {
         XCTAssertEqual(result.environment["DXVK_HUD"], "fps")
         XCTAssertThrowsError(try RuntimeMechanisms.effectiveSpec(spec, settings: RuntimeSettings(environment: ["WINEMSYNC": "1"])))
     }
+    func testEffectiveSpecDropsManagedKeysFromSpecAndUserEnvironmentWhenTheirMechanismIsOff() throws {
+        let spec = LaunchSpec(executableRelativePath: "game.exe", environment: [
+            "MTL_HUD_ENABLED": "1", "DXVK_FRAME_RATE": "30", "WINE_LARGE_ADDRESS_AWARE": "1",
+            "CX_GRAPHICS_BACKEND": "dxvk", "GAME_FLAG": "yes",
+        ])
+        let off = try RuntimeMechanisms.effectiveSpec(spec, settings: .playdenDefault)
+        XCTAssertEqual(off.environment, ["GAME_FLAG": "yes"])
+        let overlay = try RuntimeMechanisms.effectiveSpec(spec, settings: RuntimeSettings(graphics: .d3dMetal, performanceOverlay: true))
+        XCTAssertEqual(overlay.environment, ["GAME_FLAG": "yes", "MTL_HUD_ENABLED": "1"])
+    }
     func testRewriteBottleEnvironmentChangesOnlyGivenKeysAndReturnsWhetherItWrote() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("Playden-conf-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         addTeardownBlock { try FileManager.default.removeItem(at: root) }
         let conf = root.appendingPathComponent("cxbottle.conf")
-        try "[Section]\n\"Other\" = \"1\"\n[EnvironmentVariables]\n\"XDG_CONFIG_HOME\" = \"${WINEPREFIX}/.playden-folders\"\n\"CX_DIRECT_DESKTOP\" = \"1\"\n\"CX_GRAPHICS_BACKEND\" = \"d3dmetal\"\n"
+        let prefix = "[Section]\n\"Other\" = \"1\"\n"
+        try (prefix + "[EnvironmentVariables]\n\"XDG_CONFIG_HOME\" = \"${WINEPREFIX}/.playden-folders\"\n\"CX_DIRECT_DESKTOP\" = \"1\"\n\"CX_GRAPHICS_BACKEND\" = \"d3dmetal\"\n")
             .write(to: conf, atomically: true, encoding: .utf8)
         let wrote = try RuntimeMechanisms.rewriteBottleEnvironment(at: conf, values: ["CX_GRAPHICS_BACKEND": "dxvk", "WINEMSYNC": "1", "WINEESYNC": "0"])
         XCTAssertTrue(wrote)
         let text = try String(contentsOf: conf, encoding: .utf8)
-        XCTAssertTrue(text.contains("[Section]"))
-        XCTAssertTrue(text.contains("\"Other\" = \"1\""))
-        XCTAssertTrue(text.contains("\"XDG_CONFIG_HOME\" = \"${WINEPREFIX}/.playden-folders\""))
-        XCTAssertTrue(text.contains("\"CX_DIRECT_DESKTOP\" = \"1\""))
-        XCTAssertTrue(text.contains("\"CX_GRAPHICS_BACKEND\" = \"dxvk\""))
-        XCTAssertTrue(text.contains("\"WINEMSYNC\" = \"1\""))
-        XCTAssertTrue(text.contains("\"WINEESYNC\" = \"0\""))
-        XCTAssertFalse(text.contains("\"CX_GRAPHICS_BACKEND\" = \"d3dmetal\""))
+        // Everything before the section header must be byte-identical; only the section's own
+        // lines may change (rewritten keys plus insertion of any newly-added ones).
+        XCTAssertTrue(text.hasPrefix(prefix))
+        let suffix = text[text.range(of: "[EnvironmentVariables]")!.lowerBound...]
+        XCTAssertTrue(suffix.contains("\"XDG_CONFIG_HOME\" = \"${WINEPREFIX}/.playden-folders\""))
+        XCTAssertTrue(suffix.contains("\"CX_DIRECT_DESKTOP\" = \"1\""))
+        XCTAssertTrue(suffix.contains("\"CX_GRAPHICS_BACKEND\" = \"dxvk\""))
+        XCTAssertTrue(suffix.contains("\"WINEMSYNC\" = \"1\""))
+        XCTAssertTrue(suffix.contains("\"WINEESYNC\" = \"0\""))
+        XCTAssertFalse(suffix.contains("\"CX_GRAPHICS_BACKEND\" = \"d3dmetal\""))
         let unchanged = try RuntimeMechanisms.rewriteBottleEnvironment(at: conf, values: ["CX_GRAPHICS_BACKEND": "dxvk", "WINEMSYNC": "1", "WINEESYNC": "0"])
         XCTAssertFalse(unchanged)
+    }
+    func testRewriteBottleEnvironmentPreservesAUTF8BOMWhenPresentAndAddsNoneWhenAbsent() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("Playden-conf-bom-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        addTeardownBlock { try FileManager.default.removeItem(at: root) }
+        let bom = Data([0xEF, 0xBB, 0xBF])
+        let body = "[EnvironmentVariables]\n\"CX_GRAPHICS_BACKEND\" = \"d3dmetal\"\n"
+
+        let withBOM = root.appendingPathComponent("with-bom.conf")
+        try (bom + Data(body.utf8)).write(to: withBOM)
+        XCTAssertTrue(try RuntimeMechanisms.rewriteBottleEnvironment(at: withBOM, values: ["CX_GRAPHICS_BACKEND": "dxvk"]))
+        let withBOMResult = try Data(contentsOf: withBOM)
+        XCTAssertEqual(withBOMResult.prefix(3), bom)
+        XCTAssertTrue(String(data: withBOMResult.dropFirst(3), encoding: .utf8)!.contains("\"CX_GRAPHICS_BACKEND\" = \"dxvk\""))
+
+        let withoutBOM = root.appendingPathComponent("without-bom.conf")
+        try Data(body.utf8).write(to: withoutBOM)
+        XCTAssertTrue(try RuntimeMechanisms.rewriteBottleEnvironment(at: withoutBOM, values: ["CX_GRAPHICS_BACKEND": "dxvk"]))
+        let withoutBOMResult = try Data(contentsOf: withoutBOM)
+        XCTAssertNotEqual(withoutBOMResult.prefix(3), bom)
     }
     func testArgumentsIncludeWinverAfterNoGuiAndValidateDLLOverrideModes() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("Playden-args-\(UUID().uuidString)")

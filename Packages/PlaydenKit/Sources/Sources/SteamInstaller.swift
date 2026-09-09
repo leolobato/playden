@@ -216,14 +216,16 @@ public struct SteamInstaller: Installer {
         let payload = try SteamPlanBuilder.payload(plan, for: gameID)
         let apis = try apiPaths(payload)
         guard !apis.isEmpty else { return }
-        try rejectLinks(in: directory)
         let overlayOn = options["steam.overlay"] == "1"
         for path in apis {
             let backup = directory.appendingPathComponent(path + ".orig")
             guard FileManager.default.fileExists(atPath: backup.path) else { continue }
-            let settings = directory.appendingPathComponent(path).deletingLastPathComponent().appendingPathComponent("steam_settings")
-            try SteamSettingsINI.write("[overlay::general]\nenable_experimental_overlay=\(overlayOn ? 1 : 0)\n",
-                to: settings.appendingPathComponent("configs.overlay.ini"))
+            let apiParent = directory.appendingPathComponent(path).deletingLastPathComponent()
+            let settings = apiParent.appendingPathComponent("steam_settings")
+            let ini = settings.appendingPathComponent("configs.overlay.ini")
+            try rejectAPILinks(apiParent: apiParent, settings: settings, ini: ini)
+            guard overlayValue(at: ini) != String(overlayOn ? 1 : 0) else { continue }
+            try SteamSettingsINI.write("[overlay::general]\nenable_experimental_overlay=\(overlayOn ? 1 : 0)\n", to: ini)
         }
     }
     public func uninstall(_ plan: InstallPlan, at directory: URL) async throws {
@@ -283,6 +285,35 @@ public struct SteamInstaller: Installer {
     private func executablePaths(_ payload: SteamInstallPayload) throws -> [String] {
         try payload.manifests.flatMap(\.files).filter { !$0.isDirectory && !$0.isSymlink && $0.path.lowercased().hasSuffix(".exe") }
             .map { try SteamPlanBuilder.relativePath($0.path) }.sorted()
+    }
+    /// Unlike `rejectLinks`, avoids a full recursive scan of the installation: it only checks the
+    /// handful of paths `applyRuntimeOptions` is about to write through or below.
+    private func rejectAPILinks(apiParent: URL, settings: URL, ini: URL) throws {
+        for url in [apiParent, settings] {
+            if try url.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink == true {
+                throw SteamPlanBuilder.failure("Prepare", "This game uses linked files that need a preparation recipe.")
+            }
+        }
+        guard FileManager.default.fileExists(atPath: ini.path) else { return }
+        if try ini.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink == true {
+            throw SteamPlanBuilder.failure("Prepare", "This game uses linked files that need a preparation recipe.")
+        }
+    }
+    /// The current `enable_experimental_overlay` value under `[overlay::general]`, if the ini
+    /// exists and already has one, so `applyRuntimeOptions` can skip an unnecessary rewrite.
+    private func overlayValue(at ini: URL) -> String? {
+        guard let original = try? Data(contentsOf: ini) else { return nil }
+        let bom = Data([0xEF, 0xBB, 0xBF])
+        guard let text = String(data: original.starts(with: bom) ? original.dropFirst(3) : original, encoding: .utf8) else { return nil }
+        var inSection = false
+        for raw in text.components(separatedBy: .newlines) {
+            let trimmed = raw.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("[") { inSection = trimmed.lowercased() == "[overlay::general]"; continue }
+            guard inSection, !trimmed.hasPrefix(";"), !trimmed.hasPrefix("#"), let equals = trimmed.firstIndex(of: "=") else { continue }
+            guard trimmed[..<equals].trimmingCharacters(in: .whitespaces).lowercased() == "enable_experimental_overlay" else { continue }
+            return trimmed[trimmed.index(after: equals)...].trimmingCharacters(in: .whitespaces)
+        }
+        return nil
     }
     private func rejectLinks(in directory: URL) throws {
         let keys: [URLResourceKey] = [.isSymbolicLinkKey]

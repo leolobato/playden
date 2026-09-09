@@ -21,6 +21,35 @@ final class RuntimeSettingsTests: XCTestCase {
         XCTAssertNil(profile.appliedAt)
     }
 
+    func testDecodingDropsUnknownOverrideIDsEvenWhenTheirValueHasAnUnknownShape() throws {
+        let json = Data(#"{"base":null,"overrides":{"graphics":"dxvk","futureSetting":true,"other":{"x":1}}}"#.utf8)
+        let profile = try JSONDecoder().decode(RuntimeProfile.self, from: json)
+        XCTAssertNil(profile.base)
+        XCTAssertEqual(profile.overrides, [.graphics: .scalar("dxvk")])
+    }
+
+    func testCuratedProfileDecodingDropsAnUnknownSettingWithAnUnknownShapeButKeepsAllProfiles() throws {
+        let json = Data(#"""
+        {
+          "version": 1,
+          "profiles": [
+            {
+              "id": "one", "name": "One", "tryWhen": "t", "shortHint": "h",
+              "settings": {"graphics": "dxvk", "futureSetting": 42},
+              "fallbackHint": null
+            },
+            {
+              "id": "two", "name": "Two", "tryWhen": "t", "shortHint": "h",
+              "settings": {}, "fallbackHint": null
+            }
+          ]
+        }
+        """#.utf8)
+        let catalog = try CuratedProfileCatalog.decode(json)
+        XCTAssertEqual(catalog.profiles.map(\.id), ["one", "two"])
+        XCTAssertEqual(catalog["one"]?.settings, [.graphics: .scalar("dxvk")])
+    }
+
     func testBundledCatalogHasEightProfilesInOrderAndReproducesEveryScalar() throws {
         let catalog = CuratedProfileCatalog.bundled()
         XCTAssertEqual(catalog.profiles.map(\.id), [
@@ -81,6 +110,14 @@ final class RuntimeSettingsTests: XCTestCase {
 
         XCTAssertEqual(RuntimeResolver.displayName(RuntimeProfile(), catalog: catalog), "Playden default")
         XCTAssertEqual(RuntimeResolver.displayName(RuntimeProfile(base: "unknown-id"), catalog: catalog), "Playden default")
+    }
+
+    func testDisplayNameIsCustomFromPlaydenDefaultWhenBaseIsImplicitAndOverridesArePresent() {
+        let catalog = CuratedProfileCatalog.bundled()
+        let custom = RuntimeProfile(overrides: [.graphics: .scalar("dxvk")])
+        XCTAssertTrue(custom.isCustom)
+        XCTAssertEqual(RuntimeResolver.displayName(custom, catalog: catalog), "Custom · from Playden default")
+        XCTAssertEqual(RuntimeResolver.displayName(RuntimeProfile(), catalog: catalog), "Playden default")
     }
 
     func testPlaydenDefaultMatchesSettingsFromDefaultValues() {

@@ -79,6 +79,7 @@ enum RuntimeMechanisms {
         for value in settings.dllOverrides where !result.dllOverrides.contains(value) { result.dllOverrides.append(value) }
         var environment = spec.environment
         for (key, value) in settings.environment { environment[key] = value }
+        for key in managedKeys { environment.removeValue(forKey: key) }
         for (key, value) in launchEnvironment(settings) { environment[key] = value }
         result.environment = environment
         return result
@@ -91,7 +92,12 @@ enum RuntimeMechanisms {
         guard (try? conf.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) == false else {
             throw OperationFailure(stage: "Apply game settings", reason: "Game settings could not be applied. Retry the launch.", output: "")
         }
-        let text = try String(contentsOf: conf, encoding: .utf8)
+        let original = try Data(contentsOf: conf)
+        let bom = Data([0xEF, 0xBB, 0xBF])
+        let hasBOM = original.starts(with: bom)
+        guard let text = String(data: hasBOM ? original.dropFirst(3) : original, encoding: .utf8) else {
+            throw OperationFailure(stage: "Apply game settings", reason: "Game settings could not be applied. Retry the launch.", output: "")
+        }
         var lines: [String] = [], inEnvironment = false, found = false
         func appendSettings() { for key in values.keys.sorted() { lines.append("\"\(key)\" = \"\(values[key]!)\"") } }
         for raw in text.components(separatedBy: "\n") {
@@ -111,7 +117,9 @@ enum RuntimeMechanisms {
         if !found { lines.append("[EnvironmentVariables]"); appendSettings() }
         let result = lines.joined(separator: "\n")
         guard result != text else { return false }
-        try Data(result.utf8).write(to: conf, options: .atomic)
+        var output = hasBOM ? bom : Data()
+        output.append(contentsOf: result.utf8)
+        try output.write(to: conf, options: .atomic)
         let file = try FileHandle(forWritingTo: conf); defer { try? file.close() }; try file.synchronize()
         return true
     }

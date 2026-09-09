@@ -20,8 +20,11 @@ public struct CuratedProfile: Codable, Equatable, Sendable, Identifiable {
         name = try container.decode(String.self, forKey: .name)
         tryWhen = try container.decode(String.self, forKey: .tryWhen)
         shortHint = try container.decode(String.self, forKey: .shortHint)
-        let rawSettings = try container.decodeIfPresent([String: RuntimeSettingValue].self, forKey: .settings) ?? [:]
-        settings = Dictionary(uniqueKeysWithValues: rawSettings.compactMap { key, value in RuntimeSettingID(rawValue: key).map { ($0, value) } })
+        let rawSettings = try container.decodeIfPresent([String: LenientValue].self, forKey: .settings) ?? [:]
+        settings = Dictionary(uniqueKeysWithValues: rawSettings.compactMap { key, wrapper -> (RuntimeSettingID, RuntimeSettingValue)? in
+            guard let id = RuntimeSettingID(rawValue: key), let value = wrapper.value else { return nil }
+            return (id, value)
+        })
         fallbackHint = try container.decodeIfPresent(String.self, forKey: .fallbackHint)
     }
 }
@@ -84,8 +87,8 @@ public enum RuntimeResolver {
     }
 
     public static func displayName(_ profile: RuntimeProfile, catalog: CuratedProfileCatalog) -> String {
-        guard let id = profile.base, let curated = catalog[id] else { return "Playden default" }
-        return profile.isCustom ? "Custom · from \(curated.name)" : curated.name
+        let name = catalog[profile.base ?? CuratedProfileCatalog.playdenDefaultID]?.name ?? "Playden default"
+        return profile.isCustom ? "Custom · from \(name)" : name
     }
 
     /// Invalid scalars fall back to the Playden default for that setting rather than failing.

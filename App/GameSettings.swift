@@ -151,17 +151,19 @@ extension LibraryModel {
             throw CocoaError(.fileWriteUnknown)
         }
     }
-    func setOverride(_ id: GameID, _ setting: RuntimeSettingID, _ value: RuntimeSettingValue?) {
+    @discardableResult func setOverride(_ id: GameID, _ setting: RuntimeSettingID, _ value: RuntimeSettingValue?) -> Bool {
         var updated = profile(for: id)
         if let value { updated.overrides[setting] = value } else { updated.overrides.removeValue(forKey: setting) }
         let normalized = RuntimeResolver.normalized(updated, catalog: profileCatalog)
-        guard normalized != profile(for: id) else { return }
+        guard normalized != profile(for: id) else { return true }
         do {
             try persistRuntimeProfile(normalized, for: id)
             runtimeProfiles[id] = normalized
             settingsChangedCount += 1
+            return true
         } catch {
             gameSettingsError = "Could not save game settings. Try again."
+            return false
         }
     }
     func resetAllToProfile(_ id: GameID) {
@@ -253,7 +255,7 @@ extension LibraryModel {
         var proposedValues = RuntimeResolver.defaultValues
         for (key, value) in curated.settings { proposedValues[key] = value }
         let launchOptions = gameLaunchOptions[id] ?? []
-        return RuntimeSettingID.allCases.filter { $0 != .launchOption }.compactMap { settingID in
+        return RuntimeSettingID.allCases.compactMap { settingID in
             let currentValue = resolved[settingID]
             let proposedValue = proposedValues[settingID]
             let defaultValue = RuntimeResolver.defaultValues[settingID]

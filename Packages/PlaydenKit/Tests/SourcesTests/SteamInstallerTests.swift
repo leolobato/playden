@@ -445,6 +445,45 @@ final class SteamInstallerTests: XCTestCase {
             XCTFail("Symlinked steam_settings accepted")
         } catch {}
     }
+    func testApplyRuntimeOptionsIgnoresAnUnrelatedSymlinkElsewhereInTheInstallDirectory() async throws {
+        let bytes = pe()
+        let content = ResolvedSteamContent(app: app(), manifests: [manifest([file("Game.exe", bytes), file("steam_api64.dll", bytes)])], entitlements: .init(appIDs: [100], depotIDs: [101]))
+        let installer = SteamInstaller(game: game, backend: FixtureContentBackend(content: content, chunks: [Data(Insecure.SHA1.hash(data: bytes)): bytes]))
+        let plan = try await installer.resolve(), directory = try temporaryDirectory()
+        try await installer.download(plan, to: directory) { _ in }
+        _ = try await installer.postInstall(plan, at: directory)
+        let elsewhere = directory.deletingLastPathComponent().appendingPathComponent("PlaydenUnrelated-\(UUID().uuidString)")
+        try Data("x".utf8).write(to: elsewhere)
+        addTeardownBlock { try? FileManager.default.removeItem(at: elsewhere) }
+        // A symlink that sits inside the install directory but away from the API/steam_settings/ini
+        // path used to fail because of a full recursive scan; the targeted check should ignore it.
+        try FileManager.default.createSymbolicLink(at: directory.appendingPathComponent("unrelated-link"), withDestinationURL: elsewhere)
+        try await installer.applyRuntimeOptions(["steam.overlay": "1"], plan: plan, at: directory)
+        let overlay = directory.appendingPathComponent("steam_settings/configs.overlay.ini")
+        XCTAssertTrue(try String(contentsOf: overlay, encoding: .utf8).contains("enable_experimental_overlay=1"))
+    }
+    func testApplyRuntimeOptionsSkipsRewritingTheIniWhenTheValueIsUnchanged() async throws {
+        let bytes = pe()
+        let content = ResolvedSteamContent(app: app(), manifests: [manifest([file("Game.exe", bytes), file("steam_api64.dll", bytes)])], entitlements: .init(appIDs: [100], depotIDs: [101]))
+        let installer = SteamInstaller(game: game, backend: FixtureContentBackend(content: content, chunks: [Data(Insecure.SHA1.hash(data: bytes)): bytes]))
+        let plan = try await installer.resolve(), directory = try temporaryDirectory()
+        try await installer.download(plan, to: directory) { _ in }
+        _ = try await installer.postInstall(plan, at: directory)
+        try await installer.applyRuntimeOptions(["steam.overlay": "1"], plan: plan, at: directory)
+        let overlay = directory.appendingPathComponent("steam_settings/configs.overlay.ini")
+        let before = try Data(contentsOf: overlay)
+        let modifiedBefore = try FileManager.default.attributesOfItem(atPath: overlay.path)[.modificationDate] as? Date
+        try await installer.applyRuntimeOptions(["steam.overlay": "1"], plan: plan, at: directory)
+        let after = try Data(contentsOf: overlay)
+        let modifiedAfter = try FileManager.default.attributesOfItem(atPath: overlay.path)[.modificationDate] as? Date
+        XCTAssertEqual(before, after)
+        XCTAssertEqual(modifiedBefore, modifiedAfter)
+        // A changed value still rewrites the file.
+        try await installer.applyRuntimeOptions(["steam.overlay": "0"], plan: plan, at: directory)
+        let changed = try Data(contentsOf: overlay)
+        XCTAssertNotEqual(changed, before)
+        XCTAssertTrue(try String(contentsOf: overlay, encoding: .utf8).contains("enable_experimental_overlay=0"))
+    }
     func testApplyRuntimeOptionsIsNoOpWithoutStagedSteamAPI() async throws {
         let bytes = Data("test".utf8)
         let content = ResolvedSteamContent(app: app(), manifests: [manifest([file("Game.exe", bytes)])], entitlements: .init(appIDs: [100], depotIDs: [101]))

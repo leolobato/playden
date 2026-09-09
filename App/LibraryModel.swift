@@ -278,7 +278,7 @@ final class LibraryModel {
                     displayHelper: Bundle.main.url(forResource: "PlaydenDisplay", withExtension: "exe"),
                     displayTarget: { @MainActor in GameDisplay.target(preferences: try catalog.preferences()) },
                     audioDeviceUID: { @MainActor in try catalog.preferences().selectedAudioDeviceUID },
-                    runtimeSettings: { @MainActor id in RuntimeResolver.settings(try catalog.edits(for: id).runtimeProfile, catalog: CuratedProfileCatalog.bundled()) })
+                    runtimeSettings: { @MainActor id in (try? catalog.edits(for: id).runtimeProfile).map { RuntimeResolver.settings($0, catalog: CuratedProfileCatalog.bundled()) } ?? .playdenDefault })
                 self.sessions = try SessionService(catalog: catalog, sources: [source], runner: runner, queue: queue,
                     storage: InstallStorage(volumes: volumeStore ?? GamesVolumeStore()), cloud: self.cloudService)
             }

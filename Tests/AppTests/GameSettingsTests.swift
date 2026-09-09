@@ -232,11 +232,12 @@ import Catalog
         model.settingsFocus = rowIndex
         model.perform(.confirm)
         XCTAssertEqual(model.panel, .textEditor(.runtimeText(id, .environmentVariables)))
-        // A reserved key stays on the editor and surfaces the error instead of saving.
+        // A reserved key stays on the editor and surfaces the error on the keyboard instead of saving.
         model.insertText("WINEMSYNC=0")
         model.finishText()
         XCTAssertEqual(model.panel, .textEditor(.runtimeText(id, .environmentVariables)))
-        XCTAssertEqual(model.gameSettingsError, "WINEMSYNC is set by Playden. Use the matching setting instead.")
+        XCTAssertEqual(model.keyboardError, "WINEMSYNC is set by Playden. Use the matching setting instead.")
+        XCTAssertNil(model.gameSettingsError)
         XCTAssertNil(model.runtimeProfiles[id]?.overrides[.environmentVariables])
         // Fixing the text and confirming again persists the override and returns to the sheet.
         for _ in 0..<model.textEditor.text.count { model.eraseText() }
@@ -245,5 +246,57 @@ import Catalog
         XCTAssertEqual(model.panel, .gameSettings(id))
         XCTAssertNil(model.gameSettingsError)
         XCTAssertEqual(model.runtimeProfiles[id]?.overrides[.environmentVariables], .list(["WINE_CPU_TOPOLOGY=8:0,1,2,3,4,5,6,7"]))
+    }
+
+    /// Regression for a Tier 3 save failure discarding the typed text: with no catalog, `persistRuntimeProfile`
+    /// throws (the `catalog == nil && !isPreview` persistence rule), so `setOverride` must report failure and
+    /// `finishText` must keep the editor open with the text intact rather than closing it.
+    func testFailedRuntimeTextSaveKeepsEditorOpenAndText() throws {
+        let model = LibraryModel(catalog: nil, preview: false)
+        model.showGameSettings(id)
+        let rowIndex = try XCTUnwrap(model.settingsRows(for: id).firstIndex(of: .setting(.environmentVariables)))
+        model.settingsFocus = rowIndex
+        model.perform(.confirm)
+        XCTAssertEqual(model.panel, .textEditor(.runtimeText(id, .environmentVariables)))
+        XCTAssertFalse(model.setOverride(id, .synchronization, .scalar("esync")), "Persisting without a catalog must fail")
+        model.insertText("WINE_CPU_TOPOLOGY=8:0,1,2,3,4,5,6,7")
+        model.finishText()
+        XCTAssertEqual(model.panel, .textEditor(.runtimeText(id, .environmentVariables)))
+        XCTAssertEqual(model.keyboardError, "Could not save game settings. Try again.")
+        XCTAssertEqual(model.textEditor.text, "WINE_CPU_TOPOLOGY=8:0,1,2,3,4,5,6,7")
+        XCTAssertNil(model.runtimeProfiles[id]?.overrides[.environmentVariables])
+    }
+
+    // MARK: - Launch option picker
+
+    func testLaunchOptionPickerScrollsFocusThroughManyChoices() throws {
+        let catalog = try CatalogStore()
+        let model = try makeModel(catalog)
+        model.gameLaunchOptions[id] = (0..<6).map { index in
+            LaunchOption(id: "option-\(index)", title: "Option \(index)", spec: LaunchSpec(executableRelativePath: "game\(index).exe"))
+        }
+        model.showSettingPicker(id, .launchOption)
+        XCTAssertEqual(model.pickerChoices(id, .launchOption).count, 6)
+        for _ in 0..<5 { model.perform(.move(.down)) }
+        XCTAssertEqual(model.pickerIndex, 5)
+        // Scrolling itself (`GameSettingPickerView`'s `ScrollViewReader`) was verified by reasoning and build only.
+    }
+
+    // MARK: - Profile comparison
+
+    func testProfileComparisonIncludesChosenLaunchOption() throws {
+        let catalog = try CatalogStore()
+        let model = try makeModel(catalog)
+        model.gameLaunchOptions[id] = [
+            LaunchOption(id: "primary", title: "Play Game", spec: LaunchSpec(executableRelativePath: "game.exe")),
+            LaunchOption(id: "editor", title: "Level Editor", spec: LaunchSpec(executableRelativePath: "editor.exe")),
+        ]
+        XCTAssertFalse(model.comparison(id, with: "playden-default").contains { $0.id == .launchOption },
+            "No launch option chosen yet, so no row")
+        model.setOverride(id, .launchOption, .scalar("editor"))
+        let row = try XCTUnwrap(model.comparison(id, with: "playden-default").first { $0.id == .launchOption })
+        XCTAssertTrue(row.changed)
+        XCTAssertEqual(row.current, "Level Editor")
+        XCTAssertEqual(row.proposed, "Default")
     }
 }

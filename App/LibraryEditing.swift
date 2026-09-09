@@ -122,10 +122,13 @@ extension LibraryModel {
         if case .runtimeText(let id, let setting) = purpose {
             switch RuntimeTextValidation.parse(value, for: setting) {
             case .success(let values):
-                setOverride(id, setting, values.isEmpty ? nil : .list(values))
-                gameSettingsError = nil
-                returnToGameSettings(id)
-            case .failure(let error): gameSettingsError = error.message
+                if setOverride(id, setting, values.isEmpty ? nil : .list(values)) {
+                    gameSettingsError = nil
+                    returnToGameSettings(id)
+                } else {
+                    keyboardError = "Could not save game settings. Try again."
+                }
+            case .failure(let error): keyboardError = error.message
             }
             return
         }

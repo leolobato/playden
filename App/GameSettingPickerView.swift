@@ -68,16 +68,32 @@ struct GameSettingPicker: View {
             .overlay(RoundedRectangle(cornerRadius: 4).stroke(Design.secondary.opacity(0.25), lineWidth: 1))
     }
 
-    /// Every current catalog setting has ≤ 4 choices, which fit without scrolling (per the 4c spec).
-    /// A `ScrollView` would be the natural container for a hypothetically longer list (e.g. many
-    /// launch options), but it — like `GeometryReader` — renders blank under the offscreen
-    /// `ImageRenderer` snapshot path (`PlaydenApp.swift`'s `--snapshot-offscreen`, also affecting
-    /// `PanelActionList`'s list and `GameSettingsSheet`'s `listViewport`); a plain `VStack` avoids
-    /// that pre-existing limitation and renders identically in the live app for lists this short.
-    private var choicesList: some View {
-        VStack(spacing: 6) {
-            ForEach(Array(choices.enumerated()), id: \.offset) { index, choice in
-                choiceRow(index, choice).id(index)
+    /// Most catalog settings have ≤ 4 choices, which fit without scrolling (per the 4c spec) and use a
+    /// plain `VStack`, since `ScrollView` renders blank under the offscreen `ImageRenderer` snapshot path
+    /// (`PlaydenApp.swift`'s `--snapshot-offscreen`, also affecting `PanelActionList`'s list and
+    /// `GameSettingsSheet`'s `listViewport`) — this keeps `picker-graphics` capturing real content.
+    /// `.launchOption` pickers can have many entries, so those scroll with focus (pattern: `PanelActionList`,
+    /// `App/EditingViews.swift:4-33`).
+    @ViewBuilder private var choicesList: some View {
+        if choices.count > 4 {
+            ScrollViewReader { proxy in
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(spacing: 6) {
+                        ForEach(Array(choices.enumerated()), id: \.offset) { index, choice in
+                            choiceRow(index, choice).id(index)
+                        }
+                    }
+                }.frame(maxHeight: 560)
+                    .onAppear { proxy.scrollTo(model.pickerIndex, anchor: .center) }
+                    .onChange(of: model.pickerIndex) { _, index in
+                        withAnimation(model.reducedMotion ? nil : .easeOut(duration: 0.18)) { proxy.scrollTo(index, anchor: .center) }
+                    }
+            }
+        } else {
+            VStack(spacing: 6) {
+                ForEach(Array(choices.enumerated()), id: \.offset) { index, choice in
+                    choiceRow(index, choice).id(index)
+                }
             }
         }
     }

@@ -23,6 +23,14 @@ public enum RuntimeSettingValue: Equatable, Sendable, Codable {
     }
 }
 
+/// Decodes a single JSON value permissively so an entry whose value has a shape `RuntimeSettingValue`
+/// doesn't recognize (e.g. a future setting's object or bool) can be dropped instead of failing the
+/// whole map's decode.
+struct LenientValue: Decodable {
+    let value: RuntimeSettingValue?
+    init(from decoder: Decoder) throws { value = try? RuntimeSettingValue(from: decoder) }
+}
+
 public enum RuntimeProfileSource: String, Codable, Sendable { case playdenDefault, profile, user, community }
 
 public struct RuntimeProfile: Codable, Equatable, Sendable {
@@ -40,8 +48,11 @@ public struct RuntimeProfile: Codable, Equatable, Sendable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         base = try container.decodeIfPresent(String.self, forKey: .base)
-        let rawOverrides = try container.decodeIfPresent([String: RuntimeSettingValue].self, forKey: .overrides) ?? [:]
-        overrides = Dictionary(uniqueKeysWithValues: rawOverrides.compactMap { key, value in RuntimeSettingID(rawValue: key).map { ($0, value) } })
+        let rawOverrides = try container.decodeIfPresent([String: LenientValue].self, forKey: .overrides) ?? [:]
+        overrides = Dictionary(uniqueKeysWithValues: rawOverrides.compactMap { key, wrapper -> (RuntimeSettingID, RuntimeSettingValue)? in
+            guard let id = RuntimeSettingID(rawValue: key), let value = wrapper.value else { return nil }
+            return (id, value)
+        })
         source = try container.decodeIfPresent(RuntimeProfileSource.self, forKey: .source) ?? .playdenDefault
         appliedAt = try container.decodeIfPresent(Date.self, forKey: .appliedAt)
     }
