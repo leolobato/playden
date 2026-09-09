@@ -41,6 +41,7 @@ extension LibraryModel {
         case .textEditor(.guardCode): "Steam Guard code"
         case .textEditor(.renameCollection): "Rename collection"
         case .textEditor(.compatibilityNote): "Compatibility note"
+        case .textEditor(.runtimeText(_, let setting)): GameSettingsCatalog.definition(setting).title
         default: "Enter text"
         }
     }
@@ -52,6 +53,8 @@ extension LibraryModel {
         case .password, .guardCode: initial = ""
         case .renameCollection(let id): initial = collections.first { $0.id == id }?.name ?? ""
         case .compatibilityNote(let id): initial = compatibilityNotes[id] ?? ""
+        case .runtimeText(let id, let setting):
+            if case .list(let values)? = resolvedValues(id).resolved[setting] { initial = values.joined(separator: " ") } else { initial = "" }
         }
         textEditor = TextEditorState(initial); keyboardError = nil
         show(.textEditor(purpose))
@@ -99,6 +102,7 @@ extension LibraryModel {
     func cancelText() {
         if maskedText { textEditor = TextEditorState() }
         if case .textEditor(.compatibilityNote) = panel { show(.compatibility) }
+        else if case .textEditor(.runtimeText(let id, _)) = panel { returnToGameSettings(id) }
         else { panel = nil }
     }
     func finishText() {
@@ -110,6 +114,11 @@ extension LibraryModel {
         if case .compatibilityNote(let id) = purpose {
             compatibilityNotes[id] = value
             show(.compatibility); return
+        }
+        if case .runtimeText(let id, let setting) = purpose {
+            let list = value.split(whereSeparator: \.isWhitespace).map(String.init)
+            setOverride(id, setting, list.isEmpty ? nil : .list(list))
+            returnToGameSettings(id); return
         }
         guard !value.isEmpty, value.count <= 40 else { keyboardError = "Use a name between 1 and 40 characters."; return }
         let existingID: UUID? = { if case .renameCollection(let id) = purpose { return id }; return nil }()
@@ -125,7 +134,7 @@ extension LibraryModel {
         case .renameCollection(let id):
             if let index = collections.firstIndex(where: { $0.id == id }) { collections[index].name = value }
             show(.collectionOptions(id))
-        case .compatibilityNote, .accountName, .password, .guardCode: break
+        case .compatibilityNote, .accountName, .password, .guardCode, .runtimeText: break
         }
         reconcileFocus()
     }

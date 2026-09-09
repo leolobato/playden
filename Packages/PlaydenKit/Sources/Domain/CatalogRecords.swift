@@ -44,9 +44,6 @@ public struct GameEdits: Codable, Equatable, Sendable {
     public var isHidden: Bool
     public var compatibility: Compatibility
     public var note: String
-    /// Store the spec as well as the ID so changed launch metadata prompts again.
-    public var preferredLaunchOption: LaunchOption?
-    public var controllerMode: ControllerMode?
     public var runtime: RuntimeProfile?
     public var runtimeProfile: RuntimeProfile { runtime ?? RuntimeProfile() }
     public init(isFavorite: Bool = false, isHidden: Bool = false, compatibility: Compatibility = .untested, note: String = "") {

@@ -327,7 +327,7 @@ struct GamePage: View {
                     HStack(alignment: .top, spacing: 40) { metadata("Playtime", game.hoursPlayed == 0 ? "Never played" : "\(game.hoursPlayed) hours"); metadata([.installed, .driveDisconnected].contains(game.status) ? "Size" : "Download", model.detailSizeLabel(for: game)) }
                     HStack(alignment: .top, spacing: 40) { metadata("Source", game.id.source.capitalized); metadata("Compatibility", game.compatibility.rawValue) }
                     HStack(alignment: .top, spacing: 40) {
-                        metadata("Controller", model.isPreview ? "Full support" : game.controllerSupport == .full ? "Full support" : game.controllerSupport == .partial ? "Partial support" : game.controllerSupport == .none ? "No support" : "Unknown")
+                        metadata("Profile", model.profileLabel(game.id))
                         if let date = game.lastPlayedAt { metadata("Last played", date.formatted(.dateTime.month(.abbreviated).day())) }
                     }
                 }.frame(width: 520)

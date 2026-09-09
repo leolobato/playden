@@ -27,17 +27,11 @@ public protocol SessionManaging: Sendable {
     func start(downloadWhilePlaying: Bool) async throws
     func updates() async -> AsyncStream<SessionSnapshot>
     func play(_ gameID: GameID) async throws
-    func play(_ gameID: GameID, launchOptionID: String) async throws
     func retryCloud(authorization: CloudSyncAuthorization?) async throws
     func playOffline() async throws
     func quit() async throws
     func setDownloadWhilePlaying(_ enabled: Bool) async throws
     func shutdown() async throws
-}
-public extension SessionManaging {
-    func play(_ gameID: GameID, launchOptionID: String) async throws {
-        throw OperationFailure(stage: "Launch game", reason: "This game service does not support launch options.", output: "")
-    }
 }
 /// Coordinates source preparation, runner lifetime and catalog checkpoints. UI subscriptions do
 /// not own the session. Recovery finishes before the install queue is allowed to start.
@@ -135,35 +129,27 @@ public actor SessionService: SessionManaging {
         try await queue.start(); started = true
     }
     public func play(_ gameID: GameID) async throws {
-        try await beginPlay(gameID, launchOptionID: nil)
+        try await beginPlay(gameID)
     }
-    public func play(_ gameID: GameID, launchOptionID: String) async throws {
-        try await beginPlay(gameID, launchOptionID: launchOptionID)
-    }
-    private func beginPlay(_ gameID: GameID, launchOptionID: String?) async throws {
+    private func beginPlay(_ gameID: GameID) async throws {
         guard started, !shuttingDown else { throw issue("Launch game", "Session recovery must finish before a game can start.") }
         guard active == nil else { throw issue("Launch game", "Quit the current game before starting another one.") }
         guard let installation = try catalog.snapshot().entries.first(where: { $0.id == gameID })?.installation else {
             throw issue("Launch game", "This game is not installed. Install it from your library first.")
         }
-        var resolvedID = launchOptionID
+        var resolvedID: String?
         var settings: RuntimeSettings?
         var settingsReadFailed = false
-        if launchOptionID == nil {
-            do {
-                let profile = try catalog.edits(for: gameID).runtimeProfile
-                let resolved = RuntimeResolver.settings(profile, catalog: CuratedProfileCatalog.bundled())
-                settings = resolved; resolvedID = resolved.launchOptionID
-            } catch {
-                settings = .playdenDefault; settingsReadFailed = true
-            }
+        do {
+            let profile = try catalog.edits(for: gameID).runtimeProfile
+            let resolved = RuntimeResolver.settings(profile, catalog: CuratedProfileCatalog.bundled())
+            settings = resolved; resolvedID = resolved.launchOptionID
+        } catch {
+            settings = .playdenDefault; settingsReadFailed = true
         }
+        // A profile-resolved id that no longer matches an installed launch option silently falls
+        // back to the default spec below rather than failing the launch.
         let option = try launchOptions(for: installation).first { $0.id == resolvedID }
-        // An explicitly requested option (play(_:launchOptionID:)) must still fail loudly if it is gone.
-        // A profile-resolved id that no longer matches silently falls back to the default spec below.
-        guard launchOptionID == nil || option != nil else {
-            throw issue("Launch game", "The selected launch option is no longer available. Choose another option.")
-        }
         var session = PlaySessionRecord(gameID: gameID, bottleID: installation.bottleID, startedAt: clock.wallTime)
         session.lastCheckpointAt = session.startedAt
         if let pending = try catalog.cloudOperations(for: gameID).last(where: { !$0.phase.isTerminal }), pending.needsLocalRecovery {
@@ -176,7 +162,7 @@ public actor SessionService: SessionManaging {
         playAnchor = nil; baseSeconds = 0; lastSave = clock.uptime; lastPublish = clock.uptime
         if settingsReadFailed {
             catalog.captureDiagnosticEvent(for: session.id, message: "Game settings · saved settings unavailable, using default", at: clock.wallTime)
-        } else if launchOptionID == nil, resolvedID != nil, option == nil {
+        } else if resolvedID != nil, option == nil {
             catalog.captureDiagnosticEvent(for: session.id, message: "Launch option · saved choice unavailable, using default", at: clock.wallTime)
         }
         publish()

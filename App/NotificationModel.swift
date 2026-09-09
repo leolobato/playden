@@ -2,7 +2,7 @@ import Foundation
 import Domain
 
 struct LauncherNotification: Identifiable, Equatable {
-    enum Source: Equatable { case job(UUID), controller }
+    enum Source: Equatable { case job(UUID), controller, settings(GameID) }
     enum Tone { case success, failure, warning }
     let id = UUID()
     var source: Source

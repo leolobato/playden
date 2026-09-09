@@ -196,32 +196,32 @@ private actor SessionCloud: CloudSyncManaging {
 }
 @MainActor
 final class SessionServiceTests: XCTestCase {
-    func testSelectedLaunchOptionSurvivesRuntimePreparationAndCloudPrompt() async throws {
+    func testStoredRuntimeProfileLaunchOptionSurvivesRuntimePreparationAndCloudPrompt() async throws {
         let catalog = try CatalogStore(), clock = TestClock(), events = Events(), runner = Runner(events), queue = Queue(events)
         var game = try installed(catalog)
         let selected = LaunchOption(id: "dx11", title: "DirectX 11", spec: .init(executableRelativePath: "Alternate.exe", workingDirectoryRelativePath: "Bin", arguments: ["-dx11"]))
         game.plan = .init(game: game.game, manifestIDs: [:], estimate: .init(downloadBytes: 1, installedBytes: 1, requiredBytes: 1),
             launchSpec: game.launchSpec, sourcePayload: Data(), launchOptions: [selected])
         try catalog.saveInstallation(game)
+        var edits = GameEdits(); edits.runtime = RuntimeProfile(overrides: [.launchOption: .scalar("dx11")])
+        try catalog.saveEdits(edits, for: game.gameID)
         let cloud = SessionCloud(catalog, events)
         await cloud.configure(before: .conflict); await runner.configure(changed: true)
         let service = try make(catalog, runner, queue, clock, events, cloud: cloud)
         try await service.start(downloadWhilePlaying: false)
-        do { try await service.play(game.gameID, launchOptionID: "missing"); XCTFail("Unknown choice must fail before starting a session") } catch {}
-        XCTAssertTrue(try catalog.unfinishedSessions().isEmpty)
-        try await service.play(game.gameID, launchOptionID: "dx11")
+        try await service.play(game.gameID)
         _ = try await wait(service, phase: .awaitingCloud)
         try await service.playOffline()
         _ = try await wait(service, phase: .launching)
         let actual = await runner.lastLaunchSpec
         XCTAssertEqual(actual, selected.spec)
-        XCTAssertEqual(try catalog.snapshot().entries.first?.installation?.launchSpec.executableRelativePath, "rebuilt.exe", "One-time selection must not replace the prepared default")
+        XCTAssertEqual(try catalog.snapshot().entries.first?.installation?.launchSpec.executableRelativePath, "rebuilt.exe", "The stored profile selection must not replace the prepared default")
         await runner.emit(exit: 0); _ = try await wait(service, phase: .idle)
         await cloud.configure(before: .upToDate); await runner.configure(changed: false)
         try await service.play(game.gameID)
         _ = try await wait(service, phase: .launching)
         let next = await runner.lastLaunchSpec
-        XCTAssertEqual(next?.executableRelativePath, "rebuilt.exe", "One-time selection must not leak to the next session")
+        XCTAssertEqual(next, selected.spec, "The stored profile selection persists across sessions")
         await runner.emit(exit: 0); _ = try await wait(service, phase: .idle)
     }
     func testStoredRuntimeProfileLaunchOptionSelectsMatchingSpec() async throws {

@@ -13,13 +13,14 @@ enum AppTab: String, CaseIterable { case home = "Home", library = "Library", dow
     var symbol: String { switch self { case .home: "house"; case .library: "square.grid.2x2"; case .downloads: "arrow.down.to.line"; case .settings: "gearshape" } }
 }
 typealias LibraryFilter = LibraryScope
-enum TextPurpose: Equatable { case newCollection(GameID?), renameCollection(UUID), compatibilityNote(GameID), accountName, password, guardCode }
+enum TextPurpose: Equatable { case newCollection(GameID?), renameCollection(UUID), compatibilityNote(GameID), accountName, password, guardCode, runtimeText(GameID, RuntimeSettingID) }
 enum Confirmation: Equatable { case deleteCollection(UUID), uninstall(GameID), install(GameID), cancelDownload(GameID), switchGame(GameID) }
 enum Panel: Equatable {
     case context, gameSettings(GameID), filters, search, compatibility, information(String), persistenceFailure, signOut, controllerTest, resetAppData
     case downloadActions(GameID)
     case installOffer(GameID)
-    case launchOptions(GameID)
+    case settingPicker(GameID, RuntimeSettingID)
+    case profileChooser(GameID)
     case cloudSaves(GameID)
     case uninstall(GameID)
     case textEditor(TextPurpose), collections(GameID), collectionOptions(UUID), confirmation(Confirmation), logs(GameID)
@@ -80,11 +81,6 @@ final class LibraryModel {
     var session = SessionSnapshot()
     var sessionReady = false
     var gameLaunchOptions: [GameID: [LaunchOption]] = [:]
-    var preferredLaunchOptions: [GameID: LaunchOption] = [:]
-    var launchChoiceIndex = 0
-    var launchAlwaysUse = false
-    var launchAfterChoosing = false
-    var launchChoiceError: String?
     var gameWindowHandedOff = false
     var sessionIssue: OperationFailure? {
         didSet {
@@ -217,8 +213,14 @@ final class LibraryModel {
     var filterChoiceIndex = 0
     var filterScrollOffset = 0.0
     var expandedGenres = false
-    var controllerModes: [GameID: ControllerMode] = [:]
-    var controllerModeChoice: ControllerMode?
+    var runtimeProfiles: [GameID: RuntimeProfile] = [:]
+    let profileCatalog = CuratedProfileCatalog.bundled()
+    var settingsFocus = 0            // index into settingsRows
+    var moreSettingsExpanded = false
+    var settingsScrollOffset = 0.0
+    var settingsChangedCount = 0     // overrides changed since the sheet opened
+    var pickerIndex = 0
+    var chooserIndex = 0
     var gameSettingsError: String?
     var detailAction = 0
     var reducedMotion = false { didSet { persistPreferences() } }
@@ -404,7 +406,6 @@ final class LibraryModel {
         if actions.contains("Quit game") { result.append("Quit game") }
         result += [focusedGame?.isFavorite == true ? "Unfavorite" : "Favorite", "Set compatibility",
                    focusedGame?.isHidden == true ? "Unhide" : "Hide", "View logs", "Add to collection"]
-        if let id = focusedGame?.id, (gameLaunchOptions[id]?.count ?? 0) > 1 { result.append("Launch options") }
         for action in ["Verify files", "Cloud saves", "Uninstall"] where actions.contains(action) && actions.first != action {
             result.append(action)
         }
@@ -413,8 +414,7 @@ final class LibraryModel {
     var panelActions: [String] {
         switch panel {
         case .context: contextActions
-        case .gameSettings: ["Use Playden default", "Xbox compatible", "Native controller", "Cancel", "Save"]
-        case .launchOptions(let id): (gameLaunchOptions[id] ?? []).map(\.title) + ["Always use this", "Cancel", launchAfterChoosing ? "Play" : "Save"]
+        case .gameSettings, .settingPicker, .profileChooser: [] // Dedicated input handling.
         case .downloadActions(let id): downloadActions(for: id)
         case .installOffer: resolvingInstall ? [installOffer == nil ? "Cancel" : "Close"] : installOfferError != nil ? ["Cancel", installOfferRequiresSignIn ? "Sign in" : "Retry"] : installOffer?.canInstall == true ? ["Cancel", "Install"] : ["Cancel", "Check space again"]
         case .filters: []
@@ -523,6 +523,7 @@ final class LibraryModel {
             performLogs(action)
             return
         }
+        if performGameSettingsInput(action) { return }
         if panel != nil {
             switch action {
             case .back: panel = nil
@@ -650,8 +651,6 @@ final class LibraryModel {
     func activatePanel() {
         guard let label = panelActions[safe: panelIndex] else { return }
         switch panel {
-        case .gameSettings(let id): activateGameSettings(id)
-        case .launchOptions(let id): activateLaunchChoice(for: id)
         case .installOffer(let id):
             if panelIndex == 0 { panel = nil }
             else if installOfferRequiresSignIn { beginSignIn(resumingInstall: id) }
@@ -670,7 +669,6 @@ final class LibraryModel {
             else if label == "Hide" || label == "Unhide" { hideFocused(); panel = nil }
             else if label == "Add to collection", let id = focusedGame?.id { show(.collections(id)) }
             else if label == "Uninstall", let id = focusedGame?.id { beginUninstall(id) }
-            else if label == "Launch options", let id = focusedGame?.id { showLaunchOptions(for: id, play: false) }
             else if let id = focusedGame?.id { show(.logs(id)) }
         case .compatibility:
             if label == "Edit note", let id = focusedGame?.id { beginText(.compatibilityNote(id)) }

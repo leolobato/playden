@@ -100,9 +100,11 @@ struct ModalLayer: View {
             } else if case .installOffer(let gameID) = model.panel {
                 InstallOfferDialog(model: model, gameID: gameID).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if case .gameSettings(let gameID) = model.panel {
-                GameSettingsDialog(model: model, gameID: gameID).frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if case .launchOptions(let gameID) = model.panel {
-                LaunchOptionsDialog(model: model, gameID: gameID).frame(maxWidth: .infinity, maxHeight: .infinity)
+                GameSettingsSheet(model: model, gameID: gameID).frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if case .settingPicker(let gameID, let setting) = model.panel {
+                GameSettingPicker(model: model, gameID: gameID, setting: setting).frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if case .profileChooser(let gameID) = model.panel {
+                ProfileChooser(model: model, gameID: gameID).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if case .logs(let gameID) = model.panel {
                 LogViewer(model: model, gameID: gameID).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if case .cloudSaves(let gameID) = model.panel {
