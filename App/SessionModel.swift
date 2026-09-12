@@ -119,7 +119,10 @@ extension LibraryModel {
         panel = nil
         sessionOrigin = tab; sessionIssue = nil; sessionBusy = true
         sessionCommand = Task { [weak self] in
-            do { try await sessions.play(id) }
+            do {
+                try await self?.immersiveDisplay.waitUntilReady()
+                try await sessions.play(id)
+            }
             catch { if let self { self.reportSessionIssue(self.sessionFailure(error, stage: "Launch game"), gameID: id, recovery: .play(id)) } }
             self?.sessionBusy = false
         }

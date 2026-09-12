@@ -17,11 +17,21 @@ extension LibraryModel {
     }
     func startAccountPolling() {
         guard !isPreview, periodicSyncTask == nil, let source else { return }
+        let attempt = authAttempt
         periodicSyncTask = Task { [weak self] in
             guard let self else { return }
-            do { identity = try await source.auth.identity() }
-            catch { syncError = error.localizedDescription }
-            if identity != nil { refreshLibrary() }
+            do {
+                let restoredIdentity = try await source.auth.identity()
+                guard !Task.isCancelled else { return }
+                // Startup restoration may finish after the player has signed in again.
+                if authAttempt == attempt {
+                    identity = restoredIdentity
+                    if identity != nil { refreshLibrary() }
+                }
+            } catch {
+                guard !Task.isCancelled else { return }
+                if authAttempt == attempt { syncError = error.localizedDescription }
+            }
             while !Task.isCancelled {
                 do { try await Task.sleep(for: .seconds(6 * 3600)) } catch { return }
                 if identity != nil { refreshLibrary() }
@@ -80,7 +90,7 @@ extension LibraryModel {
                 try Task.checkCancellation()
                 guard authAttempt == attempt else { return }
                 let pendingInstall = installAfterAuthentication
-                identity = result; cancelAuthentication(); refreshLibrary()
+                identity = result; syncError = nil; cancelAuthentication(); refreshLibrary()
                 if let pendingInstall { beginInstall(pendingInstall) }
                 else {
                     selectTab(.home)

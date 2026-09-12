@@ -61,12 +61,12 @@ struct LauncherWindowPosition: Equatable {
         return preservedForSession
     }
 
-    func acquire(target: GameDisplayTarget,
+    func acquire(target: GameDisplayTarget, forGame: Bool = true,
                  start: (GameDisplayTarget) async throws -> any PrimaryDisplayHolding) async throws -> any PrimaryDisplayHolding {
         isChanging = true
         defer { isChanging = false }
         let position = try await prepare()
-        preservedForSession = true
+        if forGame { preservedForSession = true }
         var acquired: (any PrimaryDisplayHolding)?
         do {
             try Task.checkCancellation()
@@ -74,9 +74,9 @@ struct LauncherWindowPosition: Equatable {
             acquired = lease
             // Reentering fullscreen here creates a separate Space immediately before Wine
             // opens its window. Stay on the desktop for handoff; restore fullscreen at exit.
-            try await restore(position.restoringFullscreen(false))
+            try await restore(forGame ? position.restoringFullscreen(false) : position)
             try Task.checkCancellation()
-            return PresentedPrimaryDisplay(base: lease, presentation: self, position: position)
+            return PresentedPrimaryDisplay(base: lease, presentation: self, position: position, restoreOriginalFullscreen: forGame)
         } catch {
             // A cancelled launch still needs uncancelled AppKit transitions and native rollback.
             await Task { @MainActor in
@@ -90,12 +90,12 @@ struct LauncherWindowPosition: Equatable {
         }
     }
 
-    fileprivate func release(_ base: any PrimaryDisplayHolding, fallback: LauncherWindowPosition) async {
+    fileprivate func release(_ base: any PrimaryDisplayHolding, fallback: LauncherWindowPosition, restoreOriginalFullscreen: Bool) async {
         isChanging = true
         defer { isChanging = false }
         var position = fallback
         do { position = try await prepare() } catch { reportFailure(error) }
-        position = position.restoringFullscreen(fallback.fullscreen)
+        if restoreOriginalFullscreen { position = position.restoringFullscreen(fallback.fullscreen) }
         // A failed UI transition must not leave the temporary system configuration held.
         await base.release()
         do { try await restore(position) } catch { reportFailure(error) }
@@ -174,13 +174,17 @@ struct LauncherWindowPosition: Equatable {
     private let base: any PrimaryDisplayHolding
     private let presentation: LauncherDisplayPresentation
     private let position: LauncherWindowPosition
+    private let restoreOriginalFullscreen: Bool
     private var cleanup: Task<Void, Never>?
-    init(base: any PrimaryDisplayHolding, presentation: LauncherDisplayPresentation, position: LauncherWindowPosition) {
+    init(base: any PrimaryDisplayHolding, presentation: LauncherDisplayPresentation, position: LauncherWindowPosition, restoreOriginalFullscreen: Bool) {
         self.base = base; self.presentation = presentation; self.position = position; target = base.target
+        self.restoreOriginalFullscreen = restoreOriginalFullscreen
     }
     func release() async {
         if cleanup == nil {
-            cleanup = Task { @MainActor [base, presentation, position] in await presentation.release(base, fallback: position) }
+            cleanup = Task { @MainActor [base, presentation, position, restoreOriginalFullscreen] in
+                await presentation.release(base, fallback: position, restoreOriginalFullscreen: restoreOriginalFullscreen)
+            }
         }
         await cleanup?.value
     }

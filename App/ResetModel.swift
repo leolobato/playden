@@ -102,6 +102,7 @@ extension LibraryModel {
         filter = .all; sort = .name; refinements = .init(); reducedMotion = false; downloadWhilePlaying = false
         selectedAudioDeviceUID = nil; selectedAudioDeviceName = nil
         gamesVolume = nil; selectedDisplayID = nil; selectedDisplayUUID = nil; selectedDisplayName = nil; startInFullscreen = true
+        immersiveMode = false; onImmersiveModeChanged?()
         restoringState = false
     }
     private func resetIssue(_ reason: String) -> OperationFailure { .init(stage: "Reset Playden", reason: reason, output: "") }

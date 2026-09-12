@@ -4,7 +4,19 @@ import Catalog
 @testable import Playden
 
 private actor FixtureAuth: SourceAuth {
-    func identity() async throws -> SourceIdentity? { nil }
+    let holdIdentity: Bool
+    private var pendingIdentity: CheckedContinuation<SourceIdentity?, Error>?
+    var identityPending: Bool { pendingIdentity != nil }
+    init(holdIdentity: Bool = false) { self.holdIdentity = holdIdentity }
+    func identity() async throws -> SourceIdentity? {
+        if holdIdentity { return try await withCheckedThrowingContinuation { pendingIdentity = $0 } }
+        return nil
+    }
+    func finishIdentity(_ failure: SourceFailure?) {
+        if let failure { pendingIdentity?.resume(throwing: failure) }
+        else { pendingIdentity?.resume(returning: nil) }
+        pendingIdentity = nil
+    }
     func signInWithQR(onEvent: @escaping @Sendable (AuthenticationEvent) -> Void) async throws -> SourceIdentity {
         onEvent(.qrChallenge(URL(string: "https://example.invalid/design-test")!, expiresAt: .now.addingTimeInterval(300)))
         try await Task.sleep(for: .seconds(60))
@@ -18,12 +30,42 @@ private actor FixtureAuth: SourceAuth {
 private struct AccountFixtureSource: GameSource {
     func installer(for game: SourceGameRecord) throws -> any Installer { throw SourceFailure.unavailable }
     let id = "fixture", displayName = "Fixture"
-    let auth: any SourceAuth = FixtureAuth()
+    var auth: any SourceAuth = FixtureAuth()
     var games: [SourceGameRecord] = []
     func ownedGames() async throws -> [SourceGameRecord] { games }
     func metadata(for game: SourceGameRecord) async throws -> SourceGameRecord { game }
 }
 final class AccountInteractionTests: XCTestCase {
+    @MainActor func testSignInClearsExpiredNoticeEvenWithoutLibraryRefresh() async throws {
+        let model = LibraryModel(preview: false, source: AccountFixtureSource())
+        defer { model.stopServices() }
+        model.syncError = SourceFailure.expired.localizedDescription
+        model.authScreen = .credentials; model.accountNameDraft = "Fixture"; model.passwordDraft = "fixture-only"
+        model.authIndex = 2; model.activateAuthentication()
+        await model.authTask?.value
+        XCTAssertNotNil(model.identity)
+        XCTAssertNil(model.syncError)
+    }
+    @MainActor func testLateStartupIdentityCannotUndoSuccessfulSignIn() async throws {
+        for failure in [SourceFailure.expired, nil] {
+            let auth = FixtureAuth(holdIdentity: true)
+            let model = LibraryModel(preview: false, source: AccountFixtureSource(auth: auth))
+            model.startAccountPolling()
+            let deadline = Date().addingTimeInterval(3)
+            while await !auth.identityPending && Date() < deadline { try await Task.sleep(for: .milliseconds(10)) }
+            let pending = await auth.identityPending
+            XCTAssertTrue(pending)
+            model.authScreen = .credentials; model.accountNameDraft = "Fixture"; model.passwordDraft = "fixture-only"
+            model.authIndex = 2; model.activateAuthentication()
+            await model.authTask?.value
+            await auth.finishIdentity(failure)
+            // Allow the resumed startup check to deliver its stale result on the main actor.
+            try await Task.sleep(for: .milliseconds(30))
+            XCTAssertEqual(model.identity?.displayName, "Fixture")
+            XCTAssertNil(model.syncError)
+            model.stopServices()
+        }
+    }
     @MainActor func testSuccessfulSignInImmediatelyLoadsOwnedGames() async throws {
         let catalog = try CatalogStore()
         let games = [SourceGameRecord(id: GameID(source: "fixture", value: "owned"), title: "Owned game")]

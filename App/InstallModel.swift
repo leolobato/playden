@@ -68,7 +68,7 @@ extension LibraryModel {
             do {
                 _ = try await installQueue.enqueue(offer)
                 guard let self, !Task.isCancelled else { return }
-                self.panel = nil; self.selectTab(.downloads)
+                self.resolvingInstall = false; self.panel = nil; self.detailID = nil
             } catch {
                 guard let self, !Task.isCancelled else { return }
                 self.resolvingInstall = false; self.recordInstallOfferFailure(error)

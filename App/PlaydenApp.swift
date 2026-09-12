@@ -21,7 +21,7 @@ struct PlaydenApp {
 }
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, LauncherWindowControlling {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuItemValidation, LauncherWindowControlling {
     let model: LibraryModel
     private static var isTestProcess: Bool {
         let args = ProcessInfo.processInfo.arguments
@@ -58,6 +58,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Laun
     private var volumeObservers: [NSObjectProtocol] = []
     private var pendingDisplayID: UInt32?
     private var resumeFullscreenAfterMove = false
+    private var rememberFullscreenTransition: Bool?
+    private var immersiveFullscreenTask: Task<Void, Never>?
+    private var pendingImmersiveFullscreen: Bool?
+    private let darkenedDisplays = DarkenedDisplayWindows()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         if Self.isTestProcess {
@@ -125,8 +129,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Laun
             installMenus()
             window.center(); window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
             refreshDisplays()
-            model.onDisplaySelected = { [weak self] id in self?.moveWindow(to: id) }
-            model.onFullscreenRequested = { [weak self] enabled in self?.setFullscreen(enabled) }
+            model.onDisplaySelected = { [weak self] id in
+                self?.moveWindow(to: id); self?.updateImmersiveDisplay()
+            }
+            model.onFullscreenRequested = { [weak self] enabled in self?.setFullscreen(enabled, remember: true) }
+            model.onImmersiveModeChanged = { [weak self] in
+                self?.updateImmersiveDisplay(); self?.applyImmersiveFullscreen()
+            }
+            model.immersiveDisplay.acquire = { [weak self] target in
+                guard let self, let helper = Bundle.main.url(forResource: "PlaydenPrimaryDisplay", withExtension: nil) else {
+                    throw OperationFailure(stage: "Immersive mode", reason: "The display helper is missing. Reinstall Playden and try again.", output: "")
+                }
+                do {
+                    return try await model.displayPresentation.acquire(target: target, forGame: false) { target in
+                        try await TemporaryPrimaryDisplay.acquire(target: target, helper: helper)
+                    }
+                } catch {
+                    throw OperationFailure(stage: "Immersive mode", reason: "Could not change the primary display. Leave fullscreen apps and try Immersive mode again.", output: error.localizedDescription)
+                }
+            }
+            model.immersiveDisplay.darken = { [weak self] screens in self?.darkenedDisplays.update(screens) }
+            model.immersiveDisplay.stateChanged = { [weak self] changing, error in
+                guard let self else { return }
+                model.immersiveModeChanging = changing
+                model.immersiveModeError = (error as? OperationFailure)?.reason ?? error?.localizedDescription
+                if !changing { refreshDisplays() }
+            }
             model.onGameStarted = { [weak self] in
                 guard let self else { return }
                 self.exitShortcut.action = { [weak self] in self?.model.keyboardNavigation = true; self?.model.perform(.holdHome) }
@@ -140,6 +168,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Laun
                 self.gameActivationTask?.cancel(); self.gameActivationTask = nil
                 self.exitShortcut.stop(); self.exitPanel?.orderOut(nil)
                 if !self.model.displayPresentation.consumePreservedWindow() { self.restorePreferredDisplay() }
+                self.updateImmersiveDisplay()
+                if self.model.immersiveMode || self.pendingImmersiveFullscreen != nil { self.applyImmersiveFullscreen() }
                 self.window.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
             }
             model.onExitOverlayChanged = { [weak self] visible in self?.presentExitOverlay(visible) }
@@ -148,6 +178,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Laun
                 Task { @MainActor [weak self] in self?.clearResolvedGameActivationIssue() }
             }
             if model.shouldStartFullscreen(arguments: args) { setFullscreen(true) }
+            updateImmersiveDisplay()
+            if model.immersiveMode { applyImmersiveFullscreen() }
             model.startServices()
             for name in [NSWorkspace.didMountNotification, NSWorkspace.didUnmountNotification,
                          NSWorkspace.didRenameVolumeNotification, NSWorkspace.didWakeNotification] {
@@ -194,13 +226,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Laun
     }
     private var terminating = false
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard model.installQueue != nil || model.sessions != nil else { return .terminateNow }
         guard !terminating else { return .terminateLater }
         if model.requiresLauncherQuitConfirmation && !model.consumeLauncherQuitApproval() {
             model.requestLauncherQuit()
             return .terminateCancel
         }
         terminating = true
+        immersiveFullscreenTask?.cancel()
         model.launcherQuitting = true
         Task {
             await model.resetTask?.value
@@ -211,6 +243,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Laun
                 await model.stopCloudCommands()
                 if let sessions = model.sessions { try await sessions.shutdown() }
                 else { await model.installQueue?.shutdown() }
+                await model.immersiveDisplay.shutdown()
                 model.stopServices(); await model.flushLogs(); sender.reply(toApplicationShouldTerminate: true)
             } catch {
                 terminating = false
@@ -223,6 +256,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Laun
         return .terminateLater
     }
     func applicationWillTerminate(_ notification: Notification) {
+        immersiveFullscreenTask?.cancel()
+        darkenedDisplays.update([])
         model.stopServices()
         controller.stop()
         exitShortcut.stop()
@@ -249,6 +284,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Laun
         if model.setupScreen == .display { model.setupIndex = min(model.setupIndex, model.displays.count) }
         model.currentDisplayName = window?.screen?.localizedName
         if !model.displayPresentation.isChanging { restorePreferredDisplay() }
+        updateImmersiveDisplay()
+    }
+    private func updateImmersiveDisplay() {
+        window?.standardWindowButton(.zoomButton)?.isEnabled = !model.immersiveMode
+        guard window != nil, !model.isPreview else { return }
+        // Avoid reconfiguring a live game's desktop; apply a changed preference on return.
+        guard !model.hasActiveSession else {
+            if let uuid = model.immersiveDisplay.activeDisplayUUID {
+                darkenedDisplays.update(launcherScreens.contains(where: { $0.uuid == uuid }) ? launcherScreens.filter { $0.uuid != uuid } : [])
+            }
+            return
+        }
+        let target = model.immersiveMode
+            ? GameDisplay.target(preferences: (try? model.catalog?.preferences()) ?? LibraryPreferences()) : nil
+        model.immersiveDisplay.update(target: target, screens: launcherScreens)
+    }
+    private func applyImmersiveFullscreen() {
+        immersiveFullscreenTask?.cancel()
+        let enabled = model.immersiveFullscreen
+        pendingImmersiveFullscreen = enabled
+        guard !terminating, !model.hasActiveSession else { return }
+        immersiveFullscreenTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            // Native display changes may temporarily leave fullscreen. Apply the final
+            // window mode only after their lease and window restoration have settled.
+            do { try await model.immersiveDisplay.waitUntilReady() }
+            catch { if Task.isCancelled { return } }
+            let deadline = ContinuousClock.now.advanced(by: .seconds(8))
+            while model.fullscreenTransitioning || model.displayPresentation.isChanging {
+                guard ContinuousClock.now < deadline else {
+                    model.immersiveModeError = "The window is still switching modes. Try Immersive mode again."
+                    return
+                }
+                do { try await Task.sleep(for: .milliseconds(20)) } catch { return }
+            }
+            guard !Task.isCancelled, !terminating, !model.hasActiveSession else { return }
+            pendingImmersiveFullscreen = nil
+            setFullscreen(enabled)
+        }
     }
     private func restorePreferredDisplay() {
         guard window != nil, !model.hasActiveSession else { return }
@@ -273,8 +347,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Laun
         window.setFrameOrigin(NSPoint(x: screen.visibleFrame.midX - window.frame.width / 2, y: screen.visibleFrame.midY - window.frame.height / 2))
         model.currentDisplayName = screen.localizedName
     }
-    private func setFullscreen(_ enabled: Bool) {
+    private func setFullscreen(_ enabled: Bool, remember: Bool = false) {
         guard !model.fullscreenTransitioning, window.styleMask.contains(.fullScreen) != enabled else { return }
+        rememberFullscreenTransition = remember
         model.fullscreenTransitioning = true
         window.toggleFullScreen(nil)
     }
@@ -310,7 +385,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Laun
     func windowWillEnterFullScreen(_ notification: Notification) { model.fullscreenTransitioning = true }
     func windowWillExitFullScreen(_ notification: Notification) { model.fullscreenTransitioning = true }
     func windowDidEnterFullScreen(_ notification: Notification) {
-        model.isFullscreen = true; model.fullscreenTransitioning = false
+        model.fullscreenDidChange(true, remember: rememberFullscreenTransition ?? true)
+        rememberFullscreenTransition = nil; model.fullscreenTransitioning = false
         if pendingDisplayID != nil {
             DispatchQueue.main.async { [weak self] in
                 guard let self, let id = self.pendingDisplayID else { return }
@@ -319,7 +395,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Laun
         }
     }
     func windowDidExitFullScreen(_ notification: Notification) {
-        model.isFullscreen = false; model.fullscreenTransitioning = false
+        let userExited = rememberFullscreenTransition == nil
+        model.fullscreenDidChange(false, remember: rememberFullscreenTransition ?? true)
+        rememberFullscreenTransition = nil; model.fullscreenTransitioning = false
         // AppKit still owns the previous transition while delivering this delegate call.
         // Moving/re-entering synchronously can strand the window in its old fullscreen Space.
         if pendingDisplayID != nil || resumeFullscreenAfterMove {
@@ -329,10 +407,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Laun
                 if self.resumeFullscreenAfterMove { self.resumeFullscreenAfterMove = false; self.setFullscreen(true) }
             }
         }
+        if userExited && model.immersiveMode { applyImmersiveFullscreen() }
     }
     func windowDidFailToEnterFullScreen(_ window: NSWindow) { fullscreenFailed() }
     func windowDidFailToExitFullScreen(_ window: NSWindow) { fullscreenFailed() }
     private func fullscreenFailed() {
+        rememberFullscreenTransition = nil
         model.isFullscreen = window.styleMask.contains(.fullScreen); model.fullscreenTransitioning = false
         pendingDisplayID = nil; resumeFullscreenAfterMove = false
         // The presentation coordinator checks the requested state and reports a real
@@ -457,9 +537,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, Laun
         appMenu.addItem(withTitle: "Quit Playden", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         let viewItem = NSMenuItem(); main.addItem(viewItem)
         let viewMenu = NSMenu(title: "View"); viewItem.submenu = viewMenu
-        let fullscreen = viewMenu.addItem(withTitle: "Toggle Full Screen", action: #selector(NSWindow.toggleFullScreen(_:)), keyEquivalent: "f")
+        let fullscreen = viewMenu.addItem(withTitle: "Toggle Full Screen", action: #selector(toggleFullscreenFromMenu(_:)), keyEquivalent: "f")
+        fullscreen.target = self
         fullscreen.keyEquivalentModifierMask = [.control, .command]
         NSApp.mainMenu = main
+    }
+    @objc private func toggleFullscreenFromMenu(_ sender: Any?) { model.requestFullscreen() }
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        menuItem.action != #selector(toggleFullscreenFromMenu(_:)) || model.fullscreenControlEnabled
     }
     private func captureScreens(to directory: URL) async {
         do {

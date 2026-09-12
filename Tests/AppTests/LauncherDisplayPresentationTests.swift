@@ -59,6 +59,23 @@ import Runner
 }
 
 @MainActor final class LauncherDisplayPresentationTests: XCTestCase {
+    func testImmersiveLeaseKeepsFullscreenAndRespectsLaterWindowModeChanges() async throws {
+        let window = WindowFixture(), presentation = LauncherDisplayPresentation()
+        presentation.window = window; window.setLauncherFullscreen(true)
+        let base = DisplayLeaseFixture(window: window)
+        let lease = try await presentation.acquire(target: base.target, forGame: false) { _ in
+            window.switchLayout(); return base
+        }
+        XCTAssertTrue(window.launcherFullscreen)
+        XCTAssertEqual(window.launcherScreen?.uuid, "asus")
+        XCTAssertFalse(presentation.consumePreservedWindow())
+        window.setLauncherFullscreen(false)
+        await lease.release()
+        XCTAssertFalse(window.launcherFullscreen)
+        XCTAssertEqual(window.launcherScreen?.uuid, "asus")
+        XCTAssertEqual(window.launcherScreens, window.original)
+        XCTAssertEqual(base.releases, 1)
+    }
     func testLauncherStaysOnGameDesktopAndRestoresFullscreenOnlyAtExit() async throws {
         for fullscreen in [false, true] {
             let window = WindowFixture(), presentation = LauncherDisplayPresentation()

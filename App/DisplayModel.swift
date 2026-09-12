@@ -17,15 +17,19 @@ extension LibraryModel {
         return currentDisplayName ?? "Current display"
     }
 
+    var fullscreenControlEnabled: Bool { !immersiveMode && !immersiveModeChanging && !fullscreenTransitioning }
+    var immersiveFullscreen: Bool { immersiveMode || startInFullscreen }
+
     func requestFullscreen() {
-        guard !fullscreenTransitioning else { return }
+        guard fullscreenControlEnabled else { return }
         if let onFullscreenRequested { onFullscreenRequested(!isFullscreen) }
-        else if isPreview { isFullscreen.toggle() }
+        else if isPreview { fullscreenDidChange(!isFullscreen) }
     }
 
-    func toggleStartInFullscreen() {
+    func fullscreenDidChange(_ enabled: Bool, remember: Bool = true) {
+        isFullscreen = enabled
+        guard remember, !immersiveMode else { return }
         do {
-            let enabled = !startInFullscreen
             try updateSetupPreferences { $0.startInFullscreen = enabled }
             startInFullscreen = enabled
         } catch {
@@ -34,7 +38,28 @@ extension LibraryModel {
         }
     }
 
+    func toggleImmersiveMode() {
+        guard !immersiveModeChanging, !fullscreenTransitioning else { return }
+        do {
+            let enabled = !immersiveMode
+            // Keep the normal window mode as the restoration value across app launches.
+            let previousFullscreen = isFullscreen
+            try updateSetupPreferences {
+                $0.immersiveMode = enabled
+                if enabled { $0.startInFullscreen = previousFullscreen }
+            }
+            if enabled { startInFullscreen = previousFullscreen }
+            immersiveMode = enabled; immersiveModeError = nil
+            onImmersiveModeChanged?()
+            if isPreview { fullscreenDidChange(immersiveFullscreen, remember: false) }
+        } catch {
+            persistenceError = error.localizedDescription
+            show(.persistenceFailure)
+        }
+    }
+
     func shouldStartFullscreen(arguments: [String]) -> Bool {
+        if !isPreview && immersiveMode { return true }
         if arguments.contains("--fullscreen") { return true }
         if arguments.contains("--windowed") { return false }
         return !isPreview && startInFullscreen

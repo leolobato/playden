@@ -78,6 +78,7 @@ final class InstallInteractionTests: XCTestCase {
         await queue.failOffer(.expired)
         let model = try model(queue, offer: offer, source: InstallRecoverySource(game: offer.plan.game))
         defer { model.stopServices() }
+        model.syncError = SourceFailure.expired.localizedDescription
         model.selectTab(.library)
         model.beginInstall(id)
         await model.installOfferTask?.value
@@ -97,6 +98,7 @@ final class InstallInteractionTests: XCTestCase {
         XCTAssertEqual(model.panelActions, ["Cancel", "Install"])
         XCTAssertEqual(model.tab, .library)
         XCTAssertNil(model.installAfterAuthentication)
+        XCTAssertNil(model.syncError)
         let enqueued = await queue.enqueued
         XCTAssertTrue(enqueued.isEmpty, "Signing in must still require confirmation before downloading")
     }
@@ -136,6 +138,7 @@ final class InstallInteractionTests: XCTestCase {
     @MainActor func testInstallRequiresResolvedEstimateAndOneConfirmation() async throws {
         let offer = offer(), queue = InteractionQueue(offer)
         let model = try model(queue, offer: offer)
+        model.selectTab(.library)
         model.openGame(model.games[0]); model.activateDetail()
         XCTAssertEqual(model.panel, .installOffer(id))
         try await eventually { !model.resolvingInstall }
@@ -143,10 +146,45 @@ final class InstallInteractionTests: XCTestCase {
         let before = await queue.enqueued.count
         XCTAssertEqual(before, 0)
         model.perform(.move(.right)); model.perform(.confirm)
-        try await eventually { model.tab == .downloads && model.panel == nil }
+        await model.installOfferTask?.value
+        XCTAssertEqual(model.tab, .library)
+        XCTAssertNil(model.panel)
+        XCTAssertNil(model.detailID)
+        XCTAssertFalse(model.resolvingInstall)
         let submitted = await queue.enqueued
         XCTAssertEqual(submitted.map(\.plan), [offer.plan])
         model.stopServices()
+    }
+    @MainActor func testEnqueuePreservesCollectionSearchAndBrowsePosition() async throws {
+        let offer = offer(), queue = InteractionQueue(offer)
+        let model = try model(queue, offer: offer)
+        defer { model.stopServices() }
+        let others = (0..<50).map { SourceGameRecord(id: GameID(source: "fixture", value: "other-\($0)"), title: "Another fixture \($0)") }
+        try model.catalog?.replaceSourceCatalog(source: "fixture", games: others + [offer.plan.game])
+        model.reloadCatalog()
+        model.gamesVolume = offer.volume
+        let collection = GameCollection(name: "Relax & Unwind", gameIDs: Set(model.games.map(\.id)))
+        model.collections = [collection]
+        model.selectTab(.library); model.filter = .collection(collection.id)
+        model.updateQuery("fixture")
+        model.libraryCursor = .init(index: 50)
+        let scrollOffset = model.libraryScrollOffset
+        model.openGame(try XCTUnwrap(model.focusedGame)); model.activateDetail()
+        await model.installOfferTask?.value
+        model.panelIndex = 1; model.perform(.confirm)
+        await model.installOfferTask?.value
+        XCTAssertNil(model.panel)
+        XCTAssertNil(model.detailID)
+        XCTAssertEqual(model.tab, .library)
+        XCTAssertEqual(model.filter, .collection(collection.id))
+        XCTAssertEqual(model.query, "fixture")
+        XCTAssertEqual(model.focusedGame?.id, id)
+        XCTAssertEqual(model.libraryCursor.index, 50)
+        XCTAssertEqual(model.libraryScrollOffset, scrollOffset)
+        model.perform(.move(.left))
+        XCTAssertNotEqual(model.focusedGame?.id, id, "The player can immediately choose another game")
+        let submitted = await queue.enqueued
+        XCTAssertEqual(submitted.map(\.plan), [offer.plan])
     }
     @MainActor func testLogRecoveryRetriesOnlyTheCurrentFailedJobAndPreservesCancellationIntent() async throws {
         let offer = offer(), queue = InteractionQueue(offer)

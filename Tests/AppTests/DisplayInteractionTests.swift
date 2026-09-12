@@ -34,27 +34,83 @@ final class DisplayInteractionTests: XCTestCase {
         XCTAssertNil(model.selectedAudioDeviceUID)
     }
 
-    @MainActor func testStartupPreferenceSurvivesOtherSettingsAndLaunchOverridesAreTemporary() throws {
+    @MainActor func testImmersiveModeReplacesStartupSettingAndSurvivesOtherSettings() throws {
         let catalog = try CatalogStore()
         let model = LibraryModel(catalog: catalog, preview: false)
         XCTAssertTrue(model.shouldStartFullscreen(arguments: []))
         model.selectTab(.settings); model.settingsSection = 2; model.settingsRailFocused = false
         model.settingsIndex = 2; model.perform(.confirm)
-        XCTAssertFalse(model.startInFullscreen)
+        XCTAssertTrue(model.immersiveMode)
         model.perform(.move(.down)); model.perform(.confirm)
         XCTAssertEqual(model.settingsIndex, 3)
         XCTAssertTrue(model.reducedMotion)
         model.perform(.move(.down)); XCTAssertEqual(model.settingsIndex, 3)
         let restored = LibraryModel(catalog: catalog, preview: false)
-        XCTAssertFalse(restored.shouldStartFullscreen(arguments: []))
+        XCTAssertTrue(restored.immersiveMode)
+        XCTAssertTrue(restored.shouldStartFullscreen(arguments: []))
         XCTAssertTrue(restored.shouldStartFullscreen(arguments: ["--fullscreen"]))
-        XCTAssertFalse(try XCTUnwrap(catalog.preferences().startInFullscreen))
-        restored.toggleStartInFullscreen()
+        XCTAssertEqual(try catalog.preferences().startInFullscreen, false)
+        XCTAssertTrue(restored.shouldStartFullscreen(arguments: ["--windowed"]))
+        restored.toggleImmersiveMode()
+        XCTAssertFalse(try XCTUnwrap(catalog.preferences().immersiveMode))
         XCTAssertFalse(restored.shouldStartFullscreen(arguments: ["--windowed"]))
-        XCTAssertTrue(try XCTUnwrap(catalog.preferences().startInFullscreen))
+        XCTAssertFalse(restored.shouldStartFullscreen(arguments: []))
     }
 
-    @MainActor func testCurrentFullscreenUsesWindowAcknowledgementAndDoesNotChangeStartup() throws {
+    @MainActor func testImmersiveModeLocksFullscreenAndRestoresPreviousModeAcrossRelaunch() throws {
+        for wasFullscreen in [false, true] {
+            let catalog = try CatalogStore()
+            let model = LibraryModel(catalog: catalog, preview: false)
+            model.fullscreenDidChange(wasFullscreen)
+            var requests: [Bool] = []
+            model.onImmersiveModeChanged = {
+                requests.append(model.immersiveFullscreen)
+                model.fullscreenDidChange(model.immersiveFullscreen, remember: false)
+            }
+            model.onFullscreenRequested = { _ in XCTFail("Fullscreen must stay locked during Immersive mode") }
+            model.toggleImmersiveMode()
+            XCTAssertTrue(model.isFullscreen)
+            XCTAssertFalse(model.fullscreenControlEnabled)
+            XCTAssertEqual(requests, [true])
+            model.requestFullscreen()
+            model.selectTab(.settings); model.settingsSection = 2; model.settingsIndex = 1
+            model.perform(.confirm)
+            // Native window notifications and temporary display transitions must not
+            // overwrite the window mode saved before Immersive mode was enabled.
+            model.fullscreenDidChange(true)
+            model.fullscreenDidChange(false, remember: false)
+            model.fullscreenDidChange(true, remember: false)
+            XCTAssertEqual(try catalog.preferences().startInFullscreen, wasFullscreen)
+            let restored = LibraryModel(catalog: catalog, preview: false)
+            XCTAssertTrue(restored.shouldStartFullscreen(arguments: ["--windowed"]))
+            XCTAssertFalse(restored.fullscreenControlEnabled)
+            restored.fullscreenDidChange(true, remember: false)
+            restored.onImmersiveModeChanged = {
+                requests.append(restored.immersiveFullscreen)
+                restored.fullscreenDidChange(restored.immersiveFullscreen, remember: false)
+            }
+            restored.toggleImmersiveMode()
+            XCTAssertEqual(requests, [true, wasFullscreen])
+            XCTAssertEqual(restored.isFullscreen, wasFullscreen)
+            XCTAssertTrue(restored.fullscreenControlEnabled)
+            XCTAssertEqual(try catalog.preferences().startInFullscreen, wasFullscreen)
+        }
+    }
+
+    @MainActor func testImmersiveModeCapturesActualWindowModeAndPreviewRestoresIt() throws {
+        let model = LibraryModel()
+        XCTAssertTrue(model.startInFullscreen)
+        XCTAssertFalse(model.isFullscreen)
+        model.toggleImmersiveMode()
+        XCTAssertTrue(model.isFullscreen)
+        XCTAssertFalse(model.startInFullscreen)
+        model.toggleImmersiveMode()
+        XCTAssertFalse(model.isFullscreen)
+        model.requestFullscreen()
+        XCTAssertTrue(model.isFullscreen)
+    }
+
+    @MainActor func testFullscreenRemembersAcknowledgedUserChangesButNotTemporaryTransitions() throws {
         let catalog = try CatalogStore()
         let model = LibraryModel(catalog: catalog, preview: false)
         var requests: [Bool] = []
@@ -65,10 +121,19 @@ final class DisplayInteractionTests: XCTestCase {
         model.fullscreenTransitioning = true
         model.requestFullscreen()
         XCTAssertEqual(requests, [true])
-        model.fullscreenTransitioning = false; model.isFullscreen = true
+        model.fullscreenTransitioning = false; model.fullscreenDidChange(true)
+        XCTAssertEqual(try catalog.preferences().startInFullscreen, true)
+        model.fullscreenDidChange(false, remember: false)
+        XCTAssertEqual(try catalog.preferences().startInFullscreen, true)
+        model.fullscreenDidChange(true, remember: false)
         model.requestFullscreen()
         XCTAssertEqual(requests, [true, false])
-        XCTAssertNil(try catalog.preferences().startInFullscreen)
+        model.fullscreenDidChange(false)
+        XCTAssertEqual(try catalog.preferences().startInFullscreen, false)
+        let restored = LibraryModel(catalog: catalog, preview: false)
+        XCTAssertFalse(restored.shouldStartFullscreen(arguments: []))
+        XCTAssertTrue(restored.shouldStartFullscreen(arguments: ["--fullscreen"]))
+        XCTAssertEqual(try catalog.preferences().startInFullscreen, false)
     }
 
     @MainActor func testMonitorIdentitySurvivesReconnectionWithoutSelectingRecycledID() throws {
@@ -96,5 +161,6 @@ final class DisplayInteractionTests: XCTestCase {
         model.displays = [DisplayChoice(id: 42, name: "TV", resolution: "3840 × 2160", uuid: "tv")]
         XCTAssertEqual(model.preferredDisplay?.id, 42)
         XCTAssertTrue(model.shouldStartFullscreen(arguments: []))
+        XCTAssertFalse(model.immersiveMode)
     }
 }

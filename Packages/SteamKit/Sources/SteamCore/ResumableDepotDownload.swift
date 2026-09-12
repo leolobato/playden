@@ -167,6 +167,9 @@ public struct ResumableDepotDownload: Sendable {
         catch { return false }
         defer { try? handle.close() }
         guard try handle.seekToEnd() == file.size else { return false }
+        // Steam uses an all-zero digest for some empty placeholder files (for example
+        // KAMI's Adobe AIR runtime). The exact zero length is their verification.
+        if file.size == 0, file.contentSHA1 == Data(repeating: 0, count: 20) { return true }
         var checked: UInt64 = 0
         var lastReport = ContinuousClock.now
         onVerification(0)

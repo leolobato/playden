@@ -69,8 +69,9 @@ public struct LibraryPreferences: Codable, Equatable, Sendable {
     public var selectedDisplayName: String?
     public var selectedAudioDeviceUID: String?
     public var selectedAudioDeviceName: String?
-    /// Nil preserves the fullscreen default for profiles created before this setting existed.
+    /// Remembers the last user-selected window mode; nil preserves the legacy fullscreen default.
     public var startInFullscreen: Bool?
+    public var immersiveMode: Bool?
     public var gamesVolume: GamesVolumeSelection?
     public var setupCompleted = false
     public init() {}

@@ -78,6 +78,7 @@ final class LibraryModel {
     @ObservationIgnored var onGameStarted: (() -> Void)?
     @ObservationIgnored var onGameEnded: (() -> Void)?
     @ObservationIgnored let displayPresentation = LauncherDisplayPresentation()
+    @ObservationIgnored let immersiveDisplay = ImmersiveDisplayController()
     @ObservationIgnored var onExitOverlayChanged: ((Bool) -> Void)?
     var session = SessionSnapshot()
     var sessionReady = false
@@ -151,6 +152,10 @@ final class LibraryModel {
     var isFullscreen = false
     var fullscreenTransitioning = false
     var startInFullscreen = true
+    var immersiveMode = false
+    var immersiveModeChanging = false
+    var immersiveModeError: String?
+    @ObservationIgnored var onImmersiveModeChanged: (() -> Void)?
     var controllerDisconnected = false
     @ObservationIgnored var authTask: Task<Void, Never>?
     @ObservationIgnored var syncTask: Task<Void, Never>?
@@ -715,7 +720,7 @@ final class LibraryModel {
         else if settingsSection == 1 && settingsIndex == 3 { openRuntimeSetup() }
         else if settingsSection == 2 && settingsIndex == 0 { onboarding = false; setupScreen = .display; setupIndex = displays.firstIndex(where: { $0.id == preferredDisplay?.id }) ?? 0 }
         else if settingsSection == 2 && settingsIndex == 1 { requestFullscreen() }
-        else if settingsSection == 2 && settingsIndex == 2 { toggleStartInFullscreen() }
+        else if settingsSection == 2 && settingsIndex == 2 { toggleImmersiveMode() }
         else if settingsSection == 2 && settingsIndex == 3 { reducedMotion.toggle() }
         else if settingsSection == 1 && settingsIndex == 2 { downloadWhilePlaying.toggle() }
         else if settingsSection == 3 { openAudioSettings() }

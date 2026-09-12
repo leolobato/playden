@@ -57,6 +57,9 @@ extension LibraryModel {
             selectedDisplayUUID = preferences.selectedDisplayUUID; selectedDisplayName = preferences.selectedDisplayName
             selectedAudioDeviceUID = preferences.selectedAudioDeviceUID; selectedAudioDeviceName = preferences.selectedAudioDeviceName
             startInFullscreen = preferences.startInFullscreen ?? true
+            let wasImmersive = immersiveMode
+            immersiveMode = preferences.immersiveMode ?? false
+            if wasImmersive != immersiveMode { onImmersiveModeChanged?() }
             applyInstallStatuses()
             reconcileFocus()
         } catch { recordPersistenceError(error) }

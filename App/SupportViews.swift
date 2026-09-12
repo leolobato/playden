@@ -21,8 +21,8 @@ struct SettingsScreen: View {
         case 1: [("Refresh library", model.syncError ?? (model.syncing ? "Loading your library…" : "Refresh your games and artwork"), model.syncing ? "Refreshing" : "Refresh"), ("Games volume", model.gamesVolume?.lastKnownRoot.path ?? (model.isPreview ? "/Volumes/VM/Playden/games" : "Not configured"), "Change ›"), ("Download while playing", "Downloads pause automatically when a game starts", model.downloadWhilePlaying ? "On" : "Off"), ("Runtime", model.runtimeInfo.map { "CrossOver \($0.version ?? "not found") · Template \($0.templateVersion)" } ?? "Checking game setup", model.runtimeInfo?.templateReady == true && model.runtimeInfo?.failure == nil ? "Ready ›" : "Review ›")]
         case 2: [
             ("Preferred display", model.displaySummary, "Change ›"),
-            ("Fullscreen", model.fullscreenTransitioning ? "Switching window mode…" : "Fill the display · Control–Command–F", model.isFullscreen ? "On" : "Off"),
-            ("Start in fullscreen", "Open Playden in fullscreen on your preferred display", model.startInFullscreen ? "On" : "Off"),
+            ("Fullscreen", model.immersiveMode ? "On while Immersive mode is enabled" : model.fullscreenTransitioning ? "Switching window mode…" : "Remembered for next launch · Control–Command–F", model.immersiveMode || model.isFullscreen ? "On" : "Off"),
+            ("Immersive mode", model.immersiveModeError ?? "Make your preferred display primary and darken the others until Playden quits", model.immersiveModeChanging ? "Switching…" : model.immersiveMode ? "On" : "Off"),
             ("Reduced motion", "Keep the focus ring; turn off scaling and transitions", model.reducedMotion ? "On" : "Off")
         ]
         case 3: [("Preferred audio device", model.audioSummary, "Change ›")]
@@ -65,6 +65,8 @@ struct SettingsScreen: View {
                     }.padding(.horizontal, 30).padding(.vertical, 26).background(Design.text.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
                         .focusRing(!model.settingsRailFocused && model.settingsIndex == index)
                         .onTapGesture { model.settingsRailFocused = false; model.settingsIndex = index; model.activateSetting() }
+                        .disabled(model.settingsSection == 2 && index == 1 && !model.fullscreenControlEnabled)
+                        .opacity(model.settingsSection == 2 && index == 1 && !model.fullscreenControlEnabled ? 0.45 : 1)
                 }
             }.frame(width: 1380)
         }.offset(x: 96, y: 150)

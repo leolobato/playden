@@ -214,6 +214,20 @@ final class DownloadResumeTests: XCTestCase {
         try await value.download(manifest: empty) { _ in XCTFail(); return Data() }
         XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("empty")), Data())
     }
+    func testEmptySteamPlaceholderWithZeroDigestDownloadsAndRepairs() async throws {
+        let root = try root(), path = "Adobe AIR/Versions/1.0/Resources/AdobeCP.dll"
+        let manifest = DepotManifest(depotID: 272041, gid: 6869307445582119673,
+            files: [.init(path: path, size: 0, chunks: [], contentSHA1: Data(repeating: 0, count: 20))], totalSize: 0)
+        let value = download(root)
+        XCTAssertEqual(try value.invalidFiles(in: manifest), [path])
+        try await value.download(manifest: manifest) { _ in XCTFail("Empty placeholders require no chunks"); return Data() }
+        XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent(path)), Data())
+        XCTAssertTrue(try value.invalidFiles(in: manifest).isEmpty)
+        try Data("unexpected bytes".utf8).write(to: root.appendingPathComponent(path))
+        XCTAssertEqual(try value.invalidFiles(in: manifest), [path])
+        try await value.download(manifest: manifest) { _ in XCTFail(); return Data() }
+        XCTAssertTrue(try value.invalidFiles(in: manifest).isEmpty)
+    }
 }
 
 private actor LargeFileFeed {
