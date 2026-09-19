@@ -37,7 +37,8 @@ implemented.
 - **Play through CrossOver.** Per-game runtime preparation, game controls for returning or
   quitting, session playtime and recorded exit results. Downloads can pause while you play.
 - **Sync supported Steam Cloud saves.** Download before playing, upload after exit, review
-  conflicts and retry pending transfers. Save support depends on a verified mapping for the game.
+  conflicts and retry pending transfers. Supports Steam Auto-Cloud paths and Steam API save
+  storage, including games that use both. Unknown save locations remain unsupported.
 - **Tune each game.** Game settings holds a per-game runtime profile: pick a curated profile
   such as Older 3D game or Modern DX12, then change single settings. Graphics translator
   (D3DMetal, DXVK, DXMT), synchronization, controller mode, Windows version, launch entry, high
@@ -145,6 +146,8 @@ stays on and disabled until Immersive mode is turned off, which restores your pr
 mode. Quitting reconnects the monitors and restores their arrangement. The setting is
 remembered; it is off by default. If the selected monitor is unplugged, Playden reconnects the
 other monitors and turns Immersive mode off.
+Game placement moves fullscreen windows without forcing a new size; the game controls its
+render resolution. Windowed games are fitted and centered on the selected monitor.
 With Playden closed, `open "/Applications/Playden.app" --args --windowed` overrides fullscreen
 for that launch without changing the saved preference, unless Immersive mode is enabled.
 
@@ -172,6 +175,9 @@ The footer shows the actions available on the current screen and changes with yo
 
 From the top Home row, press Up to highlight the tabs, then Left/Right to choose one. Continue
 Playing ends with a Library card instead of scrolling indefinitely.
+Changing tabs with L1/R1, Tab/Shift-Tab or Command-1…4 also focuses the header. From the
+**Settings** tab, press Right to reach **Power**, then Select to quit Playden. Left returns to
+Settings; Down enters the selected tab's contents.
 
 Search, collection names and notes accept ordinary typing or the on-screen keyboard. While
 editing with a controller, L1/R1 moves the text cursor, Square deletes, Triangle inserts a space,
@@ -188,6 +194,17 @@ The game page shows Cloud status. For supported games, Playden checks saves befo
 and syncs after the game closes. **Up to date** means the sync completed. **Pending upload** or
 **Failed** needs attention; open Cloud saves for details and Retry. If both local and remote
 progress changed, choose which copy to use in the conflict screen.
+
+Like GameNative, Playden handles both Auto-Cloud saves in locations such as Documents or
+AppData and Steam API saves with bare filenames. API saves use the game's own remote-storage
+directory inside its CrossOver environment. These remain separate even when their filenames
+match. Games that advertise Steam Cloud storage without Auto-Cloud path rules can sync API saves.
+
+Sync keeps verified backup copies and checks transferred files before applying changes.
+An older attempt blocked by an unsupported filename can retry with the expanded mapping if
+it had not begun writing saves. Pending writes retain their original recovery requirements.
+For most games, uploading after a crash or forced exit requires playing and quitting normally
+first; the existing Cloud copy is preserved in the meantime.
 
 Cached library browsing and prepared games can work offline. When a Cloud check cannot finish,
 **Play offline** is offered when it is safe to proceed; progress can be synchronized later.
@@ -208,6 +225,11 @@ still awaiting acceptance.
 Seeing a game in your Steam library does not guarantee it will work through CrossOver or support
 save sync. BioShock Infinite prerequisite setup has been checked, but a complete fresh gameplay
 run remains open. Multiplayer, anti-cheat, achievements UI and DLC management are outside v1.
+
+Metal Gear Rising's Documents-based and API Cloud saves have both passed read-only download,
+mapping and checksum checks. Geometry Wars 3's intermittent startup crash is still awaiting
+confirmation after removing forced fullscreen resizing during monitor placement. These checks
+do not establish complete gameplay or save-sync compatibility for either title.
 
 | Problem | Where to go |
 |---|---|
