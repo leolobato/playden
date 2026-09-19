@@ -190,7 +190,10 @@ final class LibraryModel {
     var keyboardError: String?
     var symbols = false
     var downloadWhilePlaying = false { didSet { persistPreferences(); updateSessionDownloadPolicy() } }
-    var tabsFocused = false
+    var tabsFocused = false {
+        didSet { if !tabsFocused { powerFocused = false } }
+    }
+    var powerFocused = false
     var tab: AppTab = .home
     var detailID: GameID? { didSet { if detailID != oldValue { loadDetailDownloadSize() } } }
     @ObservationIgnored var detailSizeTask: Task<Void, Never>?
@@ -485,7 +488,7 @@ final class LibraryModel {
         filter = !games.isEmpty && games.allSatisfy(\.isHidden) ? .hidden : .all
         updateQuery("")
     }
-    func selectTab(_ value: AppTab, focusTabs: Bool = false) { guard !resetBusy else { return }; tabsFocused = focusTabs; tab = value; detailID = nil; panel = nil; railFocused = false }
+    func selectTab(_ value: AppTab, focusTabs: Bool = false) { guard !resetBusy else { return }; tabsFocused = focusTabs; powerFocused = false; tab = value; detailID = nil; panel = nil; railFocused = false }
     func show(_ value: Panel) {
         guard !resetBusy else { return }
         panel = value; panelIndex = 0
@@ -550,13 +553,25 @@ final class LibraryModel {
         if tabsFocused && detailID == nil {
             switch action {
             case .move(.left), .move(.right):
+                if powerFocused {
+                    if case .move(.left) = action { powerFocused = false }
+                    return
+                }
+                if tab == .settings, case .move(.right) = action {
+                    powerFocused = true
+                    return
+                }
                 let tabs = AppTab.allCases, index = tabs.firstIndex(of: tab) ?? 0
                 let delta: Int
                 if case .move(.left) = action { delta = -1 } else { delta = 1 }
                 let next = min(max(0, index + delta), tabs.count - 1)
                 selectTab(tabs[next], focusTabs: true)
                 return
-            case .move(.down), .confirm, .back: tabsFocused = false; return
+            case .confirm:
+                if powerFocused { quitLauncherFromUI() }
+                else { tabsFocused = false }
+                return
+            case .move(.down), .back: tabsFocused = false; return
             case .move(.up), .favorite, .context, .options, .previousPage, .nextPage: return
             default: break
             }

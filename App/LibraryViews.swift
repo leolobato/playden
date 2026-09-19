@@ -115,7 +115,7 @@ struct TopBar: View {
                             .foregroundStyle(model.tab == tab ? Design.text : Design.secondary)
                             .background(model.tab == tab ? Design.text.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 8))
                             .overlay(RoundedRectangle(cornerRadius: 8).stroke(model.tab == tab ? Design.text.opacity(0.35) : .clear, lineWidth: 2))
-                            .focusRing(model.tabsFocused && model.tab == tab, compact: true)
+                            .focusRing(model.tabsFocused && !model.powerFocused && model.tab == tab, compact: true)
                     }.buttonStyle(.plain)
                 }
             }
@@ -138,6 +138,7 @@ struct TopBar: View {
                     Image(systemName: "power").font(.system(size: 26)).foregroundStyle(Design.secondary)
                         .frame(width: 52, height: 52)
                         .overlay(RoundedRectangle(cornerRadius: 8).stroke(Design.text.opacity(0.2), lineWidth: 2))
+                        .focusRing(model.tabsFocused && model.powerFocused, compact: true)
                 }.buttonStyle(.plain).help("Quit Playden").accessibilityLabel("Quit Playden")
                     .disabled(model.launcherQuitting)
             }
@@ -163,8 +164,8 @@ struct BottomBar: View {
                 LegendItem(glyph: keyboard ? "ESC" : model.playStationGlyphs ? "○" : "B", title: "Back")
                 LegendItem(glyph: "← →", title: "Choose action")
             } else if model.tabsFocused && model.detailID == nil {
-                LegendItem(glyph: "← →", title: "Switch tabs")
-                LegendItem(glyph: keyboard ? "↵" : model.playStationGlyphs ? "✕" : "A", title: "Browse")
+                LegendItem(glyph: "← →", title: "Navigate")
+                LegendItem(glyph: keyboard ? "↵" : model.playStationGlyphs ? "✕" : "A", title: model.powerFocused ? "Quit Playden" : "Browse")
                 LegendItem(glyph: keyboard ? "ESC" : model.playStationGlyphs ? "○" : "B", title: "Back")
             } else {
             LegendItem(glyph: keyboard ? "↵" : model.playStationGlyphs ? "✕" : "A", title: model.detailID != nil || model.tab == .settings ? "Select" : model.tab == .downloads && !model.isPreview && model.focusedGame != nil ? "Manage" : model.tab == .downloads && model.focusedGame?.status == .downloading ? (model.downloadPaused ? "Resume" : "Pause") : "Open")

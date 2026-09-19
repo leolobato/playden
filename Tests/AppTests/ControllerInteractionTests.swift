@@ -3,6 +3,48 @@ import Input
 @testable import Playden
 
 final class ControllerInteractionTests: XCTestCase {
+    @MainActor func testSettingsTabNavigatesToPowerAndBack() {
+        let model = LibraryModel()
+        defer { model.stopServices() }
+        model.selectTab(.settings, focusTabs: true)
+        model.performController(.move(.right))
+        XCTAssertTrue(model.tabsFocused)
+        XCTAssertTrue(model.powerFocused)
+        XCTAssertEqual(model.tab, .settings)
+        model.performController(.move(.right))
+        XCTAssertTrue(model.powerFocused)
+        model.performController(.move(.left))
+        XCTAssertFalse(model.powerFocused)
+        XCTAssertTrue(model.tabsFocused)
+        XCTAssertEqual(model.tab, .settings)
+        model.performController(.move(.left))
+        XCTAssertEqual(model.tab, .downloads)
+    }
+
+    @MainActor func testPowerConfirmUsesLauncherQuitAction() {
+        let model = LibraryModel()
+        defer { model.stopServices() }
+        var quitRequests = 0
+        model.onLauncherQuit = { quitRequests += 1 }
+        model.selectTab(.settings, focusTabs: true)
+        model.performController(.move(.right))
+        XCTAssertEqual(quitRequests, 0)
+        model.performController(.confirm)
+        XCTAssertEqual(quitRequests, 1)
+    }
+
+    @MainActor func testLeavingHeaderClearsPowerFocus() {
+        let model = LibraryModel()
+        defer { model.stopServices() }
+        for action: InputAction in [.move(.down), .back, .nextTab, .previousTab, .home] {
+            model.selectTab(.settings, focusTabs: true)
+            model.performController(.move(.right))
+            XCTAssertTrue(model.powerFocused)
+            model.performController(action)
+            XCTAssertFalse(model.powerFocused)
+        }
+    }
+
     @MainActor func testButtonTestTrapsControllerActionsAndRestoresSettings() {
         let model = LibraryModel()
         model.selectTab(.settings); model.settingsSection = 4; model.activateSetting()
