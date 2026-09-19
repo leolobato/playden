@@ -90,7 +90,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         #if DEBUG
         if let index = args.firstIndex(of: "--cloud-read-check"), args.indices.contains(index + 1) {
             NSApp.setActivationPolicy(.accessory)
-            Task { await CloudReadCheck.run(game: args[index + 1]); NSApp.terminate(nil) }
+            // No interactive lifecycle/services were started for this one-shot command.
+            Task { await CloudReadCheck.run(game: args[index + 1]); exit(0) }
             return
         }
         #endif
