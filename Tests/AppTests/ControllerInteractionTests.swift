@@ -5,6 +5,27 @@ import Domain
 @testable import Playden
 
 final class ControllerInteractionTests: XCTestCase {
+    @MainActor func testTabShortcutFromContentCanReachPowerWithKeyboardOrController() {
+        for controller in [false, true] {
+            let model = LibraryModel()
+            defer { model.stopServices() }
+            model.selectTab(.downloads)
+            XCTAssertFalse(model.tabsFocused)
+            func send(_ action: InputAction) {
+                if controller { model.performController(action) } else { model.perform(action) }
+            }
+            send(.nextTab)
+            XCTAssertEqual(model.tab, .settings)
+            send(.move(.right))
+            XCTAssertTrue(model.tabsFocused)
+            XCTAssertTrue(model.powerFocused)
+            var quits = 0
+            model.onLauncherQuit = { quits += 1 }
+            send(.confirm)
+            XCTAssertEqual(quits, 1)
+        }
+    }
+
     @MainActor func testNintendoLayoutSettingIsReachableAndPersists() throws {
         let catalog = try CatalogStore()
         let model = LibraryModel(catalog: catalog, preview: false)

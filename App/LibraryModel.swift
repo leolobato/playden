@@ -612,7 +612,7 @@ final class LibraryModel {
         case .home: selectTab(.home); homeRow = 0; homeColumns[0] = 0
         case .previousTab, .nextTab:
             let tabs = AppTab.allCases, index = tabs.firstIndex(of: tab) ?? 0
-            selectTab(tabs[(index + (action.isNextTab ? 1 : tabs.count - 1)) % tabs.count], focusTabs: tabsFocused)
+            selectTab(tabs[(index + (action.isNextTab ? 1 : tabs.count - 1)) % tabs.count], focusTabs: true)
         case .previousPage: for _ in 0..<2 { move(.up, allowsTabFocus: false) }
         case .nextPage: for _ in 0..<2 { move(.down) }
         }

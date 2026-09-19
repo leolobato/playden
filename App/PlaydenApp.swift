@@ -435,7 +435,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         if event.modifierFlags.contains(.command) {
             if [36, 76].contains(event.keyCode), model.isEditingText { hideCursorForNavigation(); model.finishText(); return nil }
             if let digit = Int(event.charactersIgnoringModifiers ?? ""), (1...4).contains(digit) {
-                if model.panel == nil && model.authScreen == nil && model.setupScreen == nil { hideCursorForNavigation(); model.selectTab(AppTab.allCases[digit - 1]) }
+                if model.panel == nil && model.authScreen == nil && model.setupScreen == nil { hideCursorForNavigation(); model.selectTab(AppTab.allCases[digit - 1], focusTabs: true) }
                 return nil
             }
             return event

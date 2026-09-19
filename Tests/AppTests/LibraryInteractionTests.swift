@@ -109,6 +109,7 @@ final class LibraryInteractionTests: XCTestCase {
         model.perform(.move(.right)); model.perform(.move(.right))
         let game = model.focusedGame?.id
         model.perform(.nextTab); model.perform(.previousTab)
+        model.perform(.move(.down)) // Tab shortcuts focus the header; return to the remembered content.
         XCTAssertEqual(model.focusedGame?.id, game)
     }
     @MainActor func testTriggerPagingReturnsFirstTileBelowHeader() {
