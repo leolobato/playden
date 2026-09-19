@@ -69,7 +69,10 @@ public actor CloudSyncService: CloudSyncManaging {
             var consent = previous?.needsLocalRecovery == true ? nil : authorization
             let attachment = try catalog.cloudAttachment(for: gameID, installationID: installation.id)
             if let previous {
-                guard previous.installationID == installation.id, previous.mapping == mapping else {
+                let expandsUnwrittenMapping = previous.plan == nil && previous.remoteSnapshotID == nil &&
+                    previous.batches.isEmpty && !previous.needsLocalRecovery && previous.localRecoveries?.isEmpty != false &&
+                    previous.mapping.rules.allSatisfy { mapping.rules.contains($0) }
+                guard previous.installationID == installation.id, previous.mapping == mapping || expandsUnwrittenMapping else {
                     throw issue("Save sync from the previous installation or recipe needs recovery first.")
                 }
                 active[gameID] = try catalog.resumeCloudSync(previous, preparingSessionID: preparingSessionID)
@@ -94,7 +97,7 @@ public actor CloudSyncService: CloudSyncManaging {
                 throw issue("The save folder changed before its checkpoint was saved. Retry to restore the archived progress.")
             }
             if previous != nil {
-                active[gameID] = try catalog.replaceCloudSync(current(gameID), installation: installation, localSnapshotID: local.id)
+                active[gameID] = try catalog.replaceCloudSync(current(gameID), installation: installation, localSnapshotID: local.id, mapping: mapping)
             } else if try current(gameID).localSnapshotID == nil {
                 active[gameID] = try catalog.recordCloudLocalSnapshot(current(gameID), snapshotID: local.id)
             }

@@ -171,14 +171,23 @@ extension CatalogStore {
     /// Retire the previous attempt only in the same transaction that records its replacement's
     /// verified local archive. A crash cannot leave progress reachable only through retired history.
     public func replaceCloudSync(_ expected: CloudSyncOperation, installation: InstallationRecord,
-                                 localSnapshotID: UUID, accountKey: String? = nil) throws -> CloudSyncOperation {
+                                 localSnapshotID: UUID, accountKey: String? = nil, mapping: SaveMapping? = nil) throws -> CloudSyncOperation {
         try database.write { db in
             var old = try Self.currentCloud(db, expected)
             guard old.claim != nil, !old.phase.isTerminal, !old.needsLocalRecovery else { throw CloudJournalError.invalidTransition }
             let installed = try Self.requireCloudAccess(db, operation: old, sessionID: old.preparingSessionID)
             guard installed == installation, !(accountKey ?? old.accountKey).isEmpty else { throw CloudJournalError.identityMismatch }
+            if let mapping, mapping != old.mapping {
+                // Only a pre-write attempt may adopt expanded path support. Keep pending
+                // upload receipts and partially applied saves on their original mapping.
+                guard old.plan == nil, old.remoteSnapshotID == nil, old.batches.isEmpty,
+                      old.localRecoveries?.isEmpty != false,
+                      old.mapping.rules.allSatisfy({ mapping.rules.contains($0) }) else {
+                    throw CloudJournalError.invalidTransition
+                }
+            }
             var next = CloudSyncOperation(installation: installation, accountKey: accountKey ?? old.accountKey,
-                mapping: old.mapping, preparingSessionID: old.preparingSessionID)
+                mapping: mapping ?? old.mapping, preparingSessionID: old.preparingSessionID)
             next.localSnapshotID = localSnapshotID
             old.phase = .superseded; old.claim = nil; old.preparingSessionID = nil
             try Self.advanceCloud(db, &old)

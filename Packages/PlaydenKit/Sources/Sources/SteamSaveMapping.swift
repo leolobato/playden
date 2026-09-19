@@ -5,30 +5,38 @@ import SteamCore
 extension SteamInstaller {
     public func saveMapping(_ plan: InstallPlan) throws -> SaveMapping {
         let payload = try SteamPlanBuilder.payload(plan, for: gameID)
-        return SteamSaveMapping.build(payload.app.ufs)
+        return SteamSaveMapping.build(payload.app.ufs, appID: payload.app.appID)
     }
 }
 
 enum SteamSaveMapping {
-    static func build(_ ufs: UFS) -> SaveMapping {
+    static func build(_ ufs: UFS, appID: UInt32? = nil) -> SaveMapping {
         // This is the exact synthetic-account save root written by SteamInstaller.postInstall.
         // It retains GBE remote-storage files and settings, but is not itself a Cloud mapping.
         var rules = [SaveRule(root: .bottle, directory: "drive_c/Program Files (x86)/Steam/userdata/0")]
+        // GBE's local_save_path is account-scoped; it appends appid/remote for the
+        // ISteamRemoteStorage API. Bare Cloud filenames belong here, independently
+        // of Auto-Cloud's Documents/AppData rules (some games use both).
+        let remoteDirectory = appID.map { "drive_c/Program Files (x86)/Steam/userdata/0/\($0)/remote" }
+        if let remoteDirectory, ufs.quota > 0 || ufs.maxNumFiles > 0 || !ufs.saveFilePatterns.isEmpty {
+            rules.append(.init(root: .bottle, directory: remoteDirectory, cloudPrefix: ""))
+        }
         var unresolved: [String] = []
         for item in ufs.saveFilePatterns {
-            guard let base = base(item.root), let path = relative(item.path),
+            let localBase = item.root == .SteamUserData ? remoteDirectory.map { (SaveRoot.bottle, $0) } : base(item.root)
+            guard let base = localBase, let path = relative(item.path),
                   let uploadPath = relative(item.uploadPath), item.uploadRoot.isWindows,
                   validPattern(item.pattern), item.recursive == 0 || item.recursive == 1 else {
                 unresolved.append("A Steam save location needs a verified game recipe.")
                 continue
             }
             let directory = [base.1, path].filter { !$0.isEmpty }.joined(separator: "/")
-            let prefix = "%\(item.uploadRoot.rawValue)%" + uploadPath
+            let prefix = item.uploadRoot == .SteamUserData ? uploadPath : "%\(item.uploadRoot.rawValue)%" + uploadPath
             let rule = SaveRule(root: base.0, directory: directory, pattern: item.pattern,
                                 recursive: item.recursive == 1, cloudPrefix: prefix)
             if !rules.contains(rule) { rules.append(rule) }
         }
-        if ufs.saveFilePatterns.isEmpty { unresolved.append("Steam does not specify this game's save locations.") }
+        if !rules.contains(where: { $0.cloudPrefix != nil }) { unresolved.append("Steam does not specify this game's save locations.") }
         return SaveMapping(rules: rules, coverage: unresolved.isEmpty ? .metadata : .unknown,
                            unresolved: Array(Set(unresolved)).sorted())
     }
@@ -41,7 +49,8 @@ enum SteamSaveMapping {
         case .WinAppDataRoaming: return (.bottle, "drive_c/users/crossover/AppData/Roaming")
         case .WinSavedGames: return (.bottle, "drive_c/users/crossover/Saved Games")
         case .WinProgramData: return (.bottle, "drive_c/ProgramData")
-        // Account placeholders, raw roots and Steam API storage need an explicit recipe/identity.
+        case .Root: return (.bottle, "drive_c/users/crossover")
+        // Non-Windows paths cannot be resolved inside this Windows bottle.
         default: return nil
         }
     }

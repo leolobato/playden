@@ -3,6 +3,8 @@ import Foundation
 import CryptoKit
 import Domain
 import Sources
+import Catalog
+import Installs
 
 /// Explicit developer check, using the signed app's existing Keychain access. Reads remote data
 /// only; it never writes a game save, changes a Cloud revision, or marks the game synchronized.
@@ -14,6 +16,7 @@ enum CloudReadCheck {
         let deletedFiles: Int
         let forgottenFiles: Int
         let downloads: [Download]
+        let mappedFiles: Int
         let outcome: String
     }
     struct Download: Encodable {
@@ -34,8 +37,10 @@ enum CloudReadCheck {
             let cloud = SteamCloudReader(account: SteamAccount())
             let list = try await cloud.files(for: gameID)
             var downloads: [Download] = []
+            var payloads: [CloudUpload] = []
             for (index, file) in list.files.filter({ $0.state == .present }).enumerated() {
                 let data = try await cloud.download(file, from: list)
+                payloads.append(.init(file: file, data: data))
                 let name = "download-\(index).bin"
                 try data.write(to: directory.appendingPathComponent(name), options: .withoutOverwriting)
                 try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: directory.appendingPathComponent(name).path)
@@ -44,10 +49,20 @@ enum CloudReadCheck {
             }
             let after = try await cloud.files(for: gameID)
             guard after == list else { throw OperationFailure(stage: "Steam Cloud", reason: "The remote save list changed during the check. Retry to obtain a consistent result.", output: "") }
+            let catalog = try CatalogStore(path: AppPaths.supportRoot().appendingPathComponent("catalog.sqlite").path)
+            guard let installed = try catalog.snapshot().entries.first(where: { $0.id == gameID })?.installation,
+                  let plan = installed.plan else {
+                throw OperationFailure(stage: "Steam Cloud", reason: "Install the game before checking its save mapping.", output: "")
+            }
+            let mapping = try SteamInstaller(game: installed.game, account: SteamAccount()).saveMapping(plan)
+            // Exercise the real path resolver and immutable staging store in Diagnostics only.
+            let staged = try await SaveStore(root: directory.appendingPathComponent("staged")).stageCloud(
+                list, installationID: installed.id, mapping: mapping, downloads: payloads)
             let report = Report(gameID: gameID, revision: list.revision, presentFiles: downloads.count,
                 deletedFiles: list.files.filter { $0.state == .deleted }.count,
                 forgottenFiles: list.files.filter { $0.state == .forgotten }.count,
-                downloads: downloads, outcome: "All present files downloaded and checksum verified; remote revision unchanged")
+                downloads: downloads, mappedFiles: staged.files.count,
+                outcome: "All present files downloaded, mapped and checksum verified; remote revision unchanged")
             let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             try encoder.encode(report).write(to: directory.appendingPathComponent("report.json"), options: .atomic)
         } catch {

@@ -3,6 +3,22 @@ import Domain
 @testable import Installs
 
 final class CloudSyncPlannerTests: XCTestCase {
+    func testBareAPIFilenameDoesNotAliasAutoCloudOrAcceptUnknownRoots() throws {
+        let paths = try CloudSavePaths(mapping: .init(rules: [
+            .init(root: .bottle, directory: "userdata/0/235460/remote", cloudPrefix: ""),
+            .init(root: .bottle, directory: "Documents/MGR/SaveData", pattern: "MGR.sav", cloudPrefix: "%WinMyDocuments%MGR/SaveData")
+        ], coverage: .metadata))
+        let api = try XCTUnwrap(paths.localPath(for: "MGR.sav"))
+        XCTAssertEqual(api.path, "userdata/0/235460/remote/MGR.sav")
+        XCTAssertEqual(try paths.remoteName(for: api), "MGR.sav")
+        XCTAssertEqual(try paths.localPath(for: "%SteamUserData%MGR.sav"), api)
+        XCTAssertEqual(try paths.localPath(for: "%SteamUserBaseStorage%/MGR.sav"), api)
+        XCTAssertEqual(try paths.localPath(for: "%WinMyDocuments%MGR/SaveData/MGR.sav")?.path, "Documents/MGR/SaveData/MGR.sav")
+        XCTAssertEqual(try paths.localPath(for: "%SteamCloudDocuments%MGR/SaveData/MGR.sav")?.path, "Documents/MGR/SaveData/MGR.sav")
+        XCTAssertNil(try paths.localPath(for: "%Unknown%MGR.sav"))
+        XCTAssertThrowsError(try paths.localPath(for: "../MGR.sav"))
+    }
+
     let id = GameID(source: "steam", value: "1055540")
     let installation = UUID()
     let roots: [SaveRoot: SaveRootIdentity] = [.bottle: .init(device: 1, inode: 42, birthSeconds: 100, birthNanoseconds: 0)]

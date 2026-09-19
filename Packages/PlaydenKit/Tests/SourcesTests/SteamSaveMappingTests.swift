@@ -4,6 +4,26 @@ import SteamCore
 @testable import Sources
 
 final class SteamSaveMappingTests: XCTestCase {
+    func testAPIOnlyCloudGamesUseExactGBERemoteDirectory() {
+        let mapping = SteamSaveMapping.build(UFS(quota: 262144, maxNumFiles: 4), appID: 310790)
+        XCTAssertEqual(mapping.coverage, .metadata)
+        XCTAssertTrue(mapping.unresolved.isEmpty)
+        XCTAssertEqual(mapping.rules.last, .init(root: .bottle,
+            directory: "drive_c/Program Files (x86)/Steam/userdata/0/310790/remote", cloudPrefix: ""))
+        XCTAssertFalse(mapping.permitsRemovingUnmappedFiles)
+        XCTAssertEqual(SteamSaveMapping.build(UFS(), appID: 123).coverage, .unknown)
+    }
+
+    func testAutoCloudAndAPISavesCoexistAndSteamUserDataIsSupported() {
+        let mapping = SteamSaveMapping.build(UFS(saveFilePatterns: [
+            .init(root: .WinMyDocuments, path: "MGR/SaveData", pattern: "MGR.sav", recursive: 1),
+            .init(root: .SteamUserData, path: "", pattern: "*")
+        ]), appID: 235460)
+        XCTAssertEqual(mapping.coverage, .metadata)
+        XCTAssertTrue(mapping.rules.contains { $0.cloudPrefix == "" })
+        XCTAssertTrue(mapping.rules.contains { $0.cloudPrefix == "%WinMyDocuments%MGR/SaveData" })
+    }
+
     func testShortHikeUFSKeepsLocalAndCloudPathsDistinctFromGBEStorage() {
         let mapping = SteamSaveMapping.build(UFS(quota: 20_000_000, maxNumFiles: 3, saveFilePatterns: [
             .init(root: .WinAppDataLocalLow, path: "adamgryu/A Short Hike", pattern: "*.mountain")
@@ -28,7 +48,7 @@ final class SteamSaveMappingTests: XCTestCase {
     }
     func testUnknownRootsTraversalAndUnverifiedIdentityNeverBecomeOwnedMappings() {
         for item in [
-            SaveFilePattern(root: .Root, path: "Windows", pattern: "*"),
+            SaveFilePattern(root: .LinuxHome, path: "Windows", pattern: "*"),
             .init(root: .GameInstall, path: "../outside", pattern: "*"),
             .init(root: .WinAppDataLocal, path: "C:\\outside", pattern: "*"),
             .init(root: .WinAppDataLocalLow, path: "Game/{64BitSteamID}", pattern: "*"),

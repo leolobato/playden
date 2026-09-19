@@ -125,6 +125,29 @@ final class CloudSyncServiceTests: XCTestCase {
         XCTAssertEqual(try read(game), "more local progress")
     }
 
+    func testExpandedMappingRetriesPreviouslyUnavailableFilesAndRetainsArchive() async throws {
+        let root = try directory(), game = try directory(), store = try CatalogStore()
+        let installed = installed(game), saves = SaveStore(root: root.appendingPathComponent("backups"))
+        try store.saveInstallation(installed)
+        let server = CloudServer(gameID: gameID, catalog: store), cloud = service(store, server: server, saves: saves, root: game)
+        let bytes = Data("API progress".utf8)
+        let api = CloudUpload(file: .init(name: "bare.sav", sha1: Data(Insecure.SHA1.hash(data: bytes)),
+            bytes: Int64(bytes.count), modifiedAt: .now), data: bytes)
+        await server.replace([payload("Auto-Cloud progress"), api])
+        let unavailable = await cloud.synchronize(installed, mapping: mapping)
+        XCTAssertEqual(unavailable.state, .unavailable)
+        let old = try XCTUnwrap(store.cloudOperations(for: gameID).last)
+        let expanded = SaveMapping(rules: mapping.rules + [.init(root: .game, directory: "remote", cloudPrefix: "")], coverage: .metadata)
+        let retried = await cloud.synchronize(installed, mapping: expanded)
+        XCTAssertEqual(retried.state, .upToDate, retried.message)
+        XCTAssertEqual(try read(game), "Auto-Cloud progress")
+        XCTAssertEqual(try String(contentsOf: game.appendingPathComponent("remote/bare.sav"), encoding: .utf8), "API progress")
+        XCTAssertEqual(try store.cloudOperations(for: gameID).first { $0.id == old.id }?.phase, .superseded)
+        _ = try await saves.verified(XCTUnwrap(old.localSnapshotID), gameID: gameID)
+        let uploads = await server.uploadCalls
+        XCTAssertEqual(uploads, 0)
+    }
+
     func testRecreatedBottleRestoresCloudWithSameInstallationAfterRestart() async throws {
         let root = try directory(), bottle = root.appendingPathComponent("bottle")
         try FileManager.default.createDirectory(at: bottle, withIntermediateDirectories: true)

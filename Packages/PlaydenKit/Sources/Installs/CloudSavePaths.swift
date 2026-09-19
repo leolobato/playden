@@ -27,6 +27,8 @@ public struct CloudSavePaths: Sendable {
         var matches: [(Int, CloudSavePath)] = []
         for rule in rules {
             let prefix = try Self.normalized(rule.cloudPrefix!)
+            // The API-storage fallback must never swallow an unknown Auto-Cloud token.
+            if prefix.isEmpty && name.hasPrefix("%") { continue }
             guard let suffix = Self.suffix(name, after: prefix), Self.matches(suffix, rule: rule) else { continue }
             let local = [rule.directory, suffix].filter { !$0.isEmpty }.joined(separator: "/")
             _ = try Self.components(local)
@@ -57,14 +59,20 @@ public struct CloudSavePaths: Sendable {
         let name = raw.replacingOccurrences(of: "\\", with: "/")
         if name.hasPrefix("%") {
             guard let end = name.dropFirst().firstIndex(of: "%") else { throw saveFailure("A Cloud root token is incomplete.") }
-            let root = String(name[...end])
+            var root = String(name[...end])
             let token = root.dropFirst().dropLast()
-            guard !token.isEmpty, token.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber) }) else {
+            guard !token.isEmpty, token.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "_") }) else {
                 throw saveFailure("A Cloud root token is invalid.")
             }
             var remainder = String(name[name.index(after: end)...])
             if remainder.hasPrefix("/") { remainder.removeFirst() }
             _ = try components(remainder)
+            switch token.lowercased() {
+            case "steamuserdata", "steamuserbasestorage": return remainder
+            case "steamclouddocuments": root = "%WinMyDocuments%"
+            case "windowshome", "root_mod": root = "%Root%"
+            default: break
+            }
             // A slash after the token makes root-only prefix matching unambiguous.
             return root + (remainder.isEmpty ? "" : "/" + remainder)
         }
