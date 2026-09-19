@@ -11,6 +11,7 @@ import Runner
     var stateChanged: (Bool, Error?) -> Void = { _, _ in }
     private(set) var activeDisplayUUID: String?
     private var requestedUUID: String?
+    private var fullscreenDisplayUUID: String?
     private var screens: [LauncherDisplayScreen] = []
     private var lease: (any PrimaryDisplayHolding)?
     private var worker: Task<Void, Never>?
@@ -46,6 +47,14 @@ import Runner
         }
     }
 
+    /// Visibility is independent of the primary-display lease, which stays stable during games.
+    func updatePresentation(fullscreenDisplayUUID: String?, screens: [LauncherDisplayScreen]) {
+        guard !stopped else { return }
+        self.fullscreenDisplayUUID = fullscreenDisplayUUID
+        self.screens = screens
+        updateDarkening()
+    }
+
     func waitUntilReady() async throws {
         var revision: Int
         repeat {
@@ -66,7 +75,7 @@ import Runner
     }
 
     private func updateDarkening() {
-        guard let uuid = activeDisplayUUID, uuid == requestedUUID,
+        guard let uuid = activeDisplayUUID, uuid == requestedUUID, uuid == fullscreenDisplayUUID,
               screens.contains(where: { $0.uuid == uuid }) else { darken([]); return }
         darken(screens.filter { $0.uuid != uuid })
     }
@@ -99,4 +108,17 @@ import Runner
 private final class DarkenedDisplayPanel: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
+}
+
+/// Both rectangles must use the same coordinate system. A maximized desktop window
+/// that leaves room for the menu bar or Dock does not qualify as fullscreen.
+enum ImmersiveFullscreenGeometry {
+    static func fillsDisplay(_ window: CGRect, display: CGRect) -> Bool {
+        guard !window.isEmpty, !display.isEmpty else { return false }
+        let tolerance: CGFloat = 2
+        return abs(window.minX - display.minX) <= tolerance &&
+            abs(window.minY - display.minY) <= tolerance &&
+            abs(window.maxX - display.maxX) <= tolerance &&
+            abs(window.maxY - display.maxY) <= tolerance
+    }
 }
