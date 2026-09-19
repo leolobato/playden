@@ -67,8 +67,8 @@ struct SetupView: View {
             }.frame(width: model.setupScreen == .controller ? 700 : 924, height: 690, alignment: .topLeading)
                 .offset(x: model.setupScreen == .controller ? 1120 : 900, y: 250)
             HStack(spacing: 30) {
-                LegendItem(glyph: model.controllerName == nil || model.keyboardNavigation ? "↵" : model.playStationGlyphs ? "✕" : "A", title: "Select")
-                LegendItem(glyph: model.controllerName == nil || model.keyboardNavigation ? "ESC" : model.playStationGlyphs ? "○" : "B", title: "Back")
+                LegendItem(glyph: model.controllerName == nil || model.keyboardNavigation ? "↵" : model.controllerConfirmGlyph, title: "Select")
+                LegendItem(glyph: model.controllerName == nil || model.keyboardNavigation ? "ESC" : model.controllerBackGlyph, title: "Back")
                 if model.setupScreen == .controller && model.controllerName == nil {
                     Text("Keyboard arrows and Return work too").font(Design.body(22)).foregroundStyle(Design.secondary).padding(.leading, 40)
                 }

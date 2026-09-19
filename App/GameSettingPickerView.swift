@@ -43,7 +43,7 @@ struct GameSettingPicker: View {
         VStack(alignment: .leading, spacing: 18) {
             Button { model.perform(.back) } label: {
                 HStack(spacing: 10) {
-                    ButtonSymbol(text: "○", size: 20)
+                    ButtonSymbol(text: model.controllerBackGlyph, size: 20)
                     Text("Game settings").font(Design.body(20)).foregroundStyle(Design.secondary)
                 }
             }.buttonStyle(.plain)
@@ -141,9 +141,9 @@ struct GameSettingPicker: View {
 
     private var footer: some View {
         HStack(spacing: 32) {
-            LegendItem(glyph: "✕", title: "Select")
-            LegendItem(glyph: "○", title: "Back")
-            LegendItem(glyph: "△", title: "Reset to profile")
+            LegendItem(glyph: model.controllerConfirmGlyph, title: "Select")
+            LegendItem(glyph: model.controllerBackGlyph, title: "Back")
+            LegendItem(glyph: model.controllerContextGlyph, title: "Reset to profile")
         }
     }
 }

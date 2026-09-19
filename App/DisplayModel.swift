@@ -58,6 +58,16 @@ extension LibraryModel {
         }
     }
 
+    func exitImmersiveAfterDisplayLoss() {
+        guard immersiveMode else { return }
+        immersiveMode = false
+        immersiveModeChanging = false
+        do { try updateSetupPreferences { $0.immersiveMode = false } }
+        catch { persistenceError = error.localizedDescription; show(.persistenceFailure) }
+        onImmersiveModeChanged?()
+        immersiveModeError = "Immersive mode ended because the selected display disconnected or its display helper stopped."
+    }
+
     func shouldStartFullscreen(arguments: [String]) -> Bool {
         if !isPreview && immersiveMode { return true }
         if arguments.contains("--fullscreen") { return true }

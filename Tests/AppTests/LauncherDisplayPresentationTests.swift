@@ -51,10 +51,11 @@ import Runner
     }
 }
 @MainActor private final class DisplayLeaseFixture: PrimaryDisplayHolding {
-    nonisolated let target = GameDisplayTarget(bounds: CGRect(x: 0, y: 0, width: 1920, height: 1080), primaryBounds: CGRect(x: 0, y: 0, width: 1920, height: 1080))
+    nonisolated let target: GameDisplayTarget
+    private static func target(uuid: String?) -> GameDisplayTarget { GameDisplayTarget(bounds: CGRect(x: 0, y: 0, width: 1920, height: 1080), primaryBounds: CGRect(x: 0, y: 0, width: 1920, height: 1080), displayUUID: uuid) }
     let window: WindowFixture
     var releases = 0
-    init(window: WindowFixture) { self.window = window }
+    init(window: WindowFixture, uuid: String? = nil) { self.window = window; self.target = Self.target(uuid: uuid) }
     func release() { releases += 1; window.revertLayout() }
 }
 
@@ -76,6 +77,22 @@ import Runner
         XCTAssertEqual(window.launcherScreens, window.original)
         XCTAssertEqual(base.releases, 1)
     }
+    func testImmersiveMovesToTargetWhenPreviousMonitorIsDisconnected() async throws {
+        let window = WindowFixture(), presentation = LauncherDisplayPresentation()
+        presentation.window = window; window.setLauncherFullscreen(true)
+        let base = DisplayLeaseFixture(window: window, uuid: "lg")
+        let lease = try await presentation.acquire(target: base.target, forGame: false) { _ in
+            window.launcherScreens = [window.original[0]]
+            window.launcherFrame = CGRect(x: 100, y: 100, width: 1280, height: 720)
+            return base
+        }
+        XCTAssertTrue(window.launcherFullscreen)
+        XCTAssertEqual(window.launcherScreen?.uuid, "lg")
+        await lease.release()
+        XCTAssertEqual(base.releases, 1)
+        XCTAssertEqual(window.launcherScreens, window.original)
+    }
+
     func testLauncherStaysOnGameDesktopAndRestoresFullscreenOnlyAtExit() async throws {
         for fullscreen in [false, true] {
             let window = WindowFixture(), presentation = LauncherDisplayPresentation()

@@ -110,6 +110,26 @@ final class DisplayInteractionTests: XCTestCase {
         XCTAssertTrue(model.isFullscreen)
     }
 
+    @MainActor func testDisplayLossDisablesImmersiveEvenDuringFullscreenTransition() throws {
+        let catalog = try CatalogStore()
+        let model = LibraryModel(catalog: catalog, preview: false)
+        model.fullscreenDidChange(false)
+        model.toggleImmersiveMode()
+        model.fullscreenTransitioning = true
+        model.immersiveModeChanging = true
+        var changes = 0
+        model.onImmersiveModeChanged = { changes += 1 }
+        model.exitImmersiveAfterDisplayLoss()
+        XCTAssertFalse(model.immersiveMode)
+        XCTAssertFalse(model.immersiveModeChanging)
+        XCTAssertFalse(model.immersiveFullscreen)
+        XCTAssertEqual(try catalog.preferences().immersiveMode, false)
+        XCTAssertNotNil(model.immersiveModeError)
+        XCTAssertEqual(changes, 1)
+        model.exitImmersiveAfterDisplayLoss()
+        XCTAssertEqual(changes, 1)
+    }
+
     @MainActor func testFullscreenRemembersAcknowledgedUserChangesButNotTemporaryTransitions() throws {
         let catalog = try CatalogStore()
         let model = LibraryModel(catalog: catalog, preview: false)

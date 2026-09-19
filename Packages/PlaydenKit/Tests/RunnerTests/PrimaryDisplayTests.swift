@@ -66,6 +66,29 @@ final class PrimaryDisplayTests: XCTestCase {
         await lease.release()
         XCTAssertNil(RuntimeProcessInspector().identity(of: pid))
     }
+    func testImmersiveHelperReceivesModeAndReportsExit() async throws {
+        let json = String(decoding: try JSONEncoder().encode(PrimaryDisplayScreen(id: 3, uuid: uuid, x: 0, y: 0, width: 1920, height: 1080, isMain: true)), as: UTF8.self)
+        let (helper, _) = try fixture(body: "test \"$1\" = --immersive || exit 2\nprintf '%s\\n' '\(json)'\ncat >/dev/null\n")
+        let lease = try await TemporaryPrimaryDisplay.acquire(target: target, helper: helper, disconnectOtherDisplays: true)
+        let alive = await lease.isAlive()
+        XCTAssertTrue(alive)
+        await lease.release()
+        let ended = await lease.isAlive()
+        XCTAssertFalse(ended)
+    }
+
+    func testHelperConfigurationErrorIsPreservedForTheUI() async throws {
+        let reason = "Commit display configuration failed (Core Graphics error 1001)."
+        let json = String(decoding: try JSONEncoder().encode(PrimaryDisplayHelperFailure(error: reason)), as: UTF8.self)
+        let (helper, _) = try fixture(body: "printf '%s\\n' '\(json)'\ncat >/dev/null\n")
+        do {
+            _ = try await TemporaryPrimaryDisplay.acquire(target: target, helper: helper, disconnectOtherDisplays: true)
+            XCTFail("Expected configuration error")
+        } catch let failure as OperationFailure {
+            XCTAssertEqual(failure.reason, reason)
+        }
+    }
+
     func testMalformedReadinessAndCancellationEndHelperBeforeReturning() async throws {
         for cancel in [false, true] {
             let (helper, pidFile) = try fixture(body: cancel ? "cat >/dev/null\n" : "printf 'invalid\\n'\ncat >/dev/null\n")

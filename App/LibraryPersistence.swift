@@ -57,6 +57,7 @@ extension LibraryModel {
             selectedDisplayUUID = preferences.selectedDisplayUUID; selectedDisplayName = preferences.selectedDisplayName
             selectedAudioDeviceUID = preferences.selectedAudioDeviceUID; selectedAudioDeviceName = preferences.selectedAudioDeviceName
             startInFullscreen = preferences.startInFullscreen ?? true
+            useNintendoButtonLayout = preferences.useNintendoButtonLayout ?? false
             let wasImmersive = immersiveMode
             immersiveMode = preferences.immersiveMode ?? false
             if wasImmersive != immersiveMode { onImmersiveModeChanged?() }

@@ -46,6 +46,11 @@ public struct PrimaryDisplayLayout: Codable, Equatable, Sendable {
     }
 }
 
+public struct PrimaryDisplayHelperFailure: Codable, Sendable {
+    public let error: String
+    public init(error: String) { self.error = error }
+}
+
 public enum PrimaryDisplayError: Error, LocalizedError {
     case unavailable, invalidLayout, mirrored, configuration(Int32), didNotSwitch
     public var errorDescription: String? {

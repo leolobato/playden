@@ -72,6 +72,7 @@ public struct LibraryPreferences: Codable, Equatable, Sendable {
     /// Remembers the last user-selected window mode; nil preserves the legacy fullscreen default.
     public var startInFullscreen: Bool?
     public var immersiveMode: Bool?
+    public var useNintendoButtonLayout: Bool?
     public var gamesVolume: GamesVolumeSelection?
     public var setupCompleted = false
     public init() {}

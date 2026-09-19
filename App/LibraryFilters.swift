@@ -173,7 +173,7 @@ struct LibraryFilterSheet: View {
                         .focusRing(model.filterChoiceIndex == layout.chips.count, compact: true)
                 }.buttonStyle(.plain)
             }
-            LegendItem(glyph: model.controllerName == nil || model.keyboardNavigation ? "ESC" : model.playStationGlyphs ? "○" : "B", title: "Close")
+            LegendItem(glyph: model.controllerName == nil || model.keyboardNavigation ? "ESC" : model.controllerBackGlyph, title: "Close")
         }.padding(.horizontal, 60).padding(.top, 138).padding(.bottom, 40)
             .frame(width: 640, height: 1080, alignment: .topLeading).background(Design.panel)
             .overlay(alignment: .leading) { Rectangle().fill(Design.text.opacity(0.12)).frame(width: 1) }

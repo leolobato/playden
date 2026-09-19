@@ -52,7 +52,7 @@ struct ControllerTestView: View {
             Rectangle().fill(Design.text.opacity(0.1)).frame(height: 1)
             HStack(spacing: 24) {
                 if sample != nil {
-                    LegendItem(glyph: sample?.playStation == false ? "B" : "○", title: "Hold to close")
+                    LegendItem(glyph: model.controllerBackButton.label(playStation: sample?.playStation != false), title: "Hold to close")
                     ProgressTrack(value: model.controllerTest.closeProgress, height: 6).frame(width: 120)
                 }
                 if let last = model.controllerTest.lastInput { Text("Last input: \(last)").font(Design.body(22)).foregroundStyle(Design.secondary) }

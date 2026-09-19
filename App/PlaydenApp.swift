@@ -61,8 +61,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     private var rememberFullscreenTransition: Bool?
     private var immersiveFullscreenTask: Task<Void, Never>?
     private var pendingImmersiveFullscreen: Bool?
-    private var immersiveVisibilityTask: Task<Void, Never>?
-    private let darkenedDisplays = DarkenedDisplayWindows()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         if Self.isTestProcess {
@@ -143,13 +141,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
                 }
                 do {
                     return try await model.displayPresentation.acquire(target: target, forGame: false) { target in
-                        try await TemporaryPrimaryDisplay.acquire(target: target, helper: helper)
+                        try await TemporaryPrimaryDisplay.acquire(target: target, helper: helper, disconnectOtherDisplays: true)
                     }
+                } catch let failure as OperationFailure {
+                    throw failure
                 } catch {
-                    throw OperationFailure(stage: "Immersive mode", reason: "Could not change the primary display. Leave fullscreen apps and try Immersive mode again.", output: error.localizedDescription)
+                    throw OperationFailure(stage: "Immersive mode", reason: error.localizedDescription, output: "")
                 }
             }
-            model.immersiveDisplay.darken = { [weak self] screens in self?.darkenedDisplays.update(screens) }
+            model.immersiveDisplay.interrupted = { [weak self] in
+                self?.model.exitImmersiveAfterDisplayLoss()
+            }
             model.immersiveDisplay.stateChanged = { [weak self] changing, error in
                 guard let self else { return }
                 model.immersiveModeChanging = changing
@@ -176,17 +178,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
             model.onExitOverlayChanged = { [weak self] visible in self?.presentExitOverlay(visible) }
             model.onLauncherQuit = { NSApp.terminate(nil) }
             gameActivationObserver = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] _ in
-                Task { @MainActor [weak self] in self?.clearResolvedGameActivationIssue(); self?.updateImmersiveDarkening() }
+                Task { @MainActor [weak self] in self?.clearResolvedGameActivationIssue() }
             }
             if model.shouldStartFullscreen(arguments: args) { setFullscreen(true) }
             updateImmersiveDisplay()
             if model.immersiveMode { applyImmersiveFullscreen() }
-            immersiveVisibilityTask = Task { @MainActor [weak self] in
-                while !Task.isCancelled {
-                    self?.updateImmersiveDarkening()
-                    do { try await Task.sleep(for: .milliseconds(250)) } catch { return }
-                }
-            }
             model.startServices()
             for name in [NSWorkspace.didMountNotification, NSWorkspace.didUnmountNotification,
                          NSWorkspace.didRenameVolumeNotification, NSWorkspace.didWakeNotification] {
@@ -264,8 +260,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     }
     func applicationWillTerminate(_ notification: Notification) {
         immersiveFullscreenTask?.cancel()
-        immersiveVisibilityTask?.cancel()
-        darkenedDisplays.update([])
         model.stopServices()
         controller.stop()
         exitShortcut.stop()
@@ -276,10 +270,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         if let mouseMonitor { NSEvent.removeMonitor(mouseMonitor) }
         restoreCursor()
     }
-    func applicationDidResignActive(_ notification: Notification) { model.launcherActive = false; restoreCursor(); updateImmersiveDarkening() }
+    func applicationDidResignActive(_ notification: Notification) { model.launcherActive = false; restoreCursor() }
     func applicationDidBecomeActive(_ notification: Notification) {
         model.launcherActive = true
-        updateImmersiveDarkening()
         model.requestInstallationDriveRefresh()
         restoreCursor()
     }
@@ -298,39 +291,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     private func updateImmersiveDisplay() {
         window?.standardWindowButton(.zoomButton)?.isEnabled = !model.immersiveMode
         guard window != nil, !model.isPreview else { return }
-        updateImmersiveDarkening()
+        // The helper owns unplug recovery. Do not replace its target with a fallback
+        // before it has re-enabled the disconnected monitors and ended the lease.
+        if model.immersiveMode, let uuid = model.immersiveDisplay.requestedUUID,
+           !launcherScreens.contains(where: { $0.uuid == uuid }) { return }
         // Avoid reconfiguring a live game's desktop; apply a changed preference on return.
         guard !model.hasActiveSession else { return }
         let target = model.immersiveMode
             ? GameDisplay.target(preferences: (try? model.catalog?.preferences()) ?? LibraryPreferences()) : nil
-        model.immersiveDisplay.update(target: target, screens: launcherScreens)
+        model.immersiveDisplay.update(target: target)
     }
-    private func updateImmersiveDarkening() {
-        let screens = launcherScreens
-        var fullscreenUUID: String?
-        if model.immersiveMode, !terminating, !model.fullscreenTransitioning,
-           !model.displayPresentation.isChanging {
-            if NSApp.isActive, window?.isVisible == true, window?.isMiniaturized == false,
-               window?.isOnActiveSpace == true, launcherFullscreen,
-               let screen = launcherScreen,
-               ImmersiveFullscreenGeometry.fillsDisplay(launcherFrame, display: screen.frame) {
-                fullscreenUUID = screen.uuid
-            } else if model.hasActiveSession, let game = model.session.session?.runtime?.window,
-                      gameActivation.system.state(of: game) == .active,
-                      let values = CGWindowListCopyWindowInfo(.optionIncludingWindow, game.id) as? [[String: Any]],
-                      let info = values.first(where: { ($0[kCGWindowNumber as String] as? UInt32) == game.id }),
-                      let dictionary = info[kCGWindowBounds as String] as? [String: Any],
-                      let bounds = CGRect(dictionaryRepresentation: dictionary as CFDictionary) {
-                // CG window and display bounds share top-left coordinates, unlike NSScreen.
-                fullscreenUUID = NSScreen.screens.first(where: { screen in
-                    guard let id = (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value else { return false }
-                    return ImmersiveFullscreenGeometry.fillsDisplay(bounds, display: CGDisplayBounds(id))
-                }).flatMap(launcherDisplayScreen)?.uuid
-            }
-        }
-        model.immersiveDisplay.updatePresentation(fullscreenDisplayUUID: fullscreenUUID, screens: screens)
-    }
-
     private func applyImmersiveFullscreen() {
         immersiveFullscreenTask?.cancel()
         let enabled = model.immersiveFullscreen
@@ -382,7 +352,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         guard !model.fullscreenTransitioning, window.styleMask.contains(.fullScreen) != enabled else { return }
         rememberFullscreenTransition = remember
         model.fullscreenTransitioning = true
-        updateImmersiveDarkening()
         window.toggleFullScreen(nil)
     }
     var launcherFrame: CGRect { window?.frame ?? .zero }
@@ -413,15 +382,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
               let uuid = CGDisplayCreateUUIDFromDisplayID(id)?.takeRetainedValue() else { return nil }
         return .init(uuid: CFUUIDCreateString(nil, uuid) as String, frame: screen.frame, visibleFrame: screen.visibleFrame)
     }
-    func windowDidChangeScreen(_ notification: Notification) { model.currentDisplayName = window?.screen?.localizedName; updateImmersiveDarkening() }
-    func windowDidResize(_ notification: Notification) { updateImmersiveDarkening() }
-    func windowDidMiniaturize(_ notification: Notification) { updateImmersiveDarkening() }
-    func windowWillEnterFullScreen(_ notification: Notification) { model.fullscreenTransitioning = true; updateImmersiveDarkening() }
-    func windowWillExitFullScreen(_ notification: Notification) { model.fullscreenTransitioning = true; updateImmersiveDarkening() }
+    func windowDidChangeScreen(_ notification: Notification) { model.currentDisplayName = window?.screen?.localizedName }
+    func windowWillEnterFullScreen(_ notification: Notification) { model.fullscreenTransitioning = true }
+    func windowWillExitFullScreen(_ notification: Notification) { model.fullscreenTransitioning = true }
     func windowDidEnterFullScreen(_ notification: Notification) {
         model.fullscreenDidChange(true, remember: rememberFullscreenTransition ?? true)
         rememberFullscreenTransition = nil; model.fullscreenTransitioning = false
-        updateImmersiveDarkening()
         if pendingDisplayID != nil {
             DispatchQueue.main.async { [weak self] in
                 guard let self, let id = self.pendingDisplayID else { return }
@@ -433,7 +399,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         let userExited = rememberFullscreenTransition == nil
         model.fullscreenDidChange(false, remember: rememberFullscreenTransition ?? true)
         rememberFullscreenTransition = nil; model.fullscreenTransitioning = false
-        updateImmersiveDarkening()
         // AppKit still owns the previous transition while delivering this delegate call.
         // Moving/re-entering synchronously can strand the window in its old fullscreen Space.
         if pendingDisplayID != nil || resumeFullscreenAfterMove {
@@ -507,7 +472,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         return event
     }
     private func activateGame(_ gameWindow: GameWindow) {
-        model.immersiveDisplay.updatePresentation(fullscreenDisplayUUID: nil, screens: launcherScreens)
         restoreCursor()
         exitPanel?.orderOut(nil)
         gameActivationTask?.cancel()
@@ -520,7 +484,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
             case .active:
                 model.recordGameWindowHandoff(gameWindow)
                 window.level = .normal; window.orderBack(nil)
-                updateImmersiveDarkening()
             case .timedOut:
                 model.reportSessionIssue(.init(stage: "Return to game", reason: "The game is open, but its window could not be brought forward. Use the Dock to return to it.", output: "The tracked game window did not become visible and active within five seconds."), gameID: model.session.session?.gameID)
             case .unavailable:

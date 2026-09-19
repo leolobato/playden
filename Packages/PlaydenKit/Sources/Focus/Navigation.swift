@@ -49,7 +49,7 @@ public struct DirectionRepeater: Sendable {
         guard let value else { direction = nil; return nil }
         if direction != value { direction = value; began = time; last = time; return value }
         let held = time - began
-        guard held >= 0.4, time - last >= (held >= 1.5 ? 0.06 : 0.12) else { return nil }
+        guard held >= 0.4, time - last >= (held >= 1.5 ? 0.05 : 0.09) else { return nil }
         last = time
         return value
     }

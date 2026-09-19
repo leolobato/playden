@@ -22,10 +22,10 @@ import Testing
     #expect(repeatState.update(.right, at: 0) == .right)
     #expect(repeatState.update(.right, at: 0.39) == nil)
     #expect(repeatState.update(.right, at: 0.4) == .right)
-    #expect(repeatState.update(.right, at: 0.5) == nil)
-    #expect(repeatState.update(.right, at: 0.53) == .right)
+    #expect(repeatState.update(.right, at: 0.48) == nil)
+    #expect(repeatState.update(.right, at: 0.491) == .right)
     #expect(repeatState.update(.right, at: 1.5) == .right)
-    #expect(repeatState.update(.right, at: 1.57) == .right)
+    #expect(repeatState.update(.right, at: 1.551) == .right)
     #expect(repeatState.update(nil, at: 1.58) == nil)
     #expect(repeatState.update(.right, at: 1.59) == .right)
 }

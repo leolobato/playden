@@ -211,8 +211,8 @@ struct GameSettingsSheet: View {
     private var footer: some View {
         HStack {
             HStack(spacing: 30) {
-                LegendItem(glyph: keyboard ? "↵" : model.playStationGlyphs ? "✕" : "A", title: "Change")
-                LegendItem(glyph: keyboard ? "ESC" : model.playStationGlyphs ? "○" : "B", title: "Close")
+                LegendItem(glyph: keyboard ? "↵" : model.controllerConfirmGlyph, title: "Change")
+                LegendItem(glyph: keyboard ? "ESC" : model.controllerBackGlyph, title: "Close")
             }
             Spacer()
             resetAllButton

@@ -74,7 +74,13 @@ struct LauncherWindowPosition: Equatable {
             acquired = lease
             // Reentering fullscreen here creates a separate Space immediately before Wine
             // opens its window. Stay on the desktop for handoff; restore fullscreen at exit.
-            try await restore(forGame ? position.restoringFullscreen(false) : position)
+            var destination = forGame ? position.restoringFullscreen(false) : position
+            if !forGame, let screen = window?.launcherScreens.first(where: { $0.uuid == lease.target.displayUUID }),
+               screen.uuid != position.displayUUID {
+                // Immersive mode may have disconnected the launcher's previous monitor.
+                destination = .init(frame: screen.visibleFrame, screen: screen, fullscreen: position.fullscreen)
+            }
+            try await restore(destination)
             try Task.checkCancellation()
             return PresentedPrimaryDisplay(base: lease, presentation: self, position: position, restoreOriginalFullscreen: forGame)
         } catch {
@@ -180,6 +186,8 @@ struct LauncherWindowPosition: Equatable {
         self.base = base; self.presentation = presentation; self.position = position; target = base.target
         self.restoreOriginalFullscreen = restoreOriginalFullscreen
     }
+    func isAlive() async -> Bool { await base.isAlive() }
+
     func release() async {
         if cleanup == nil {
             cleanup = Task { @MainActor [base, presentation, position, restoreOriginalFullscreen] in

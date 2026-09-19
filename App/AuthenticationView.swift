@@ -62,8 +62,8 @@ struct AuthenticationView: View {
                 }.frame(width: 760, height: 520).offset(x: 1000, y: 240)
             }
             HStack(spacing: 30) {
-                LegendItem(glyph: model.controllerName == nil || model.keyboardNavigation ? "↵" : model.playStationGlyphs ? "✕" : "A", title: "Select")
-                LegendItem(glyph: model.controllerName == nil || model.keyboardNavigation ? "ESC" : model.playStationGlyphs ? "○" : "B", title: "Back")
+                LegendItem(glyph: model.controllerName == nil || model.keyboardNavigation ? "↵" : model.controllerConfirmGlyph, title: "Select")
+                LegendItem(glyph: model.controllerName == nil || model.keyboardNavigation ? "ESC" : model.controllerBackGlyph, title: "Back")
             }.offset(x: 96, y: 986)
         }.frame(width: 1920, height: 1080)
     }

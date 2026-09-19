@@ -14,56 +14,87 @@ public final class ControllerInput {
     public var onConnection: ((String?, Bool) -> Void)?
     public var onSnapshot: (([ControllerSnapshot], Double) -> Void)?
     private var timer: Timer?
-    private var repeater = DirectionRepeater()
+    private var menuInput = ControllerMenuInput()
     private var lastController: GCController?
-    private var pressed: Set<String> = []
     private var lastSnapshotTime = 0.0
-    private var homeHold = HomeHold()
     public init() {}
 
     public func start() {
         guard timer == nil else { return }
         GCController.shouldMonitorBackgroundEvents = true
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 120, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: 1.0 / 120, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.poll() }
         }
+        self.timer = timer
+        // Keep repeats and connection checks alive during AppKit tracking modes.
+        RunLoop.main.add(timer, forMode: .common)
+        poll()
     }
 
-    public func stop() { timer?.invalidate(); timer = nil; pressed.removeAll(); repeater = .init(); homeHold = .init(); GCController.shouldMonitorBackgroundEvents = false }
+    public func stop() {
+        timer?.invalidate(); timer = nil
+        detachController()
+        GCController.shouldMonitorBackgroundEvents = false
+    }
+
+    private func detachController() {
+        lastController?.input.inputStateAvailableHandler = nil
+        lastController?.input.inputStateQueueDepth = 1
+        lastController = nil; menuInput = .init()
+    }
 
     private func poll() {
         let controllers = GCController.controllers()
         let controller = controllers.first(where: { $0.extendedGamepad != nil })
+        if controller !== lastController {
+            detachController()
+            lastController = controller
+            if let controller {
+                let input = controller.input
+                input.queue = .main
+                input.inputStateQueueDepth = 256
+                input.inputStateAvailableHandler = { [weak self, weak controller] _ in
+                    MainActor.assumeIsolated {
+                        guard let self, let controller, self.lastController === controller else { return }
+                        self.drain(controller)
+                    }
+                }
+            }
+            onConnection?(controller?.vendorName, controller?.extendedGamepad is GCDualShockGamepad || controller?.extendedGamepad is GCDualSenseGamepad)
+        }
+        if let controller { drain(controller) }
         let now = ProcessInfo.processInfo.systemUptime
+        for action in menuInput.advance(at: now) { onAction?(action) }
         if now - lastSnapshotTime >= 1.0 / 30 {
             lastSnapshotTime = now
             onSnapshot?(controllers.compactMap(Self.snapshot), now)
         }
-        if controller !== lastController {
-            lastController = controller; pressed.removeAll(); repeater = .init(); homeHold = .init()
-            onConnection?(controller?.vendorName, controller?.extendedGamepad is GCDualShockGamepad || controller?.extendedGamepad is GCDualSenseGamepad)
-        }
-        guard let pad = controller?.extendedGamepad else { return }
-        if let event = homeHold.event(pressed: pad.buttonHome?.isPressed == true, at: now) {
-            onAction?(event == .hold ? .holdHome : .home)
-        }
-        let dpad = DirectionRepeater.direction(x: pad.dpad.xAxis.value, y: pad.dpad.yAxis.value)
-        let stick = DirectionRepeater.direction(x: pad.leftThumbstick.xAxis.value, y: pad.leftThumbstick.yAxis.value)
-        if let direction = repeater.update(dpad ?? stick, at: ProcessInfo.processInfo.systemUptime) {
-            onAction?(.move(direction))
-        }
-        let buttons: [(String, GCControllerButtonInput?, InputAction)] = [
-            ("confirm", pad.buttonA, .confirm), ("back", pad.buttonB, .back),
-            ("context", pad.buttonY, .context), ("favorite", pad.buttonX, .favorite),
-            ("options", pad.buttonMenu, .options),
-            ("previousTab", pad.leftShoulder, .previousTab), ("nextTab", pad.rightShoulder, .nextTab),
-            ("previousPage", pad.leftTrigger, .previousPage), ("nextPage", pad.rightTrigger, .nextPage),
-            ("search", (pad as? GCDualShockGamepad)?.touchpadButton ?? (pad as? GCDualSenseGamepad)?.touchpadButton ?? pad.buttonOptions, .search),
-        ]
-        for (name, button, action) in buttons {
-            if button?.isPressed == true {
-                if pressed.insert(name).inserted { onAction?(action) }
-            } else { pressed.remove(name) }
+    }
+
+    private func drain(_ controller: GCController) {
+        // Reading only extendedGamepad's live values collapses press/release/press
+        // into a single held state when the main thread is busy. Consume every sample.
+        while let state = controller.input.nextInputState() {
+            let dpad = state.dpads[.directionPad]
+            let stick = state.dpads[.leftThumbstick]
+            let direction = DirectionRepeater.direction(x: dpad?.xAxis.value ?? 0, y: dpad?.yAxis.value ?? 0)
+                ?? DirectionRepeater.direction(x: stick?.xAxis.value ?? 0, y: stick?.yAxis.value ?? 0)
+            let buttons: [(ControllerControl, GCButtonElementName)] = [
+                (.south, .a), (.east, .b), (.west, .x), (.north, .y),
+                (.menu, .menu), (.home, .home),
+                (.leftShoulder, .leftShoulder), (.rightShoulder, .rightShoulder),
+                (.leftTrigger, .leftTrigger), (.rightTrigger, .rightTrigger)
+            ]
+            var pressed = Set(buttons.compactMap { control, name in
+                state.buttons[name]?.pressedInput.isPressed == true ? control : nil
+            })
+            let touchpad = state.buttons[GCButtonElementName(rawValue: GCInputDualShockTouchpadButton)]
+            if (touchpad ?? state.buttons[.options])?.pressedInput.isPressed == true { pressed.insert(.share) }
+            // Translate event age into the uptime clock used by held-button ticks.
+            let time = ProcessInfo.processInfo.systemUptime - max(0, state.lastEventLatency)
+            for action in menuInput.consume(.init(direction: direction, buttons: pressed), at: time) {
+                onAction?(action)
+            }
         }
     }
 

@@ -18,7 +18,7 @@ struct LaunchingGameView: View {
             }.offset(y: 318)
             HStack(spacing: 14) {
                 if model.session.phase == .syncingSaves {
-                    LegendItem(glyph: model.controllerName == nil || model.keyboardNavigation ? "ESC" : model.playStationGlyphs ? "○" : "B", title: "Save sync")
+                    LegendItem(glyph: model.controllerName == nil || model.keyboardNavigation ? "ESC" : model.controllerBackGlyph, title: "Save sync")
                 } else {
                 LegendItem(glyph: model.controllerName == nil || model.keyboardNavigation ? "⇧ HOME" : model.playStationGlyphs ? "PS" : "HOME",
                            title: model.controllerName == nil || model.keyboardNavigation ? "Game controls" : "Hold for one second to quit")
@@ -78,8 +78,8 @@ struct GameExitOverlay: View {
                 .overlay(RoundedRectangle(cornerRadius: 12).stroke(Design.text.opacity(0.12), lineWidth: 1))
                 .shadow(color: .black.opacity(0.4), radius: 50, y: 24)
             HStack(spacing: 32) {
-                LegendItem(glyph: model.controllerName == nil || model.keyboardNavigation ? "↵" : model.playStationGlyphs ? "✕" : "A", title: "Select")
-                LegendItem(glyph: model.controllerName == nil || model.keyboardNavigation ? "ESC" : model.playStationGlyphs ? "○" : "B", title: model.isConfirmingLauncherQuit ? "Keep launcher open" : "Return to game")
+                LegendItem(glyph: model.controllerName == nil || model.keyboardNavigation ? "↵" : model.controllerConfirmGlyph, title: "Select")
+                LegendItem(glyph: model.controllerName == nil || model.keyboardNavigation ? "ESC" : model.controllerBackGlyph, title: model.isConfirmingLauncherQuit ? "Keep launcher open" : "Return to game")
             }.offset(y: 466)
         }.frame(width: 1920, height: 1080).foregroundStyle(Design.text)
     }

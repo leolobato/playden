@@ -31,7 +31,7 @@ struct ProfileChooser: View {
     private var breadcrumb: some View {
         Button { model.perform(.back) } label: {
             HStack(spacing: 10) {
-                ButtonSymbol(text: "○", size: 20)
+                ButtonSymbol(text: model.controllerBackGlyph, size: 20)
                 Text("Game settings").font(Design.body(24)).foregroundStyle(Design.secondary)
             }
         }.buttonStyle(.plain).offset(x: 96, y: 60)
@@ -174,8 +174,8 @@ struct ProfileChooser: View {
 
     private var legend: some View {
         HStack(spacing: 32) {
-            LegendItem(glyph: "✕", title: "Use this profile")
-            LegendItem(glyph: "○", title: "Back")
+            LegendItem(glyph: model.controllerConfirmGlyph, title: "Use this profile")
+            LegendItem(glyph: model.controllerBackGlyph, title: "Back")
         }.offset(x: 96, y: 1000)
     }
 }

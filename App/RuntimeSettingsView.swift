@@ -68,8 +68,8 @@ struct RuntimeSettingsView: View {
                 }
             }.frame(width: 540, alignment: .leading).offset(x: 1284, y: 510)
             HStack(spacing: 30) {
-                LegendItem(glyph: model.controllerName == nil ? "↵" : model.playStationGlyphs ? "✕" : "A", title: "Select")
-                LegendItem(glyph: model.controllerName == nil ? "ESC" : model.playStationGlyphs ? "○" : "B", title: model.setupBusy ? "Stop setup" : "Back to settings")
+                LegendItem(glyph: model.controllerName == nil ? "↵" : model.controllerConfirmGlyph, title: "Select")
+                LegendItem(glyph: model.controllerName == nil ? "ESC" : model.controllerBackGlyph, title: model.setupBusy ? "Stop setup" : "Back to settings")
             }.offset(x: 96, y: 986)
         }.frame(width: 1920, height: 1080).foregroundStyle(Design.text)
     }

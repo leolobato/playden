@@ -22,11 +22,12 @@ struct SettingsScreen: View {
         case 2: [
             ("Preferred display", model.displaySummary, "Change ›"),
             ("Fullscreen", model.immersiveMode ? "On while Immersive mode is enabled" : model.fullscreenTransitioning ? "Switching window mode…" : "Remembered for next launch · Control–Command–F", model.immersiveMode || model.isFullscreen ? "On" : "Off"),
-            ("Immersive mode", model.immersiveModeError ?? "Make your preferred display primary and darken the others until Playden quits", model.immersiveModeChanging ? "Switching…" : model.immersiveMode ? "On" : "Off"),
+            ("Immersive mode", model.immersiveModeError ?? "Use only your preferred display until Immersive mode is turned off or Playden quits", model.immersiveModeChanging ? "Switching…" : model.immersiveMode ? "On" : "Off"),
             ("Reduced motion", "Keep the focus ring; turn off scaling and transitions", model.reducedMotion ? "On" : "Off")
         ]
         case 3: [("Preferred audio device", model.audioSummary, "Change ›")]
-        case 4: [("Connected controllers", model.connectedControllers.isEmpty ? "No controller connected · keyboard navigation available" : model.connectedControllers.map(\.name).joined(separator: " · "), "Button test")]
+        case 4: [("Connected controllers", model.connectedControllers.isEmpty ? "No controller connected · keyboard navigation available" : model.connectedControllers.map(\.name).joined(separator: " · "), "Button test"),
+                 ("Use Nintendo Button Layout", "Swap A/B and X/Y for Playden navigation", model.useNintendoButtonLayout ? "On" : "Off")]
         case 6: []
         default: [("Playden", model.runtimeInfo.map { "CrossOver \($0.version ?? "not detected") · Template \($0.templateVersion)" } ?? "Your living-room game library", "v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1")"),
             ("Logs folder", model.logArchiveError ?? "Install and play-session diagnostics · last 10 per game", "Open in Finder"),
@@ -134,7 +135,7 @@ struct ModalLayer: View {
                     }
                     Spacer()
                     if model.panel == .filters { Text("\(model.filteredGames.count) games match").font(Design.body(24)).foregroundStyle(Design.secondary) }
-                    LegendItem(glyph: model.controllerName == nil || model.keyboardNavigation ? "ESC" : model.playStationGlyphs ? "○" : "B", title: "Close")
+                    LegendItem(glyph: model.controllerName == nil || model.keyboardNavigation ? "ESC" : model.controllerBackGlyph, title: "Close")
                 }.padding(.horizontal, 60).padding(.top, 150).padding(.bottom, 70).frame(width: 640, height: 1080).background(Design.panel).shadow(color: .black.opacity(0.5), radius: 40, x: -20)
             }
         }.frame(width: 1920, height: 1080)
@@ -178,14 +179,14 @@ struct SearchKeyboard: View {
                     LegendItem(glyph: "CMD ENTER", title: "Done")
                     LegendItem(glyph: "ESC", title: model.panel == .search ? "Done" : "Cancel")
                 } else {
-                    LegendItem(glyph: model.playStationGlyphs ? "□" : "X", title: "Backspace")
-                    LegendItem(glyph: model.playStationGlyphs ? "△" : "Y", title: "Space")
+                    LegendItem(glyph: model.controllerFavoriteGlyph, title: "Backspace")
+                    LegendItem(glyph: model.controllerContextGlyph, title: "Space")
                     HStack(spacing: 10) {
                         Glyph(text: model.playStationGlyphs ? "L1" : "LB"); Glyph(text: model.playStationGlyphs ? "R1" : "RB")
                         Text("Cursor").font(Design.body(22, weight: "Medium"))
                     }
                     LegendItem(glyph: model.playStationGlyphs ? "OPTIONS" : "MENU", title: "Symbols")
-                    LegendItem(glyph: model.playStationGlyphs ? "○" : "B", title: model.panel == .search ? "Done" : "Cancel")
+                    LegendItem(glyph: model.controllerBackGlyph, title: model.panel == .search ? "Done" : "Cancel")
                 }
             }.padding(.top, 8)
         }.padding(28).frame(width: 1280).background(Design.panel, in: RoundedRectangle(cornerRadius: 12)).shadow(color: .black.opacity(0.7), radius: 50, y: 40)

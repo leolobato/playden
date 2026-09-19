@@ -46,7 +46,7 @@ implemented.
   Every change applies on the next launch. The More menu holds game management actions, and
   Cloud saves shows the latest save timestamp when available.
 - **Set up your display.** Choose the preferred monitor for Playden and game placement,
-  remember fullscreen, darken other monitors with Immersive mode, and reduce animation.
+  remember fullscreen, disconnect other monitors with Immersive mode, and reduce animation.
 - **Troubleshoot on the TV.** Visible failure stages, Retry controls, scrollable logs, a runtime
   status screen and a controller button test.
 
@@ -139,15 +139,20 @@ if rebuilding repeatedly causes permission prompts.
 
 Under **Settings → Display**, choose your preferred monitor. **Fullscreen** remembers your
 window mode for the next launch, including changes with Control-Command-F or the window button.
-**Immersive mode** keeps Playden fullscreen, temporarily makes your preferred monitor macOS’s
-primary display and blacks out the other monitors while Playden is open. The Fullscreen switch
+**Immersive mode** keeps Playden fullscreen, temporarily makes your preferred monitor the
+only connected display by soft-disconnecting the other monitors while Playden is open. The Fullscreen switch
 stays on and disabled until Immersive mode is turned off, which restores your previous window
-mode. Quitting restores the display layout and removes the dark overlays. The setting is
-remembered; it is off by default.
+mode. Quitting reconnects the monitors and restores their arrangement. The setting is
+remembered; it is off by default. If the selected monitor is unplugged, Playden reconnects the
+other monitors and turns Immersive mode off.
 With Playden closed, `open "/Applications/Playden.app" --args --windowed` overrides fullscreen
 for that launch without changing the saved preference, unless Immersive mode is enabled.
 
 ## Controls
+
+Under **Settings → Controller**, **Use Nintendo Button Layout** swaps A/B and X/Y
+for Playden navigation and updates its button prompts. The setting is saved across launches;
+in-game controls remain configured by the game.
 
 The footer shows the actions available on the current screen and changes with your input device.
 

@@ -236,6 +236,7 @@ final class LibraryModel {
     var connectedControllers: [ControllerSnapshot] = []
     var controllerTest = ControllerTestState()
     var playStationGlyphs = true
+    var useNintendoButtonLayout = false
     var keyboardNavigation = false
     var downloadPaused = false
     var downloadIndex = 0 { didSet { revealDownloadFocus() } }
@@ -642,7 +643,7 @@ final class LibraryModel {
             if direction == .left { settingsRailFocused = true }
             else if direction == .right { settingsRailFocused = settingsSection == 6 }
             else if settingsRailFocused { settingsSection = min(max(0, settingsSection + (direction == .up ? -1 : 1)), 6); settingsIndex = 0 }
-            else { settingsIndex = min(max(0, settingsIndex + (direction == .up ? -1 : 1)), settingsSection == 1 || settingsSection == 2 ? 3 : settingsSection == 5 ? 2 : 0) }
+            else { settingsIndex = min(max(0, settingsIndex + (direction == .up ? -1 : 1)), settingsSection == 1 || settingsSection == 2 ? 3 : settingsSection == 5 ? 2 : settingsSection == 4 ? 1 : 0) }
         }
     }
     func activateDetail() {
@@ -739,7 +740,8 @@ final class LibraryModel {
         else if settingsSection == 2 && settingsIndex == 3 { reducedMotion.toggle() }
         else if settingsSection == 1 && settingsIndex == 2 { downloadWhilePlaying.toggle() }
         else if settingsSection == 3 { openAudioSettings() }
-        else if settingsSection == 4 { openControllerTest() }
+        else if settingsSection == 4 && settingsIndex == 0 { openControllerTest() }
+        else if settingsSection == 4 { toggleNintendoButtonLayout() }
         else if settingsSection == 5 && settingsIndex == 1 { revealLogsFolder() }
         else if settingsSection == 5 && settingsIndex == 2 { showResetAppData() }
         else if settingsSection == 5 { show(.information("Playden \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1")\n\nCrossOver \(runtimeInfo?.version ?? "not detected") · Template \(runtimeInfo?.templateVersion ?? "not prepared")")) }
@@ -747,15 +749,16 @@ final class LibraryModel {
     }
     func openControllerTest() {
         controllerTest = ControllerTestState()
-        controllerTest.update(connectedControllers, at: ProcessInfo.processInfo.systemUptime)
+        controllerTest.update(connectedControllers, at: ProcessInfo.processInfo.systemUptime, backButton: controllerBackButton)
         show(.controllerTest)
     }
     func receiveControllers(_ values: [ControllerSnapshot], at time: Double) {
         if connectedControllers != values { connectedControllers = values }
         guard panel == .controllerTest else { return }
-        if controllerTest.update(values, at: time) { panel = nil }
+        if controllerTest.update(values, at: time, backButton: controllerBackButton) { panel = nil }
     }
     func performController(_ action: InputAction) {
+        let action = mappedControllerAction(action)
         keyboardNavigation = false
         if performLauncherQuitInput(action) { return }
         guard panel != .controllerTest else { return }

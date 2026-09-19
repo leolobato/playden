@@ -5,10 +5,16 @@ import Domain
 public protocol PrimaryDisplayHolding: Sendable {
     var target: GameDisplayTarget { get }
     func release() async
+    func isAlive() async -> Bool
+}
+
+public extension PrimaryDisplayHolding {
+    func isAlive() async -> Bool { true }
 }
 
 /// The pipe lifetime is independent of CrossOver. Closing it, or Playden exiting, ends
-/// the native helper; macOS reverts that helper's application-scoped configuration.
+/// the native helper, which restores immersive disconnections explicitly; macOS
+/// reverts ordinary application-scoped primary-display changes.
 public actor TemporaryPrimaryDisplay: PrimaryDisplayHolding {
     public nonisolated let target: GameDisplayTarget
     private let process: Process
@@ -24,12 +30,12 @@ public actor TemporaryPrimaryDisplay: PrimaryDisplayHolding {
         if process.isRunning { process.terminate() }
     }
 
-    public static func acquire(target: GameDisplayTarget, helper: URL) async throws -> TemporaryPrimaryDisplay {
+    public static func acquire(target: GameDisplayTarget, helper: URL, disconnectOtherDisplays: Bool = false) async throws -> TemporaryPrimaryDisplay {
         guard let uuid = target.displayUUID, UUID(uuidString: uuid) != nil else {
             throw OperationFailure(stage: "Prepare game display", reason: PrimaryDisplayError.unavailable.localizedDescription, output: "Missing stable display UUID.")
         }
         let process = Process(), input = Pipe(), output = Pipe()
-        process.executableURL = helper; process.arguments = ["--apply", uuid]
+        process.executableURL = helper; process.arguments = [disconnectOtherDisplays ? "--immersive" : "--apply", uuid]
         process.standardInput = input; process.standardOutput = output; process.standardError = output
         // Game processes must never inherit a writer that keeps the helper alive after Playden exits.
         for handle in [input.fileHandleForReading, input.fileHandleForWriting, output.fileHandleForReading, output.fileHandleForWriting] {
@@ -51,6 +57,10 @@ public actor TemporaryPrimaryDisplay: PrimaryDisplayHolding {
                 let count = read(descriptor, &bytes, bytes.count)
                 if count > 0 { received.append(contentsOf: bytes.prefix(count)) }
                 if let newline = received.firstIndex(of: 10) {
+                    if let failure = try? JSONDecoder().decode(PrimaryDisplayHelperFailure.self, from: received.prefix(upTo: newline)) {
+                        throw OperationFailure(stage: disconnectOtherDisplays ? "Immersive mode" : "Prepare game display",
+                                               reason: failure.error, output: String(decoding: received, as: UTF8.self))
+                    }
                     guard let screen = try? JSONDecoder().decode(PrimaryDisplayScreen.self, from: received.prefix(upTo: newline)),
                           screen.uuid.caseInsensitiveCompare(uuid) == .orderedSame, screen.isMain, screen.x == 0, screen.y == 0,
                           screen.width > 0, screen.height > 0 else { break }
@@ -65,13 +75,17 @@ public actor TemporaryPrimaryDisplay: PrimaryDisplayHolding {
                 try await Task.sleep(for: .milliseconds(20))
             }
             throw OperationFailure(stage: "Prepare game display",
-                reason: "The game monitor could not be made primary. Leave fullscreen apps and retry, or turn off Make game monitor primary.",
+                reason: disconnectOtherDisplays
+                    ? "The other monitors could not be disconnected. Turn off Immersive mode and try again."
+                    : "The game monitor could not be made primary. Leave fullscreen apps and retry, or turn off Make game monitor primary.",
                 output: String(decoding: received, as: UTF8.self))
         } catch {
             await stop(process, lifetime: input.fileHandleForWriting, output: output.fileHandleForReading).value
             throw error
         }
     }
+
+    public func isAlive() async -> Bool { process.isRunning }
 
     public func release() async {
         if cleanup == nil { cleanup = Self.stop(process, lifetime: lifetime, output: output) }

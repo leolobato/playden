@@ -41,8 +41,8 @@ struct ResetAppDataDialog: View {
                     Spacer()
                 }
                 HStack(spacing: 28) {
-                    LegendItem(glyph: keyboard ? "↵" : model.playStationGlyphs ? "✕" : "A", title: "Select")
-                    LegendItem(glyph: keyboard ? "ESC" : model.playStationGlyphs ? "○" : "B", title: "Cancel")
+                    LegendItem(glyph: keyboard ? "↵" : model.controllerConfirmGlyph, title: "Select")
+                    LegendItem(glyph: keyboard ? "ESC" : model.controllerBackGlyph, title: "Cancel")
                 }.foregroundStyle(Design.secondary)
             }
         }.padding(44).frame(width: 1120)

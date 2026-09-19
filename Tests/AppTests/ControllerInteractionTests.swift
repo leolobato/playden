@@ -1,8 +1,69 @@
 import XCTest
-import Input
+@testable import Input
+import Catalog
+import Domain
 @testable import Playden
 
 final class ControllerInteractionTests: XCTestCase {
+    @MainActor func testNintendoLayoutSettingIsReachableAndPersists() throws {
+        let catalog = try CatalogStore()
+        let model = LibraryModel(catalog: catalog, preview: false)
+        XCTAssertFalse(model.useNintendoButtonLayout)
+        model.selectTab(.settings); model.settingsSection = 4; model.settingsRailFocused = false
+        model.performController(.move(.down))
+        XCTAssertEqual(model.settingsIndex, 1)
+        model.performController(.confirm)
+        XCTAssertTrue(model.useNintendoButtonLayout)
+        XCTAssertEqual(try catalog.preferences().useNintendoButtonLayout, true)
+        let restored = LibraryModel(catalog: catalog, preview: false)
+        XCTAssertTrue(restored.useNintendoButtonLayout)
+        // B now confirms; changing layout must not require the old confirm button.
+        model.performController(.back)
+        XCTAssertFalse(model.useNintendoButtonLayout)
+        XCTAssertEqual(try catalog.preferences().useNintendoButtonLayout, false)
+    }
+
+    @MainActor func testNintendoLayoutSwapsControllerActionsAndGlyphsButNotKeyboard() {
+        let model = LibraryModel()
+        model.useNintendoButtonLayout = true
+        model.playStationGlyphs = false
+        XCTAssertEqual(model.controllerConfirmGlyph, "B")
+        XCTAssertEqual(model.controllerBackGlyph, "A")
+        XCTAssertEqual(model.controllerFavoriteGlyph, "Y")
+        XCTAssertEqual(model.controllerContextGlyph, "X")
+        model.show(.information("Test"))
+        model.performController(.confirm) // Physical A is Back.
+        XCTAssertNil(model.panel)
+        var quitRequests = 0
+        model.onLauncherQuit = { quitRequests += 1 }
+        model.selectTab(.settings, focusTabs: true)
+        model.performController(.move(.right))
+        model.performController(.back) // Physical B is Confirm.
+        XCTAssertEqual(quitRequests, 1)
+        model.perform(.confirm) // Keyboard Enter retains its meaning.
+        XCTAssertEqual(quitRequests, 2)
+        model.playStationGlyphs = true
+        XCTAssertEqual(model.controllerConfirmGlyph, "○")
+        XCTAssertEqual(model.controllerBackGlyph, "✕")
+        if case .context = model.mappedControllerAction(.favorite) {} else { XCTFail("X should open context") }
+        if case .favorite = model.mappedControllerAction(.context) {} else { XCTFail("Y should favorite") }
+    }
+
+    @MainActor func testNintendoLayoutButtonTestUsesSouthToCloseAndKeepsRawSamples() {
+        let model = LibraryModel()
+        model.useNintendoButtonLayout = true
+        model.openControllerTest()
+        let east = ControllerSnapshot(id: "pad", name: "Fixture", playStation: false, buttons: [.east: 1])
+        model.receiveControllers([east], at: 1)
+        model.receiveControllers([east], at: 3)
+        XCTAssertEqual(model.panel, .controllerTest)
+        let south = ControllerSnapshot(id: "pad", name: "Fixture", playStation: false, buttons: [.south: 1])
+        model.receiveControllers([south], at: 4)
+        XCTAssertEqual(model.controllerTest.lastInput, "A")
+        model.receiveControllers([south], at: 5.21)
+        XCTAssertNil(model.panel)
+    }
+
     @MainActor func testSettingsTabNavigatesToPowerAndBack() {
         let model = LibraryModel()
         defer { model.stopServices() }
@@ -19,6 +80,34 @@ final class ControllerInteractionTests: XCTestCase {
         XCTAssertEqual(model.tab, .settings)
         model.performController(.move(.left))
         XCTAssertEqual(model.tab, .downloads)
+    }
+
+    @MainActor func testBufferedDpadTapReachesQuitAfterNavigatingAcrossHeader() {
+        for nintendo in [false, true] {
+            let model = LibraryModel()
+            model.useNintendoButtonLayout = nintendo
+            model.selectTab(.home, focusTabs: true)
+            var input = ControllerMenuInput()
+            var time = 0.0
+            func tapRight() {
+                for action in input.consume(.init(direction: .right), at: time) { model.performController(action) }
+                for action in input.consume(.init(), at: time + 0.004) { model.performController(action) }
+                time += 0.012
+            }
+            tapRight(); XCTAssertEqual(model.tab, .library)
+            tapRight(); XCTAssertEqual(model.tab, .downloads)
+            tapRight(); XCTAssertEqual(model.tab, .settings)
+            XCTAssertFalse(model.powerFocused)
+            tapRight()
+            XCTAssertTrue(model.tabsFocused)
+            XCTAssertTrue(model.powerFocused)
+            var quits = 0
+            model.onLauncherQuit = { quits += 1 }
+            for action in input.consume(.init(buttons: [nintendo ? .east : .south]), at: time) {
+                model.performController(action)
+            }
+            XCTAssertEqual(quits, 1)
+        }
     }
 
     @MainActor func testPowerConfirmUsesLauncherQuitAction() {

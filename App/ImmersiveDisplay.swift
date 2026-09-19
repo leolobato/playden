@@ -7,27 +7,25 @@ import Runner
     var acquire: (GameDisplayTarget) async throws -> any PrimaryDisplayHolding = { _ in
         throw OperationFailure(stage: "Immersive mode", reason: "The display helper is unavailable.", output: "")
     }
-    var darken: ([LauncherDisplayScreen]) -> Void = { _ in }
+    var interrupted: () -> Void = {}
     var stateChanged: (Bool, Error?) -> Void = { _, _ in }
     private(set) var activeDisplayUUID: String?
-    private var requestedUUID: String?
-    private var fullscreenDisplayUUID: String?
-    private var screens: [LauncherDisplayScreen] = []
+    private(set) var requestedUUID: String?
     private var lease: (any PrimaryDisplayHolding)?
+    private var monitor: Task<Void, Never>?
     private var worker: Task<Void, Never>?
     private var generation = 0
     private var stopped = false
     private var failure: Error?
 
-    func update(target: GameDisplayTarget?, screens: [LauncherDisplayScreen]) {
+    func update(target: GameDisplayTarget?) {
         guard !stopped else { return }
-        self.screens = screens
         let uuid = target?.displayUUID
-        guard uuid != requestedUUID else { updateDarkening(); return }
+        guard uuid != requestedUUID else { return }
+        monitor?.cancel()
         requestedUUID = uuid; generation += 1
         let revision = generation, previous = worker
-        // Never leave every monitor covered after unplugging or changing the target.
-        darken([]); stateChanged(true, nil)
+        stateChanged(true, nil)
         worker = Task { @MainActor in
             await previous?.value
             guard generation == revision, !stopped else { return }
@@ -40,19 +38,29 @@ import Runner
                     let acquired = try await acquire(target)
                     guard generation == revision, !stopped else { await acquired.release(); return }
                     lease = acquired; activeDisplayUUID = uuid
+                    monitor = Task { @MainActor [weak self] in
+                        while !Task.isCancelled {
+                            do { try await Task.sleep(for: .milliseconds(250)) } catch { return }
+                            guard let self else { return }
+                            await self.checkLease()
+                        }
+                    }
                 } catch { failure = error }
             }
             guard generation == revision, !stopped else { return }
-            updateDarkening(); stateChanged(false, failure)
+            stateChanged(false, failure)
         }
     }
 
-    /// Visibility is independent of the primary-display lease, which stays stable during games.
-    func updatePresentation(fullscreenDisplayUUID: String?, screens: [LauncherDisplayScreen]) {
-        guard !stopped else { return }
-        self.fullscreenDisplayUUID = fullscreenDisplayUUID
-        self.screens = screens
-        updateDarkening()
+    func checkLease() async {
+        let revision = generation
+        guard let lease, !(await lease.isAlive()), revision == generation, !stopped else { return }
+        monitor?.cancel()
+        self.lease = nil; activeDisplayUUID = nil
+        // Block fallback acquisition until the owner turns the preference off.
+        await lease.release()
+        guard revision == generation, !stopped else { return }
+        interrupted()
     }
 
     func waitUntilReady() async throws {
@@ -66,59 +74,12 @@ import Runner
     }
 
     func shutdown() async {
+        monitor?.cancel()
         stopped = true; generation += 1; requestedUUID = nil
-        darken([])
         await worker?.value
         let old = lease; lease = nil; activeDisplayUUID = nil
         await old?.release()
         stateChanged(false, nil)
     }
 
-    private func updateDarkening() {
-        guard let uuid = activeDisplayUUID, uuid == requestedUUID, uuid == fullscreenDisplayUUID,
-              screens.contains(where: { $0.uuid == uuid }) else { darken([]); return }
-        darken(screens.filter { $0.uuid != uuid })
-    }
-}
-
-@MainActor final class DarkenedDisplayWindows {
-    private var windows: [String: NSPanel] = [:]
-    func update(_ screens: [LauncherDisplayScreen]) {
-        let retained = Set(screens.map(\.uuid))
-        for uuid in Array(windows.keys) where !retained.contains(uuid) {
-            windows.removeValue(forKey: uuid)?.close()
-        }
-        for screen in screens {
-            let panel: NSPanel
-            if let existing = windows[screen.uuid] { panel = existing }
-            else {
-                panel = DarkenedDisplayPanel(contentRect: screen.frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-                panel.backgroundColor = .black; panel.isOpaque = true; panel.hasShadow = false
-                panel.isReleasedWhenClosed = false; panel.hidesOnDeactivate = false
-                panel.ignoresMouseEvents = true; panel.level = .screenSaver
-                panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
-                windows[screen.uuid] = panel
-            }
-            panel.setFrame(screen.frame, display: true)
-            panel.orderFrontRegardless()
-        }
-    }
-}
-
-private final class DarkenedDisplayPanel: NSPanel {
-    override var canBecomeKey: Bool { false }
-    override var canBecomeMain: Bool { false }
-}
-
-/// Both rectangles must use the same coordinate system. A maximized desktop window
-/// that leaves room for the menu bar or Dock does not qualify as fullscreen.
-enum ImmersiveFullscreenGeometry {
-    static func fillsDisplay(_ window: CGRect, display: CGRect) -> Bool {
-        guard !window.isEmpty, !display.isEmpty else { return false }
-        let tolerance: CGFloat = 2
-        return abs(window.minX - display.minX) <= tolerance &&
-            abs(window.minY - display.minY) <= tolerance &&
-            abs(window.maxX - display.maxX) <= tolerance &&
-            abs(window.maxY - display.maxY) <= tolerance
-    }
 }

@@ -63,8 +63,8 @@ struct CloudSaveDialog: View {
                 Spacer(minLength: 0)
             }.padding(.top, 4)
             HStack(spacing: 28) {
-                LegendItem(glyph: keyboard ? "↵" : model.playStationGlyphs ? "✕" : "A", title: "Select")
-                LegendItem(glyph: keyboard ? "ESC" : model.playStationGlyphs ? "○" : "B", title: model.session.phase == .awaitingCloud ? "Cancel launch" : "Close")
+                LegendItem(glyph: keyboard ? "↵" : model.controllerConfirmGlyph, title: "Select")
+                LegendItem(glyph: keyboard ? "ESC" : model.controllerBackGlyph, title: model.session.phase == .awaitingCloud ? "Cancel launch" : "Close")
                 Spacer()
                 if model.cloudBusy(gameID) { Text("You can close this while sync continues.").font(Design.body(18)).foregroundStyle(Design.muted) }
             }.foregroundStyle(Design.secondary).padding(.top, 8)

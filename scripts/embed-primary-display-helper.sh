@@ -10,6 +10,7 @@ for arch in $ARCHS; do
     xcrun swiftc -O -swift-version 6 -sdk "$SDKROOT" \
         -target "${arch}-apple-macosx${MACOSX_DEPLOYMENT_TARGET}" \
         Packages/PlaydenKit/Sources/Runner/PrimaryDisplayLayout.swift \
+        Packages/PlaydenKit/Sources/Runner/ImmersiveDisplayConfiguration.swift \
         Native/PrimaryDisplayHelper/main.swift -o "$binary"
     set -- "$@" "$binary"
 done

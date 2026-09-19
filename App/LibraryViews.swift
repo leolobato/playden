@@ -78,7 +78,7 @@ struct CanvasView: View {
                             }
                         }
                         Spacer()
-                        LegendItem(glyph: model.keyboardNavigation || model.controllerName == nil ? "T" : model.playStationGlyphs ? "△" : "Y", title: "Notification actions")
+                        LegendItem(glyph: model.keyboardNavigation || model.controllerName == nil ? "T" : model.controllerContextGlyph, title: "Notification actions")
                     }
                 }.padding(24).frame(width: 1100).background(Design.panel, in: RoundedRectangle(cornerRadius: 12)).offset(x: 96, y: 750).zIndex(6)
             }
@@ -106,7 +106,7 @@ struct TopBar: View {
         HStack(spacing: 0) {
             HStack(spacing: 8) {
                 ForEach(AppTab.allCases, id: \.self) { tab in
-                    Button { model.selectTab(tab) } label: {
+                    Button { model.selectTab(tab, focusTabs: true) } label: {
                         HStack(spacing: 10) {
                             Image(systemName: tab.symbol).font(.system(size: 26, weight: .regular))
                             Text(tab.rawValue).font(Design.condensed(30, bold: model.tab == tab))
@@ -160,18 +160,18 @@ struct BottomBar: View {
     var body: some View {
         HStack(spacing: 30) {
             if model.showsSessionIssue && model.sessionIssueFocused {
-                LegendItem(glyph: keyboard ? "↵" : model.playStationGlyphs ? "✕" : "A", title: "Select")
-                LegendItem(glyph: keyboard ? "ESC" : model.playStationGlyphs ? "○" : "B", title: "Back")
+                LegendItem(glyph: keyboard ? "↵" : model.controllerConfirmGlyph, title: "Select")
+                LegendItem(glyph: keyboard ? "ESC" : model.controllerBackGlyph, title: "Back")
                 LegendItem(glyph: "← →", title: "Choose action")
             } else if model.tabsFocused && model.detailID == nil {
                 LegendItem(glyph: "← →", title: "Navigate")
-                LegendItem(glyph: keyboard ? "↵" : model.playStationGlyphs ? "✕" : "A", title: model.powerFocused ? "Quit Playden" : "Browse")
-                LegendItem(glyph: keyboard ? "ESC" : model.playStationGlyphs ? "○" : "B", title: "Back")
+                LegendItem(glyph: keyboard ? "↵" : model.controllerConfirmGlyph, title: model.powerFocused ? "Quit Playden" : "Browse")
+                LegendItem(glyph: keyboard ? "ESC" : model.controllerBackGlyph, title: "Back")
             } else {
-            LegendItem(glyph: keyboard ? "↵" : model.playStationGlyphs ? "✕" : "A", title: model.detailID != nil || model.tab == .settings ? "Select" : model.tab == .downloads && !model.isPreview && model.focusedGame != nil ? "Manage" : model.tab == .downloads && model.focusedGame?.status == .downloading ? (model.downloadPaused ? "Resume" : "Pause") : "Open")
-            if model.detailID != nil || model.tab == .library { LegendItem(glyph: keyboard ? "ESC" : model.playStationGlyphs ? "○" : "B", title: "Back") }
-            if (model.tab != .settings && model.focusedGame != nil) || model.showsSessionIssue { LegendItem(glyph: keyboard ? "T" : model.playStationGlyphs ? "△" : "Y", title: model.showsSessionIssue ? "Notification" : "More") }
-            if model.detailID == nil && model.tab == .home && model.focusedGame != nil { LegendItem(glyph: keyboard ? "F" : model.playStationGlyphs ? "□" : "X", title: "Favorite") }
+            LegendItem(glyph: keyboard ? "↵" : model.controllerConfirmGlyph, title: model.detailID != nil || model.tab == .settings ? "Select" : model.tab == .downloads && !model.isPreview && model.focusedGame != nil ? "Manage" : model.tab == .downloads && model.focusedGame?.status == .downloading ? (model.downloadPaused ? "Resume" : "Pause") : "Open")
+            if model.detailID != nil || model.tab == .library { LegendItem(glyph: keyboard ? "ESC" : model.controllerBackGlyph, title: "Back") }
+            if (model.tab != .settings && model.focusedGame != nil) || model.showsSessionIssue { LegendItem(glyph: keyboard ? "T" : model.controllerContextGlyph, title: model.showsSessionIssue ? "Notification" : "More") }
+            if model.detailID == nil && model.tab == .home && model.focusedGame != nil { LegendItem(glyph: keyboard ? "F" : model.controllerFavoriteGlyph, title: "Favorite") }
             if model.detailID == nil {
                 if keyboard { LegendItem(glyph: "TAB", title: "Tabs") }
                 if model.tab == .library { LegendItem(glyph: keyboard ? "O" : model.playStationGlyphs ? "OPTIONS" : "MENU", title: "Sort & filter") }
@@ -273,7 +273,7 @@ struct GamePage: View {
         ZStack(alignment: .topLeading) {
             Artwork(url: game.heroURL, placeholderID: game.id, fadeIn: !model.reducedMotion).frame(width: 1920, height: 620)
             LinearGradient(stops: [.init(color: Design.background.opacity(0.4), location: 0), .init(color: .clear, location: 0.3), .init(color: .clear, location: 0.75), .init(color: Design.background, location: 1)], startPoint: .top, endPoint: .bottom).frame(height: 620)
-            HStack { LegendItem(glyph: model.controllerName == nil || model.keyboardNavigation ? "ESC" : model.playStationGlyphs ? "○" : "B", title: model.tab.rawValue); Spacer(); ClockLabel(fixed: model.fixedClock) }.frame(width: 1728, height: 40).offset(x: 96, y: 54)
+            HStack { LegendItem(glyph: model.controllerName == nil || model.keyboardNavigation ? "ESC" : model.controllerBackGlyph, title: model.tab.rawValue); Spacer(); ClockLabel(fixed: model.fixedClock) }.frame(width: 1728, height: 40).offset(x: 96, y: 54)
             Artwork(url: game.logoURL, title: game.title, fit: true, transparent: true, fadeIn: !model.reducedMotion).frame(width: 460, height: 160).shadow(color: .black.opacity(0.5), radius: 20, y: 8).offset(x: 96, y: 430)
             ScrollViewReader { proxy in
                 ScrollView(.horizontal) {

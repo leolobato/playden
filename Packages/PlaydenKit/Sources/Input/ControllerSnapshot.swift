@@ -65,7 +65,7 @@ public struct ControllerTestState: Sendable {
     private var closeDeviceID: String?
     public init() {}
     public var selected: ControllerSnapshot? { devices.first { $0.id == selectedID } ?? devices.first }
-    @discardableResult public mutating func update(_ values: [ControllerSnapshot], at time: Double) -> Bool {
+    @discardableResult public mutating func update(_ values: [ControllerSnapshot], at time: Double, backButton: ControllerControl = .east) -> Bool {
         for device in values {
             let before = devices.first { $0.id == device.id }
             let newlyPressed = device.pressed.subtracting(before?.pressed ?? [])
@@ -79,7 +79,7 @@ public struct ControllerTestState: Sendable {
         }
         devices = values
         if !values.contains(where: { $0.id == selectedID }) { selectedID = values.first?.id; lastInput = nil }
-        if let holding = values.first(where: { $0.pressed.contains(.east) }) {
+        if let holding = values.first(where: { $0.pressed.contains(backButton) }) {
             if closeDeviceID != holding.id { closeBegan = time; closeDeviceID = holding.id }
             closeProgress = min(1, max(0, (time - (closeBegan ?? time)) / 1.2))
         } else { closeBegan = nil; closeDeviceID = nil; closeProgress = 0 }

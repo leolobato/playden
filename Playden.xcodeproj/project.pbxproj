@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0084433F681E4BEE7BA36D3B /* ControllerLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = E128C9FB2658F5A04324C918 /* ControllerLayout.swift */; };
 		02D50C3EA16BE7D854C91B6F /* GameActivationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD2AC6DC0F5407AE5CEE0BC3 /* GameActivationTests.swift */; };
 		0305905A1AAC26C8B0BEFFED /* DownloadTransferTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF7C9BEE76958CB42F6BE5D7 /* DownloadTransferTests.swift */; };
 		04FC154590632EAFA861E798 /* BarlowCondensed-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 61619F47BBBA3B5FFB6F1C71 /* BarlowCondensed-Bold.ttf */; };
@@ -220,6 +221,7 @@
 		DF7C9BEE76958CB42F6BE5D7 /* DownloadTransferTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadTransferTests.swift; sourceTree = "<group>"; };
 		DFB5C8D29C9334B6EC203BC2 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		E0A098157649B997A832EBC5 /* AccountInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountInteractionTests.swift; sourceTree = "<group>"; };
+		E128C9FB2658F5A04324C918 /* ControllerLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControllerLayout.swift; sourceTree = "<group>"; };
 		E7817305A0EE8FCC3F88CD6D /* SetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupView.swift; sourceTree = "<group>"; };
 		EC04162A9293F2D2402CF51A /* LibraryPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryPersistenceTests.swift; sourceTree = "<group>"; };
 		EC218DAB2EF1AF065C0DA57C /* barlowcondensed-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "barlowcondensed-OFL.txt"; sourceTree = "<group>"; };
@@ -359,6 +361,7 @@
 				4FF001A6F36C2F486BC624E1 /* CloudReadCheck.swift */,
 				1A70DF0746FB0F749E93593A /* CloudSnapshots.swift */,
 				60100AC4656FB333C5893F1C /* CloudViews.swift */,
+				E128C9FB2658F5A04324C918 /* ControllerLayout.swift */,
 				114F18DB13910D7FCCC3D632 /* ControllerTestView.swift */,
 				1A8534EFEF92CAEA1DD637EF /* DesignSystem.swift */,
 				4CEA426A764C16FD9A9C70B2 /* DisplayModel.swift */,
@@ -553,7 +556,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "#!/bin/sh\nset -eu\ncd \"$SRCROOT\"\nhelper_build=\"$DERIVED_FILE_DIR/PrimaryDisplayHelper\"\nhelper_resources=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH\"\nmkdir -p \"$helper_build\" \"$helper_resources\"\nset --\nfor arch in $ARCHS; do\n    binary=\"$helper_build/PlaydenPrimaryDisplay-$arch\"\n    xcrun swiftc -O -swift-version 6 -sdk \"$SDKROOT\" \\\n        -target \"${arch}-apple-macosx${MACOSX_DEPLOYMENT_TARGET}\" \\\n        Packages/PlaydenKit/Sources/Runner/PrimaryDisplayLayout.swift \\\n        Native/PrimaryDisplayHelper/main.swift -o \"$binary\"\n    set -- \"$@\" \"$binary\"\ndone\nxcrun lipo -create \"$@\" -output \"$helper_resources/PlaydenPrimaryDisplay\"\nif [ \"${CODE_SIGNING_ALLOWED:-YES}\" != NO ]; then\n    # Distribution builds request a secure timestamp for every nested executable.\n    case \" ${OTHER_CODE_SIGN_FLAGS:-} \" in\n        *\" --timestamp \"*) set -- --timestamp ;;\n        *) set -- --timestamp=none ;;\n    esac\n    /usr/bin/codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY:--}\" \\\n        --options runtime \"$@\" \"$helper_resources/PlaydenPrimaryDisplay\"\nfi\n";
+			shellScript = "#!/bin/sh\nset -eu\ncd \"$SRCROOT\"\nhelper_build=\"$DERIVED_FILE_DIR/PrimaryDisplayHelper\"\nhelper_resources=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH\"\nmkdir -p \"$helper_build\" \"$helper_resources\"\nset --\nfor arch in $ARCHS; do\n    binary=\"$helper_build/PlaydenPrimaryDisplay-$arch\"\n    xcrun swiftc -O -swift-version 6 -sdk \"$SDKROOT\" \\\n        -target \"${arch}-apple-macosx${MACOSX_DEPLOYMENT_TARGET}\" \\\n        Packages/PlaydenKit/Sources/Runner/PrimaryDisplayLayout.swift \\\n        Packages/PlaydenKit/Sources/Runner/ImmersiveDisplayConfiguration.swift \\\n        Native/PrimaryDisplayHelper/main.swift -o \"$binary\"\n    set -- \"$@\" \"$binary\"\ndone\nxcrun lipo -create \"$@\" -output \"$helper_resources/PlaydenPrimaryDisplay\"\nif [ \"${CODE_SIGNING_ALLOWED:-YES}\" != NO ]; then\n    # Distribution builds request a secure timestamp for every nested executable.\n    case \" ${OTHER_CODE_SIGN_FLAGS:-} \" in\n        *\" --timestamp \"*) set -- --timestamp ;;\n        *) set -- --timestamp=none ;;\n    esac\n    /usr/bin/codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY:--}\" \\\n        --options runtime \"$@\" \"$helper_resources/PlaydenPrimaryDisplay\"\nfi\n";
 		};
 		33552DEFA82625E3EE3B7962 /* Embed Steam runtime libraries */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -615,6 +618,7 @@
 				A008D6F3F4C068A585979CFB /* CloudReadCheck.swift in Sources */,
 				9DFE2FCA85524AC4068CF464 /* CloudSnapshots.swift in Sources */,
 				716B9E4BECFC22EE54FA29C3 /* CloudViews.swift in Sources */,
+				0084433F681E4BEE7BA36D3B /* ControllerLayout.swift in Sources */,
 				8F737670CD901726BB4C7EB6 /* ControllerTestView.swift in Sources */,
 				38662A364873EDED142197C7 /* DesignSystem.swift in Sources */,
 				905807C56F99CD2721B7EDB1 /* DisplayModel.swift in Sources */,
