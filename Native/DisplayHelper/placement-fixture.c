@@ -58,9 +58,11 @@ static BOOL fixtureMonitorInfo(HMONITOR monitor, MONITORINFOEXW *info) {
 static BOOL fixtureMove(HWND window, HWND after, int x, int y, int width, int height, unsigned int flags) {
     (void)after;
     check(window == (HWND)1, "Moved another process or utility window\n");
-    check(flags == (0x4000 | 0x0004 | 0x0010 | 0x0200), "Changed foreground/Z-order behavior\n");
+    check((flags & ~0x0001) == (0x4000 | 0x0004 | 0x0010 | 0x0200), "Changed foreground/Z-order behavior\n");
+    if (borderless) check(flags & 0x0001, "Forced fullscreen resize can reenter game input initialization\n");
     ++moves;
     if (rejectMove) return 0;
+    if (flags & 0x0001) { width = gameRect.right - gameRect.left; height = gameRect.bottom - gameRect.top; }
     gameRect = (RECT){x, y, x + width, y + height}; return 1;
 }
 static void reset(int appearance, int exitPoll) {
@@ -70,7 +72,7 @@ static void reset(int appearance, int exitPoll) {
     gameRect = (RECT){0, 0, 3008, 1692}; borderless = 1;
 }
 static BOOL fullscreenOnTarget(void) {
-    return gameRect.left == -1920 && gameRect.top == 0 && gameRect.right == 0 && gameRect.bottom == 1080;
+    return gameRect.left == -1920 && gameRect.top == 0 && gameRect.right == 1088 && gameRect.bottom == 1692;
 }
 void mainCRTStartup(void) {
     reset(121, 1000); // Twelve seconds of loading used to exhaust the entire placement budget.
@@ -84,6 +86,11 @@ void mainCRTStartup(void) {
     reset(1, 1000); resetAt = 50; // An engine can reset its display during startup.
     placeStartupWindows((HANDLE)1);
     check(polls == 100 && moves == 2 && fullscreenOnTarget(), "Startup reset was not corrected\n");
+
+    reset(1, 1000); target = (RECT){-800, 0, 0, 600};
+    placeStartupWindows((HANDLE)1);
+    check(moves == 1 && gameRect.left == -800 && gameRect.right == 2208,
+          "Oversized fullscreen was repeatedly moved or resized\n");
 
     reset(1, 1000); rejectMove = 1;
     placeStartupWindows((HANDLE)1);

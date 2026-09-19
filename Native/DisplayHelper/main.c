@@ -82,6 +82,7 @@ static BOOL placeWindow(void) {
     if (!candidate) return 0;
     RECT rect;
     if (!GetWindowRect(candidate, &rect)) return 0;
+    if (rect.left == target.left && rect.top == target.top) return 1;
     int centerX = rect.left + (rect.right - rect.left) / 2;
     int centerY = rect.top + (rect.bottom - rect.top) / 2;
     if (centerX >= target.left && centerX < target.right && centerY >= target.top && centerY < target.bottom) return 1;
@@ -92,12 +93,16 @@ static BOOL placeWindow(void) {
         width >= current.rcMonitor.right - current.rcMonitor.left &&
         height >= current.rcMonitor.bottom - current.rcMonitor.top;
     int targetWidth = target.right - target.left, targetHeight = target.bottom - target.top;
-    if (fullscreen || width > targetWidth) width = targetWidth;
-    if (fullscreen || height > targetHeight) height = targetHeight;
-    int x = target.left + (targetWidth - width) / 2, y = target.top + (targetHeight - height) / 2;
+    if (!fullscreen && width > targetWidth) width = targetWidth;
+    if (!fullscreen && height > targetHeight) height = targetHeight;
+    int x = fullscreen ? target.left : target.left + (targetWidth - width) / 2;
+    int y = fullscreen ? target.top : target.top + (targetHeight - height) / 2;
     // Asynchronous: a game that is loading or not pumping messages cannot block this helper.
     // Preserve activation and Z order; Playden owns the foreground handoff.
-    SetWindowPos(candidate, 0, x, y, width, height, 0x4000 | 0x0004 | 0x0010 | 0x0200);
+    // Fullscreen engines own their render size. Forcing WM_SIZE while an engine is
+    // initializing/polling DirectInput can tear down its devices reentrantly (GW3).
+    // Move only; let the game choose its resolution on the destination monitor.
+    SetWindowPos(candidate, 0, x, y, width, height, 0x4000 | 0x0004 | 0x0010 | 0x0200 | (fullscreen ? 0x0001 : 0));
     return 0;
 }
 

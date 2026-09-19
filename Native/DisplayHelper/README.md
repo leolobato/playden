@@ -30,6 +30,10 @@ monitor themselves after startup; automatic movement stops after ten seconds. Ex
 hand off their window to a different process and games that continually override window placement
 need further coverage. Diagnostic output records whether the window reached the selected display.
 
+Fullscreen windows are moved without resizing. The engine owns its render resolution; forcing a
+resize during startup can reenter display/input initialization (Geometry Wars 3 crashed while
+reacquiring a released DirectInput keyboard). Windowed games still fit and center on the target.
+
 The opt-in integration test compiles a tiny Windows argument fixture, checks Unicode / empty /
 quoted / trailing-backslash arguments, exit-code propagation and missing-monitor fallback:
 
