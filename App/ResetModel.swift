@@ -101,6 +101,7 @@ extension LibraryModel {
         collections = []; compatibilityNotes = [:]
         filter = .all; sort = .name; refinements = .init(); reducedMotion = false; downloadWhilePlaying = false
         selectedAudioDeviceUID = nil; selectedAudioDeviceName = nil
+        firstRunFeedbackShown = []; pendingFirstRunFeedback = nil; firstRunRating = nil
         installVolumes = []; installDestination = nil; installVolumeError = nil
         gamesVolume = nil; selectedDisplayID = nil; selectedDisplayUUID = nil; selectedDisplayName = nil; startInFullscreen = true
         useNintendoButtonLayout = false

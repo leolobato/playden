@@ -101,6 +101,7 @@ extension LibraryModel {
             }
             if previous.phase != .syncingSaves { onGameEnded?() }
             if !uninstallBusy, snapshot.cloudStatus?.state == .conflict, let id = snapshot.session?.gameID { detailID = id; showCloud(id) }
+            if let played = snapshot.session { queueFirstRunFeedback(for: played) }
         }
     }
     func recordGameWindowHandoff(_ window: GameWindow, at now: Date = .now) {

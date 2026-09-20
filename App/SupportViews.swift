@@ -111,6 +111,8 @@ struct ModalLayer: View {
             }
             if model.panel == .resetAppData {
                 ResetAppDataDialog(model: model).frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if case .firstRunFeedback(let id) = model.panel {
+                FirstRunFeedbackDialog(model: model, gameID: id).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if model.panel == .volumePicker(nil) {
                 InstallVolumesPicker(model: model).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if model.panel == .filters {

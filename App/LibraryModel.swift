@@ -17,6 +17,7 @@ enum TextPurpose: Equatable { case newCollection(GameID?), renameCollection(UUID
 enum Confirmation: Equatable { case deleteCollection(UUID), uninstall(GameID), install(GameID), cancelDownload(GameID), switchGame(GameID) }
 enum Panel: Equatable {
     case context, gameSettings(GameID), filters, search, compatibility, information(String), persistenceFailure, signOut, controllerTest, resetAppData
+    case firstRunFeedback(GameID)
     case downloadActions(GameID)
     case volumePicker(GameID?)
     case installOffer(GameID)
@@ -85,6 +86,9 @@ final class LibraryModel {
     var session = SessionSnapshot()
     var sessionReady = false
     var gameLaunchOptions: [GameID: [LaunchOption]] = [:]
+    var firstRunFeedbackShown: Set<GameID> = []
+    var pendingFirstRunFeedback: GameID?
+    var firstRunRating: Compatibility?
     var gameWindowHandedOff = false
     var startupWindowHandoffUntil: Date?
     var sessionIssue: OperationFailure? {
@@ -212,6 +216,9 @@ final class LibraryModel {
             if case .downloadActions(let id) = panel { downloadHistoryReview = liveJob(for: id) }
             else { downloadHistoryReview = nil }
             if case .logs(let id) = panel, panel != oldValue { prepareLogView(id) }
+            if panel == nil, pendingFirstRunFeedback != nil {
+                Task { [weak self] in self?.presentFirstRunFeedbackIfReady() }
+            }
         }
     }
     var panelIndex = 0
@@ -440,6 +447,7 @@ final class LibraryModel {
         switch panel {
         case .context: contextActions
         case .gameSettings, .settingPicker, .profileChooser: [] // Dedicated input handling.
+        case .firstRunFeedback: ["Ran well", "Had issues", "Didn’t run", "Game settings", firstRunRating == nil ? "Not now" : "Done"]
         case .downloadActions(let id): downloadActions(for: id)
         case .volumePicker(nil): installVolumeRows.flatMap { ["Use " + $0.name, "Make default"] } + ["Done"]
         case .volumePicker: enabledInstallVolumes.map { volumeLabel($0) } + ["Back"]
@@ -695,6 +703,8 @@ final class LibraryModel {
     func activatePanel() {
         guard let label = panelActions[safe: panelIndex] else { return }
         switch panel {
+        case .firstRunFeedback(let id):
+            activateFirstRunFeedback(id)
         case .volumePicker(nil):
             activateInstallVolumePicker()
         case .volumePicker(let id):

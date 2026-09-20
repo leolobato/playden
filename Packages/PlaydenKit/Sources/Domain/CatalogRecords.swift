@@ -74,6 +74,8 @@ public struct LibraryPreferences: Codable, Equatable, Sendable {
     public var immersiveMode: Bool?
     public var useNintendoButtonLayout: Bool?
     public var installVolumes: [GamesVolumeSelection]?
+    /// Games whose first-session check-in has already been presented.
+    public var firstRunFeedbackShown: [GameID]?
     public var gamesVolume: GamesVolumeSelection?
     public var setupCompleted = false
     public init() {}

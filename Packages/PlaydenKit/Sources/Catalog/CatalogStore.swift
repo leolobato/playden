@@ -331,6 +331,14 @@ public final class CatalogStore: Sendable {
             return sessions.filter { $0.endedAt == nil }
         }
     }
+    public func isFirstRuntimeSession(_ session: PlaySessionRecord) throws -> Bool {
+        guard session.runtime != nil else { return false }
+        return try database.read { db in
+            let sessions: [PlaySessionRecord] = try Self.values(db, table: "sessions", whereSQL: "source = ? AND game = ?", arguments: [session.gameID.source, session.gameID.value])
+            return !sessions.contains { $0.id != session.id && $0.runtime != nil }
+        }
+    }
+
     public func latestSession(for gameID: GameID) throws -> PlaySessionRecord? {
         try database.read { db in
             let sessions: [PlaySessionRecord] = try Self.values(db, table: "sessions", whereSQL: "source = ? AND game = ?", arguments: [gameID.source, gameID.value])

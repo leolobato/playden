@@ -49,6 +49,7 @@ extension LibraryModel {
             collections = snapshot.collections
             compatibilityNotes = Dictionary(uniqueKeysWithValues: snapshot.entries.map { ($0.id, $0.edits.note) })
             let preferences = snapshot.preferences
+            firstRunFeedbackShown = Set(preferences.firstRunFeedbackShown ?? [])
             filter = preferences.scope
             if !libraryFilters.contains(filter) { filter = .all }
             sort = preferences.sort; refinements = preferences.refinements ?? LibraryRefinements()
