@@ -229,8 +229,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         return false
     }
     private var terminating = false
+    private var terminationReady = false
+    var terminateApplication: (NSApplication) -> Void = { $0.terminate(nil) }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard !terminating else { return .terminateLater }
+        if terminationReady { return .terminateNow }
+        guard !terminating else { return .terminateCancel }
         if model.requiresLauncherQuitConfirmation && !model.consumeLauncherQuitApproval() {
             model.requestLauncherQuit()
             return .terminateCancel
@@ -248,16 +251,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
                 if let sessions = model.sessions { try await sessions.shutdown() }
                 else { await model.installQueue?.shutdown() }
                 await model.immersiveDisplay.shutdown()
-                model.stopServices(); await model.flushLogs(); sender.reply(toApplicationShouldTerminate: true)
+                model.stopServices(); await model.flushLogs()
+                terminationReady = true
+                terminateApplication(sender)
             } catch {
                 terminating = false
                 model.resetLauncherQuit()
                 model.reportSessionIssue(model.sessionFailure(error, stage: "Quit game"), gameID: model.session.session?.gameID)
-                sender.reply(toApplicationShouldTerminate: false)
                 if model.hasActiveSession { model.setExitOverlay(true) }
             }
         }
-        return .terminateLater
+        // Controller callbacks run inside a main-queue dispatch block. terminateLater
+        // enters AppKit's nested event loop before that block can return, preventing
+        // the main-actor cleanup task from running. Let the callback unwind, then
+        // request termination again once cleanup can return terminateNow.
+        return .terminateCancel
     }
     func applicationWillTerminate(_ notification: Notification) {
         immersiveFullscreenTask?.cancel()

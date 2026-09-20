@@ -1,9 +1,54 @@
 import XCTest
+import AppKit
 import Domain
 import Sessions
 @testable import Playden
 
 @MainActor final class LauncherQuitTests: XCTestCase {
+    func testControllerQueueQuitUnwindsAndWaitsForCleanupBeforeTerminating() async {
+        let delegate = AppDelegate()
+        let cleanupEntered = expectation(description: "Shutdown waits for existing work")
+        var releaseCleanup: CheckedContinuation<Void, Never>?
+        delegate.model.resetTask = Task {
+            await withCheckedContinuation { continuation in
+                releaseCleanup = continuation
+                cleanupEntered.fulfill()
+            }
+        }
+        await fulfillment(of: [cleanupEntered], timeout: 2)
+        let finished = expectation(description: "Final termination requested after cleanup")
+        var terminationRequests = 0
+        delegate.terminateApplication = { [weak delegate] application in
+            terminationRequests += 1
+            XCTAssertEqual(delegate?.applicationShouldTerminate(application), .terminateNow)
+            finished.fulfill()
+        }
+        let callbackReturned = expectation(description: "Controller dispatch callback returns")
+        DispatchQueue.main.async {
+            XCTAssertEqual(delegate.applicationShouldTerminate(.shared), .terminateCancel)
+            XCTAssertTrue(delegate.model.launcherQuitting)
+            XCTAssertEqual(delegate.applicationShouldTerminate(.shared), .terminateCancel)
+            callbackReturned.fulfill()
+        }
+        await fulfillment(of: [callbackReturned], timeout: 2)
+        XCTAssertEqual(terminationRequests, 0)
+        releaseCleanup?.resume()
+        await fulfillment(of: [finished], timeout: 2)
+        XCTAssertEqual(terminationRequests, 1)
+    }
+
+    func testAppTerminationStillRequiresActiveGameApproval() {
+        let delegate = AppDelegate()
+        delegate.model.session = running()
+        delegate.terminateApplication = { _ in XCTFail("Unapproved quit must not terminate") }
+        XCTAssertEqual(delegate.applicationShouldTerminate(.shared), .terminateCancel)
+        XCTAssertTrue(delegate.model.isConfirmingLauncherQuit)
+        XCTAssertFalse(delegate.model.launcherQuitting)
+        delegate.model.keepLauncherOpen()
+        XCTAssertFalse(delegate.model.isConfirmingLauncherQuit)
+        XCTAssertEqual(delegate.model.session.phase, .running)
+    }
+
     private func running() -> SessionSnapshot {
         let game = SourceGameRecord(id: .init(source: "fixture", value: "hike"), title: "A Short Hike")
         return .init(phase: .running, game: game, session: .init(gameID: game.id, bottleID: "fixture"))
