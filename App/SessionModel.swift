@@ -4,7 +4,10 @@ import Sessions
 import Input
 
 extension LibraryModel {
-    var showsSessionIssue: Bool { sessionIssue != nil && !hasActiveSession && panel == nil && authScreen == nil && setupScreen == nil }
+    var showsSessionIssue: Bool {
+        let stopped = session.phase == .stopping && (session.session?.runtime?.phase == .exited || session.session?.endedAt != nil)
+        return sessionIssue != nil && (!hasActiveSession || stopped) && panel == nil && authScreen == nil && setupScreen == nil
+    }
     /// The account notice replaces the passive library warning, so only one of them is on screen.
     var showsSignInIssue: Bool { showsSessionIssue && sessionIssueRecovery == .signIn }
     var sessionIssueActions: [String] {
@@ -63,10 +66,15 @@ extension LibraryModel {
             setExitOverlay(false); onGameEnded?()
         }
         if previous.phase == .idle && snapshot.phase != .idle { onGameStarted?() }
+        if snapshot.failure == nil, snapshot.session?.id == previous.session?.id,
+           sessionIssueGameID == snapshot.session?.gameID, sessionIssue?.stage == "Save session" {
+            sessionIssue = nil; sessionIssueRecovery = nil; sessionIssueGameID = nil
+        }
         if let failure = snapshot.failure {
             let retryable = snapshot.phase == .idle && [.launchFailed, .crash].contains(snapshot.session?.outcome)
             reportSessionIssue(failure, gameID: snapshot.session?.gameID,
-                               recovery: retryable ? snapshot.session.map { .play($0.gameID) } : nil)
+                               recovery: failure.stage == "Save session" ? snapshot.session.map { .checkpoint($0.id) } :
+                                retryable ? snapshot.session.map { .play($0.gameID) } : nil)
         }
         if let window = snapshot.session?.runtime?.window,
            previous.session?.runtime?.window != window && snapshot.session?.runtime?.hadWindow == true &&

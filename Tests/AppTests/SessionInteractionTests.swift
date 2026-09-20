@@ -8,6 +8,16 @@ import Input
 private actor SessionFixture: SessionManaging {
     func retryCloud(authorization: CloudSyncAuthorization?) async throws { throw SourceFailure.unavailable }
     func playOffline() async throws { throw SourceFailure.unavailable }
+    var checkpointRetries: [UUID] = []
+    var failCheckpoint = false
+    func setCheckpointSnapshot(_ value: SessionSnapshot, fail: Bool = false) { snapshot = value; failCheckpoint = fail }
+    func retryCheckpoint(sessionID: UUID) async throws {
+        checkpointRetries.append(sessionID)
+        if failCheckpoint { throw OperationFailure(stage: "Save session", reason: "Disk unavailable", output: "") }
+        snapshot.failure = nil; snapshot.phase = .idle
+        snapshot.session?.endedAt = .now; snapshot.session?.outcome = .clean
+        observer?.yield(snapshot)
+    }
     var plays: [GameID] = []
     var quitCount = 0
     var startCount = 0
@@ -48,6 +58,43 @@ final class SessionInteractionTests: XCTestCase {
         var played = PlaySessionRecord(gameID: id, bottleID: bottle.name)
         played.runtime = .init(run: .init(bottle: bottle, launcher: identity), phase: .running, window: .init(id: 1, process: identity), hadWindow: true)
         return .init(phase: phase, game: game, session: played)
+    }
+    func testRecoveredCheckpointNoticeClearsWithoutHidingUnrelatedIssue() {
+        let model = LibraryModel()
+        var state = snapshot()
+        state.failure = .init(stage: "Save session", reason: "Your game is still being tracked.", output: "")
+        model.receiveSession(state)
+        XCTAssertNotNil(model.sessionIssue)
+        state.failure = nil; state.phase = .idle
+        state.session?.endedAt = .now; state.session?.outcome = .clean
+        model.receiveSession(state)
+        XCTAssertNil(model.sessionIssue); XCTAssertFalse(model.showsSessionIssue)
+        model.reportSessionIssue(.init(stage: "Game controls", reason: "Shortcut unavailable", output: ""), gameID: id)
+        model.receiveSession(state)
+        XCTAssertEqual(model.sessionIssue?.stage, "Game controls")
+    }
+    func testCheckpointNotificationRetriesSaveWithoutPlayingAgainAndKeepsRetryAfterFailure() async throws {
+        let service = SessionFixture(.init(id: id, title: "A Short Hike"))
+        let model = LibraryModel(preview: false, sessions: service)
+        var state = snapshot(phase: .stopping)
+        state.session?.runtime?.phase = .exited
+        state.failure = .init(stage: "Save session", reason: "Final checkpoint failed", output: "")
+        model.receiveSession(state)
+        await service.setCheckpointSnapshot(state, fail: true)
+        XCTAssertTrue(model.showsSessionIssue)
+        XCTAssertEqual(model.sessionIssueActions, ["Retry", "View logs", "Dismiss"])
+        model.perform(.context); model.perform(.confirm)
+        await model.sessionCommand?.value
+        XCTAssertTrue(model.canRetrySessionIssue)
+        XCTAssertNotNil(model.sessionIssue)
+        await service.setCheckpointSnapshot(state)
+        model.sessionIssueIndex = 0; model.activateSessionIssue()
+        await model.sessionCommand?.value
+        XCTAssertNil(model.sessionIssue)
+        let retries = await service.checkpointRetries, plays = await service.plays, quits = await service.quitCount
+        XCTAssertEqual(retries, [state.session!.id, state.session!.id])
+        XCTAssertTrue(plays.isEmpty); XCTAssertEqual(quits, 0)
+        model.stopServices()
     }
     func testVisibleQuitActionsOpenConfirmationAndDisappearWhenSessionEnds() throws {
         let model = LibraryModel()

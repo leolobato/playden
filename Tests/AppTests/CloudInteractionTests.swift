@@ -5,6 +5,7 @@ import Input
 @testable import Playden
 
 private actor CloudSessionFixture: SessionManaging {
+    func retryCheckpoint(sessionID: UUID) async throws { throw SourceFailure.unavailable }
     var reviews: [CloudSyncAuthorization?] = []
     var offlineCount = 0, quitCount = 0
     func start(downloadWhilePlaying: Bool) async throws {}

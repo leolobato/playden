@@ -3,6 +3,7 @@ import Domain
 
 enum SessionIssueRecovery: Equatable {
     case play(GameID)
+    case checkpoint(UUID)
     case recoverSession
     case downloadPolicy
     case signIn
@@ -20,6 +21,9 @@ extension LibraryModel {
         // Signing in again belongs to the account, not the session service, so it stays
         // offerable even when no session could ever be started.
         if recovery == .signIn { return source != nil || fixedClock }
+        if case .checkpoint(let id) = recovery {
+            return sessions != nil && session.session?.id == id && session.failure?.stage == "Save session" && !sessionBusy
+        }
         return (sessions != nil || fixedClock) && !hasActiveSession && !sessionBusy
     }
 
@@ -34,6 +38,19 @@ extension LibraryModel {
             // SessionService repeats safety checks and resumes durable runtime/source preparation.
             // The captured ID belongs to the failed request, never the currently highlighted tile.
             beginPlay(id)
+        case .checkpoint(let id):
+            sessionBusy = true
+            sessionCommand = Task { [weak self] in
+                guard let self else { return }
+                defer { sessionBusy = false }
+                do {
+                    try await sessions.retryCheckpoint(sessionID: id)
+                    var updates = await sessions.updates().makeAsyncIterator()
+                    if let snapshot = await updates.next() { receiveSession(snapshot) }
+                } catch {
+                    reportSessionIssue(sessionFailure(error, stage: "Save session"), gameID: sessionIssueGameID, recovery: recovery)
+                }
+            }
         case .recoverSession, .downloadPolicy:
             sessionBusy = true
             sessionCommand = Task { [weak self] in

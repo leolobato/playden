@@ -30,6 +30,7 @@ public protocol SessionManaging: Sendable {
     func retryCloud(authorization: CloudSyncAuthorization?) async throws
     func playOffline() async throws
     func quit() async throws
+    func retryCheckpoint(sessionID: UUID) async throws
     func setDownloadWhilePlaying(_ enabled: Bool) async throws
     func shutdown() async throws
 }
@@ -262,7 +263,7 @@ public actor SessionService: SessionManaging {
             session.lastCheckpointAt = max(clock.wallTime, session.lastCheckpointAt)
             active = session
             // Keep observing even if a checkpoint fails; a database error must not orphan a game.
-            do { try catalog.saveSession(session) }
+            do { try catalog.saveSession(session); clearCheckpointFailure() }
             catch { value.failure = issue("Save session", "The process checkpoint could not be saved. Your game is still being tracked.") }
             value.phase = .launching; value.session = session; publish()
             worker = Task { await self.observe(run) }
@@ -286,11 +287,32 @@ public actor SessionService: SessionManaging {
                 return
             }
             if changed || clock.uptime - lastSave >= 5 {
-                do { try catalog.saveSession(session); lastSave = clock.uptime }
+                do { try catalog.saveSession(session); lastSave = clock.uptime; clearCheckpointFailure() }
                 catch { value.failure = issue("Save session", "Playtime could not be saved. Your game is still being tracked.") }
             }
             if changed || clock.uptime - lastPublish >= 1 { publish(); lastPublish = clock.uptime }
         }
+    }
+    /// Retry persistence for the captured session without launching or stopping a game.
+    public func retryCheckpoint(sessionID: UUID) async throws {
+        guard active?.id == sessionID, let checkpointFailure = value.failure, checkpointFailure.stage == "Save session" else { return }
+        guard !finishing else { throw issue("Save session", "Save recovery is still in progress. Retry in a moment.") }
+        guard var session = active else { return }
+        if session.runtime?.phase == .exited || session.endedAt != nil {
+            guard let result = session.outcome ?? session.runtime.map(outcome) else { throw checkpointFailure }
+            await finish(outcome: result, failure: session.failure ?? session.runtime?.failure)
+            if active != nil { throw value.failure ?? issue("Save session", "The session checkpoint still needs recovery. Retry again.") }
+        } else {
+            session.playedSeconds = elapsed()
+            session.lastCheckpointAt = max(clock.wallTime, session.lastCheckpointAt)
+            do { try catalog.saveSession(session) }
+            catch { throw checkpointFailure }
+            active = session; value.session = session; lastSave = clock.uptime
+            clearCheckpointFailure(); publish()
+        }
+    }
+    private func clearCheckpointFailure() {
+        if value.failure?.stage == "Save session" { value.failure = nil }
     }
     public func quit() async throws {
         guard let id = active?.id else { return }
@@ -307,12 +329,12 @@ public actor SessionService: SessionManaging {
             return
         }
         if let runtime = session.runtime, runtime.phase == .exited, session.endedAt == nil {
-            await finish(outcome: outcome(runtime), failure: value.failure)
+            await finish(outcome: outcome(runtime), failure: runtime.failure)
             if active != nil { throw issue("Save session", "The exited game's save checkpoint still needs recovery. Try again.") }
             return
         }
         if let outcome = session.outcome, session.endedAt != nil {
-            await finish(outcome: outcome, failure: value.failure)
+            await finish(outcome: outcome, failure: session.failure)
             if active != nil { throw issue("Save session", "The final checkpoint still could not be saved. Free space and try again.") }
             return
         }
@@ -369,6 +391,7 @@ public actor SessionService: SessionManaging {
             active = session; baseSeconds = session.playedSeconds; playAnchor = nil
             do {
                 try catalog.saveSession(session)
+                clearCheckpointFailure()
                 if let installed = try catalog.snapshot().entries.first(where: { $0.id == session.gameID })?.installation,
                    let mapping = try mapping(installed) {
                     value.phase = .syncingSaves; value.session = session; publish()
@@ -390,7 +413,7 @@ public actor SessionService: SessionManaging {
         do { try catalog.saveSession(session) }
         catch {
             active = session
-            value.failure = issue("Save session", "The session ended, but its final checkpoint could not be saved. Free space and try quitting again.")
+            value.failure = issue("Save session", "The session ended, but its final checkpoint could not be saved. Free space and choose Retry.")
             value.session = session; value.phase = .stopping; publish(); return
         }
         active = nil; worker = nil; playAnchor = nil

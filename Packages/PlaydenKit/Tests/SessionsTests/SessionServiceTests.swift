@@ -2,7 +2,8 @@ import XCTest
 import Foundation
 import Synchronization
 import Domain
-import Catalog
+@testable import Catalog
+import GRDB
 import Installs
 @testable import Sessions
 
@@ -297,6 +298,76 @@ final class SessionServiceTests: XCTestCase {
         }
         XCTFail("Session did not reach \(phase)")
         throw SourceFailure.unavailable
+    }
+    private func blockSessionWrites(_ catalog: CatalogStore, blocked: Bool) throws {
+        try catalog.database.write { db in
+            for event in ["INSERT", "UPDATE"] {
+                if blocked {
+                    try db.execute(sql: "CREATE TRIGGER fail_session_\(event) BEFORE \(event) ON sessions BEGIN SELECT RAISE(ABORT, 'checkpoint fixture'); END")
+                } else { try db.execute(sql: "DROP TRIGGER fail_session_\(event)") }
+            }
+        }
+    }
+    func testCheckpointWarningClearsAfterSuccessfulAutomaticSaveAndCleanExit() async throws {
+        let catalog = try CatalogStore(), clock = TestClock(), events = Events(), runner = Runner(events), queue = Queue(events)
+        let game = try installed(catalog), service = try make(catalog, runner, queue, clock, events)
+        try await service.start(downloadWhilePlaying: false); try await service.play(game.gameID)
+        _ = try await wait(service, phase: .launching)
+        try blockSessionWrites(catalog, blocked: true)
+        await runner.emit()
+        let failed = try await wait(service, phase: .running)
+        XCTAssertEqual(failed.failure?.stage, "Save session")
+        try blockSessionWrites(catalog, blocked: false)
+        clock.advance(6); await runner.emit()
+        let recovered = try await wait(service, phase: .running, seconds: 6)
+        XCTAssertNil(recovered.failure)
+        await runner.emit(exit: 0)
+        let ended = try await wait(service, phase: .idle)
+        XCTAssertNil(ended.failure); XCTAssertEqual(ended.session?.outcome, .clean)
+    }
+    func testExitCheckpointRetryCompletesCloudSyncWithoutCountingRecoveryTime() async throws {
+        let catalog = try CatalogStore(), clock = TestClock(), events = Events(), runner = Runner(events), queue = Queue(events)
+        let game = try installed(catalog), cloud = SessionCloud(catalog, events)
+        let service = try make(catalog, runner, queue, clock, events, cloud: cloud)
+        try await service.start(downloadWhilePlaying: false); try await service.play(game.gameID)
+        _ = try await wait(service, phase: .launching)
+        await runner.emit(); _ = try await wait(service, phase: .running)
+        try blockSessionWrites(catalog, blocked: true)
+        clock.advance(8); await runner.emit(exit: 0)
+        let failed = try await wait(service, phase: .stopping)
+        XCTAssertNil(failed.session?.endedAt)
+        clock.advance(30)
+        try blockSessionWrites(catalog, blocked: false)
+        try await service.retryCheckpoint(sessionID: XCTUnwrap(failed.session?.id))
+        let ended = try await wait(service, phase: .idle)
+        XCTAssertNil(ended.failure); XCTAssertEqual(ended.cloudStatus?.state, .upToDate)
+        XCTAssertEqual(ended.session?.playedSeconds, 8)
+        let calls = await cloud.calls
+        XCTAssertEqual(calls.count, 2)
+        XCTAssertEqual(calls.last?.runtime?.phase, .exited)
+    }
+    func testFinalCheckpointRetryPreservesOutcomeAndDoesNotStopOrRelaunchGame() async throws {
+        let catalog = try CatalogStore(), clock = TestClock(), events = Events(), runner = Runner(events), queue = Queue(events)
+        let game = try installed(catalog), service = try make(catalog, runner, queue, clock, events)
+        try await service.start(downloadWhilePlaying: false); try await service.play(game.gameID)
+        _ = try await wait(service, phase: .launching)
+        await runner.emit(); _ = try await wait(service, phase: .running)
+        try blockSessionWrites(catalog, blocked: true)
+        clock.advance(9); await runner.emit(exit: 0)
+        let failed = try await wait(service, phase: .stopping)
+        let id = try XCTUnwrap(failed.session?.id)
+        do { try await service.retryCheckpoint(sessionID: id); XCTFail("Expected failed retry") } catch {}
+        try blockSessionWrites(catalog, blocked: false)
+        try await service.retryCheckpoint(sessionID: UUID())
+        let stale = await current(service); XCTAssertEqual(stale.phase, .stopping)
+        try await service.retryCheckpoint(sessionID: id)
+        let ended = try await wait(service, phase: .idle)
+        XCTAssertNil(ended.failure); XCTAssertNil(ended.session?.failure)
+        XCTAssertEqual(ended.session?.outcome, .clean); XCTAssertEqual(ended.session?.playedSeconds, 9)
+        XCTAssertTrue(try catalog.unfinishedSessions().isEmpty)
+        let recorded = await events.values
+        XCTAssertEqual(recorded.filter { $0.hasPrefix("launch:") }.count, 1)
+        XCTAssertFalse(recorded.contains("graceful")); XCTAssertFalse(recorded.contains("force"))
     }
     func testWindowStartsMonotonicPlaytimeAndShortCleanExitStaysClean() async throws {
         let catalog = try CatalogStore(), clock = TestClock(), events = Events(), runner = Runner(events), queue = Queue(events)
