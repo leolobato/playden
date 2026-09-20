@@ -197,6 +197,7 @@ extension LibraryModel {
     var panelTitle: String {
         switch panel {
         case .downloadActions(let id): gameName(id)
+        case .volumePicker(let id): id == nil ? "Default install volume" : "Install on volume"
         case .filters: "Sort & filter"
         case .persistenceFailure: "Changes weren’t saved"
         case .signOut: "Sign out of Steam?"
@@ -208,6 +209,7 @@ extension LibraryModel {
     }
     func panelItemSelected(at index: Int) -> Bool {
         switch panel {
+        case .volumePicker(let id): enabledInstallVolumes[safe: index]?.volumeID == (id == nil ? gamesVolume : installDestination)?.volumeID
         case .collections(let id): collections[safe: index]?.gameIDs.contains(id) == true
         case .compatibility: index < Compatibility.allCases.count && focusedGame?.compatibility == Compatibility.allCases[index]
         default: false

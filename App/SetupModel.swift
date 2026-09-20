@@ -207,7 +207,7 @@ extension LibraryModel {
                 let selection = try await volumeStore.select(volume)
                 try Task.checkCancellation()
                 guard setupGeneration == generation else { return }
-                try updateSetupPreferences { $0.gamesVolume = selection }
+                try saveInstallVolumes(enabledInstallVolumes.filter { $0.volumeID != selection.volumeID } + [selection], default: selection)
                 gamesVolume = selection; setupBusy = false
                 if onboarding { openRuntimeSetup(firstRun: true) } else { finishSetup() }
             } catch {
@@ -229,7 +229,7 @@ extension LibraryModel {
     }
     /// Join the preceding worker before starting another. Generation checks also reject late
     /// results/progress from services that finish after cancellation or after this screen closes.
-    private func beginSetupOperation() -> (UUID, Task<Void, Never>?) {
+    func beginSetupOperation() -> (UUID, Task<Void, Never>?) {
         let previous = setupTask
         previous?.cancel(); setupGeneration = UUID()
         return (setupGeneration, previous)

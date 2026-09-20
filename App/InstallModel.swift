@@ -35,9 +35,10 @@ extension LibraryModel {
             } catch { self?.show(.information((error as? OperationFailure)?.reason ?? error.localizedDescription)) }
         }
     }
-    func beginInstall(_ id: GameID) {
+    func beginInstall(_ id: GameID, volume requestedVolume: GamesVolumeSelection? = nil) {
         guard let installQueue, let catalog else { show(.information(installPersistenceError ?? "The install queue is unavailable.")); return }
-        guard let volume = gamesVolume else { openVolumeSetup(); return }
+        guard let volume = requestedVolume ?? gamesVolume else { openVolumeSetup(); return }
+        installDestination = volume
         installOfferTask?.cancel(); installOffer = nil; installOfferError = nil; installOfferRequiresSignIn = false; resolvingInstall = true
         show(.installOffer(id))
         installOfferTask = Task { [weak self] in

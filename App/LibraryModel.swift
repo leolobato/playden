@@ -18,6 +18,7 @@ enum Confirmation: Equatable { case deleteCollection(UUID), uninstall(GameID), i
 enum Panel: Equatable {
     case context, gameSettings(GameID), filters, search, compatibility, information(String), persistenceFailure, signOut, controllerTest, resetAppData
     case downloadActions(GameID)
+    case volumePicker(GameID?)
     case installOffer(GameID)
     case settingPicker(GameID, RuntimeSettingID)
     case profileChooser(GameID)
@@ -134,6 +135,10 @@ final class LibraryModel {
     var runtimeChecking = false
     var availableVolumes: [GamesVolume] = []
     var selectedVolumeID: String?
+    var installVolumes: [GamesVolumeSelection] = []
+    var installDestination: GamesVolumeSelection?
+    var refreshingInstallVolumes = false
+    var installVolumeError: String?
     var gamesVolume: GamesVolumeSelection?
     @ObservationIgnored var installationDriveTargets: [GameID: InstallationDriveTarget] = [:]
     @ObservationIgnored var installationDriveTask: Task<Void, Never>?
@@ -434,7 +439,8 @@ final class LibraryModel {
         case .context: contextActions
         case .gameSettings, .settingPicker, .profileChooser: [] // Dedicated input handling.
         case .downloadActions(let id): downloadActions(for: id)
-        case .installOffer: resolvingInstall ? [installOffer == nil ? "Cancel" : "Close"] : installOfferError != nil ? ["Cancel", installOfferRequiresSignIn ? "Sign in" : "Retry"] : installOffer?.canInstall == true ? ["Cancel", "Install"] : ["Cancel", "Check space again"]
+        case .volumePicker: enabledInstallVolumes.map { volumeLabel($0) } + ["Back"]
+        case .installOffer: (resolvingInstall ? [installOffer == nil ? "Cancel" : "Close"] : installOfferError != nil ? ["Cancel", installOfferRequiresSignIn ? "Sign in" : "Retry"] : installOffer?.canInstall == true ? ["Cancel", "Install"] : ["Cancel", "Check space again"]) + (resolvingInstall ? [] : ["Choose volume…"])
         case .filters: []
         case .compatibility: Compatibility.allCases.map(\.rawValue) + ["Edit note"]
         case .collections: collections.map(\.name) + ["New collection…"]
@@ -544,7 +550,9 @@ final class LibraryModel {
         if performGameSettingsInput(action) { return }
         if panel != nil {
             switch action {
-            case .back: panel = nil
+            case .back:
+                if case .volumePicker(let id) = panel, let id { beginInstall(id, volume: installDestination) }
+                else { panel = nil }
             case .move(let direction): panelIndex = min(max(0, panelIndex + (direction == .up || direction == .left ? -1 : 1)), max(0, panelActions.count - 1))
             case .confirm: activatePanel()
             default: break
@@ -643,7 +651,7 @@ final class LibraryModel {
             if direction == .left { settingsRailFocused = true }
             else if direction == .right { settingsRailFocused = settingsSection == 6 }
             else if settingsRailFocused { settingsSection = min(max(0, settingsSection + (direction == .up ? -1 : 1)), 6); settingsIndex = 0 }
-            else { settingsIndex = min(max(0, settingsIndex + (direction == .up ? -1 : 1)), settingsSection == 1 || settingsSection == 2 ? 3 : settingsSection == 5 ? 2 : settingsSection == 4 ? 1 : 0) }
+            else { settingsIndex = min(max(0, settingsIndex + (direction == .up ? -1 : 1)), settingsSection == 1 ? 3 + installVolumeRows.count : settingsSection == 2 ? 3 : settingsSection == 5 ? 2 : settingsSection == 4 ? 1 : 0) }
         }
     }
     func activateDetail() {
@@ -681,10 +689,17 @@ final class LibraryModel {
     func activatePanel() {
         guard let label = panelActions[safe: panelIndex] else { return }
         switch panel {
+        case .volumePicker(let id):
+            if let volume = enabledInstallVolumes[safe: panelIndex] {
+                if let id { beginInstall(id, volume: volume) }
+                else { setDefaultInstallVolume(volume); panel = nil }
+            } else if let id { beginInstall(id, volume: installDestination) }
+            else { panel = nil }
         case .installOffer(let id):
-            if panelIndex == 0 { panel = nil }
+            if label == "Choose volume…" { show(.volumePicker(id)) }
+            else if panelIndex == 0 { panel = nil }
             else if installOfferRequiresSignIn { beginSignIn(resumingInstall: id) }
-            else if installOfferError != nil || installOffer?.canInstall != true { beginInstall(id) }
+            else if installOfferError != nil || installOffer?.canInstall != true { beginInstall(id, volume: installDestination) }
             else { confirmInstall() }
         case .signOut:
             if panelIndex == 1 { signOut() } else { panel = nil }
@@ -732,7 +747,8 @@ final class LibraryModel {
             else { show(.signOut) }
         }
         else if settingsSection == 1 && settingsIndex == 0 && !isPreview { refreshLibrary() }
-        else if settingsSection == 1 && settingsIndex == 1 { openVolumeSetup() }
+        else if settingsSection == 1 && settingsIndex == 1 { show(.volumePicker(nil)) }
+        else if settingsSection == 1 && settingsIndex >= 4 { toggleInstallVolume(at: settingsIndex - 4) }
         else if settingsSection == 1 && settingsIndex == 3 { openRuntimeSetup() }
         else if settingsSection == 2 && settingsIndex == 0 { onboarding = false; setupScreen = .display; setupIndex = displays.firstIndex(where: { $0.id == preferredDisplay?.id }) ?? 0 }
         else if settingsSection == 2 && settingsIndex == 1 { requestFullscreen() }

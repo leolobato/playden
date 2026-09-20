@@ -11,7 +11,9 @@ private actor FixtureDrives: VolumeManaging {
     func setDisconnected(_ values: Set<String>) { disconnected = values }
     func hold(_ value: Bool) { held = value }
     func availableVolumes() async throws -> [GamesVolume] { [] }
-    func select(_ volume: GamesVolume) async throws -> GamesVolumeSelection { throw SourceFailure.unavailable }
+    func select(_ volume: GamesVolume) async throws -> GamesVolumeSelection {
+        .init(volumeID: volume.id, rootBookmark: Data(volume.id.utf8), lastKnownRoot: volume.gamesRoot, relativeRoot: "games")
+    }
     func resolve(_ selection: GamesVolumeSelection) async throws -> URL {
         calls.append(selection)
         let unavailable = disconnected.contains(selection.volumeID)
@@ -32,6 +34,54 @@ final class InstallationDriveTests: XCTestCase {
     }
     @MainActor private func settle(_ model: LibraryModel) async {
         await model.installationDriveTask?.value
+    }
+
+    @MainActor func testEnablingVolumeFromSettingsSavesAccessAndSupportsControllerNavigation() async throws {
+        let catalog = try CatalogStore(), drives = FixtureDrives()
+        let model = LibraryModel(catalog: catalog, preview: false, volumeStore: drives)
+        defer { model.stopServices() }
+        let root = URL(fileURLWithPath: "/Volumes/new/games")
+        model.availableVolumes = [.init(id: "new", name: "New drive", mountURL: root.deletingLastPathComponent(), gamesRoot: root, freeBytes: 1000)]
+        model.selectTab(.settings); model.settingsSection = 1; model.settingsRailFocused = false
+        model.settingsIndex = 3; model.perform(.move(.down)); model.perform(.confirm)
+        await model.setupTask?.value
+        XCTAssertEqual(model.settingsIndex, 4)
+        XCTAssertEqual(model.gamesVolume?.volumeID, "new")
+        XCTAssertEqual(model.gamesVolume?.rootBookmark, Data("new".utf8))
+        XCTAssertEqual(try catalog.preferences().installVolumes, model.enabledInstallVolumes)
+        model.perform(.confirm)
+        XCTAssertNil(model.gamesVolume)
+        XCTAssertTrue(model.enabledInstallVolumes.isEmpty)
+        model.show(.volumePicker(nil))
+        XCTAssertEqual(model.panelActions, ["Back"])
+    }
+
+    @MainActor func testLegacyDefaultMigratesAndEnabledVolumesPersist() throws {
+        let catalog = try CatalogStore()
+        let first = GamesVolumeSelection(volumeID: "one", rootBookmark: Data([1]),
+            lastKnownRoot: URL(fileURLWithPath: "/Volumes/one/games"), relativeRoot: "games")
+        let second = GamesVolumeSelection(volumeID: "two", rootBookmark: Data([2]),
+            lastKnownRoot: URL(fileURLWithPath: "/Volumes/two/games"), relativeRoot: "games")
+        var preferences = LibraryPreferences(); preferences.gamesVolume = first
+        // An older preferences payload has no installVolumes field.
+        let decoded = try JSONDecoder().decode(LibraryPreferences.self, from: JSONEncoder().encode(preferences))
+        XCTAssertNil(decoded.installVolumes)
+        try catalog.savePreferences(decoded)
+        let model = LibraryModel(catalog: catalog, preview: false)
+        defer { model.stopServices() }
+        XCTAssertEqual(model.enabledInstallVolumes, [first])
+        try model.saveInstallVolumes([first, second], default: first)
+        model.setDefaultInstallVolume(second)
+        model.restoreCatalog()
+        XCTAssertEqual(model.enabledInstallVolumes, [first, second])
+        XCTAssertEqual(model.gamesVolume, second)
+        model.toggleInstallVolume(at: 1)
+        XCTAssertEqual(model.gamesVolume, first)
+        XCTAssertEqual(try catalog.preferences().installVolumes, [first])
+        model.toggleInstallVolume(at: 0)
+        model.restoreCatalog()
+        XCTAssertTrue(model.enabledInstallVolumes.isEmpty)
+        XCTAssertNil(model.gamesVolume)
     }
 
     @MainActor func testDisconnectedDriveKeepsInstalledGamesAndFocusAndReconnectsAutomatically() async throws {

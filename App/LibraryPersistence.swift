@@ -53,6 +53,7 @@ extension LibraryModel {
             if !libraryFilters.contains(filter) { filter = .all }
             sort = preferences.sort; refinements = preferences.refinements ?? LibraryRefinements()
             reducedMotion = preferences.reducedMotion; downloadWhilePlaying = preferences.downloadWhilePlaying
+            installVolumes = preferences.installVolumes ?? preferences.gamesVolume.map { [$0] } ?? []
             gamesVolume = preferences.gamesVolume; selectedDisplayID = preferences.selectedDisplayID
             selectedDisplayUUID = preferences.selectedDisplayUUID; selectedDisplayName = preferences.selectedDisplayName
             selectedAudioDeviceUID = preferences.selectedAudioDeviceUID; selectedAudioDeviceName = preferences.selectedAudioDeviceName

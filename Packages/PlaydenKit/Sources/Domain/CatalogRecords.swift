@@ -73,6 +73,7 @@ public struct LibraryPreferences: Codable, Equatable, Sendable {
     public var startInFullscreen: Bool?
     public var immersiveMode: Bool?
     public var useNintendoButtonLayout: Bool?
+    public var installVolumes: [GamesVolumeSelection]?
     public var gamesVolume: GamesVolumeSelection?
     public var setupCompleted = false
     public init() {}

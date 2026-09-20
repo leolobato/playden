@@ -96,3 +96,69 @@ extension LibraryModel {
         return nil
     }
 }
+
+extension LibraryModel {
+    var enabledInstallVolumes: [GamesVolumeSelection] {
+        if installVolumes.isEmpty, let gamesVolume { return [gamesVolume] }
+        return installVolumes
+    }
+
+    // Keep saved, disconnected drives visible so they can still be disabled or chosen.
+    var installVolumeRows: [GamesVolume] {
+        availableVolumes + enabledInstallVolumes.filter { saved in
+            !availableVolumes.contains { $0.id == saved.volumeID }
+        }.map { saved in
+            GamesVolume(id: saved.volumeID, name: volumeLabel(saved),
+                        mountURL: saved.lastKnownRoot, gamesRoot: saved.lastKnownRoot, freeBytes: 0)
+        }
+    }
+
+    func volumeLabel(_ selection: GamesVolumeSelection) -> String {
+        availableVolumes.first { $0.id == selection.volumeID }?.name ?? selection.lastKnownRoot.path
+    }
+
+    func refreshInstallVolumes() async {
+        guard !refreshingInstallVolumes, let volumeStore else { return }
+        refreshingInstallVolumes = true
+        defer { refreshingInstallVolumes = false }
+        do { availableVolumes = try await volumeStore.availableVolumes() }
+        catch { installVolumeError = error.localizedDescription }
+    }
+
+    func saveInstallVolumes(_ volumes: [GamesVolumeSelection], default selection: GamesVolumeSelection?) throws {
+        try updateSetupPreferences { $0.installVolumes = volumes; $0.gamesVolume = selection }
+        installVolumes = volumes; gamesVolume = selection; installVolumeError = nil
+    }
+
+    func setDefaultInstallVolume(_ selection: GamesVolumeSelection) {
+        guard enabledInstallVolumes.contains(selection) else { return }
+        do { try saveInstallVolumes(enabledInstallVolumes, default: selection) }
+        catch { installVolumeError = error.localizedDescription }
+    }
+
+    func toggleInstallVolume(at index: Int) {
+        guard !volumeSaving, let volume = installVolumeRows[safe: index] else { return }
+        let enabled = enabledInstallVolumes
+        if enabled.contains(where: { $0.volumeID == volume.id }) {
+            let remaining = enabled.filter { $0.volumeID != volume.id }
+            do {
+                try saveInstallVolumes(remaining, default: gamesVolume?.volumeID == volume.id ? remaining.first : gamesVolume)
+            } catch { installVolumeError = error.localizedDescription }
+            return
+        }
+        guard let volumeStore else { return }
+        volumeSaving = true
+        let (generation, previous) = beginSetupOperation()
+        setupTask = Task { [weak self] in
+            guard let self else { return }
+            defer { if setupGeneration == generation { volumeSaving = false } }
+            await previous?.value
+            guard setupGeneration == generation, !Task.isCancelled else { return }
+            do {
+                let selected = try await volumeStore.select(volume)
+                guard setupGeneration == generation, !Task.isCancelled else { return }
+                try saveInstallVolumes(enabledInstallVolumes + [selected], default: gamesVolume ?? selected)
+            } catch { installVolumeError = error.localizedDescription }
+        }
+    }
+}

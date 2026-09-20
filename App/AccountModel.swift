@@ -91,7 +91,7 @@ extension LibraryModel {
                 guard authAttempt == attempt else { return }
                 let pendingInstall = installAfterAuthentication
                 identity = result; syncError = nil; clearSignInIssue(); cancelAuthentication(); refreshLibrary()
-                if let pendingInstall { beginInstall(pendingInstall) }
+                if let pendingInstall { beginInstall(pendingInstall, volume: installDestination) }
                 else {
                     selectTab(.home)
                     if setupScreen == .account { openVolumeSetup(firstRun: true) }

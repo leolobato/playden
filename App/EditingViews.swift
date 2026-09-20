@@ -60,6 +60,10 @@ struct InstallOfferDialog: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 28) {
             Text("Install \(model.gameName(gameID))?").font(Design.condensed(40)).fixedSize(horizontal: false, vertical: true)
+            if let destination = model.installDestination {
+                Text("Install on: " + model.volumeLabel(destination) + (destination.volumeID == model.gamesVolume?.volumeID ? " (default)" : ""))
+                    .font(Design.body(24)).foregroundStyle(Design.secondary)
+            }
             if model.resolvingInstall {
                 HStack(spacing: 20) {
                     ProgressView().controlSize(.large)

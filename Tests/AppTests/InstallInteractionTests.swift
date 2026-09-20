@@ -9,6 +9,7 @@ private actor InteractionQueue: InstallQueuing {
     var held = false
     var offerFailure: SourceFailure?
     var cancelledOffers = 0
+    var offeredVolumes: [GamesVolumeSelection] = []
     var enqueued: [InstallOffer] = []
     var commands: [String] = []
     var observer: AsyncStream<InstallQueueSnapshot>.Continuation?
@@ -23,10 +24,11 @@ private actor InteractionQueue: InstallQueuing {
     func hold() { held = true }
     func failOffer(_ failure: SourceFailure?) { offerFailure = failure }
     func offer(for game: SourceGameRecord, volume: GamesVolumeSelection) async throws -> InstallOffer {
+        offeredVolumes.append(volume)
         if let offerFailure { throw offerFailure }
         do { while held { try await Task.sleep(for: .milliseconds(10)) } }
         catch { cancelledOffers += 1; throw error }
-        return result
+        return .init(plan: result.plan, volume: volume, freeBytes: result.availableBytes, reservedBytes: 0)
     }
     func enqueue(_ offer: InstallOffer) async throws -> UUID { enqueued.append(offer); return UUID() }
     func uninstall(_ authorization: UninstallAuthorization) async throws -> UUID { throw SourceFailure.unavailable }
@@ -73,6 +75,33 @@ final class InstallInteractionTests: XCTestCase {
         model.gamesVolume = offer.volume
         return model
     }
+    @MainActor func testInstallDestinationPickerUsesEnabledVolumesAndRetainsChoiceOnRetry() async throws {
+        let offer = offer(), queue = InteractionQueue(offer)
+        let model = try model(queue, offer: offer)
+        defer { model.stopServices() }
+        let second = GamesVolumeSelection(volumeID: "second", rootBookmark: Data(),
+            lastKnownRoot: URL(fileURLWithPath: "/Volumes/Second/games"), relativeRoot: "games")
+        try model.saveInstallVolumes([offer.volume, second], default: offer.volume)
+        model.beginInstall(id); await model.installOfferTask?.value
+        XCTAssertEqual(model.installOffer?.volume, offer.volume)
+        model.panelIndex = 2; model.activatePanel()
+        XCTAssertEqual(model.panel, .volumePicker(id))
+        XCTAssertEqual(model.panelActions.count, 3)
+        model.panelIndex = 1; model.activatePanel(); await model.installOfferTask?.value
+        XCTAssertEqual(model.installOffer?.volume, second)
+        XCTAssertEqual(model.gamesVolume, offer.volume)
+        await queue.failOffer(.network)
+        model.beginInstall(id, volume: second); await model.installOfferTask?.value
+        await queue.failOffer(nil)
+        model.panelIndex = 1; model.activatePanel(); await model.installOfferTask?.value
+        XCTAssertEqual(model.installOffer?.volume, second)
+        model.panelIndex = 1; model.activatePanel(); await model.installOfferTask?.value
+        let enqueued = await queue.enqueued
+        XCTAssertEqual(enqueued.first?.volume, second)
+        model.beginInstall(id); await model.installOfferTask?.value
+        XCTAssertEqual(model.installOffer?.volume, offer.volume)
+    }
+
     @MainActor func testExpiredInstallCanSignInAndReturnsToConfirmation() async throws {
         let offer = offer(), queue = InteractionQueue(offer)
         await queue.failOffer(.expired)
@@ -82,7 +111,7 @@ final class InstallInteractionTests: XCTestCase {
         model.selectTab(.library)
         model.beginInstall(id)
         await model.installOfferTask?.value
-        XCTAssertEqual(model.panelActions, ["Cancel", "Sign in"])
+        XCTAssertEqual(model.panelActions, ["Cancel", "Sign in", "Choose volume…"])
         model.perform(.confirm)
         XCTAssertEqual(model.authScreen, .qr)
         XCTAssertEqual(model.installAfterAuthentication, id)
@@ -95,7 +124,7 @@ final class InstallInteractionTests: XCTestCase {
         model.authIndex = 2; model.activateAuthentication()
         try await eventually { model.installOffer != nil && model.authScreen == nil }
         XCTAssertEqual(model.panel, .installOffer(id))
-        XCTAssertEqual(model.panelActions, ["Cancel", "Install"])
+        XCTAssertEqual(model.panelActions, ["Cancel", "Install", "Choose volume…"])
         XCTAssertEqual(model.tab, .library)
         XCTAssertNil(model.installAfterAuthentication)
         XCTAssertNil(model.syncError)
@@ -122,7 +151,7 @@ final class InstallInteractionTests: XCTestCase {
             await queue.failOffer(failure)
             let model = try model(queue, offer: offer)
             model.beginInstall(id); await model.installOfferTask?.value
-            XCTAssertEqual(model.panelActions, ["Cancel", "Retry"])
+            XCTAssertEqual(model.panelActions, ["Cancel", "Retry", "Choose volume…"])
             XCTAssertEqual(model.installOfferError, failure.localizedDescription)
             model.stopServices()
         }
@@ -142,7 +171,7 @@ final class InstallInteractionTests: XCTestCase {
         model.openGame(model.games[0]); model.activateDetail()
         XCTAssertEqual(model.panel, .installOffer(id))
         try await eventually { !model.resolvingInstall }
-        XCTAssertEqual(model.panelActions, ["Cancel", "Install"])
+        XCTAssertEqual(model.panelActions, ["Cancel", "Install", "Choose volume…"])
         let before = await queue.enqueued.count
         XCTAssertEqual(before, 0)
         model.perform(.move(.right)); model.perform(.confirm)
@@ -211,7 +240,7 @@ final class InstallInteractionTests: XCTestCase {
         let model = try model(queue, offer: offer)
         model.beginInstall(id)
         try await eventually { !model.resolvingInstall }
-        XCTAssertEqual(model.panelActions, ["Cancel", "Check space again"])
+        XCTAssertEqual(model.panelActions, ["Cancel", "Check space again", "Choose volume…"])
         model.confirmInstall()
         let count = await queue.enqueued.count
         XCTAssertEqual(count, 0)
