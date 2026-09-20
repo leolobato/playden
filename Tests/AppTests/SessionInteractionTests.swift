@@ -105,6 +105,33 @@ final class SessionInteractionTests: XCTestCase {
         let next = snapshot()
         model.receiveSession(next); XCTAssertEqual(targets.count, 3)
     }
+    func testAcknowledgedSplashReplacementHasBoundedStartupHandoffAndRespectsOverlay() throws {
+        let model = LibraryModel()
+        let now = Date(timeIntervalSince1970: 100)
+        var targets: [GameWindow] = []
+        model.onStartupWindowReplacement = { targets.append($0) }
+        var running = snapshot()
+        let splash = try XCTUnwrap(running.session?.runtime?.window)
+        model.receiveSession(running, at: now)
+        model.recordGameWindowHandoff(splash, at: now)
+        let game = GameWindow(id: 2, process: splash.process)
+        running.session?.runtime?.window = game
+        model.receiveSession(running, at: now.addingTimeInterval(2))
+        XCTAssertEqual(targets, [game])
+        model.recordGameWindowHandoff(game, at: now.addingTimeInterval(2))
+        XCTAssertEqual(model.startupWindowHandoffUntil, now.addingTimeInterval(10))
+        model.exitOverlay = true
+        running.session?.runtime?.window = .init(id: 3, process: splash.process)
+        model.receiveSession(running, at: now.addingTimeInterval(3))
+        XCTAssertEqual(targets, [game])
+        model.exitOverlay = false
+        running.session?.runtime?.window = .init(id: 4, process: splash.process)
+        model.receiveSession(running, at: now.addingTimeInterval(11))
+        XCTAssertEqual(targets, [game])
+        model.receiveSession(.init(), at: now.addingTimeInterval(12))
+        XCTAssertNil(model.startupWindowHandoffUntil)
+    }
+
     func testLaunchingTrapsNavigationAndOverlayRemainsEscapeHatch() {
         let model = LibraryModel(); model.session = snapshot(phase: .launching)
         model.tab = .library

@@ -76,6 +76,7 @@ final class LibraryModel {
     @ObservationIgnored var sessionStartup: Task<Void, Never>?
     @ObservationIgnored var sessionCommand: Task<Void, Never>?
     @ObservationIgnored var onGameWindow: ((GameWindow) -> Void)?
+    @ObservationIgnored var onStartupWindowReplacement: ((GameWindow) -> Void)?
     @ObservationIgnored var onGameStarted: (() -> Void)?
     @ObservationIgnored var onGameEnded: (() -> Void)?
     @ObservationIgnored let displayPresentation = LauncherDisplayPresentation()
@@ -85,6 +86,7 @@ final class LibraryModel {
     var sessionReady = false
     var gameLaunchOptions: [GameID: [LaunchOption]] = [:]
     var gameWindowHandedOff = false
+    var startupWindowHandoffUntil: Date?
     var sessionIssue: OperationFailure? {
         didSet {
             sessionIssueGameID = nil; sessionIssueRecovery = nil

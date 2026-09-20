@@ -47,11 +47,13 @@ extension LibraryModel {
             catch { self.reportSessionIssue(self.sessionFailure(error, stage: "Recover session"), recovery: .recoverSession) }
         }
     }
-    func receiveSession(_ snapshot: SessionSnapshot) {
+    func receiveSession(_ snapshot: SessionSnapshot, at now: Date = .now) {
         let previous = session
         session = snapshot
         reconcileLauncherQuitRequest()
-        if previous.session?.id != snapshot.session?.id || snapshot.phase == .idle { gameWindowHandedOff = false }
+        if previous.session?.id != snapshot.session?.id || snapshot.phase == .idle {
+            gameWindowHandedOff = false; startupWindowHandoffUntil = nil
+        }
         if let status = snapshot.cloudStatus { cloudStatuses[status.gameID] = status }
         if snapshot.phase == .awaitingCloud, let id = snapshot.session?.gameID {
             setExitOverlay(false)
@@ -68,8 +70,13 @@ extension LibraryModel {
         }
         if let window = snapshot.session?.runtime?.window,
            previous.session?.runtime?.window != window && snapshot.session?.runtime?.hadWindow == true &&
-           !gameWindowHandedOff && !exitOverlay && [.launching, .running].contains(snapshot.phase) {
-            onGameWindow?(window)
+           !exitOverlay && [.launching, .running].contains(snapshot.phase) {
+            if !gameWindowHandedOff { onGameWindow?(window) }
+            else if let until = startupWindowHandoffUntil, now < until {
+                // Engines can replace an activated splash window with their fullscreen surface.
+                // The native handler must also check that the player has not switched away.
+                onStartupWindowReplacement?(window)
+            }
         }
         if snapshot.phase == .idle && (previous.phase != .idle || (snapshot.session?.endedAt != nil && previous.session?.id != snapshot.session?.id)) {
             if sessionIssue?.stage == "Return to game" { sessionIssue = nil }
@@ -96,8 +103,9 @@ extension LibraryModel {
             if !uninstallBusy, snapshot.cloudStatus?.state == .conflict, let id = snapshot.session?.gameID { detailID = id; showCloud(id) }
         }
     }
-    func recordGameWindowHandoff(_ window: GameWindow) {
+    func recordGameWindowHandoff(_ window: GameWindow, at now: Date = .now) {
         guard hasActiveSession, session.session?.runtime?.window == window else { return }
+        if !gameWindowHandedOff { startupWindowHandoffUntil = now.addingTimeInterval(10) }
         gameWindowHandedOff = true
         if sessionIssue?.stage == "Return to game" { sessionIssue = nil }
     }

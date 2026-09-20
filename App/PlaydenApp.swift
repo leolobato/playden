@@ -167,6 +167,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
                 }
             }
             model.onGameWindow = { [weak self] gameWindow in self?.activateGame(gameWindow) }
+            model.onStartupWindowReplacement = { [weak self] gameWindow in
+                guard let self, MacGameActivationSystem().ownsForeground(gameWindow) else { return }
+                self.activateGame(gameWindow, preservingForeground: true)
+            }
             model.onGameEnded = { [weak self] in
                 guard let self else { return }
                 self.gameActivationTask?.cancel(); self.gameActivationTask = nil
@@ -487,13 +491,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         if let action { hideCursorForNavigation(); model.perform(action); return nil }
         return event
     }
-    private func activateGame(_ gameWindow: GameWindow) {
+    private func activateGame(_ gameWindow: GameWindow, preservingForeground: Bool = false) {
         restoreCursor()
         exitPanel?.orderOut(nil)
         gameActivationTask?.cancel()
         gameActivationTask = Task { [weak self] in
             guard let self else { return }
-            let result = await gameActivation.activate(gameWindow)
+            let result = await gameActivation.activate(gameWindow, preservingForeground: preservingForeground)
             guard !Task.isCancelled, model.hasActiveSession, !model.exitOverlay,
                   model.session.session?.runtime?.window == gameWindow else { return }
             switch result {
