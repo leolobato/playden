@@ -14,7 +14,7 @@ protocol SteamInstallBackend: Sendable {
 struct LiveSteamInstallBackend: SteamInstallBackend {
     let account: SteamAccount
     func resolve(appID: UInt32) async throws -> ResolvedSteamContent {
-        try await account.withCM { cm in
+        try await account.withCM(purpose: "resolve", appID: appID) { cm in
             let app = try await cm.appInfo(appID: appID)
             let owned = try await cm.ownedEntitlements()
             guard owned.appIDs.contains(appID) else { throw SteamPlanBuilder.failure("Resolve", "This account does not own the selected game.") }
@@ -31,7 +31,7 @@ struct LiveSteamInstallBackend: SteamInstallBackend {
         }
     }
     func download(_ payload: SteamInstallPayload, to directory: URL, progress: @escaping @Sendable (InstallProgress) -> Void) async throws {
-        try await account.withCM { cm in
+        try await account.withCM(purpose: "download", appID: payload.app.appID) { cm in
             let owned = try await cm.ownedEntitlements()
             guard owned.appIDs.contains(payload.app.appID), Set(payload.ownedDLC).isSubset(of: owned.appIDs) else {
                 throw SteamPlanBuilder.failure("Download", "The signed-in account no longer owns all content in this install plan.")

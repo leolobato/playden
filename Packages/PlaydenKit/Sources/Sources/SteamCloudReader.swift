@@ -12,7 +12,7 @@ public struct SteamCloudReader: CloudReading {
 
     public func files(for gameID: GameID) async throws -> CloudFileList {
         let appID = try Self.appID(gameID)
-        return try await account.withCM { cm in
+        return try await account.withCM(purpose: "cloud-list", appID: appID) { cm in
             let rpc = SteamCloudReadRPC(cm: cm)
             return try SteamCloudResponse.list(await rpc.files(appID), gameID: gameID,
                 accountKey: Self.accountKey(await cm.steamID))
@@ -24,7 +24,7 @@ public struct SteamCloudReader: CloudReading {
         guard list.files.contains(file), file.state == .present else {
             throw cloudFailure("The selected Cloud save is no longer available. Refresh and try again.")
         }
-        return try await account.withCM { cm in
+        return try await account.withCM(purpose: "cloud-download", appID: appID) { cm in
             guard Self.accountKey(await cm.steamID) == list.accountKey else {
                 throw cloudFailure("The Steam account changed. Refresh Cloud saves before continuing.")
             }

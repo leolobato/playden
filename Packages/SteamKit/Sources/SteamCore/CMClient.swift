@@ -12,6 +12,7 @@ public actor CMClient {
     public private(set) var cellID: UInt32 = 0
     public private(set) var licenses: [CMsgClientLicenseList.License] = []
 
+    private let diagnostic: @Sendable (String) -> Void
     private var socket: (any CMTransport)?
     private var connectionID = UUID()
     private let requestTimeout: TimeInterval
@@ -34,7 +35,9 @@ public actor CMClient {
     private var haveLicenses = false
     var outstandingRequests: Int { pendingJobs.count }
 
-    public init(depotKeyStore: any DepotKeyStore = FileDepotKeys(), requestTimeout: TimeInterval = 30) {
+    public init(depotKeyStore: any DepotKeyStore = FileDepotKeys(), requestTimeout: TimeInterval = 30,
+                diagnostic: @escaping @Sendable (String) -> Void = { _ in }) {
+        self.diagnostic = diagnostic
         self.depotKeyStore = depotKeyStore
         self.requestTimeout = requestTimeout.isFinite ? min(300, max(0.01, requestTimeout)) : 30
     }
@@ -109,6 +112,7 @@ public actor CMClient {
             guard let first = parts.first else { throw SteamError.protocolError("empty CM logon response") }
             response = try CMsgClientLogonResponse(serializedBytes: first)
         } catch { if connectionID == epoch { disconnect() }; throw error }
+        diagnostic("CM logon result=\(response.eresult)")
         let result = EResult(rawValue: response.eresult)
         guard result == .ok else {
             disconnect()
@@ -179,6 +183,7 @@ public actor CMClient {
                 handleFrame(data)
             } catch {
                 guard connectionID == epoch else { return }
+                diagnostic("CM receive failed code=\((error as NSError).code)")
                 closeConnection(with: URLError(.networkConnectionLost))
                 return
             }
@@ -231,6 +236,7 @@ public actor CMClient {
 
         case .kEmsgClientLicenseList:
             if let list = try? CMsgClientLicenseList(serializedBytes: body) {
+                diagnostic("CM licenses result=\(list.eresult) count=\(list.licenses.count)")
                 if list.hasEresult && list.eresult != EResult.ok.rawValue {
                     closeConnection(with: SteamError.authSessionExpired)
                     return
@@ -241,6 +247,8 @@ public actor CMClient {
             }
 
         case .kEmsgClientLoggedOff:
+            let reason = try? CMsgClientLoggedOff(serializedBytes: body)
+            diagnostic("CM logged off result=\(reason.map { String($0.eresult) } ?? "unreadable") pending=\(pendingJobs.count)")
             closeConnection(with: SteamError.authSessionExpired)
 
         default:
@@ -251,6 +259,7 @@ public actor CMClient {
         // Note: jobid fields default to UInt64.max when absent, so require presence.
         if header.hasJobidTarget, var job = pendingJobs[header.jobidTarget], job.kind == .job {
             if let eresult = header.hasEresult ? EResult(rawValue: header.eresult) : nil, eresult != .ok {
+                diagnostic("CM job message=\(emsgValue) result=\(eresult.rawValue)")
                 finish(header.jobidTarget, result: .failure(SteamError.eresult(eresult, context: "CM job (\(emsgValue))")))
                 return
             }

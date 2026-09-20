@@ -1,9 +1,26 @@
 import XCTest
+import Synchronization
 import SteamProto
 import SwiftProtobuf
 @testable import SteamCore
 
 final class CMRequestTests: XCTestCase {
+    func testLoggedOffDiagnosticRetainsSteamReason() async throws {
+        guard #available(macOS 15, *) else { throw XCTSkip("Diagnostic capture requires macOS 15") }
+        let messages = Mutex<[String]>([])
+        let cm = CMClient(depotKeyStore: MemoryDepotKeys(), diagnostic: { message in
+            messages.withLock { $0.append(message) }
+        })
+        let transport = TestCMTransport()
+        try await cm.attach(transport)
+        let licenses = Task { try await cm.waitForLicenses() }
+        try await wait(cm, count: 1)
+        var loggedOff = CMsgClientLoggedOff(); loggedOff.eresult = 34
+        transport.deliver(try frame(.kEmsgClientLoggedOff, body: loggedOff))
+        await expectFailure(licenses)
+        XCTAssertTrue(messages.withLock { $0.contains("CM logged off result=34 pending=1") })
+        XCTAssertTrue(transport.isClosed)
+    }
     func testLiveCMHelloWhenRequested() async throws {
         guard ProcessInfo.processInfo.environment["PLAYDEN_CM_NETWORK_PROBE"] == "1" else {
             throw XCTSkip("Set PLAYDEN_CM_NETWORK_PROBE=1 for an unauthenticated CM handshake")

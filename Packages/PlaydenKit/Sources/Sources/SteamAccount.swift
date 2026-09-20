@@ -80,14 +80,18 @@ public actor SteamAccount: SourceAuth {
     }
     /// Sources-only boundary: credentials never reach Catalog, Installs, Runner, or the UI.
     /// Replacing/signing out the account cancels active work as well as invalidating its result.
-    func authenticatedOperation<T: Sendable>(_ operation: @escaping @Sendable (StoredAuth) async throws -> T) async throws -> T {
+    func authenticatedOperation<T: Sendable>(diagnostic: @escaping @Sendable (String) -> Void = { _ in }, _ operation: @escaping @Sendable (StoredAuth) async throws -> T) async throws -> T {
         let attempt = generation
         do {
             guard let saved = try store.load() else { throw SourceFailure.signedOut }
             let id = UUID()
             let task = Task {
-                let credentials = try await backend.renew(saved)
+                diagnostic("renew start")
+                let credentials: StoredAuth
+                do { credentials = try await backend.renew(saved) }
+                catch { diagnostic("renew failed: \(SteamConnectionDiagnostics.summary(error))"); throw error }
                 try validate(attempt); try save(credentials)
+                diagnostic("renew complete")
                 return try await operation(credentials)
             }
             operations[id] = { task.cancel() }
@@ -98,17 +102,31 @@ public actor SteamAccount: SourceAuth {
         } catch let failure as OperationFailure { throw failure }
         catch { throw sourceFailure(error) }
     }
-    func withCM<T: Sendable>(_ operation: @escaping @Sendable (CMClient) async throws -> T) async throws -> T {
-        try await authenticatedOperation { credentials in
-            let cm = CMClient(depotKeyStore: MemoryDepotKeys())
+    func withCM<T: Sendable>(purpose: String = "operation", appID: UInt32? = nil, _ operation: @escaping @Sendable (CMClient) async throws -> T) async throws -> T {
+        let id = UUID()
+        let report: @Sendable (String) -> Void = { message in
+            SteamConnectionDiagnostics.shared.record("\(id) \(purpose) app=\(appID.map(String.init) ?? "none") \(message)")
+        }
+        report("start active=\(operations.count)")
+        defer { report("end") }
+        return try await authenticatedOperation(diagnostic: report) { credentials in
+            let cm = CMClient(depotKeyStore: MemoryDepotKeys(), diagnostic: report)
+            var stage = "connect"
             do {
                 try await cm.connect()
+                report("connected")
+                stage = "logon"
                 _ = try await cm.logOn(accountName: credentials.accountName, refreshToken: credentials.refreshToken)
+                stage = "licenses"
                 try await cm.waitForLicenses()
+                stage = "content"
+                report("content start")
                 let result = try await operation(cm)
+                report("content complete")
                 await cm.disconnect()
                 return result
             } catch {
+                report("\(stage) failed: \(SteamConnectionDiagnostics.summary(error))")
                 await cm.disconnect()
                 if let steam = error as? SteamError, case .authFailed = steam { throw SourceFailure.expired }
                 throw error

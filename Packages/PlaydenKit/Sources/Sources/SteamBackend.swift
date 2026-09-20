@@ -28,6 +28,7 @@ struct LiveSteamBackend: SteamBackend {
         do {
             _ = try await SteamAuth.validAccessToken(&renewed, store: MemoryCredentials())
         } catch {
+            SteamConnectionDiagnostics.shared.record("token-renewal failed: \(SteamConnectionDiagnostics.summary(error))")
             // Only an authentication endpoint rejecting renewal implies an invalid session.
             // A content/depot AccessDenied response must not send users through sign-in again.
             if sourceFailure(error) == .accessDenied || sourceFailure(error) == .credentialsRejected { throw SourceFailure.expired }
@@ -51,7 +52,13 @@ struct LiveSteamBackend: SteamBackend {
         }
     }
     private func acquisitionDates(_ auth: StoredAuth) async throws -> [UInt32: Date] {
-        let cm = CMClient(depotKeyStore: MemoryDepotKeys())
+        let id = UUID()
+        let report: @Sendable (String) -> Void = { message in
+            SteamConnectionDiagnostics.shared.record("\(id) library-entitlements \(message)")
+        }
+        report("start")
+        defer { report("end") }
+        let cm = CMClient(depotKeyStore: MemoryDepotKeys(), diagnostic: report)
         do {
             try await cm.connect()
             _ = try await cm.logOn(accountName: auth.accountName, refreshToken: auth.refreshToken)
@@ -59,6 +66,7 @@ struct LiveSteamBackend: SteamBackend {
             await cm.disconnect()
             return result.appAcquiredAt
         } catch {
+            report("failed: \(SteamConnectionDiagnostics.summary(error))")
             await cm.disconnect()
             try Task.checkCancellation()
             // Owned games still load if optional license metadata is temporarily unavailable.

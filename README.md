@@ -243,6 +243,13 @@ do not establish complete gameplay or save-sync compatibility for either title.
 | Controller input seems wrong | Settings → Controller → Button test |
 | Game did not take focus | Return to game; if macOS declines, select the game in the Dock |
 
+Steam connection diagnostics are recorded in
+`~/Library/Application Support/Playden/logs/steam-connections.log`, including failures while
+checking an install before it enters the queue. The log records operation IDs, app IDs,
+connection stages and Steam result codes, without credentials or response bodies. It rotates
+at 1 MiB and retains one previous file (`steam-connections.previous.log`). These diagnostics
+are enabled in release builds.
+
 Automatic game focus and return from the overlay have passed A Short Hike keyboard checks,
 but a later interrupted run showed the focus warning again. Focus reliability, physical
 controller reconnect and other games' handoff behavior still need final testing. Keep Playden

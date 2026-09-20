@@ -11,7 +11,7 @@ public struct SteamCloudUploader: CloudWriting {
     public func upload(_ files: [CloudUpload], deleting: [String], basedOn list: CloudFileList,
                        clientID: UInt64, buildID: UInt64,
                        onBatchStarted: @escaping @Sendable (CloudUploadBatch) async throws -> Void) async throws -> CloudFileList {
-        try await account.withCM { cm in
+        try await account.withCM(purpose: "cloud-upload", appID: UInt32(list.gameID.value)) { cm in
             guard SteamCloudReader.accountKey(await cm.steamID) == list.accountKey else {
                 throw cloudFailure("The Steam account changed. Review Cloud saves before uploading.")
             }

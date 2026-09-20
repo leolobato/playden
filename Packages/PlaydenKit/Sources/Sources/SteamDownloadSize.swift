@@ -6,7 +6,7 @@ extension SteamSource {
     public func downloadSizeAccountKey() async throws -> String? { try await account.downloadSizeAccountKey() }
     public func downloadSize(for game: SourceGameRecord) async throws -> DownloadSizeEstimate? {
         guard game.id.source == id, let appID = UInt32(game.id.value), let key = try await downloadSizeAccountKey() else { return nil }
-        let result = try await account.withCM { cm in
+        let result = try await account.withCM(purpose: "download-size", appID: appID) { cm in
             let app = try await cm.appInfo(appID: appID)
             let owned = try await cm.ownedEntitlements()
             guard owned.appIDs.contains(appID) else { throw SourceFailure.accessDenied }
