@@ -35,13 +35,10 @@ struct SettingsScreen: View {
         }
     }
     private var librarySettings: [(String, String, String)] {
-        let base: [(String, String, String)] = [("Refresh library", model.syncError ?? (model.syncing ? "Loading your library…" : "Refresh your games and artwork"), model.syncing ? "Refreshing" : "Refresh"), ("Default install volume", model.gamesVolume.map { model.volumeLabel($0) } ?? "Enable an install volume below", "Choose ›"), ("Download while playing", "Downloads pause automatically when a game starts", model.downloadWhilePlaying ? "On" : "Off"), ("Runtime", model.runtimeInfo.map { "CrossOver \($0.version ?? "not found") · Template \($0.templateVersion)" } ?? "Checking game setup", model.runtimeInfo?.templateReady == true && model.runtimeInfo?.failure == nil ? "Ready ›" : "Review ›")]
-        let volumes: [(String, String, String)] = model.installVolumeRows.map { volume in
-            let enabled = model.enabledInstallVolumes.contains { $0.volumeID == volume.id }
-            let connected = model.availableVolumes.contains { $0.id == volume.id }
-            return (volume.name, "Use as install target · " + (connected ? "" : "Disconnected · ") + volume.gamesRoot.path, enabled ? "Checked" : "Unchecked")
-        }
-        return base + volumes
+        [("Refresh library", model.syncError ?? (model.syncing ? "Loading your library…" : "Refresh your games and artwork"), model.syncing ? "Refreshing" : "Refresh"),
+         ("Games volumes", model.gamesVolume.map { model.volumeLabel($0) + " · Default" } ?? "Choose where to install your games", "Manage ›"),
+         ("Download while playing", "Downloads pause automatically when a game starts", model.downloadWhilePlaying ? "On" : "Off"),
+         ("Runtime", model.runtimeInfo.map { "CrossOver \($0.version ?? "not found") · Template \($0.templateVersion)" } ?? "Checking game setup", model.runtimeInfo?.templateReady == true && model.runtimeInfo?.failure == nil ? "Ready ›" : "Review ›")]
     }
     var body: some View {
         HStack(alignment: .top, spacing: 48) {
@@ -73,14 +70,7 @@ struct SettingsScreen: View {
                             HStack(spacing: 24) {
                                 VStack(alignment: .leading, spacing: 10) { Text(setting.0).font(Design.condensed(30)); Text(setting.1).font(Design.body(22)).foregroundStyle(Design.secondary) }
                                 Spacer()
-                                if setting.2 == "Checked" || setting.2 == "Unchecked" {
-                                    Toggle("Use as install target", isOn: Binding(
-                                        get: { setting.2 == "Checked" },
-                                        set: { _ in model.toggleInstallVolume(at: index - 4) }
-                                    )).toggleStyle(.checkbox).labelsHidden().controlSize(.large)
-                                        .disabled(model.volumeSaving)
-                                        .accessibilityLabel("Use \(setting.0) as install target")
-                                } else if setting.2 == "On" || setting.2 == "Off" {
+                                if setting.2 == "On" || setting.2 == "Off" {
                                     Capsule().fill(setting.2 == "On" ? Design.accent : Design.text.opacity(0.15)).frame(width: 84, height: 44)
                                         .overlay(alignment: setting.2 == "On" ? .trailing : .leading) { Circle().fill(setting.2 == "On" ? Design.background : Design.secondary).frame(width: 36, height: 36).padding(4) }
                                 } else { Text(setting.2).font(Design.condensed(26, bold: false)).padding(.horizontal, 22).frame(height: 56).overlay(RoundedRectangle(cornerRadius: 8).stroke(Design.text.opacity(0.2), lineWidth: 2)) }
@@ -89,7 +79,7 @@ struct SettingsScreen: View {
                                 .focusRing(!model.settingsRailFocused && model.settingsIndex == index)
                                 .onTapGesture {
                                     model.settingsRailFocused = false; model.settingsIndex = index
-                                    if model.settingsSection != 1 || index < 4 { model.activateSetting() }
+                                    model.activateSetting()
                                 }
                                 .disabled(model.settingsSection == 2 && index == 1 && !model.fullscreenControlEnabled)
                                 .opacity(model.settingsSection == 2 && index == 1 && !model.fullscreenControlEnabled ? 0.45 : 1)
@@ -121,6 +111,8 @@ struct ModalLayer: View {
             }
             if model.panel == .resetAppData {
                 ResetAppDataDialog(model: model).frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if model.panel == .volumePicker(nil) {
+                InstallVolumesPicker(model: model).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if model.panel == .filters {
                 LibraryFilterSheet(model: model)
             } else if model.panel == .controllerTest {

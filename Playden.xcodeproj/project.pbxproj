@@ -70,6 +70,7 @@
 		8F737670CD901726BB4C7EB6 /* ControllerTestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 114F18DB13910D7FCCC3D632 /* ControllerTestView.swift */; };
 		905807C56F99CD2721B7EDB1 /* DisplayModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CEA426A764C16FD9A9C70B2 /* DisplayModel.swift */; };
 		90CE5462DC733C447B20EBF5 /* CloudInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A6109C062067C6AE4FFFA4A /* CloudInteractionTests.swift */; };
+		92C5FF9DD25487C3A4F8585F /* InstallVolumesPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98764E8CE28A91A510DDD529 /* InstallVolumesPicker.swift */; };
 		93EFBA518A88D540A12141AF /* SessionViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46E359EB8A3ED68F9D9B7336 /* SessionViews.swift */; };
 		94F1C43441E215C412B82DE6 /* PreviewCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 300F6014B94EB7C1B938E98C /* PreviewCatalog.swift */; };
 		95FB5DCC64E83B79086408CA /* DownloadSize.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4796D6EC1421C89367C816F /* DownloadSize.swift */; };
@@ -195,6 +196,7 @@
 		910367651E023A9A9708A464 /* LibraryFilterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryFilterTests.swift; sourceTree = "<group>"; };
 		9687BB9AC16273EF6E471287 /* DisplayInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayInteractionTests.swift; sourceTree = "<group>"; };
 		97DF5FC56A199D8F94B564F6 /* ControllerInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControllerInteractionTests.swift; sourceTree = "<group>"; };
+		98764E8CE28A91A510DDD529 /* InstallVolumesPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallVolumesPicker.swift; sourceTree = "<group>"; };
 		9884C17220155FC1C8ABC7D9 /* SessionSnapshots.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionSnapshots.swift; sourceTree = "<group>"; };
 		9A6109C062067C6AE4FFFA4A /* CloudInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudInteractionTests.swift; sourceTree = "<group>"; };
 		A229A81E1C7CFCF01987AAF7 /* AudioDevices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioDevices.swift; sourceTree = "<group>"; };
@@ -384,6 +386,7 @@
 				A5D70A7625199E192753461B /* InstallationDrives.swift */,
 				A98312D21A2A3D3E0663004D /* InstallModel.swift */,
 				313FD7312C5F0796666EBA68 /* InstallSnapshots.swift */,
+				98764E8CE28A91A510DDD529 /* InstallVolumesPicker.swift */,
 				F88ED78749C1504AE9DE4DFA /* LauncherDisplayPresentation.swift */,
 				135690119868DBDBD627ACAB /* LauncherQuit.swift */,
 				32D95108207E25698A55DFEC /* LibraryEditing.swift */,
@@ -640,6 +643,7 @@
 				798536983A24DDA353001A06 /* ImmersiveDisplay.swift in Sources */,
 				EF4C68E0F6E9410A214C9459 /* InstallModel.swift in Sources */,
 				38139DAF04DE03AD1EC1F224 /* InstallSnapshots.swift in Sources */,
+				92C5FF9DD25487C3A4F8585F /* InstallVolumesPicker.swift in Sources */,
 				BA8C202C6A96D1F5F85D0B7C /* InstallationDrives.swift in Sources */,
 				B5A89F2DF23E636FA960100E /* LauncherDisplayPresentation.swift in Sources */,
 				18C83DF97284BAD14CB32D80 /* LauncherQuit.swift in Sources */,

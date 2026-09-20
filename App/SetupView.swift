@@ -179,15 +179,16 @@ struct SetupView: View {
         }
     }
 }
-private struct VolumeSetupRow: View {
+struct VolumeSetupRow: View {
     let volume: GamesVolume
+    var connected = true
     var body: some View {
         HStack(spacing: 24) {
             VStack(alignment: .leading, spacing: 10) {
                 Text(volume.name).font(Design.condensed(36))
                 Text(volume.gamesRoot.path.replacingOccurrences(of: FileManager.default.homeDirectoryForCurrentUser.path, with: "~"))
                     .font(Design.body(22)).foregroundStyle(Design.secondary).lineLimit(1).truncationMode(.middle)
-                if let total = volume.totalBytes, total > 0 {
+                if connected, let total = volume.totalBytes, total > 0 {
                     GeometryReader { geometry in
                         Capsule().fill(Design.text.opacity(0.18)).overlay(alignment: .leading) {
                             Capsule().fill(Design.text.opacity(0.7)).frame(width: geometry.size.width * max(0, min(1, 1 - Double(volume.freeBytes) / Double(total))))
@@ -197,8 +198,8 @@ private struct VolumeSetupRow: View {
             }
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 8) {
-                Text("\(ByteCountFormatter.string(fromByteCount: volume.freeBytes, countStyle: .file)) free").font(Design.condensed(32)).fixedSize()
-                if let total = volume.totalBytes { Text("of \(ByteCountFormatter.string(fromByteCount: total, countStyle: .file))").font(Design.body(22)).foregroundStyle(Design.secondary) }
+                Text(connected ? "\(ByteCountFormatter.string(fromByteCount: volume.freeBytes, countStyle: .file)) free" : "Disconnected").font(Design.condensed(32)).fixedSize()
+                if connected, let total = volume.totalBytes { Text("of \(ByteCountFormatter.string(fromByteCount: total, countStyle: .file))").font(Design.body(22)).foregroundStyle(Design.secondary) }
                 if volume.isRecommended { Text("Recommended").font(Design.body(18)).foregroundStyle(Design.secondary) }
             }
         }

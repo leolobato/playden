@@ -43,9 +43,11 @@ final class InstallationDriveTests: XCTestCase {
         let root = URL(fileURLWithPath: "/Volumes/new/games")
         model.availableVolumes = [.init(id: "new", name: "New drive", mountURL: root.deletingLastPathComponent(), gamesRoot: root, freeBytes: 1000)]
         model.selectTab(.settings); model.settingsSection = 1; model.settingsRailFocused = false
-        model.settingsIndex = 3; model.perform(.move(.down)); model.perform(.confirm)
+        model.settingsIndex = 1; model.perform(.confirm)
+        XCTAssertEqual(model.panel, .volumePicker(nil))
+        model.perform(.confirm)
         await model.setupTask?.value
-        XCTAssertEqual(model.settingsIndex, 4)
+        XCTAssertEqual(model.settingsIndex, 1)
         XCTAssertEqual(model.gamesVolume?.volumeID, "new")
         XCTAssertEqual(model.gamesVolume?.rootBookmark, Data("new".utf8))
         XCTAssertEqual(try catalog.preferences().installVolumes, model.enabledInstallVolumes)
@@ -53,7 +55,33 @@ final class InstallationDriveTests: XCTestCase {
         XCTAssertNil(model.gamesVolume)
         XCTAssertTrue(model.enabledInstallVolumes.isEmpty)
         model.show(.volumePicker(nil))
-        XCTAssertEqual(model.panelActions, ["Back"])
+        XCTAssertEqual(model.panelActions, ["Use New drive", "Make default", "Done"])
+        model.perform(.move(.right)); model.perform(.confirm)
+        XCTAssertNil(model.gamesVolume) // Disabled volumes cannot become the default.
+        model.perform(.move(.down)); model.perform(.confirm)
+        XCTAssertNil(model.panel)
+    }
+
+    @MainActor func testVolumeSubmenuChangesDefaultAndKeepsSelectionVisible() throws {
+        let catalog = try CatalogStore()
+        let model = LibraryModel(catalog: catalog, preview: false)
+        defer { model.stopServices() }
+        let first = GamesVolumeSelection(volumeID: "one", rootBookmark: Data(), lastKnownRoot: URL(fileURLWithPath: "/Volumes/one/games"), relativeRoot: "games")
+        let second = GamesVolumeSelection(volumeID: "two", rootBookmark: Data(), lastKnownRoot: URL(fileURLWithPath: "/Volumes/two/games"), relativeRoot: "games")
+        try model.saveInstallVolumes([first, second], default: first)
+        model.show(.volumePicker(nil))
+        model.perform(.move(.down)); model.perform(.move(.right)); model.perform(.confirm)
+        XCTAssertEqual(model.gamesVolume, second)
+        XCTAssertEqual(try catalog.preferences().gamesVolume, second)
+        XCTAssertEqual(model.panel, .volumePicker(nil))
+        model.perform(.move(.left)); model.perform(.confirm)
+        XCTAssertEqual(model.gamesVolume, first)
+        XCTAssertEqual(model.panelIndex, 2) // Done after removing the disconnected last row.
+        model.perform(.move(.up)); model.perform(.move(.left)); model.perform(.confirm)
+        XCTAssertNil(model.gamesVolume)
+        XCTAssertEqual(model.panelIndex, 0)
+        model.perform(.confirm)
+        XCTAssertNil(model.panel)
     }
 
     @MainActor func testLegacyDefaultMigratesAndEnabledVolumesPersist() throws {
