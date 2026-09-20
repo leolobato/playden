@@ -182,7 +182,9 @@ extension CatalogStore {
                 // upload receipts and partially applied saves on their original mapping.
                 guard old.plan == nil, old.remoteSnapshotID == nil, old.batches.isEmpty,
                       old.localRecoveries?.isEmpty != false,
-                      old.mapping.rules.allSatisfy({ mapping.rules.contains($0) }) else {
+                      (old.mapping.rules.allSatisfy({ mapping.rules.contains($0) }) ||
+                       (mapping.accountTemplateRules != nil && mapping.declaration == old.mapping.declaration &&
+                        !mapping.requiresSteamAccountResolution)) else {
                     throw CloudJournalError.invalidTransition
                 }
             }

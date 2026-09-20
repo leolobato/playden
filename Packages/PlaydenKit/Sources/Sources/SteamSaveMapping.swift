@@ -24,8 +24,8 @@ enum SteamSaveMapping {
         var unresolved: [String] = []
         for item in ufs.saveFilePatterns {
             let localBase = item.root == .SteamUserData ? remoteDirectory.map { (SaveRoot.bottle, $0) } : base(item.root)
-            guard let base = localBase, let path = relative(item.path),
-                  let uploadPath = relative(item.uploadPath), item.uploadRoot.isWindows,
+            guard let base = localBase, let path = relative(item.path, accountTokens: true),
+                  let uploadPath = relative(item.uploadPath, accountTokens: true), item.uploadRoot.isWindows,
                   validPattern(item.pattern), item.recursive == 0 || item.recursive == 1 else {
                 unresolved.append("A Steam save location needs a verified game recipe.")
                 continue
@@ -35,6 +35,15 @@ enum SteamSaveMapping {
             let rule = SaveRule(root: base.0, directory: directory, pattern: item.pattern,
                                 recursive: item.recursive == 1, cloudPrefix: prefix)
             if !rules.contains(rule) { rules.append(rule) }
+            // Retain all existing account folders in local backups, even before account resolution.
+            // Only the explicitly resolved account rule participates in Cloud synchronization.
+            if let token = directory.range(of: "{64BitSteamID}") ?? directory.range(of: "{Steam3AccountID}") {
+                let parent = String(directory[..<token.lowerBound].split(separator: "/").dropLast(directory[..<token.lowerBound].hasSuffix("/") ? 0 : 1).joined(separator: "/"))
+                if !parent.isEmpty {
+                    let retained = SaveRule(root: base.0, directory: parent)
+                    if !rules.contains(retained) { rules.append(retained) }
+                }
+            }
         }
         if !rules.contains(where: { $0.cloudPrefix != nil }) { unresolved.append("Steam does not specify this game's save locations.") }
         return SaveMapping(rules: rules, coverage: unresolved.isEmpty ? .metadata : .unknown,
@@ -54,10 +63,11 @@ enum SteamSaveMapping {
         default: return nil
         }
     }
-    private static func relative(_ raw: String) -> String? {
+    private static func relative(_ raw: String, accountTokens: Bool = false) -> String? {
         let path = raw.replacingOccurrences(of: "\\", with: "/")
+        let checked = accountTokens ? path.replacingOccurrences(of: "{64BitSteamID}", with: "0").replacingOccurrences(of: "{Steam3AccountID}", with: "0") : path
         guard !path.hasPrefix("/"), !path.contains(where: { $0.isNewline || $0 == "\0" }),
-              path.rangeOfCharacter(from: CharacterSet(charactersIn: ":{}%*?")) == nil else { return nil }
+              checked.rangeOfCharacter(from: CharacterSet(charactersIn: ":{}%*?")) == nil else { return nil }
         let parts = path.split(separator: "/", omittingEmptySubsequences: false)
         guard path.isEmpty || parts.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }) else { return nil }
         return path

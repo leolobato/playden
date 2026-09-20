@@ -153,7 +153,7 @@ public actor SessionService: SessionManaging {
         var session = PlaySessionRecord(gameID: gameID, bottleID: installation.bottleID, startedAt: clock.wallTime)
         session.lastCheckpointAt = session.startedAt
         if let pending = try catalog.cloudOperations(for: gameID).last(where: { !$0.phase.isTerminal }), pending.needsLocalRecovery {
-            guard cloud != nil, try mapping(installation) == pending.mapping else { throw issue("Cloud saves", "This game's save recovery needs its original save mapping before it can launch.") }
+            guard cloud != nil, try mapping(installation)?.declaration == pending.mapping.declaration else { throw issue("Cloud saves", "This game's save recovery needs its original save mapping before it can launch.") }
             try catalog.reserveCloudRecoverySession(session, operation: pending)
         } else { try catalog.saveSession(session) }
         activeLaunchOption = option

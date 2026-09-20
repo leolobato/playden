@@ -10,6 +10,33 @@ public struct SteamCloudReader: CloudReading {
     private let account: SteamAccount
     public init(account: SteamAccount) { self.account = account }
 
+    public func resolveAccountPaths(_ mapping: SaveMapping, localSteamID: UInt64) async throws -> SaveMapping {
+        try await account.authenticatedOperation { auth in
+            try Self.resolveAccountPaths(mapping, localSteamID: localSteamID, remoteSteamID: auth.steamID)
+        }
+    }
+
+    static func resolveAccountPaths(_ mapping: SaveMapping, localSteamID: UInt64, remoteSteamID: UInt64) throws -> SaveMapping {
+        // Steam individual/public-universe IDs only; arbitrary text never becomes part of a path.
+        guard localSteamID >> 32 == 0x01100001, UInt32(truncatingIfNeeded: localSteamID) != 0,
+              remoteSteamID >> 32 == 0x01100001, UInt32(truncatingIfNeeded: remoteSteamID) != 0 else {
+            throw cloudFailure("The save account identity is invalid. Local saves have been kept.")
+        }
+        func expand(_ path: String, id: UInt64) throws -> String {
+            let result = path.replacingOccurrences(of: "{64BitSteamID}", with: String(id))
+                .replacingOccurrences(of: "{Steam3AccountID}", with: String(UInt32(truncatingIfNeeded: id)))
+            guard !result.contains("{"), !result.contains("}") else { throw cloudFailure("A save path contains an unsupported account placeholder.") }
+            return result
+        }
+        let rules = try mapping.rules.map { rule in
+            SaveRule(root: rule.root, directory: try expand(rule.directory, id: localSteamID),
+                     pattern: rule.pattern, recursive: rule.recursive,
+                     cloudPrefix: try rule.cloudPrefix.map { try expand($0, id: remoteSteamID) })
+        }
+        return SaveMapping(rules: rules, coverage: mapping.coverage, unresolved: mapping.unresolved,
+                           accountTemplateRules: mapping.rules, boundAccountKey: accountKey(remoteSteamID))
+    }
+
     public func files(for gameID: GameID) async throws -> CloudFileList {
         let appID = try Self.appID(gameID)
         return try await account.withCM(purpose: "cloud-list", appID: appID) { cm in

@@ -5,6 +5,7 @@ import Domain
 import Sources
 import Catalog
 import Installs
+import Runner
 
 /// Explicit developer check, using the signed app's existing Keychain access. Reads remote data
 /// only; it never writes a game save, changes a Cloud revision, or marks the game synchronized.
@@ -54,7 +55,17 @@ enum CloudReadCheck {
                   let plan = installed.plan else {
                 throw OperationFailure(stage: "Steam Cloud", reason: "Install the game before checking its save mapping.", output: "")
             }
-            let mapping = try SteamInstaller(game: installed.game, account: SteamAccount()).saveMapping(plan)
+            var mapping = try SteamInstaller(game: installed.game, account: SteamAccount()).saveMapping(plan)
+            if mapping.requiresSteamAccountResolution {
+                let bottle = GameBottle(gameID: installed.gameID, name: installed.bottleID,
+                    ownershipToken: installed.ownershipToken, templateVersion: installed.templateVersion)
+                let root = try await CrossOverGameBottles().ownedDirectory(bottle)
+                let localID = try await SaveStore().steamLocalAccountID(roots: [.bottle: root], createIfMissing: false)
+                mapping = try await cloud.resolveAccountPaths(mapping, localSteamID: localID)
+                guard mapping.boundAccountKey == list.accountKey else {
+                    throw OperationFailure(stage: "Steam Cloud", reason: "The account changed during the check.", output: "")
+                }
+            }
             // Exercise the real path resolver and immutable staging store in Diagnostics only.
             let staged = try await SaveStore(root: directory.appendingPathComponent("staged")).stageCloud(
                 list, installationID: installed.id, mapping: mapping, downloads: payloads)

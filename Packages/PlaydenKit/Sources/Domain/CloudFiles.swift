@@ -29,6 +29,7 @@ public struct CloudFileList: Codable, Equatable, Sendable {
 }
 
 public protocol CloudReading: Sendable {
+    func resolveAccountPaths(_ mapping: SaveMapping, localSteamID: UInt64) async throws -> SaveMapping
     func files(for gameID: GameID) async throws -> CloudFileList
     /// Returns validated bytes only. Does not replace local saves or advance the sync baseline.
     func download(_ file: CloudFile, from list: CloudFileList) async throws -> Data
@@ -52,4 +53,13 @@ public protocol CloudWriting: Sendable {
     func upload(_ files: [CloudUpload], deleting: [String], basedOn: CloudFileList,
                 clientID: UInt64, buildID: UInt64,
                 onBatchStarted: @escaping @Sendable (CloudUploadBatch) async throws -> Void) async throws -> CloudFileList
+}
+
+public extension CloudReading {
+    func resolveAccountPaths(_ mapping: SaveMapping, localSteamID: UInt64) async throws -> SaveMapping {
+        guard !mapping.requiresSteamAccountResolution else {
+            throw OperationFailure(stage: "Cloud saves", reason: "This source cannot resolve account-specific save paths.", output: "")
+        }
+        return mapping
+    }
 }

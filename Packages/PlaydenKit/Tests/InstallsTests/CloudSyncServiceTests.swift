@@ -11,6 +11,18 @@ private actor CloudServer: CloudReading, CloudWriting {
     var accountKey = "account-a", revision: UInt64 = 1
     var contents: [String: CloudUpload] = [:]
     var offline = false, failAfterCommit = false
+    var switchAfterResolution = false
+    func changeAccountAfterResolution() { switchAfterResolution = true }
+    func resolveAccountPaths(_ mapping: SaveMapping, localSteamID: UInt64) -> SaveMapping {
+        let rules = mapping.rules.map { rule in
+            SaveRule(root: rule.root, directory: rule.directory.replacingOccurrences(of: "{64BitSteamID}", with: String(localSteamID)),
+                pattern: rule.pattern, recursive: rule.recursive,
+                cloudPrefix: rule.cloudPrefix?.replacingOccurrences(of: "{64BitSteamID}", with: "76561198012345679"))
+        }
+        let resolved = SaveMapping(rules: rules, coverage: mapping.coverage, unresolved: mapping.unresolved, accountTemplateRules: mapping.rules, boundAccountKey: accountKey)
+        if switchAfterResolution { accountKey = "account-b"; switchAfterResolution = false }
+        return resolved
+    }
     var uploadCalls = 0, batchObserved = false
     let catalog: CatalogStore
     init(gameID: GameID, catalog: CatalogStore) { self.gameID = gameID; self.catalog = catalog }
@@ -96,6 +108,64 @@ final class CloudSyncServiceTests: XCTestCase {
     private func service(_ store: CatalogStore, server: CloudServer, saves: SaveStore, root: URL,
                          validate: @escaping CloudSyncService.UploadValidation = { _, _, _ in }) -> CloudSyncService {
         CloudSyncService(catalog: store, saves: saves, reader: server, writer: server, roots: { _ in [.game: root] }, validateUploads: validate)
+    }
+
+    func testAccountTemplatePullEditPushAndRetryUseStableLocalIdentity() async throws {
+        let root = try directory(), bottle = try directory(), store = try CatalogStore()
+        let installed = installed(bottle), saves = SaveStore(root: root.appendingPathComponent("backups"))
+        try store.saveInstallation(installed)
+        let server = CloudServer(gameID: gameID, catalog: store)
+        let cloud = CloudSyncService(catalog: store, saves: saves, reader: server, writer: server,
+            roots: { _ in [.bottle: bottle] }, validateUploads: { _, _, _ in })
+        let mapping = SaveMapping(rules: [
+            .init(root: .bottle, directory: "drive_c/Program Files (x86)/Steam/userdata/0"),
+            .init(root: .bottle, directory: "saves/{64BitSteamID}", pattern: "player*.*", recursive: false, cloudPrefix: "%WinAppDataLocalLow%Replaced/{64BitSteamID}")
+        ], coverage: .metadata)
+        let remoteName = "%WinAppDataLocalLow%Replaced/76561198012345679/player1.save"
+        let data = Data("remote progress".utf8)
+        let remote = CloudUpload(file: .init(name: remoteName, sha1: Data(Insecure.SHA1.hash(data: data)), bytes: Int64(data.count), modifiedAt: .now), data: data)
+        await server.replace([remote])
+        let pull = await cloud.synchronize(installed, mapping: mapping)
+        XCTAssertEqual(pull.state, .upToDate, pull.message)
+        let localID = try await saves.steamLocalAccountID(roots: [.bottle: bottle])
+        let path = bottle.appendingPathComponent("saves/\(localID)/player1.save")
+        XCTAssertEqual(try Data(contentsOf: path), data)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: bottle.appendingPathComponent("saves/76561198012345679/player1.save").path))
+        try Data("new local progress".utf8).write(to: path)
+        await server.failNextCommitResponse()
+        let failed = await cloud.synchronize(installed, mapping: mapping)
+        XCTAssertEqual(failed.state, .pendingUpload)
+        let retried = await cloud.synchronize(installed, mapping: mapping)
+        XCTAssertEqual(retried.state, .upToDate, retried.message)
+        let result = try await server.files(for: gameID)
+        XCTAssertEqual(result.files.map(\.name), [remoteName])
+        let roundTrip = try await server.download(result.files[0], from: result)
+        XCTAssertEqual(roundTrip, Data("new local progress".utf8))
+        let uploads = await server.uploadCalls
+        XCTAssertEqual(uploads, 1)
+        let baseline = try XCTUnwrap(store.cloudBaseline(for: gameID, accountKey: "account-a"))
+        XCTAssertEqual(baseline.mapping.declaration, mapping)
+        XCTAssertEqual(baseline.mapping.boundAccountKey, "account-a")
+    }
+
+    func testAccountChangeDuringTemplateResolutionCannotApplyOrUpload() async throws {
+        let root = try directory(), bottle = try directory(), store = try CatalogStore()
+        let installed = installed(bottle), saves = SaveStore(root: root)
+        try store.saveInstallation(installed)
+        let server = CloudServer(gameID: gameID, catalog: store)
+        let cloud = CloudSyncService(catalog: store, saves: saves, reader: server, writer: server,
+            roots: { _ in [.bottle: bottle] }, validateUploads: { _, _, _ in })
+        let mapping = SaveMapping(rules: [.init(root: .bottle, directory: "saves/{64BitSteamID}", cloudPrefix: "%WinAppDataLocalLow%Game/{64BitSteamID}")], coverage: .metadata)
+        await server.changeAccountAfterResolution()
+        let result = await cloud.synchronize(installed, mapping: mapping)
+        XCTAssertNotEqual(result.state, .upToDate)
+        XCTAssertTrue(result.message.contains("account changed"), result.message)
+        let uploads = await server.uploadCalls
+        XCTAssertEqual(uploads, 0)
+        XCTAssertNil(try store.cloudAttachment(for: gameID, installationID: installed.id))
+        // No plan or writes were made, so retry may safely resolve the intended current account.
+        let retry = await cloud.synchronize(installed, mapping: mapping)
+        XCTAssertEqual(retry.state, .upToDate, retry.message)
     }
 
     func testPullEditPushAndReopenUseRealJournalAndFilesystem() async throws {

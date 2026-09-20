@@ -61,7 +61,11 @@ public actor CloudSyncService: CloudSyncManaging {
         defer { busy.remove(gameID); active[gameID] = nil }
         publish(.init(gameID: gameID, state: .syncing, message: "Checking saved progress…"))
         do {
-            _ = try CloudSavePaths(mapping: mapping)
+            var mapping = mapping
+            if !mapping.requiresSteamAccountResolution { _ = try CloudSavePaths(mapping: mapping) }
+            else if mapping.coverage == .unknown || !mapping.unresolved.isEmpty {
+                throw issue("This game's save paths still contain unsupported locations.")
+            }
             let previous = try catalog.cloudOperations(for: gameID).last { !$0.phase.isTerminal }
             if let authorization, authorization.operation != previous { throw CloudJournalError.staleAttempt }
             // A local recovery choice is consumed locally. It never authorizes a subsequent
@@ -72,7 +76,7 @@ public actor CloudSyncService: CloudSyncManaging {
                 let expandsUnwrittenMapping = previous.plan == nil && previous.remoteSnapshotID == nil &&
                     previous.batches.isEmpty && !previous.needsLocalRecovery && previous.localRecoveries?.isEmpty != false &&
                     previous.mapping.rules.allSatisfy { mapping.rules.contains($0) }
-                guard previous.installationID == installation.id, previous.mapping == mapping || expandsUnwrittenMapping else {
+                guard previous.installationID == installation.id, previous.mapping.declaration == mapping.declaration || expandsUnwrittenMapping else {
                     throw issue("Save sync from the previous installation or recipe needs recovery first.")
                 }
                 active[gameID] = try catalog.resumeCloudSync(previous, preparingSessionID: preparingSessionID)
@@ -89,6 +93,11 @@ public actor CloudSyncService: CloudSyncManaging {
             if let pending = active[gameID], pending.needsLocalRecovery {
                 if let review = try await recoverLocal(installation, locations: locations, authorization: authorization) { return review }
             }
+            if mapping.requiresSteamAccountResolution {
+                let localID = try await saves.steamLocalAccountID(roots: locations)
+                mapping = try await reader.resolveAccountPaths(mapping, localSteamID: localID)
+                _ = try CloudSavePaths(mapping: mapping)
+            }
             // Never reuse a previous attempt's local bytes as if they reflected later offline play.
             // The old immutable copy remains in history; this fresh snapshot detects new progress.
             let local = try await saves.snapshot(gameID: gameID, installationID: installation.id,
@@ -96,13 +105,16 @@ public actor CloudSyncService: CloudSyncManaging {
             if previous != nil, try await recoverArchiveIfRootChanged(installation, locations: locations, currentSnapshot: local) {
                 throw issue("The save folder changed before its checkpoint was saved. Retry to restore the archived progress.")
             }
-            if previous != nil {
+            if try previous != nil || current(gameID).mapping != mapping {
                 active[gameID] = try catalog.replaceCloudSync(current(gameID), installation: installation, localSnapshotID: local.id, mapping: mapping)
             } else if try current(gameID).localSnapshotID == nil {
                 active[gameID] = try catalog.recordCloudLocalSnapshot(current(gameID), snapshotID: local.id)
             }
             let remote = try await reader.files(for: gameID)
             guard remote.gameID == gameID else { throw issue("Steam returned saves for a different game.") }
+            guard mapping.boundAccountKey == nil || mapping.boundAccountKey == remote.accountKey else {
+                throw issue("The Steam account changed while resolving save paths. Retry sync with the intended account.")
+            }
             try Task.checkCancellation()
 
             if let authorization = consent {
