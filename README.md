@@ -171,7 +171,7 @@ The footer shows the actions available on the current screen and changes with yo
 | Page through the library | L2 / R2 | Page Up / Page Down |
 | Home | PS | Home |
 | Game controls | Hold PS for one second | Shift-Home |
-| Toggle fullscreen | Settings → Display | Control-Command-F |
+| Toggle fullscreen | Settings → Display | Option-Enter or Control-Command-F |
 
 From the top Home row, press Up to highlight the tabs, then Left/Right to choose one. Continue
 Playing ends with a Library card instead of scrolling indefinitely.

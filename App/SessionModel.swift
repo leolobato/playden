@@ -5,12 +5,16 @@ import Input
 
 extension LibraryModel {
     var showsSessionIssue: Bool { sessionIssue != nil && !hasActiveSession && panel == nil && authScreen == nil && setupScreen == nil }
+    /// The account notice replaces the passive library warning, so only one of them is on screen.
+    var showsSignInIssue: Bool { showsSessionIssue && sessionIssueRecovery == .signIn }
     var sessionIssueActions: [String] {
-        (canRetrySessionIssue ? ["Retry"] : []) + (sessionIssueGameID == nil ? [] : ["View logs"]) + ["Dismiss"]
+        let recover = sessionIssueRecovery == .signIn ? "Sign in again" : "Retry"
+        return (canRetrySessionIssue ? [recover] : []) + (sessionIssueGameID == nil ? [] : ["View logs"]) + ["Dismiss"]
     }
     func activateSessionIssue() {
-        if sessionIssueActions[safe: sessionIssueIndex] == "Retry" { retrySessionIssue() }
-        else if sessionIssueActions[safe: sessionIssueIndex] == "View logs", let id = sessionIssueGameID {
+        let action = sessionIssueActions[safe: sessionIssueIndex]
+        if action == "Retry" || action == "Sign in again" { retrySessionIssue() }
+        else if action == "View logs", let id = sessionIssueGameID {
             sessionIssueFocused = false; show(.logs(id))
         } else { sessionIssue = nil }
     }

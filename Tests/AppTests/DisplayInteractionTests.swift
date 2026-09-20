@@ -1,9 +1,37 @@
 import XCTest
+import AppKit
 import Catalog
 import Domain
 @testable import Playden
 
 final class DisplayInteractionTests: XCTestCase {
+    @MainActor func testOptionEnterTogglesFullscreenWithoutConfirmingOrRepeating() throws {
+        let delegate = AppDelegate()
+        let model = delegate.model
+        model.authScreen = .credentials; model.authIndex = 0
+        func enter(_ code: UInt16, repeating: Bool = false) throws -> NSEvent {
+            try XCTUnwrap(NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: .option,
+                                          timestamp: 0, windowNumber: 0, context: nil,
+                                          characters: "\r", charactersIgnoringModifiers: "\r",
+                                          isARepeat: repeating, keyCode: code))
+        }
+        XCTAssertFalse(model.isFullscreen)
+        XCTAssertNil(delegate.handle(try enter(36)))
+        XCTAssertTrue(model.isFullscreen)
+        XCTAssertNil(model.panel, "Option+Return must not open the account name editor")
+        XCTAssertNil(delegate.handle(try enter(36, repeating: true)))
+        XCTAssertTrue(model.isFullscreen)
+        XCTAssertNil(delegate.handle(try enter(76)))
+        XCTAssertFalse(model.isFullscreen)
+        model.session.phase = .running
+        XCTAssertNil(delegate.handle(try enter(36)))
+        XCTAssertFalse(model.isFullscreen)
+        XCTAssertNil(model.panel)
+        model.session.phase = .idle; model.fullscreenTransitioning = true
+        XCTAssertNil(delegate.handle(try enter(36)))
+        XCTAssertFalse(model.isFullscreen)
+    }
+
     @MainActor func testAudioSelectionPersistsAndDisconnectedDeviceFallsBackWithoutLosingPreference() throws {
         let catalog = try CatalogStore()
         let model = LibraryModel(catalog: catalog, preview: false)

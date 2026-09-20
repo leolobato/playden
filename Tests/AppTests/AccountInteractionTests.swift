@@ -32,19 +32,63 @@ private struct AccountFixtureSource: GameSource {
     let id = "fixture", displayName = "Fixture"
     var auth: any SourceAuth = FixtureAuth()
     var games: [SourceGameRecord] = []
-    func ownedGames() async throws -> [SourceGameRecord] { games }
+    var failure: SourceFailure?
+    func ownedGames() async throws -> [SourceGameRecord] {
+        if let failure { throw failure }
+        return games
+    }
     func metadata(for game: SourceGameRecord) async throws -> SourceGameRecord { game }
 }
 final class AccountInteractionTests: XCTestCase {
     @MainActor func testSignInClearsExpiredNoticeEvenWithoutLibraryRefresh() async throws {
         let model = LibraryModel(preview: false, source: AccountFixtureSource())
         defer { model.stopServices() }
-        model.syncError = SourceFailure.expired.localizedDescription
+        model.recordSyncFailure(SourceFailure.expired)
         model.authScreen = .credentials; model.accountNameDraft = "Fixture"; model.passwordDraft = "fixture-only"
         model.authIndex = 2; model.activateAuthentication()
         await model.authTask?.value
         XCTAssertNotNil(model.identity)
         XCTAssertNil(model.syncError)
+        XCTAssertNil(model.sessionIssue)
+    }
+    @MainActor func testExpiredSignInIsReportedAsAnActionableNotification() async throws {
+        let catalog = try CatalogStore()
+        let model = LibraryModel(catalog: catalog, preview: false, source: AccountFixtureSource(failure: .expired))
+        defer { model.stopServices() }
+        model.refreshLibrary()
+        await model.syncTask?.value
+        XCTAssertEqual(model.sessionIssue?.stage, "Sign-in expired")
+        XCTAssertEqual(model.sessionIssue?.reason, SourceFailure.expired.localizedDescription)
+        // The passive library notice is replaced, never stacked underneath the notification.
+        XCTAssertTrue(model.showsSignInIssue)
+        XCTAssertEqual(model.sessionIssueActions, ["Sign in again", "Dismiss"])
+        model.perform(.context)
+        XCTAssertTrue(model.sessionIssueFocused)
+        model.perform(.confirm)
+        XCTAssertEqual(model.authScreen, .qr)
+        XCTAssertFalse(model.showsSignInIssue)
+        model.perform(.back)
+        XCTAssertNil(model.authScreen)
+        XCTAssertTrue(model.showsSignInIssue)
+        XCTAssertEqual(model.sessionIssueActions, ["Sign in again", "Dismiss"])
+    }
+    @MainActor func testSuccessfulRefreshClearsSignInNotice() async throws {
+        let model = LibraryModel(catalog: try CatalogStore(), preview: false, source: AccountFixtureSource())
+        defer { model.stopServices() }
+        model.recordSyncFailure(SourceFailure.expired)
+        model.refreshLibrary()
+        XCTAssertTrue(model.showsSignInIssue)
+        await model.syncTask?.value
+        XCTAssertNil(model.sessionIssue)
+        XCTAssertNil(model.syncError)
+    }
+    @MainActor func testTransientLibraryFailuresStayPassive() throws {
+        let model = LibraryModel(preview: false, source: AccountFixtureSource())
+        defer { model.stopServices() }
+        model.recordSyncFailure(SourceFailure.network)
+        XCTAssertEqual(model.syncError, SourceFailure.network.localizedDescription)
+        XCTAssertNil(model.sessionIssue)
+        XCTAssertFalse(model.showsSignInIssue)
     }
     @MainActor func testLateStartupIdentityCannotUndoSuccessfulSignIn() async throws {
         for failure in [SourceFailure.expired, nil] {

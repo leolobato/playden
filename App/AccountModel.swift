@@ -30,7 +30,7 @@ extension LibraryModel {
                 }
             } catch {
                 guard !Task.isCancelled else { return }
-                if authAttempt == attempt { syncError = error.localizedDescription }
+                if authAttempt == attempt { recordSyncFailure(error) }
             }
             while !Task.isCancelled {
                 do { try await Task.sleep(for: .seconds(6 * 3600)) } catch { return }
@@ -90,7 +90,7 @@ extension LibraryModel {
                 try Task.checkCancellation()
                 guard authAttempt == attempt else { return }
                 let pendingInstall = installAfterAuthentication
-                identity = result; syncError = nil; cancelAuthentication(); refreshLibrary()
+                identity = result; syncError = nil; clearSignInIssue(); cancelAuthentication(); refreshLibrary()
                 if let pendingInstall { beginInstall(pendingInstall) }
                 else {
                     selectTab(.home)
@@ -183,12 +183,26 @@ extension LibraryModel {
                 _ = try await syncCoordinator.refresh(source: source) { [weak self] in
                     Task { @MainActor in self?.reloadCatalog() }
                 }
-                if !Task.isCancelled { reloadCatalog(); syncing = false; loadDetailDownloadSize() }
+                if !Task.isCancelled { clearSignInIssue(); reloadCatalog(); syncing = false; loadDetailDownloadSize() }
             } catch {
                 guard !Task.isCancelled else { return }
-                syncing = false; syncError = error.localizedDescription
+                syncing = false; recordSyncFailure(error)
             }
         }
+    }
+    /// A stale sign-in is a dead end for the passive library notice: nothing the player does in
+    /// the launcher clears it. Raise those failures as a notification that offers the way out.
+    func recordSyncFailure(_ error: Error) {
+        syncError = error.localizedDescription
+        guard let failure = error as? SourceFailure,
+              [.signedOut, .expired, .credentialsRejected].contains(failure) else { return }
+        reportSessionIssue(.init(stage: failure == .expired ? "Sign-in expired" : "Sign in to Steam",
+                                 reason: error.localizedDescription, output: error.localizedDescription),
+                           recovery: .signIn)
+    }
+    func clearSignInIssue() {
+        guard sessionIssueRecovery == .signIn else { return }
+        sessionIssue = nil
     }
     func signOut() {
         guard !resetBusy else { return }
@@ -202,7 +216,7 @@ extension LibraryModel {
                 await stopCloudCommands()
                 try await source.auth.signOut()
                 try catalog.clearSourceCatalog(source.id)
-                identity = nil; syncError = nil; syncing = false; cloudStatuses.removeAll(); reloadCatalog()
+                identity = nil; syncError = nil; clearSignInIssue(); syncing = false; cloudStatuses.removeAll(); reloadCatalog()
             } catch { show(.information(error.localizedDescription)) }
         }
     }

@@ -5,6 +5,7 @@ enum SessionIssueRecovery: Equatable {
     case play(GameID)
     case recoverSession
     case downloadPolicy
+    case signIn
 }
 
 extension LibraryModel {
@@ -15,14 +16,20 @@ extension LibraryModel {
     }
 
     var canRetrySessionIssue: Bool {
-        sessionIssue != nil && sessionIssueRecovery != nil && (sessions != nil || fixedClock) &&
-        !hasActiveSession && !sessionBusy && !resetBusy
+        guard sessionIssue != nil, let recovery = sessionIssueRecovery, !resetBusy else { return false }
+        // Signing in again belongs to the account, not the session service, so it stays
+        // offerable even when no session could ever be started.
+        if recovery == .signIn { return source != nil || fixedClock }
+        return (sessions != nil || fixedClock) && !hasActiveSession && !sessionBusy
     }
 
     func retrySessionIssue() {
-        guard canRetrySessionIssue, let recovery = sessionIssueRecovery, let sessions else { return }
+        guard canRetrySessionIssue, let recovery = sessionIssueRecovery else { return }
+        if recovery == .signIn { beginSignIn(); return }
+        guard let sessions else { return }
         panel = nil; sessionIssue = nil
         switch recovery {
+        case .signIn: break // Handled above; sign-in never reaches the session service.
         case .play(let id):
             // SessionService repeats safety checks and resumes durable runtime/source preparation.
             // The captured ID belongs to the failed request, never the currently highlighted tile.

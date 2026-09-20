@@ -437,7 +437,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         // mouse input or activation changes, and never capture/warp the launcher's pointer.
         NSCursor.setHiddenUntilMouseMoves(true)
     }
-    private func handle(_ event: NSEvent) -> NSEvent? {
+    func handle(_ event: NSEvent) -> NSEvent? {
         model.keyboardNavigation = true
         if event.keyCode == 115, event.modifierFlags.contains(.shift), model.hasActiveSession { hideCursorForNavigation(); model.perform(.holdHome); return nil }
         if (model.exitOverlay || model.isLaunchingGame) && event.modifierFlags.contains(.command) { return event }
@@ -448,6 +448,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
                 return nil
             }
             return event
+        }
+        // Keep the shortcut from confirming UI actions while a game owns the display.
+        if [36, 76].contains(event.keyCode), event.modifierFlags.contains(.option) {
+            if !event.isARepeat && !model.hasActiveSession {
+                hideCursorForNavigation(); model.requestFullscreen()
+            }
+            return nil
         }
         let action: InputAction?
         switch event.keyCode {
@@ -572,7 +579,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
             let requestedScreens: Set<String>? = arguments.firstIndex(of: "--snapshot-screens").flatMap { index in
                 arguments.indices.contains(index + 1) ? Set(arguments[index + 1].split(separator: ",").map(String.init)) : nil
             }
-            for screen in ["game-settings", "game-more", "game-settings-more", "game-settings-custom", "picker-graphics", "profile-chooser", "toast-settings", "cloud-timestamp", "launcher-quit", "launcher-quit-warning", "exit-overlay-warning", "launcher-quitting", "game-drive-disconnected", "game-drive-checking", "context-drive-disconnected", "library-drive-disconnected", "toast-complete", "toast-failed", "toast-connected", "toast-disconnected", "uninstall-confirm", "uninstall-unsynced", "uninstall-checking", "cloud-ready", "cloud-conflict", "cloud-account", "cloud-pending", "cloud-syncing", "cloud-recovery", "home", "home-tabs", "home-library-card", "home-playstation", "home-large-library", "home-large-library-end", "home-collection-end", "library-large", "library-large-end", "library", "library-playstation", "library-paged", "library-return", "game", "game-status-clean", "game-status-crash", "library-running", "context-uninstall", "downloads", "downloads-queued", "settings", "settings-about", "settings-reset", "settings-reset-blocked", "settings-reset-error", "settings-reset-busy", "settings-display", "settings-runtime", "settings-runtime-missing", "settings-runtime-busy", "collections", "keyboard", "keyboard-playstation", "keyboard-generic", "keyboard-space", "keyboard-long", "compatibility", "uninstall", "logs", "logs-retry", "logs-long", "logs-long-end", "logs-long-return", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-permissions", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom", "library-download-glyph", "library-download-focused", "library-artwork-fallback", "game-unknown-size", "game-favorite", "install-offer", "install-offer-space", "install-queue", "install-verifying", "install-verifying-all", "install-history-failed", "install-history-completed", "install-mini-progress", "install-storage-shortage", "install-storage-unavailable", "install-game-progress", "launching", "exit-overlay", "exit-overlay-quit", "notification", "notification-focused"] {
+            for screen in ["game-settings", "game-more", "game-settings-more", "game-settings-custom", "picker-graphics", "profile-chooser", "toast-settings", "cloud-timestamp", "launcher-quit", "launcher-quit-warning", "exit-overlay-warning", "launcher-quitting", "game-drive-disconnected", "game-drive-checking", "context-drive-disconnected", "library-drive-disconnected", "toast-complete", "toast-failed", "toast-connected", "toast-disconnected", "uninstall-confirm", "uninstall-unsynced", "uninstall-checking", "cloud-ready", "cloud-conflict", "cloud-account", "cloud-pending", "cloud-syncing", "cloud-recovery", "home", "home-tabs", "home-library-card", "home-playstation", "home-large-library", "home-large-library-end", "home-collection-end", "library-large", "library-large-end", "library", "library-playstation", "library-paged", "library-return", "game", "game-status-clean", "game-status-crash", "library-running", "context-uninstall", "downloads", "downloads-queued", "settings", "settings-about", "settings-reset", "settings-reset-blocked", "settings-reset-error", "settings-reset-busy", "settings-display", "settings-runtime", "settings-runtime-missing", "settings-runtime-busy", "collections", "keyboard", "keyboard-playstation", "keyboard-generic", "keyboard-space", "keyboard-long", "compatibility", "uninstall", "logs", "logs-retry", "logs-long", "logs-long-end", "logs-long-return", "signin-qr", "signin-password", "signin-error", "setup-controller", "setup-permissions", "setup-display", "setup-volume", "setup-runtime", "setup-error", "setup-ready", "controller-test", "controller-waiting", "library-filters", "library-filters-bottom", "library-download-glyph", "library-download-focused", "library-artwork-fallback", "game-unknown-size", "game-favorite", "install-offer", "install-offer-space", "install-queue", "install-verifying", "install-verifying-all", "install-history-failed", "install-history-completed", "install-mini-progress", "install-storage-shortage", "install-storage-unavailable", "install-game-progress", "launching", "exit-overlay", "exit-overlay-quit", "notification", "notification-focused", "notification-signin"] {
                 if let requestedScreens, !requestedScreens.contains(screen) { continue }
                 // Keep each capture independent of the requested screen order.
                 let model = LibraryModel()
@@ -617,7 +624,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
                 case "game-status-clean", "game-status-crash", "library-running", "context-uninstall": model.configureGameStatusSnapshot(screen)
                 case "uninstall-confirm", "uninstall-unsynced", "uninstall-checking": model.configureUninstallSnapshot(screen)
                 case "cloud-ready", "cloud-conflict", "cloud-account", "cloud-pending", "cloud-syncing", "cloud-recovery": model.configureCloudSnapshot(screen)
-                case "launcher-quit", "launcher-quit-warning", "exit-overlay-warning", "launcher-quitting", "launching", "exit-overlay", "exit-overlay-quit", "notification", "notification-focused": model.configureSessionSnapshot(screen)
+                case "launcher-quit", "launcher-quit-warning", "exit-overlay-warning", "launcher-quitting", "launching", "exit-overlay", "exit-overlay-quit", "notification", "notification-focused", "notification-signin": model.configureSessionSnapshot(screen)
                 case "library-download-glyph", "library-download-focused":
                     model.selectTab(.library); model.filter = .all
                     if let index = model.games.firstIndex(where: { $0.title == "Disco Elysium" }) { model.games[index].status = .notInstalled }

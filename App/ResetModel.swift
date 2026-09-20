@@ -67,7 +67,7 @@ extension LibraryModel {
                     resolvingInstall = false; runtimeChecking = false
                     try checkResetAvailability()
                     try await source?.auth.signOut()
-                    signedOut = true; identity = nil; cloudStatuses.removeAll(); syncing = false; syncError = nil
+                    signedOut = true; identity = nil; cloudStatuses.removeAll(); syncing = false; syncError = nil; clearSignInIssue()
                     // Keychain and SQLite cannot share a transaction. If sign-out fails, local
                     // data is untouched. If the database commit fails, report the signed-out
                     // state honestly and retain the old personalization for an explicit retry.

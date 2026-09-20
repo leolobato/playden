@@ -50,6 +50,9 @@ extension LibraryModel {
         }
         if screen.hasPrefix("notification") {
             session.phase = .idle; exitOverlay = false; detailID = nil
+            if screen == "notification-signin" {
+                selectTab(.home); recordSyncFailure(SourceFailure.expired); sessionIssueFocused = true; return
+            }
             reportSessionIssue(.init(stage: "Game closed unexpectedly", reason: "TUNIC closed unexpectedly. Retry or view the session log for details.", output: "Snapshot fixture"), gameID: game.id, recovery: .play(game.id))
             sessionIssueFocused = screen == "notification-focused"
         }

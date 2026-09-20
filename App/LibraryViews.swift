@@ -56,7 +56,7 @@ struct CanvasView: View {
                     }.padding(22).background(Design.panel, in: RoundedRectangle(cornerRadius: 12))
                 }.buttonStyle(.plain).offset(x: 1150, y: 880).zIndex(3)
             }
-            if let error = model.syncError, model.panel == nil, model.authScreen == nil {
+            if let error = model.syncError, model.panel == nil, model.authScreen == nil, !model.showsSignInIssue {
                 Text(error).font(Design.body(22)).foregroundStyle(Design.amber).lineLimit(2)
                     .padding(20).frame(width: 720, alignment: .leading).background(Design.panel, in: RoundedRectangle(cornerRadius: 10))
                     .offset(x: 1104, y: 880).zIndex(3)
