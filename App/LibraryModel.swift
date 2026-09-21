@@ -666,7 +666,7 @@ final class LibraryModel {
             if direction == .left { settingsRailFocused = true }
             else if direction == .right { settingsRailFocused = settingsSection == 6 }
             else if settingsRailFocused { settingsSection = min(max(0, settingsSection + (direction == .up ? -1 : 1)), 6); settingsIndex = 0 }
-            else { settingsIndex = min(max(0, settingsIndex + (direction == .up ? -1 : 1)), settingsSection == 1 || settingsSection == 2 ? 3 : settingsSection == 5 ? 2 : settingsSection == 4 ? 1 : 0) }
+            else { settingsIndex = min(max(0, settingsIndex + (direction == .up ? -1 : 1)), settingsSection == 1 || settingsSection == 2 ? 3 : settingsSection == 5 ? 2 : settingsSection == 4 || (settingsSection == 0 && identity != nil) ? 1 : 0) }
         }
     }
     func activateDetail() {
@@ -762,7 +762,7 @@ final class LibraryModel {
         if settingsSection == 6 { quitLauncherFromUI(); return }
         if settingsRailFocused { settingsRailFocused = false; return }
         if settingsSection == 0 && !isPreview {
-            if identity == nil { beginSignIn() }
+            if settingsIndex == 0 { beginSignIn() }
             else { show(.signOut) }
         }
         else if settingsSection == 1 && settingsIndex == 0 && !isPreview { refreshLibrary() }

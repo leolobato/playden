@@ -17,7 +17,9 @@ struct SettingsScreen: View {
     let sections = ["Account", "Library", "Display", "Audio", "Controller", "About", "Quit Playden"]
     var settings: [(String, String, String)] {
         switch model.settingsSection {
-        case 0: [("Steam", model.isPreview ? "Using designer preview data" : model.identity.map { "Signed in as \($0.displayName)" } ?? "Sign in to see your games", model.identity == nil ? "Sign in" : "Sign out")]
+        case 0:
+            [("Steam", model.syncError ?? (model.isPreview ? "Using designer preview data" : model.identity.map { "Signed in as \($0.displayName)" } ?? "Sign in to see your games"), model.identity == nil ? "Sign in" : "Sign in again")]
+            + (model.identity == nil ? [] : [("Sign out", "Disconnect your Steam account from Playden", "Sign out")])
         case 1: librarySettings
         case 2: [
             ("Preferred display", model.displaySummary, "Change ›"),
