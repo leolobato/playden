@@ -87,7 +87,11 @@ enum SteamSaveMapping {
         }
     }
     private static func relative(_ raw: String, accountTokens: Bool = false) -> String? {
-        let path = raw.replacingOccurrences(of: "\\", with: "/")
+        var path = raw.replacingOccurrences(of: "\\", with: "/")
+        // Steam directory declarations may end in separators (for example FFVII
+        // Remake). Reject absolute paths before removing those trailing separators.
+        guard !path.hasPrefix("/") else { return nil }
+        while path.hasSuffix("/") { path.removeLast() }
         let checked = accountTokens ? path.replacingOccurrences(of: "{64BitSteamID}", with: "0").replacingOccurrences(of: "{Steam3AccountID}", with: "0") : path
         guard !path.hasPrefix("/"), !path.contains(where: { $0.isNewline || $0 == "\0" }),
               checked.rangeOfCharacter(from: CharacterSet(charactersIn: ":{}%*?")) == nil else { return nil }

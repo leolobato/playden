@@ -81,6 +81,41 @@ final class SteamSaveMappingTests: XCTestCase {
         }
     }
 
+    func testFinalFantasyVIIRemakeTrailingSeparatorsResolveSavePaths() throws {
+        let directory = "My Games/FINAL FANTASY VII REMAKE/Steam/{64BitSteamID}"
+        let patterns = ["ff7remakecommon.sav", "ff7remake0*.sav", "ff7remakeplus0*.sav"]
+        let local: UInt64 = 76_561_198_012_345_678, remote = local + 1
+        for separator in ["/", "\\"] {
+            let path = directory.replacingOccurrences(of: "/", with: separator) + separator
+            let mapping = SteamSaveMapping.build(UFS(quota: 629_145_600, maxNumFiles: 64,
+                saveFilePatterns: patterns.map {
+                    .init(root: .WinMyDocuments, path: path, pattern: $0, uploadPath: path)
+                }), appID: 1462040)
+            XCTAssertEqual(mapping.coverage, .metadata)
+            XCTAssertTrue(mapping.unresolved.isEmpty)
+            let resolved = try SteamCloudReader.resolveAccountPaths(mapping, localSteamID: local, remoteSteamID: remote)
+            for pattern in patterns {
+                let rule = try XCTUnwrap(resolved.rules.first { $0.pattern == pattern })
+                XCTAssertEqual(rule.directory, ".playden-folders/Documents/My Games/FINAL FANTASY VII REMAKE/Steam/\(local)")
+                XCTAssertEqual(rule.cloudPrefix, "%WinMyDocuments%My Games/FINAL FANTASY VII REMAKE/Steam/\(remote)")
+            }
+        }
+    }
+
+    func testTrailingSeparatorsDoNotPermitUnsafeLocalOrUploadPaths() {
+        for path in ["/", "\\", "/saves/", "\\saves\\", "C:\\saves\\", "../saves/", "saves/../", "saves/./", "saves//nested/", "saves/{Unknown}/"] {
+            for item in [
+                SaveFilePattern(root: .WinMyDocuments, path: path, pattern: "*.sav", uploadPath: "safe/"),
+                SaveFilePattern(root: .WinMyDocuments, path: "safe/", pattern: "*.sav", uploadPath: path)
+            ] {
+                let mapping = SteamSaveMapping.build(UFS(saveFilePatterns: [item]))
+                XCTAssertEqual(mapping.coverage, .unknown, path)
+                XCTAssertFalse(mapping.unresolved.isEmpty, path)
+                XCTAssertTrue(mapping.rules.allSatisfy { $0.cloudPrefix == nil }, path)
+            }
+        }
+    }
+
     func testUnknownRootsTraversalAndUnverifiedIdentityNeverBecomeOwnedMappings() {
         for item in [
             SaveFilePattern(root: .LinuxHome, path: "Windows", pattern: "*"),
