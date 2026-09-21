@@ -7,7 +7,7 @@ import Domain
         XCTAssertEqual(GameSettingsCatalog.all.map(\.id), RuntimeSettingID.allCases)
         XCTAssertEqual(RuntimeSettingSection.allCases, [.settings, .display, .compatibility, .advanced])
         XCTAssertEqual(GameSettingsCatalog.rows(in: .settings).map(\.id),
-                       [.graphics, .synchronization, .controller, .windowsVersion, .launchOption])
+                       [.graphics, .dlss, .synchronization, .controller, .windowsVersion, .launchOption])
         XCTAssertEqual(GameSettingsCatalog.rows(in: .display).map(\.id),
                        [.highResolution, .virtualDesktop, .temporaryPrimaryDisplay])
         XCTAssertEqual(GameSettingsCatalog.rows(in: .compatibility).map(\.id),
@@ -25,7 +25,7 @@ import Domain
             case .windowsVersion: return { WindowsVersion(rawValue: $0) != nil }
             case .virtualDesktop: return { VirtualDesktopSize(rawValue: $0) != nil }
             case .frameLimit: return { FrameLimit(rawValue: $0) != nil }
-            case .highResolution, .temporaryPrimaryDisplay, .steamOverlay, .performanceOverlay, .largeAddressAware:
+            case .dlss, .highResolution, .temporaryPrimaryDisplay, .steamOverlay, .performanceOverlay, .largeAddressAware:
                 return { $0 == "on" || $0 == "off" }
             case .launchOption, .launchArguments, .environmentVariables, .libraryOverrides:
                 return { _ in true }
@@ -46,7 +46,7 @@ import Domain
 
     func testOnlyGraphicsAndSynchronizationChangeBottle() {
         let changesBottle = Set(GameSettingsCatalog.all.filter(\.changesBottle).map(\.id))
-        XCTAssertEqual(changesBottle, [.graphics, .synchronization])
+        XCTAssertEqual(changesBottle, [.graphics, .dlss, .synchronization])
     }
 
     func testValueLabelFallsBackToDefaultForChoices() {

@@ -40,6 +40,20 @@ private struct AccountFixtureSource: GameSource {
     func metadata(for game: SourceGameRecord) async throws -> SourceGameRecord { game }
 }
 final class AccountInteractionTests: XCTestCase {
+    @MainActor func testAccountSettingsCanReauthenticateWithoutSigningOut() {
+        let model = LibraryModel(preview: false, source: AccountFixtureSource())
+        defer { model.stopServices() }
+        model.identity = SourceIdentity(sourceID: "fixture", displayName: "Fixture")
+        model.settingsSection = 0; model.settingsIndex = 0; model.settingsRailFocused = false
+        XCTAssertEqual(SettingsScreen(model: model).settings.map { $0.2 }, ["Sign in again", "Sign out"])
+        model.activateSetting()
+        XCTAssertEqual(model.authScreen, .qr)
+        XCTAssertNotNil(model.identity)
+        model.cancelAuthentication()
+        model.settingsIndex = 1; model.activateSetting()
+        XCTAssertEqual(model.panel, .signOut)
+    }
+
     @MainActor func testSignInClearsExpiredNoticeEvenWithoutLibraryRefresh() async throws {
         let model = LibraryModel(preview: false, source: AccountFixtureSource())
         defer { model.stopServices() }
