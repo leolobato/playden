@@ -65,6 +65,7 @@ final class LibraryModel {
     @ObservationIgnored var cloudCommands: [GameID: Task<Void, Never>] = [:]
     var cloudStatuses: [GameID: CloudSyncStatus] = [:]
     var cloudAvailability: [GameID: Bool] = [:]
+    @ObservationIgnored var cloudAvailabilityCache: [GameID: (plan: InstallPlan, available: Bool?)] = [:]
     @ObservationIgnored var cloudInstallationIDs: [GameID: UUID] = [:]
     var cloudReview: CloudSyncOperation?
     @ObservationIgnored var uninstallTask: Task<Void, Never>?

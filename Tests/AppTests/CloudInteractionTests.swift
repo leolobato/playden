@@ -1,6 +1,9 @@
 import XCTest
 import Domain
 import Sessions
+import Catalog
+import Sources
+import Synchronization
 import Input
 @testable import Playden
 
@@ -143,5 +146,53 @@ private actor CloudUIFixture: CloudSyncManaging {
         var ended = syncing; ended.phase = .idle; ended.session?.endedAt = .now; ended.session?.outcome = .clean
         model.receiveSession(ended)
         XCTAssertEqual(returns, 1)
+    }
+}
+
+private final class CloudCapabilitySource: GameSource, Sendable {
+    let id = "steam", displayName = "Fixture"
+    let steam = SteamSource()
+    let lookups = Mutex(0)
+    var auth: any SourceAuth { steam.auth }
+    func ownedGames() async throws -> [SourceGameRecord] { [] }
+    func metadata(for game: SourceGameRecord) async throws -> SourceGameRecord { game }
+    func installer(for game: SourceGameRecord) throws -> any Installer {
+        lookups.withLock { $0 += 1 }
+        return try steam.installer(for: game)
+    }
+}
+
+extension CloudInteractionTests {
+    func testCloudCapabilityCachesUnchangedPlansAndInvalidatesChangedOrRemovedPlans() throws {
+        let catalog = try CatalogStore(), source = CloudCapabilitySource()
+        let game = SourceGameRecord(id: .init(source: "steam", value: "100"), title: "Fixture")
+        let planID = UUID()
+        func plan(quota: Int) -> InstallPlan {
+            .init(id: planID, game: game, manifestIDs: [:],
+                estimate: .init(downloadBytes: 0, installedBytes: 0, requiredBytes: 0),
+                launchSpec: .init(executableRelativePath: "game.exe"),
+                sourcePayload: Data("{\"version\":1,\"app\":{\"appID\":100,\"ufs\":{\"quota\":\(quota),\"maxNumFiles\":0,\"saveFilePatterns\":[]}}}".utf8), launchOptions: [])
+        }
+        var installed = InstallationRecord(game: game,
+            location: .init(volumeID: "disconnected", lastKnownRoot: URL(fileURLWithPath: "/fixture"), relativePath: "game"),
+            bottleID: "fixture", manifestIDs: [:], templateVersion: "1",
+            launchSpec: .init(executableRelativePath: "game.exe"), installedBytes: 0)
+        installed.plan = plan(quota: 1)
+        try catalog.saveInstallation(installed)
+        let model = LibraryModel(catalog: catalog, preview: false, source: source, sessions: CloudSessionFixture(), cloud: CloudUIFixture())
+        defer { model.stopServices() }
+        XCTAssertEqual(model.cloudAvailability[game.id], true)
+        let initial = source.lookups.withLock { $0 }
+        for _ in 0..<10 { model.reloadCatalog() }
+        XCTAssertEqual(source.lookups.withLock { $0 }, initial)
+        installed.plan = plan(quota: 0) // Even a changed payload with the same plan ID invalidates the cache.
+        try catalog.saveInstallation(installed)
+        model.reloadCatalog()
+        XCTAssertEqual(model.cloudAvailability[game.id], false)
+        XCTAssertEqual(source.lookups.withLock { $0 }, initial + 1)
+        try catalog.removeInstallation(id: installed.id)
+        model.reloadCatalog()
+        XCTAssertNil(model.cloudAvailability[game.id])
+        XCTAssertNil(model.cloudAvailabilityCache[game.id])
     }
 }

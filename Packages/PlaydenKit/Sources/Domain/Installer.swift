@@ -112,6 +112,8 @@ public protocol Installer: Sendable {
     func validate(_ plan: InstallPlan, at directory: URL, staging: InstallStaging,
         progress: @escaping @Sendable (InstallFileVerification) -> Void) async throws -> LaunchSpec
     func saveMapping(_ plan: InstallPlan) throws -> SaveMapping
+    /// Display-only capability lookup; must not validate installation content or authorize sync.
+    func supportsCloudSaves(_ plan: InstallPlan) throws -> Bool
     /// Source-specific per-game options resolved from the runtime profile, applied before every launch.
     func applyRuntimeOptions(_ options: [String: String], plan: InstallPlan, at directory: URL) async throws
     /// Source-side cleanup only. Removing the owned game directory/bottle is the orchestrator's job.
@@ -136,6 +138,10 @@ public extension Installer {
         try await postInstall(plan, at: directory)
     }
     func saveMapping(_ plan: InstallPlan) throws -> SaveMapping { SaveMapping() }
+    func supportsCloudSaves(_ plan: InstallPlan) throws -> Bool {
+        let mapping = try saveMapping(plan)
+        return mapping.coverage != .unknown && mapping.unresolved.isEmpty && mapping.rules.contains { $0.cloudPrefix != nil }
+    }
     func applyRuntimeOptions(_ options: [String: String], plan: InstallPlan, at directory: URL) async throws {}
     /// Unmodified sources can reuse their resumable downloader. Sources with staged originals
     /// must provide a repair implementation so backups are never replaced with modified files.

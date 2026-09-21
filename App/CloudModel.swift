@@ -13,11 +13,21 @@ extension LibraryModel {
             for (id, previous) in cloudInstallationIDs where identities[id] != previous { cloudStatuses[id] = nil }
             cloudInstallationIDs = identities
             var values: [GameID: Bool] = [:]
+            var cached: [GameID: (plan: InstallPlan, available: Bool?)] = [:]
             for entry in entries {
                 guard let installed = entry.installation, let plan = installed.plan else { continue }
-                let mapping = try source.installer(for: installed.game).saveMapping(plan)
-                values[entry.id] = mapping.coverage != .unknown && mapping.unresolved.isEmpty && mapping.rules.contains { $0.cloudPrefix != nil }
+                // Metadata updates for other games must not repeatedly inspect this plan.
+                // Cache failures too; retry when the saved plan changes.
+                let available: Bool?
+                if let previous = cloudAvailabilityCache[entry.id], previous.plan == plan {
+                    available = previous.available
+                } else {
+                    available = try? source.installer(for: installed.game).supportsCloudSaves(plan)
+                }
+                cached[entry.id] = (plan, available)
+                values[entry.id] = available
             }
+            cloudAvailabilityCache = cached
             cloudAvailability = values
         } catch { } // Existing status and mapped-file checks remain authoritative on failure.
     }

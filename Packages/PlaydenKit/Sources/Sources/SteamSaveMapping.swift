@@ -2,7 +2,30 @@ import Foundation
 import Domain
 import SteamCore
 
+// Decode only the Cloud declaration. Depot manifests and launch configuration are
+// irrelevant to this display hint; actual save operations still use saveMapping.
+private struct SteamCloudDeclaration: Decodable {
+    struct App: Decodable {
+        let appID: UInt32
+        let ufs: UFS
+    }
+    let version: Int
+    let app: App
+}
+
 extension SteamInstaller {
+    public func supportsCloudSaves(_ plan: InstallPlan) throws -> Bool {
+        guard plan.game.id == gameID, gameID.source == "steam", plan.language == "english" else {
+            throw SteamPlanBuilder.failure("Cloud availability", "The saved plan is for a different game or version.")
+        }
+        let declaration = try JSONDecoder().decode(SteamCloudDeclaration.self, from: plan.sourcePayload)
+        guard declaration.version == 1, String(declaration.app.appID) == gameID.value else {
+            throw SteamPlanBuilder.failure("Cloud availability", "The saved Cloud declaration is invalid.")
+        }
+        let mapping = SteamSaveMapping.build(declaration.app.ufs, appID: declaration.app.appID)
+        return mapping.coverage != .unknown && mapping.unresolved.isEmpty && mapping.rules.contains { $0.cloudPrefix != nil }
+    }
+
     public func saveMapping(_ plan: InstallPlan) throws -> SaveMapping {
         let payload = try SteamPlanBuilder.payload(plan, for: gameID)
         return SteamSaveMapping.build(payload.app.ufs, appID: payload.app.appID)

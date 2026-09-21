@@ -20,6 +20,29 @@ final class SteamInstallerTests: XCTestCase {
     private func plan(_ files: [DepotManifest.File], app info: AppInfo? = nil) throws -> InstallPlan {
         try SteamPlanBuilder.build(game: game, app: info ?? app(), manifests: [manifest(files)], ownedApps: [100])
     }
+    func testCloudCapabilityDoesNotValidateDepotOrLaunchContent() throws {
+        let info = AppInfo(appID: 100, name: "Fixture", ufs: UFS(quota: 1024))
+        let installer = SteamInstaller(game: game, backend: FixtureContentBackend(
+            content: .init(app: info, manifests: [], entitlements: .init(appIDs: [100], depotIDs: [])), chunks: [:]))
+        func saved(_ info: AppInfo, version: Int = 1) throws -> InstallPlan {
+            // Intentionally invalid install content: the display hint must not rebuild it.
+            var payload = SteamInstallPayload(app: info, manifests: [], ownedDLC: [])
+            payload.version = version
+            return InstallPlan(game: game, manifestIDs: [:],
+                estimate: .init(downloadBytes: 0, installedBytes: 0, requiredBytes: 0),
+                launchSpec: .init(executableRelativePath: "missing.exe"), sourcePayload: try JSONEncoder().encode(payload))
+        }
+        let plan = try saved(info)
+        let sourceInstaller: any Installer = installer
+        XCTAssertTrue(try sourceInstaller.supportsCloudSaves(plan))
+        XCTAssertThrowsError(try installer.saveMapping(plan), "Actual save operations must still validate the full plan")
+        XCTAssertFalse(try installer.supportsCloudSaves(saved(AppInfo(appID: 100, name: "No Cloud"))))
+        XCTAssertFalse(try installer.supportsCloudSaves(saved(AppInfo(appID: 100, name: "Unresolved", ufs:
+            UFS(saveFilePatterns: [.init(root: .WinMyDocuments, path: "../outside", pattern: "*")])))))
+        XCTAssertThrowsError(try installer.supportsCloudSaves(saved(info, version: 2)))
+        XCTAssertThrowsError(try installer.supportsCloudSaves(saved(AppInfo(appID: 999, name: "Wrong game", ufs: UFS(quota: 1)))))
+    }
+
     func testWindowsEnglishDepotsIncludeOnlyOwnedDLC() throws {
         let info = app(depots: [
             .init(id: 101, osList: "windows,linux", manifestGID: 7),
