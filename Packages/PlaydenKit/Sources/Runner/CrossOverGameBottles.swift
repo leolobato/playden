@@ -160,6 +160,7 @@ public actor CrossOverGameBottles: GameBottleManaging {
         if prefix.path == destination.path,
            (try? String(contentsOf: prefix.appendingPathComponent(".playden-launch.sh"), encoding: .utf8)) == expected,
            (try? String(contentsOf: prefix.appendingPathComponent(".playden-launcher-name"), encoding: .utf8)) == menuName,
+           (try? String(contentsOf: prefix.appendingPathComponent(".playden-launcher-version"), encoding: .utf8)) == "2",
            files.fileExists(atPath: launcher.path), (try? BottleFolders.verify(prefix)) != nil { return }
         let observation = try inspector.inspect(bottle: prefix)
         guard !observation.processes.contains(where: { $0.kind == .game || $0.kind == .wrapper }) else {
@@ -187,12 +188,19 @@ public actor CrossOverGameBottles: GameBottleManaging {
         let menuReceipt = prefix.appendingPathComponent(".playden-launcher-name")
         let previous = (try? String(contentsOf: menuReceipt, encoding: .utf8)) ?? "StartMenu/Playden Game"
         if previous != menuName, previous.hasPrefix("StartMenu/"), !previous.contains(":"), !previous.contains("\n") {
-            try await run("cxmenu", ["--bottle", prefix.path, "--filter", previous, "--uninstall", "--delete"], timeout: 30)
+            try await run("cxmenu", ["--bottle", prefix.lastPathComponent, "--filter", previous, "--uninstall", "--delete"], timeout: 30)
         }
-        try await run("cxmenu", ["--bottle", prefix.path, "--create", menuName,
+        let icon = prefix.appendingPathComponent(".playden-game-icon.png")
+        let iconData = WindowsExecutableIcon.png(at: directory.appendingPathComponent(spec.executableRelativePath.replacingOccurrences(of: "\\", with: "/")))
+        if let iconData { try iconData.write(to: icon, options: .atomic) }
+        let iconArguments = iconData == nil ? [] : ["--icon", icon.path]
+        // cxmenu uses CX_BOTTLE verbatim as the exported bottle identity. Passing an absolute
+        // path makes Home show the launcher but prevents the bottle view from finding it.
+        try await run("cxmenu", ["--bottle", prefix.lastPathComponent, "--create", menuName,
             "--type", "raw", "--description", title, "--command", "\"${WINEPREFIX}/.playden-launch.sh\"",
-            "--mode", "install", "--install"], timeout: 30)
+            "--mode", "install", "--install"] + iconArguments, timeout: 30)
         try menuName.write(to: menuReceipt, atomically: true, encoding: .utf8)
+        try "2".write(to: prefix.appendingPathComponent(".playden-launcher-version"), atomically: true, encoding: .utf8)
     }
     public func checkRemoval(_ bottle: GameBottle, previousRuntime: RunSnapshot?) async throws {
         guard !busy.contains(bottle.name) else { throw problem("Wait for this game's runtime operation to finish.") }

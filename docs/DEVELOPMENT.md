@@ -179,10 +179,11 @@ unowned/conflicting runtime locations. CrossOver directories use `Game title (pl
 `GameBottle.name` and catalog `bottleID` remain stable ownership identifiers. Resolve physical
 paths through `CrossOverBottlePresentation`, including legacy folders and pending removal receipts.
 Installation completion and queue startup refresh owned, idle bottles and export a native CrossOver
-launcher using `cxmenu`. These direct launchers use the validated executable, working directory and
+launcher using `cxmenu --bottle <name>` (an absolute path breaks the bottle view association).
+Icons are read from PE resources without starting Wine and exported as PNGs. These direct launchers use the validated executable, working directory and
 source DLL overrides; launch through Playden for Cloud synchronization, display routing and session
 tracking. Existing bottles are renamed in place, keeping their ownership marker and saves.
- A missing per-game bottle is recreated and source
+A missing per-game bottle is recreated and source
 preparation must finish before launch; supported Cloud saves are then restored.
 
 | Data | Location |

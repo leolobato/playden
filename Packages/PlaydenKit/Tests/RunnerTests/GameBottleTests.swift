@@ -10,12 +10,14 @@ private struct ReadyTemplate: BottleManaging {
 }
 private actor BottleCommands: CommandExecuting {
     var copies = 0
+    var menuBottles: [String] = []
     var interruptCopy: Bool
     var failValidation: Bool
     var interruptDelete: Bool
     init(interruptCopy: Bool = false, failValidation: Bool = false, interruptDelete: Bool = false) { self.interruptCopy = interruptCopy; self.failValidation = failValidation; self.interruptDelete = interruptDelete }
     func run(executable: URL, arguments: [String], timeout: TimeInterval) async throws -> CommandResult {
         let destination = URL(fileURLWithPath: arguments[arguments.firstIndex(of: "--bottle")! + 1])
+        if executable.lastPathComponent == "cxmenu" { menuBottles.append(arguments[arguments.firstIndex(of: "--bottle")! + 1]) }
         if let index = arguments.firstIndex(of: "--copy") {
             copies += 1
             if interruptCopy {
@@ -59,6 +61,9 @@ final class GameBottleTests: XCTestCase {
         try await manager.updatePresentation(bottle, title: "FINAL FANTASY VII", directory: root, spec: .init(executableRelativePath: "game.exe", dllOverrides: ["steam_api64=n,b"]))
         let renamed = try CrossOverBottlePresentation.directory(for: bottle, under: root)
         XCTAssertEqual(renamed.lastPathComponent, "FINAL FANTASY VII (\(bottle.name))")
+        let menuBottles = await commands.menuBottles
+        XCTAssertFalse(menuBottles.isEmpty)
+        XCTAssertTrue(menuBottles.allSatisfy { $0 == renamed.lastPathComponent }, "CrossOver associates icons using the bottle name, not its absolute path")
         XCTAssertFalse(FileManager.default.fileExists(atPath: old.path))
         XCTAssertEqual(try Data(contentsOf: renamed.appendingPathComponent("progress.sav")), save)
         let ready = try await manager.isReady(bottle); XCTAssertTrue(ready)
