@@ -20,8 +20,8 @@ struct LaunchingGameView: View {
                 if model.session.phase == .syncingSaves {
                     LegendItem(glyph: model.controllerName == nil || model.keyboardNavigation ? "ESC" : model.controllerBackGlyph, title: "Save sync")
                 } else {
-                LegendItem(glyph: model.controllerName == nil || model.keyboardNavigation ? "⇧ HOME" : model.playStationGlyphs ? "PS" : "HOME",
-                           title: model.controllerName == nil || model.keyboardNavigation ? "Game controls" : "Hold for one second to quit")
+                LegendItem(glyph: model.controllerName == nil || model.keyboardNavigation ? "ESC" : model.controllerBackGlyph,
+                           title: "Hold for one second to quit")
                 }
             }.foregroundStyle(Design.secondary).offset(y: 986)
         }.frame(width: 1920, height: 1080).foregroundStyle(Design.text)

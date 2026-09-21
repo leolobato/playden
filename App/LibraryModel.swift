@@ -250,6 +250,8 @@ final class LibraryModel {
     var controllerName: String?
     var connectedControllers: [ControllerSnapshot] = []
     var controllerTest = ControllerTestState()
+    var launchCancelHold = HomeHold()
+    var launchCancelControllerID: String?
     var playStationGlyphs = true
     var useNintendoButtonLayout = false
     var keyboardNavigation = false
@@ -787,6 +789,7 @@ final class LibraryModel {
         show(.controllerTest)
     }
     func receiveControllers(_ values: [ControllerSnapshot], at time: Double) {
+        updateLaunchCancelHold(values, at: time)
         if connectedControllers != values { connectedControllers = values }
         guard panel == .controllerTest else { return }
         if controllerTest.update(values, at: time, backButton: controllerBackButton) { panel = nil }

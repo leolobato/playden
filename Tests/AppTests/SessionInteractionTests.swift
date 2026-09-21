@@ -1,4 +1,5 @@
 import XCTest
+import AppKit
 import Domain
 import Catalog
 import Sessions
@@ -184,9 +185,67 @@ final class SessionInteractionTests: XCTestCase {
         model.tab = .library
         model.perform(.nextTab); model.perform(.home)
         XCTAssertEqual(model.tab, .library)
-        model.perform(.back); XCTAssertTrue(model.exitOverlay)
+        model.perform(.back); XCTAssertFalse(model.exitOverlay)
+        model.perform(.holdHome); XCTAssertFalse(model.exitOverlay)
+        let pressed = ControllerSnapshot(id: "pad", name: "Controller", playStation: true, buttons: [.east: 1])
+        model.receiveControllers([pressed], at: 0)
+        model.receiveControllers([pressed], at: 0.999)
+        XCTAssertFalse(model.exitOverlay)
+        model.receiveControllers([pressed], at: 1)
+        XCTAssertTrue(model.exitOverlay)
         model.perform(.nextTab); XCTAssertEqual(model.tab, .library)
         model.perform(.confirm); XCTAssertFalse(model.exitOverlay)
+    }
+    func testLaunchCancelHoldResetsOnReleaseDisconnectAndFocusLoss() {
+        let model = LibraryModel(); model.session = snapshot(phase: .launching)
+        let pressed = ControllerSnapshot(id: "pad", name: "Controller", playStation: true, buttons: [.east: 1])
+        model.receiveControllers([pressed], at: 0)
+        model.receiveControllers([], at: 0.9)
+        model.receiveControllers([pressed], at: 1)
+        model.receiveControllers([pressed], at: 1.9)
+        XCTAssertFalse(model.exitOverlay)
+        model.resetLaunchCancelHold()
+        model.receiveControllers([pressed], at: 2)
+        model.receiveControllers([pressed], at: 2.9)
+        XCTAssertFalse(model.exitOverlay)
+        model.receiveControllers([pressed], at: 3)
+        XCTAssertTrue(model.exitOverlay)
+    }
+    func testLaunchCancelRespectsNintendoLayoutAndDoesNotQuitRunningGame() {
+        let model = LibraryModel(); model.session = snapshot(phase: .launching)
+        model.useNintendoButtonLayout = true
+        let east = ControllerSnapshot(id: "pad", name: "Controller", playStation: false, buttons: [.east: 1])
+        let south = ControllerSnapshot(id: "pad", name: "Controller", playStation: false, buttons: [.south: 1])
+        model.receiveControllers([east], at: 0); model.receiveControllers([east], at: 2)
+        XCTAssertFalse(model.exitOverlay)
+        model.receiveControllers([south], at: 3); model.receiveControllers([south], at: 4)
+        XCTAssertTrue(model.exitOverlay)
+        model.returnToGame(); model.session = snapshot(phase: .running)
+        model.receiveControllers([south], at: 5); model.receiveControllers([south], at: 7)
+        XCTAssertFalse(model.exitOverlay)
+        model.perform(.holdHome); XCTAssertTrue(model.exitOverlay)
+    }
+    func testEscapeRequiresOneSecondAndReleaseCancelsPendingHold() async throws {
+        let delegate = AppDelegate(); delegate.model.session = snapshot(phase: .launching)
+        func escape(_ type: NSEvent.EventType, repeat repeating: Bool = false) throws -> NSEvent {
+            try XCTUnwrap(NSEvent.keyEvent(with: type, location: .zero, modifierFlags: [], timestamp: 0,
+                windowNumber: 0, context: nil, characters: "\u{1b}", charactersIgnoringModifiers: "\u{1b}",
+                isARepeat: repeating, keyCode: 53))
+        }
+        _ = delegate.handle(try escape(.keyDown))
+        XCTAssertFalse(delegate.model.exitOverlay)
+        _ = delegate.handle(try escape(.keyUp))
+        try await Task.sleep(for: .milliseconds(1100))
+        XCTAssertFalse(delegate.model.exitOverlay)
+        _ = delegate.handle(try escape(.keyDown))
+        try await Task.sleep(for: .milliseconds(1100))
+        XCTAssertTrue(delegate.model.exitOverlay)
+        _ = delegate.handle(try escape(.keyDown, repeat: true))
+        XCTAssertTrue(delegate.model.exitOverlay)
+        _ = delegate.handle(try escape(.keyUp))
+        _ = delegate.handle(try escape(.keyDown))
+        XCTAssertFalse(delegate.model.exitOverlay, "A fresh Escape press dismisses the overlay")
+        _ = delegate.handle(try escape(.keyUp))
     }
     func testNotificationActionsHaveTheirOwnFocusAndDoNotStealSortFilter() {
         let model = LibraryModel(); model.tab = .library

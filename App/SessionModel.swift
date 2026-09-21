@@ -31,6 +31,25 @@ extension LibraryModel {
     func isGameRunning(_ id: GameID) -> Bool {
         session.session?.gameID == id && (session.phase == .running || session.phase == .stopping)
     }
+    var canHoldToCancelLaunch: Bool {
+        (session.phase == .preparing || session.phase == .launching) && !exitOverlay && panel == nil
+    }
+    func resetLaunchCancelHold() {
+        launchCancelHold = HomeHold(); launchCancelControllerID = nil
+    }
+    func updateLaunchCancelHold(_ controllers: [ControllerSnapshot], at time: Double) {
+        guard canHoldToCancelLaunch,
+              let controller = controllers.first(where: { $0.pressed.contains(controllerBackButton) }) else {
+            resetLaunchCancelHold(); return
+        }
+        if launchCancelControllerID != controller.id {
+            resetLaunchCancelHold(); launchCancelControllerID = controller.id
+        }
+        if launchCancelHold.update(pressed: true, at: time) {
+            keyboardNavigation = false
+            setExitOverlay(true)
+        }
+    }
     var isLaunchingGame: Bool { session.phase == .preparing || session.phase == .launching || session.phase == .syncingSaves }
     var sessionGame: Game? {
         guard let record = session.game else { return nil }
@@ -198,7 +217,7 @@ extension LibraryModel {
             return true
         }
         if case .holdHome = action {
-            if hasActiveSession { exitOverlay ? returnToGame() : setExitOverlay(true) }
+            if hasActiveSession && !isLaunchingGame { exitOverlay ? returnToGame() : setExitOverlay(true) }
             return true
         }
         if exitOverlay {
@@ -211,10 +230,7 @@ extension LibraryModel {
             }
             return true
         }
-        if isLaunchingGame {
-            if case .back = action { setExitOverlay(true) }
-            return true
-        }
+        if isLaunchingGame { return true }
         if showsSessionIssue {
             if case .context = action { sessionIssueFocused.toggle(); sessionIssueIndex = 0; return true }
             if sessionIssueFocused {

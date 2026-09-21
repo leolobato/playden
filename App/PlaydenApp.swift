@@ -50,6 +50,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     var window: NSWindow!
     var keyboardMonitor: Any?
     private var mouseMonitor: Any?
+    private var launchEscapeHoldTask: Task<Void, Never>?
     private var exitPanel: GameExitPanel?
     private let exitShortcut = GameExitShortcut()
     private let gameActivation = GameActivationWaiter(system: MacGameActivationSystem())
@@ -210,7 +211,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
                 self?.model.receiveControllerConnection(name: name, playStation: playStation)
             }
             controller.start()
-            keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            keyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp]) { [weak self] event in
                 var result: NSEvent? = event
                 MainActor.assumeIsolated {
                     if let self { result = self.handle(event) }
@@ -273,6 +274,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     }
     func applicationWillTerminate(_ notification: Notification) {
         immersiveFullscreenTask?.cancel()
+        launchEscapeHoldTask?.cancel()
         model.stopServices()
         controller.stop()
         exitShortcut.stop()
@@ -283,7 +285,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         if let mouseMonitor { NSEvent.removeMonitor(mouseMonitor) }
         restoreCursor()
     }
-    func applicationDidResignActive(_ notification: Notification) { model.launcherActive = false; restoreCursor() }
+    func applicationDidResignActive(_ notification: Notification) {
+        launchEscapeHoldTask?.cancel(); launchEscapeHoldTask = nil
+        model.resetLaunchCancelHold()
+        model.launcherActive = false; restoreCursor()
+    }
     func applicationDidBecomeActive(_ notification: Notification) {
         model.launcherActive = true
         model.requestInstallationDriveRefresh()
@@ -442,7 +448,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         NSCursor.setHiddenUntilMouseMoves(true)
     }
     func handle(_ event: NSEvent) -> NSEvent? {
+        if event.type == .keyUp {
+            if event.keyCode == 53, launchEscapeHoldTask != nil {
+                launchEscapeHoldTask?.cancel(); launchEscapeHoldTask = nil
+                return nil
+            }
+            return event
+        }
         model.keyboardNavigation = true
+        if event.keyCode == 53, model.canHoldToCancelLaunch, !event.modifierFlags.contains(.command) {
+            if !event.isARepeat && launchEscapeHoldTask == nil {
+                let sessionID = model.session.session?.id
+                launchEscapeHoldTask = Task { [weak self] in
+                    do { try await Task.sleep(for: .seconds(1)) } catch { return }
+                    guard let self, !Task.isCancelled, self.model.canHoldToCancelLaunch,
+                          self.model.session.session?.id == sessionID else { return }
+                    self.hideCursorForNavigation()
+                    self.model.setExitOverlay(true)
+                }
+            }
+            return nil
+        }
+        // Swallow repeats until the held Escape is released, including after the overlay opens.
+        if event.keyCode == 53, launchEscapeHoldTask != nil { return nil }
         if event.keyCode == 115, event.modifierFlags.contains(.shift), model.hasActiveSession { hideCursorForNavigation(); model.perform(.holdHome); return nil }
         if (model.exitOverlay || model.isLaunchingGame) && event.modifierFlags.contains(.command) { return event }
         if event.modifierFlags.contains(.command) {

@@ -11,6 +11,9 @@ Journey: **play**. From Play to player control, to clean exit back to Home.
 - **FR-LAUNCH-2 (v1):** A "Launching <title>" state is shown until the game's first window is
   observed; the launcher then lowers its window level and hides its cursor so the game is frontmost.
   No hang detection in v1: the spinner stays and the exit overlay is the escape hatch.
+  During preparation and window waiting, hold Circle/B (the configured Back button) or Escape
+  for one second to open quit controls; a short press does nothing. Save syncing retains its
+  Save sync action. PS/Home hold remains the in-game shortcut.
 - **FR-LAUNCH-3 (v1):** Launch failure (process exits before a window appears, `cxstart` error)
   returns to the game page with the failing stage and captured output (07 §2).
 - **FR-LAUNCH-4 (v1):** Only one game runs at a time; Play on another game asks to quit the current
