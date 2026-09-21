@@ -180,6 +180,12 @@ unowned/conflicting runtime locations. CrossOver directories use `Game title (pl
 paths through `CrossOverBottlePresentation`, including legacy folders and pending removal receipts.
 Installation completion and queue startup refresh owned, idle bottles and export a native CrossOver
 launcher using `cxmenu --bottle <name>` (an absolute path breaks the bottle view association).
+CrossOver consumes the exported menu to create its macOS launcher app. If CrossOver is already
+open during installation, reopen it to refresh the bottle's applications. A menu plist alone
+does not establish that the bottle view has refreshed. For manual verification, export a new
+shortcut in a disposable bottle, reopen CrossOver, and check both Home and the bottle view,
+plus the generated app's game icon and `CXHelperAppBottleName`. This flow was verified with
+CrossOver 26.2, including a bottle with `MenuMode = ignore`; no bottle-wide menu change is needed.
 Icons are read from PE resources without starting Wine and exported as PNGs. These direct launchers use the validated executable, working directory and
 source DLL overrides; launch through Playden for Cloud synchronization, display routing and session
 tracking. Existing bottles are renamed in place, keeping their ownership marker and saves.
