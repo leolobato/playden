@@ -27,11 +27,18 @@ final class RuntimeMechanismsTests: XCTestCase {
     }
     func testBottleEnvironmentCoversAllSynchronizationModes() {
         XCTAssertEqual(RuntimeMechanisms.bottleEnvironment(RuntimeSettings(synchronization: .msync)),
-            ["CX_GRAPHICS_BACKEND": "d3dmetal", "WINEMSYNC": "1", "WINEESYNC": "0"])
+            ["D3DM_ENABLE_METALFX": "0", "DXMT_ENABLE_NVEXT": "0", "CX_GRAPHICS_BACKEND": "d3dmetal", "WINEMSYNC": "1", "WINEESYNC": "0"])
         XCTAssertEqual(RuntimeMechanisms.bottleEnvironment(RuntimeSettings(synchronization: .esync)),
-            ["CX_GRAPHICS_BACKEND": "d3dmetal", "WINEMSYNC": "0", "WINEESYNC": "1"])
+            ["D3DM_ENABLE_METALFX": "0", "DXMT_ENABLE_NVEXT": "0", "CX_GRAPHICS_BACKEND": "d3dmetal", "WINEMSYNC": "0", "WINEESYNC": "1"])
         XCTAssertEqual(RuntimeMechanisms.bottleEnvironment(RuntimeSettings(synchronization: .off)),
-            ["CX_GRAPHICS_BACKEND": "d3dmetal", "WINEMSYNC": "0", "WINEESYNC": "0"])
+            ["D3DM_ENABLE_METALFX": "0", "DXMT_ENABLE_NVEXT": "0", "CX_GRAPHICS_BACKEND": "d3dmetal", "WINEMSYNC": "0", "WINEESYNC": "0"])
+    }
+    func testDLSSUsesCrossOverFlagsAndDisablesThemWithDXVK() {
+        var settings = RuntimeSettings(dlss: true)
+        XCTAssertEqual(RuntimeMechanisms.bottleEnvironment(settings)["DXMT_ENABLE_NVEXT"], "1")
+        settings.graphics = .dxvk
+        XCTAssertEqual(RuntimeMechanisms.bottleEnvironment(settings)["DXMT_ENABLE_NVEXT"], "0")
+        XCTAssertEqual(RuntimeMechanisms.bottleEnvironment(settings)["D3DM_ENABLE_METALFX"], "0")
     }
     func testLaunchEnvironmentOnlyIncludesDXVKHUDWithDXVKBackend() {
         XCTAssertEqual(RuntimeMechanisms.launchEnvironment(.playdenDefault), [:])

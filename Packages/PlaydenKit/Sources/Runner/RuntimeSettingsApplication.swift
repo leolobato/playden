@@ -18,7 +18,7 @@ enum RuntimeMechanisms {
     /// Environment keys Playden manages on the game's behalf. A user-supplied value for any of
     /// these would silently collide with a mechanism above, so `effectiveSpec` rejects it instead.
     static let managedKeys: Set<String> = [
-        "CX_GRAPHICS_BACKEND", "WINEMSYNC", "WINEESYNC", "DXVK_FRAME_RATE",
+        "D3DM_ENABLE_METALFX", "DXMT_ENABLE_NVEXT", "CX_GRAPHICS_BACKEND", "WINEMSYNC", "WINEESYNC", "DXVK_FRAME_RATE",
         "MTL_HUD_ENABLED", "DXVK_HUD", "WINE_LARGE_ADDRESS_AWARE"
     ]
 
@@ -26,6 +26,9 @@ enum RuntimeMechanisms {
     /// environment, so the graphics backend and sync mode must be written there.
     static func bottleEnvironment(_ settings: RuntimeSettings) -> [String: String] {
         var environment = ["CX_GRAPHICS_BACKEND": settings.graphics.rawValue]
+        let enabled = settings.dlss && settings.graphics != .dxvk
+        environment["D3DM_ENABLE_METALFX"] = enabled && ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 26 ? "1" : "0"
+        environment["DXMT_ENABLE_NVEXT"] = enabled ? "1" : "0"
         switch settings.synchronization {
         case .msync: environment["WINEMSYNC"] = "1"; environment["WINEESYNC"] = "0"
         case .esync: environment["WINEMSYNC"] = "0"; environment["WINEESYNC"] = "1"

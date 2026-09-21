@@ -69,6 +69,7 @@ public enum RuntimeResolver {
         .synchronization: .scalar(SynchronizationMode.playdenDefault.rawValue),
         .controller: .scalar(ControllerMode.playdenDefault.rawValue),
         .windowsVersion: .scalar(WindowsVersion.playdenDefault.rawValue),
+        .dlss: .scalar("off"),
         .highResolution: .scalar(RuntimeToggle(true).rawValue),
         .virtualDesktop: .scalar(VirtualDesktopSize.playdenDefault.rawValue),
         // A system-wide display change requires a per-game user override; profiles cannot enable it.
@@ -109,6 +110,7 @@ public enum RuntimeResolver {
         if let raw = scalar(.synchronization), let value = SynchronizationMode(rawValue: raw) { settings.synchronization = value }
         if let raw = scalar(.controller), let value = ControllerMode(rawValue: raw) { settings.controller = value }
         if let raw = scalar(.windowsVersion), let value = WindowsVersion(rawValue: raw) { settings.windowsVersion = value }
+        if let raw = scalar(.dlss), let value = RuntimeToggle(rawValue: raw) { settings.dlss = value.boolValue }
         if let raw = scalar(.highResolution), let value = RuntimeToggle(rawValue: raw) { settings.highResolution = value.boolValue }
         if let raw = scalar(.virtualDesktop), let value = VirtualDesktopSize(rawValue: raw) { settings.virtualDesktop = value }
         if let raw = scalar(.temporaryPrimaryDisplay), let value = RuntimeToggle(rawValue: raw) { settings.temporaryPrimaryDisplay = value.boolValue }

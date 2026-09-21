@@ -81,6 +81,15 @@ enum GameSettingsCatalog {
                                          explanation: "Turns DirectX 11 straight into Metal. Often faster than DXVK and renders some games correctly where D3DMetal glitches.",
                                          technicalNames: "DXMT"),
                 ]), changesBottle: true)
+        case .dlss:
+            return RuntimeSettingDefinition(
+                id: .dlss, title: "DLSS",
+                effect: "Enables MetalFX upscaling in games with a DLSS option. Also enable DLSS in the game. Requires CrossOver 26 and Apple Silicon: macOS Tahoe with D3DMetal, or Sonoma or later with DXMT. Unavailable with DXVK.",
+                alsoCalled: "MetalFX · D3DM_ENABLE_METALFX · DXMT_ENABLE_NVEXT", section: .settings,
+                kind: .choices([
+                    RuntimeSettingChoice(value: "off", name: "Off", shortName: "Off", explanation: "Use the game’s usual rendering options.", technicalNames: "DLSS disabled"),
+                    RuntimeSettingChoice(value: "on", name: "On", shortName: "On", explanation: "Render at a lower resolution and upscale using MetalFX. Requires a supported graphics backend and an in-game DLSS option.", technicalNames: "DLSS powered by MetalFX"),
+                ]), changesBottle: true)
         case .synchronization:
             return RuntimeSettingDefinition(
                 id: .synchronization, title: "Synchronization",

@@ -16,7 +16,7 @@ enum RuntimeTextValidation {
     ]
     /// Environment keys Playden itself manages through other settings rows.
     fileprivate static let managedEnvironmentKeys: Set<String> = [
-        "CX_GRAPHICS_BACKEND", "WINEMSYNC", "WINEESYNC", "DXVK_FRAME_RATE", "MTL_HUD_ENABLED", "DXVK_HUD", "WINE_LARGE_ADDRESS_AWARE"
+        "D3DM_ENABLE_METALFX", "DXMT_ENABLE_NVEXT", "CX_GRAPHICS_BACKEND", "WINEMSYNC", "WINEESYNC", "DXVK_FRAME_RATE", "MTL_HUD_ENABLED", "DXVK_HUD", "WINE_LARGE_ADDRESS_AWARE"
     ]
     private static let environmentKeyPattern = #"^[A-Za-z_][A-Za-z0-9_]*$"#
     private static let libraryOverridePattern = #"^[A-Za-z0-9_.*-]+=(n|b|d|n,b|b,n)$"#

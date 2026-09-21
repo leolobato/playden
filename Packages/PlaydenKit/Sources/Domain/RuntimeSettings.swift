@@ -1,7 +1,7 @@
 import Foundation
 
 public enum RuntimeSettingID: String, Codable, CaseIterable, Sendable, CodingKeyRepresentable {
-    case graphics, synchronization, controller, windowsVersion, launchOption
+    case graphics, dlss, synchronization, controller, windowsVersion, launchOption
     case highResolution, virtualDesktop, temporaryPrimaryDisplay, steamOverlay, performanceOverlay, frameLimit, largeAddressAware
     case launchArguments, environmentVariables, libraryOverrides
 }
@@ -114,6 +114,7 @@ public struct RuntimeSettings: Equatable, Sendable {
     public var synchronization: SynchronizationMode
     public var controller: ControllerMode
     public var windowsVersion: WindowsVersion
+    public var dlss: Bool
     public var highResolution: Bool
     public var virtualDesktop: VirtualDesktopSize
     public var temporaryPrimaryDisplay: Bool
@@ -127,12 +128,12 @@ public struct RuntimeSettings: Equatable, Sendable {
     public var sourceOptions: [String: String]
     public init(graphics: GraphicsBackend = .playdenDefault, synchronization: SynchronizationMode = .playdenDefault,
                 controller: ControllerMode = .playdenDefault, windowsVersion: WindowsVersion = .playdenDefault,
-                highResolution: Bool = true, virtualDesktop: VirtualDesktopSize = .playdenDefault, temporaryPrimaryDisplay: Bool = false,
+                dlss: Bool = false, highResolution: Bool = true, virtualDesktop: VirtualDesktopSize = .playdenDefault, temporaryPrimaryDisplay: Bool = false,
                 performanceOverlay: Bool = false, frameLimit: FrameLimit = .playdenDefault, largeAddressAware: Bool = false,
                 launchOptionID: String? = nil, launchArguments: [String] = [], environment: [String: String] = [:],
                 dllOverrides: [String] = [], sourceOptions: [String: String] = ["steam.overlay": "0"]) {
         self.graphics = graphics; self.synchronization = synchronization; self.controller = controller
-        self.windowsVersion = windowsVersion; self.highResolution = highResolution; self.virtualDesktop = virtualDesktop
+        self.dlss = dlss; self.windowsVersion = windowsVersion; self.highResolution = highResolution; self.virtualDesktop = virtualDesktop
         self.temporaryPrimaryDisplay = temporaryPrimaryDisplay
         self.performanceOverlay = performanceOverlay; self.frameLimit = frameLimit; self.largeAddressAware = largeAddressAware
         self.launchOptionID = launchOptionID; self.launchArguments = launchArguments; self.environment = environment
