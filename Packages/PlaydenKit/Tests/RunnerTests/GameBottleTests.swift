@@ -25,7 +25,7 @@ private actor BottleCommands: CommandExecuting {
                 return .init(exitCode: 15, output: "", cancelled: true)
             }
             try FileManager.default.copyItem(at: URL(fileURLWithPath: arguments[index + 1]), to: destination)
-        } else if arguments.contains("--delete") {
+        } else if executable.lastPathComponent == "cxbottle", arguments.contains("--delete") {
             if interruptDelete {
                 interruptDelete = false
                 try FileManager.default.removeItem(at: destination.appendingPathComponent("cxbottle.conf"))
@@ -47,6 +47,40 @@ private struct RemovalInspector: RuntimeInspecting {
     func identity(of pid: Int32) -> ProcessIdentity? { identities[pid] }
 }
 final class GameBottleTests: XCTestCase {
+    func testTitledBottlePreservesOwnershipSavesAndResumableRemoval() async throws {
+        let root = try fixture(), bottle = reference(), commands = BottleCommands(interruptDelete: true)
+        let manager = CrossOverGameBottles(bottles: root, runtime: ReadyTemplate(), commands: commands, inspector: RemovalInspector())
+        try await manager.prepare(bottle)
+        try await manager.completeSourcePreparation(bottle)
+        let old = root.appendingPathComponent(bottle.name)
+        let save = Data("save progress".utf8)
+        try save.write(to: old.appendingPathComponent("progress.sav"))
+        try Data("exe".utf8).write(to: root.appendingPathComponent("game.exe"))
+        try await manager.updatePresentation(bottle, title: "FINAL FANTASY VII", directory: root, spec: .init(executableRelativePath: "game.exe", dllOverrides: ["steam_api64=n,b"]))
+        let renamed = try CrossOverBottlePresentation.directory(for: bottle, under: root)
+        XCTAssertEqual(renamed.lastPathComponent, "FINAL FANTASY VII (\(bottle.name))")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: old.path))
+        XCTAssertEqual(try Data(contentsOf: renamed.appendingPathComponent("progress.sav")), save)
+        let ready = try await manager.isReady(bottle); XCTAssertTrue(ready)
+        let pending = try await manager.requiresSourcePreparation(bottle); XCTAssertFalse(pending)
+        let script = try String(contentsOf: renamed.appendingPathComponent(".playden-launch.sh"), encoding: .utf8)
+        XCTAssertTrue(script.contains("'steam_api64=n,b'"))
+        try await manager.updatePresentation(bottle, title: "FINAL FANTASY VII", directory: root, spec: .init(executableRelativePath: "game.exe"))
+        do { try await manager.remove(bottle); XCTFail("Expected interrupted delete") } catch is CancellationError {}
+        let reopened = CrossOverGameBottles(bottles: root, runtime: ReadyTemplate(), commands: commands, inspector: RemovalInspector())
+        try await reopened.remove(bottle)
+        try await reopened.verifyRemoved(bottle)
+    }
+    func testPresentationNamesAreBoundedAndDuplicateLocationsAreRejected() throws {
+        let root = try fixture(), bottle = reference()
+        let name = CrossOverBottlePresentation.name(title: String(repeating: "界", count: 300) + "/$(oops)", bottle: bottle)
+        XCTAssertLessThan(name.utf8.count, 255)
+        XCTAssertFalse(name.contains("/")); XCTAssertFalse(name.contains("$"))
+        for name in [bottle.name, "Game (\(bottle.name))"] {
+            try FileManager.default.createDirectory(at: root.appendingPathComponent(name), withIntermediateDirectories: true)
+        }
+        XCTAssertThrowsError(try CrossOverBottlePresentation.directory(for: bottle, under: root))
+    }
     func testSourcePreparationRemainsPendingAcrossRestartUntilAcknowledged() async throws {
         let root = try fixture(), bottle = reference(), commands = BottleCommands()
         let first = CrossOverGameBottles(bottles: root, runtime: ReadyTemplate(), commands: commands, inspector: RemovalInspector())

@@ -175,7 +175,14 @@ before publishing a release. Increase the build number for subsequent builds of 
 
 CrossOver 26.x supplies the runtime. Playden prepares an owned `playden-template-1` Windows 10
 64-bit template with MSync and D3DMetal, then clones an owned bottle for each game. It rejects
-unowned/conflicting runtime locations. A missing per-game bottle is recreated and source
+unowned/conflicting runtime locations. CrossOver directories use `Game title (playden-steam-appID)`;
+`GameBottle.name` and catalog `bottleID` remain stable ownership identifiers. Resolve physical
+paths through `CrossOverBottlePresentation`, including legacy folders and pending removal receipts.
+Installation completion and queue startup refresh owned, idle bottles and export a native CrossOver
+launcher using `cxmenu`. These direct launchers use the validated executable, working directory and
+source DLL overrides; launch through Playden for Cloud synchronization, display routing and session
+tracking. Existing bottles are renamed in place, keeping their ownership marker and saves.
+ A missing per-game bottle is recreated and source
 preparation must finish before launch; supported Cloud saves are then restored.
 
 | Data | Location |

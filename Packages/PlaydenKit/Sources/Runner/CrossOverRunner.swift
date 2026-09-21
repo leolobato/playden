@@ -290,7 +290,7 @@ public actor CrossOverRunner: GameRunner {
     private func tool(_ name: String) -> URL { application.appendingPathComponent("Contents/SharedSupport/CrossOver/bin/" + name) }
     private func prefix(_ bottle: GameBottle) throws -> URL {
         guard bottle.name == CrossOverGameBottles.name(for: bottle.gameID) else { throw failure("Game runtime", "The saved bottle does not match this game.") }
-        return bottles.appendingPathComponent(bottle.name)
+        return try CrossOverBottlePresentation.directory(for: bottle, under: bottles)
     }
     private func verifyOwnership(_ bottle: GameBottle, at prefix: URL) throws {
         struct Receipt: Decodable { let bottle: GameBottle }

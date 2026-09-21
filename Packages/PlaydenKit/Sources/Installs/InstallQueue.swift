@@ -51,6 +51,7 @@ public actor InstallQueue: InstallQueuing {
     private var activeID: UUID?
     private var activeRun: UUID?
     private var running = false
+    private var startupID: UUID?
     private var persistenceFailure: OperationFailure?
     private var progressTime: TimeInterval = 0
     private var progressCompleted: Int64 = 0
@@ -87,8 +88,11 @@ public actor InstallQueue: InstallQueuing {
         }
     }
     private func removeObserver(_ id: UUID) { observers[id] = nil }
-    public func start() throws {
+    public func start() async throws {
         guard !running else { return }
+        guard startupID == nil else { throw Self.failure("Start queue", "The install queue is already starting.") }
+        let startup = UUID(); startupID = startup
+        defer { if startupID == startup { startupID = nil } }
         for var job in ordered where ![.completed, .cancelled].contains(job.state) {
             if job.state == .running || job.state == .stopping {
                 job.state = job.pauseReasons.isEmpty || job.cancellationRequested == true ? .queued : .paused
@@ -97,10 +101,27 @@ public actor InstallQueue: InstallQueuing {
                 try save(job)
             }
         }
+        // Refresh older installs before opening the queue to new work. The bottle manager
+        // refuses running games; disconnected drives and unfinished maintenance retry next start.
+        let activeGames = Set(try catalog.unfinishedSessions().map(\.gameID))
+        for entry in try catalog.snapshot().entries {
+            guard startupID == startup else { throw CancellationError() }
+            guard let installed = entry.installation, installed.needsRepair != true, !activeGames.contains(installed.gameID),
+                  !ordered.contains(where: { $0.gameID == installed.gameID && ![.completed, .cancelled].contains($0.state) }) else { continue }
+            do {
+                let directory = try await storage.directory(installed.location, gameID: installed.gameID, owner: installed.ownershipToken)
+                let bottle = GameBottle(gameID: installed.gameID, name: installed.bottleID, ownershipToken: installed.ownershipToken, templateVersion: installed.templateVersion)
+                try await bottles.updatePresentation(bottle, title: installed.game.title, directory: directory, spec: installed.launchSpec)
+            } catch {
+                // Cosmetic integration must not prevent offline play or queue recovery.
+                continue
+            }
+        }
+        guard startupID == startup else { throw CancellationError() }
         running = true; pump()
     }
     public func shutdown() async {
-        running = false; activeTask?.cancel()
+        startupID = nil; running = false; activeTask?.cancel()
         await activeTask?.value
     }
     public func offer(for game: SourceGameRecord, volume: GamesVolumeSelection) async throws -> InstallOffer {
@@ -280,6 +301,7 @@ public actor InstallQueue: InstallQueuing {
                     guard let location = job.location, let staging = job.staging, let launch = job.launchSpec else { throw Self.failure("Finish install", "The installation has not finished validation.") }
                     // Staging and launch validation are already checkpointed in the job. If
                     // acknowledgment or the installation commit fails, Retry resumes here.
+                    try await bottles.updatePresentation(bottle, title: plan.game.title, directory: directory(job), spec: launch)
                     try await bottles.completeSourcePreparation(bottle)
                     var installation = InstallationRecord(game: plan.game, location: location, bottleID: bottle.name, ownershipToken: bottle.ownershipToken,
                         manifestIDs: plan.manifestIDs, language: plan.language, templateVersion: bottle.templateVersion, recipeVersion: plan.recipeVersion,

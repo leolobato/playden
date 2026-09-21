@@ -4,6 +4,7 @@ import Darwin
 import Domain
 
 public protocol GameBottleManaging: Sendable {
+    func updatePresentation(_ bottle: GameBottle, title: String, directory: URL, spec: LaunchSpec) async throws
     func prepare(_ bottle: GameBottle) async throws
     func isReady(_ bottle: GameBottle) async throws -> Bool
     func requiresSourcePreparation(_ bottle: GameBottle) async throws -> Bool
@@ -19,6 +20,7 @@ public protocol GameBottleManaging: Sendable {
 }
 
 extension GameBottleManaging {
+    public func updatePresentation(_ bottle: GameBottle, title: String, directory: URL, spec: LaunchSpec) async throws {}
     public func requiresSourcePreparation(_ bottle: GameBottle) async throws -> Bool { false }
     public func completeSourcePreparation(_ bottle: GameBottle) async throws {}
     public func verifyRemoved(_ bottle: GameBottle) async throws {
@@ -58,8 +60,8 @@ public actor CrossOverGameBottles: GameBottleManaging {
     }
     public func isReady(_ bottle: GameBottle) throws -> Bool {
         try validateIdentity(bottle)
-        if removal(bottle).isPending { return false }
-        let destination = bottles.appendingPathComponent(bottle.name)
+        if (try removal(bottle)).isPending { return false }
+        let destination = (try CrossOverBottlePresentation.directory(for: bottle, under: bottles))
         guard exists(destination) else { return false }
         guard try readMarker(at: destination, matching: bottle).ready else { return false }
         try checkConfiguration(destination)
@@ -68,7 +70,7 @@ public actor CrossOverGameBottles: GameBottleManaging {
     }
     public func ownedDirectory(_ bottle: GameBottle) async throws -> URL {
         guard !busy.contains(bottle.name), try isReady(bottle) else { throw problem("The game's save folder is not ready.") }
-        let destination = bottles.appendingPathComponent(bottle.name)
+        let destination = (try CrossOverBottlePresentation.directory(for: bottle, under: bottles))
         guard let physical = realpath(destination.path, nil) else { throw problem("The game's save folder is unavailable.") }
         defer { free(physical) }
         let directory = URL(fileURLWithPath: String(cString: physical))
@@ -79,12 +81,12 @@ public actor CrossOverGameBottles: GameBottleManaging {
         guard !busy.contains(bottle.name), try isReady(bottle) else { throw problem("The game's runtime is not ready for source preparation.") }
         // Older ownership markers have no acknowledgment. Validate them once before trusting
         // their source preparation, including runtimes left ready by an interrupted old build.
-        return try readMarker(at: bottles.appendingPathComponent(bottle.name), matching: bottle).sourcePreparationPending ?? true
+        return try readMarker(at: (try CrossOverBottlePresentation.directory(for: bottle, under: bottles)), matching: bottle).sourcePreparationPending ?? true
     }
     public func completeSourcePreparation(_ bottle: GameBottle) async throws {
         try Task.checkCancellation()
         guard !busy.contains(bottle.name), try isReady(bottle) else { throw problem("The game's runtime changed during source preparation.") }
-        let directory = bottles.appendingPathComponent(bottle.name)
+        let directory = (try CrossOverBottlePresentation.directory(for: bottle, under: bottles))
         var marker = try readMarker(at: directory, matching: bottle)
         if marker.sourcePreparationPending == false { return }
         marker.sourcePreparationPending = false
@@ -92,14 +94,14 @@ public actor CrossOverGameBottles: GameBottleManaging {
     }
     public func prepare(_ bottle: GameBottle) async throws {
         try validateIdentity(bottle)
-        guard !removal(bottle).isPending else { throw problem("Finish removing this game's runtime before reinstalling it.") }
+        guard !(try removal(bottle)).isPending else { throw problem("Finish removing this game's runtime before reinstalling it.") }
         guard busy.insert(bottle.name).inserted else { throw problem("Game runtime setup is already running.") }
         defer { busy.remove(bottle.name) }
         try Task.checkCancellation()
         var info = await runtime.inspect()
         if !info.templateReady { info = try await runtime.prepareTemplate(onProgress: { _ in }) }
         guard info.templateReady, info.templateVersion == bottle.templateVersion else { throw problem("The required game runtime template is unavailable.") }
-        let destination = bottles.appendingPathComponent(bottle.name)
+        let destination = (try CrossOverBottlePresentation.directory(for: bottle, under: bottles))
         if exists(destination) {
             let marker = try readMarker(at: destination, matching: bottle)
             if marker.ready {
@@ -145,6 +147,53 @@ public actor CrossOverGameBottles: GameBottleManaging {
         try write(Marker(bottle: bottle, ready: true), at: destination)
         try removeContainerIfPresent(bottle)
     }
+    public func updatePresentation(_ bottle: GameBottle, title: String, directory: URL, spec: LaunchSpec) async throws {
+        try validateIdentity(bottle)
+        guard !(try removal(bottle)).isPending, busy.insert(bottle.name).inserted else { throw problem("Wait for the game's runtime operation to finish.") }
+        defer { busy.remove(bottle.name) }
+        var prefix = try CrossOverBottlePresentation.directory(for: bottle, under: bottles)
+        guard try readMarker(at: prefix, matching: bottle).ready else { throw problem("The game's runtime is not ready.") }
+        let destination = bottles.appendingPathComponent(CrossOverBottlePresentation.name(title: title, bottle: bottle))
+        let menuName = "StartMenu/" + (CrossOverBottlePresentation.title(title).isEmpty ? "Playden Game" : CrossOverBottlePresentation.title(title))
+        let expected = try CrossOverBottlePresentation.script(application: application, bottle: destination, directory: directory, spec: spec)
+        let launcher = prefix.appendingPathComponent("desktopdata/cxmenu/cxmenu_macosx.plist")
+        if prefix.path == destination.path,
+           (try? String(contentsOf: prefix.appendingPathComponent(".playden-launch.sh"), encoding: .utf8)) == expected,
+           (try? String(contentsOf: prefix.appendingPathComponent(".playden-launcher-name"), encoding: .utf8)) == menuName,
+           files.fileExists(atPath: launcher.path), (try? BottleFolders.verify(prefix)) != nil { return }
+        let observation = try inspector.inspect(bottle: prefix)
+        guard !observation.processes.contains(where: { $0.kind == .game || $0.kind == .wrapper }) else {
+            throw problem("Close the game before updating its CrossOver shortcut.")
+        }
+        // Validate the launch target before changing any metadata.
+        _ = try CrossOverBottlePresentation.script(application: application, bottle: prefix, directory: directory, spec: spec)
+        if prefix.path != destination.path {
+            guard !exists(destination) else { throw problem("A bottle with this title already exists. Its files have been kept.") }
+            if !observation.processes.isEmpty {
+                try await run("wine", ["--bottle", prefix.path, "--ux-app", "wineserver", "-k"], timeout: 15)
+                try await run("wine", ["--bottle", prefix.path, "--ux-app", "wineserver", "-w"], timeout: 15)
+            }
+            _ = try readMarker(at: prefix, matching: bottle)
+            try files.moveItem(at: prefix, to: destination)
+            prefix = destination
+        }
+        // Also repairs a rename interrupted before CrossOver's restore hook finished.
+        try BottleFolders.configure(prefix)
+        try await run("cxbottle", ["--bottle", prefix.path, "--restored"], timeout: 45)
+        let script = prefix.appendingPathComponent(".playden-launch.sh")
+        try CrossOverBottlePresentation.script(application: application, bottle: prefix, directory: directory, spec: spec)
+            .write(to: script, atomically: true, encoding: .utf8)
+        try files.setAttributes([.posixPermissions: 0o700], ofItemAtPath: script.path)
+        let menuReceipt = prefix.appendingPathComponent(".playden-launcher-name")
+        let previous = (try? String(contentsOf: menuReceipt, encoding: .utf8)) ?? "StartMenu/Playden Game"
+        if previous != menuName, previous.hasPrefix("StartMenu/"), !previous.contains(":"), !previous.contains("\n") {
+            try await run("cxmenu", ["--bottle", prefix.path, "--filter", previous, "--uninstall", "--delete"], timeout: 30)
+        }
+        try await run("cxmenu", ["--bottle", prefix.path, "--create", menuName,
+            "--type", "raw", "--description", title, "--command", "\"${WINEPREFIX}/.playden-launch.sh\"",
+            "--mode", "install", "--install"], timeout: 30)
+        try menuName.write(to: menuReceipt, atomically: true, encoding: .utf8)
+    }
     public func checkRemoval(_ bottle: GameBottle, previousRuntime: RunSnapshot?) async throws {
         guard !busy.contains(bottle.name) else { throw problem("Wait for this game's runtime operation to finish.") }
         try validateRemoval(bottle, previousRuntime: previousRuntime)
@@ -152,7 +201,7 @@ public actor CrossOverGameBottles: GameBottleManaging {
     public func verifyRemoved(_ bottle: GameBottle) async throws {
         try validateIdentity(bottle)
         try requireDirectory(bottles, under: bottles.deletingLastPathComponent())
-        guard !exists(bottles.appendingPathComponent(bottle.name)), !removal(bottle).isPending,
+        guard !exists((try CrossOverBottlePresentation.directory(for: bottle, under: bottles))), !(try removal(bottle)).isPending,
               !exists(bottles.appendingPathComponent(".playden-staging").appendingPathComponent(bottle.ownershipToken.uuidString)) else {
             throw problem("The game's runtime has not finished being removed.")
         }
@@ -160,7 +209,7 @@ public actor CrossOverGameBottles: GameBottleManaging {
     private func validateRemoval(_ bottle: GameBottle, previousRuntime: RunSnapshot?) throws {
         try validateIdentity(bottle)
         try requireDirectory(bottles, under: bottles.deletingLastPathComponent())
-        let directory = bottles.appendingPathComponent(bottle.name), removing = removal(bottle)
+        let directory = (try CrossOverBottlePresentation.directory(for: bottle, under: bottles)), removing = (try removal(bottle))
         if removing.isPending { try removing.verify() }
         else if exists(directory) { _ = try readMarker(at: directory, matching: bottle) }
         let observation = try inspector.inspect(bottle: directory)
@@ -183,8 +232,8 @@ public actor CrossOverGameBottles: GameBottleManaging {
         guard busy.insert(bottle.name).inserted else { throw problem("Wait for the game's runtime setup to stop before removing it.") }
         defer { busy.remove(bottle.name) }
         try validateRemoval(bottle, previousRuntime: nil)
-        let destination = bottles.appendingPathComponent(bottle.name)
-        let removing = removal(bottle)
+        let destination = (try CrossOverBottlePresentation.directory(for: bottle, under: bottles))
+        let removing = (try removal(bottle))
         try removing.begin { _ = try readMarker(at: destination, matching: bottle) }
         if exists(destination) {
             if exists(destination.appendingPathComponent("cxbottle.conf")) {
@@ -199,8 +248,8 @@ public actor CrossOverGameBottles: GameBottleManaging {
         try removeContainerIfPresent(bottle)
         try removing.finish()
     }
-    private func removal(_ bottle: GameBottle) -> OwnedDirectoryRemoval<GameBottle> {
-        .init(directory: bottles.appendingPathComponent(bottle.name),
+    private func removal(_ bottle: GameBottle) throws -> OwnedDirectoryRemoval<GameBottle> {
+        .init(directory: (try CrossOverBottlePresentation.directory(for: bottle, under: bottles)),
             receipt: bottles.appendingPathComponent(".playden-removing-\(bottle.ownershipToken.uuidString).json"), owner: bottle)
     }
     private struct Marker: Codable, Equatable {
