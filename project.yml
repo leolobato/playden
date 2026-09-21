@@ -71,6 +71,8 @@ targets:
         INFOPLIST_KEY_CFBundleDisplayName: Playden
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.games
         INFOPLIST_KEY_NSRemovableVolumesUsageDescription: 'Playden installs and plays games on the drive you choose.'
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: 'Games launched by Playden may use your microphone for voice chat or other audio input.'
+        CODE_SIGN_ENTITLEMENTS: Config/Playden.entitlements
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: '-'
         ENABLE_APP_SANDBOX: NO

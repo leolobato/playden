@@ -3,6 +3,7 @@
 import json
 import hashlib
 import os
+import plistlib
 from pathlib import Path
 import shutil
 import subprocess
@@ -72,6 +73,8 @@ class ReleaseScriptsTests(unittest.TestCase):
         scripts.mkdir()
         for name in ("build.sh", "build-release.sh", "distribute.sh", "signing-identity.py"):
             shutil.copy2(ROOT / "scripts" / name, scripts / name)
+        (self.root / "Config").mkdir()
+        shutil.copy2(ROOT / "Config/Playden.entitlements", self.root / "Config/Playden.entitlements")
         bin_dir = self.root / "bin"
         bin_dir.mkdir()
         for name in ("security", "openssl", "xcodegen", "xcodebuild", "codesign", "xcrun", "hdiutil", "spctl", "open"):
@@ -118,6 +121,12 @@ class ReleaseScriptsTests(unittest.TestCase):
                 self.assertEqual(len(submits), 2)
                 self.assertTrue(all(("--keychain-profile" if auth == "profile" else "--key") in call for call in submits))
                 self.assertTrue(any("org.release-test.playden.dmg" in call for call in self.calls()))
+                app_signing = next(call for call in self.calls()
+                                   if call[0] == "codesign" and "--force" in call and call[-1].endswith(".app"))
+                self.assertIn("--entitlements", app_signing)
+                entitlements = self.root / app_signing[app_signing.index("--entitlements") + 1]
+                with entitlements.open("rb") as source:
+                    self.assertTrue(plistlib.load(source)["com.apple.security.device.audio-input"])
                 self.assertFalse(list((self.root / "dist").glob(".distribution.*")))
                 (self.root / "calls.jsonl").unlink()
 

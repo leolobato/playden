@@ -107,6 +107,10 @@ then require Keychain approval again. Moving an existing sign-in to development 
 also require an initial approval. The app never asks for or stores the Mac login password.
 
 The app runs **without App Sandbox**. macOS privacy and Keychain permissions still apply.
+Games that initialize microphone input can trigger a permission prompt under Playden's name.
+Keep `NSMicrophoneUsageDescription` in the generated Info.plist and the audio-input entitlement
+in distribution signatures. Without the usage description, macOS aborts the game when it checks
+microphone access; FFVII Remake can then spin indefinitely in Wine before opening a window.
 The stable launch location avoids Wine loading bundled helpers from protected Documents/Desktop
 folders, and avoids Xcode replacing a running bundle during builds or tests. Repeated prompts
 are not resolved by disabling App Sandbox again.

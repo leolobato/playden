@@ -95,7 +95,7 @@ bundle_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Content
 for library in "$app"/Contents/Frameworks/*.dylib; do
   codesign --force --sign "$signing_identity" --timestamp --options runtime "$library"
 done
-codesign --force --sign "$signing_identity" --timestamp --options runtime "$app"
+codesign --force --sign "$signing_identity" --timestamp --options runtime --entitlements Config/Playden.entitlements "$app"
 codesign --verify --deep --strict "$app"
 
 notarize() {
