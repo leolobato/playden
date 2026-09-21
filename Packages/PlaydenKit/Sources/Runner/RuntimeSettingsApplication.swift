@@ -109,7 +109,7 @@ enum RuntimeMechanisms {
         }
         var lines: [String] = [], inEnvironment = false, found = false
         func appendSettings() { for key in values.keys.sorted() { lines.append("\"\(key)\" = \"\(values[key]!)\"") } }
-        for raw in text.components(separatedBy: "\n") {
+        for raw in (text.hasSuffix("\n") ? String(text.dropLast()) : text).components(separatedBy: "\n") {
             let trimmed = raw.trimmingCharacters(in: .whitespaces)
             if trimmed.hasPrefix("[") {
                 if inEnvironment { appendSettings() }
@@ -124,7 +124,7 @@ enum RuntimeMechanisms {
         }
         if inEnvironment { appendSettings() }
         if !found { lines.append("[EnvironmentVariables]"); appendSettings() }
-        let result = lines.joined(separator: "\n")
+        let result = lines.joined(separator: "\n") + "\n"
         guard result != text else { return false }
         var output = hasBOM ? bom : Data()
         output.append(contentsOf: result.utf8)

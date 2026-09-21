@@ -30,7 +30,7 @@ enum BottleFolders {
         let replacements = ["XDG_CONFIG_HOME": "${WINEPREFIX}/" + directoryName, "CX_DIRECT_DESKTOP": "1"]
         var lines: [String] = [], inEnvironment = false, found = false
         func appendSettings() { for key in replacements.keys.sorted() { lines.append("\"\(key)\" = \"\(replacements[key]!)\"") } }
-        for raw in text.components(separatedBy: "\n") {
+        for raw in (text.hasSuffix("\n") ? String(text.dropLast()) : text).components(separatedBy: "\n") {
             let trimmed = raw.trimmingCharacters(in: .whitespaces)
             if trimmed.hasPrefix("[") {
                 if inEnvironment { appendSettings() }
@@ -45,7 +45,7 @@ enum BottleFolders {
         }
         if inEnvironment { appendSettings() }
         if !found { lines.append("[EnvironmentVariables]"); appendSettings() }
-        try write(lines.joined(separator: "\n"), to: file)
+        try write(lines.joined(separator: "\n") + "\n", to: file)
         // Remove links themselves, never their targets. Old Wine defaults may still point at
         // personal Mac folders; SHGetFolderPath checks them before applying new XDG targets.
         let users = bottle.appendingPathComponent("drive_c/users")

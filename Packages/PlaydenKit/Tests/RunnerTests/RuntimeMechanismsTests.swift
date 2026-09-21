@@ -78,6 +78,7 @@ final class RuntimeMechanismsTests: XCTestCase {
         // Everything before the section header must be byte-identical; only the section's own
         // lines may change (rewritten keys plus insertion of any newly-added ones).
         XCTAssertTrue(text.hasPrefix(prefix))
+        XCTAssertTrue(text.hasSuffix("\n"), "CrossOver appends new settings without inserting a leading newline")
         let suffix = text[text.range(of: "[EnvironmentVariables]")!.lowerBound...]
         XCTAssertTrue(suffix.contains("\"XDG_CONFIG_HOME\" = \"${WINEPREFIX}/.playden-folders\""))
         XCTAssertTrue(suffix.contains("\"CX_DIRECT_DESKTOP\" = \"1\""))
