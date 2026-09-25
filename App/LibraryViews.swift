@@ -329,11 +329,16 @@ struct GamePage: View {
                     HStack(alignment: .top, spacing: 40) { metadata("Source", game.id.source.capitalized); metadata("Compatibility", game.compatibility.rawValue) }
                     HStack(alignment: .top, spacing: 40) {
                         metadata("Profile", model.profileLabel(game.id))
-                        if let date = game.lastPlayedAt { metadata("Last played", date.formatted(.dateTime.month(.abbreviated).day())) }
+                        if let date = game.lastPlayedAt { metadata("Last played", lastPlayedLabel(date)) }
                     }
                 }.frame(width: 520)
             }.offset(x: 96, y: 754)
         }
+    }
+    /// Omits the year for dates in the current year so recent sessions stay short.
+    private func lastPlayedLabel(_ date: Date) -> String {
+        let format = Date.FormatStyle.dateTime.month(.abbreviated).day()
+        return Calendar.current.isDate(date, equalTo: .now, toGranularity: .year) ? date.formatted(format) : date.formatted(format.year())
     }
     private func metadata(_ label: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 6) {
