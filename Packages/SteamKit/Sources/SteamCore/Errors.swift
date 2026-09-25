@@ -19,6 +19,7 @@ public struct EResult: RawRepresentable, Equatable, Sendable, CustomStringConver
     public static let rateLimitExceeded = EResult(rawValue: 84)
     public static let expired = EResult(rawValue: 27)
     public static let duplicateRequest = EResult(rawValue: 29)
+    public static let logonSessionReplaced = EResult(rawValue: 34)
     public static let accountLoginDeniedThrottle = EResult(rawValue: 87)
 
     public var description: String {
@@ -36,6 +37,7 @@ public struct EResult: RawRepresentable, Equatable, Sendable, CustomStringConver
         case .rateLimitExceeded: return "RateLimitExceeded"
         case .expired: return "Expired"
         case .duplicateRequest: return "DuplicateRequest"
+        case .logonSessionReplaced: return "LogonSessionReplaced"
         case .accountLoginDeniedThrottle: return "AccountLoginDeniedThrottle"
         default: return "EResult(\(rawValue))"
         }

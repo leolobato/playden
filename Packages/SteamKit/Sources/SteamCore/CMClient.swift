@@ -249,7 +249,12 @@ public actor CMClient {
         case .kEmsgClientLoggedOff:
             let reason = try? CMsgClientLoggedOff(serializedBytes: body)
             diagnostic("CM logged off result=\(reason.map { String($0.eresult) } ?? "unreadable") pending=\(pendingJobs.count)")
-            closeConnection(with: SteamError.authSessionExpired)
+            // Another logon for this account replaced the session; the sign-in itself is still valid.
+            if let reason, EResult(rawValue: reason.eresult) == .logonSessionReplaced {
+                closeConnection(with: SteamError.eresult(.logonSessionReplaced, context: "CM session replaced by another logon"))
+            } else {
+                closeConnection(with: SteamError.authSessionExpired)
+            }
 
         default:
             break

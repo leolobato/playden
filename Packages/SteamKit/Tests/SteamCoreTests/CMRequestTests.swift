@@ -171,6 +171,17 @@ final class CMRequestTests: XCTestCase {
         XCTAssertTrue(transport.isClosed)
         await cm.disconnect()
     }
+    func testReplacedSessionIsNotReportedAsExpiredAuthentication() async throws {
+        let cm = client(), transport = TestCMTransport(); try await cm.attach(transport)
+        let request = Task { try await cm.waitForLicenses() }
+        try await wait(cm, count: 1)
+        var loggedOff = CMsgClientLoggedOff(); loggedOff.eresult = 34
+        transport.deliver(try frame(.kEmsgClientLoggedOff, body: loggedOff))
+        do { try await request.value; XCTFail() }
+        catch { guard case SteamError.eresult(.logonSessionReplaced, _) = error else { XCTFail("Wrong error: \(error)"); return } }
+        XCTAssertTrue(transport.isClosed)
+        await cm.disconnect()
+    }
 }
 
 private final class TestCMTransport: CMTransport, @unchecked Sendable {
