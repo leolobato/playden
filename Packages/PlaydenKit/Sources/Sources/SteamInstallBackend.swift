@@ -42,9 +42,8 @@ struct LiveSteamInstallBackend: SteamInstallBackend {
             let servers = try await CDNClient.contentServers(cellID: cm.cellID)
             let preparation = DownloadEngine(cm: cm, appID: payload.app.appID, destination: directory)
             try await preparation.prepare(manifests: payload.manifests)
-            // Entitlements were checked above. Keys live only in this invocation's memory
-            // store; transfers must not ask a long-idle CM for the next depot's key.
-            await cm.disconnect()
+            // Entitlements and depot keys were resolved above; transfers only use the CDN.
+            // The CM connection is shared with other operations, so it must stay connected.
             let total = payload.manifests.reduce(Int64(0)) { $0 + Int64($1.totalSize) }
             let transfers = SteamTransferProgress(total: total, report: progress)
             var completed: Int64 = 0

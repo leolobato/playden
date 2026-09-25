@@ -3,13 +3,21 @@ import CryptoKit
 import Domain
 import SteamCore
 
+struct CMLogin: Equatable, Sendable {
+    let accountName: String
+    let refreshToken: String
+}
+
 public actor SteamAccount: SourceAuth {
     private let store: any AuthCredentialStore
     private let backend: any SteamBackend
     private var generation = 0
     private var operations: [UUID: @Sendable () -> Void] = [:]
-    public init() { store = KeychainCredentials(); backend = LiveSteamBackend() }
-    init(store: any AuthCredentialStore, backend: any SteamBackend) { self.store = store; self.backend = backend }
+    private let connection: SharedConnection<CMLogin, CMClient>
+    public init() { self.init(store: KeychainCredentials(), backend: LiveSteamBackend()) }
+    init(store: any AuthCredentialStore, backend: any SteamBackend, connection: SharedConnection<CMLogin, CMClient> = SteamAccount.liveConnection()) {
+        self.store = store; self.backend = backend; self.connection = connection
+    }
     public func identity() async throws -> SourceIdentity? {
         do { return try store.load().map(Self.identity) } catch { throw credentialFailure(error) }
     }
@@ -21,6 +29,7 @@ public actor SteamAccount: SourceAuth {
         generation += 1
         for cancel in operations.values { cancel() }
         operations.removeAll()
+        Task { [connection] in await connection.reset() }
     }
     public func cancelSignIn() { invalidate() }
     public func signOut() throws {
@@ -73,7 +82,7 @@ public actor SteamAccount: SourceAuth {
             guard let saved = try store.load() else { throw SourceFailure.signedOut }
             let credentials = try await backend.renew(saved)
             try validate(attempt); try save(credentials)
-            let games = try await backend.ownedGames(credentials)
+            let games = try await backend.ownedGames(credentials) { [weak self] in await self?.acquisitionDates() ?? [:] }
             try validate(attempt)
             return games
         } catch { throw sourceFailure(error) }
@@ -102,6 +111,8 @@ public actor SteamAccount: SourceAuth {
         } catch let failure as OperationFailure { throw failure }
         catch { throw sourceFailure(error) }
     }
+    /// Runs `operation` on the account's shared, logged-on CM connection. Operations must not
+    /// disconnect the client: other operations may be using it at the same time.
     func withCM<T: Sendable>(purpose: String = "operation", appID: UInt32? = nil, _ operation: @escaping @Sendable (CMClient) async throws -> T) async throws -> T {
         let id = UUID()
         let report: @Sendable (String) -> Void = { message in
@@ -109,29 +120,65 @@ public actor SteamAccount: SourceAuth {
         }
         report("start active=\(operations.count)")
         defer { report("end") }
+        let connection = connection
         return try await authenticatedOperation(diagnostic: report) { credentials in
+            let login = CMLogin(accountName: credentials.accountName, refreshToken: credentials.refreshToken)
+            var reconnects = 0
+            while true {
+                do {
+                    return try await connection.use(login) { cm in
+                        report("content start")
+                        let result = try await operation(cm)
+                        report("content complete")
+                        return result
+                    }
+                } catch {
+                    report("failed: \(SteamConnectionDiagnostics.summary(error))")
+                    if let steam = error as? SteamError, case .authFailed = steam { throw SourceFailure.expired }
+                    // A dropped or replaced session is not an expired sign-in. Reconnect; a revoked
+                    // sign-in then surfaces as a rejected logon above.
+                    guard Self.isDroppedSession(error), reconnects < 2, !Task.isCancelled else { throw error }
+                    reconnects += 1
+                    report("reconnecting attempt=\(reconnects)")
+                }
+            }
+        }
+    }
+    static func isDroppedSession(_ error: Error) -> Bool {
+        if let network = error as? URLError { return network.code == .networkConnectionLost }
+        guard let steam = error as? SteamError else { return false }
+        switch steam {
+        case .authSessionExpired: return true
+        case .eresult(let result, _): return result == .logonSessionReplaced
+        default: return false
+        }
+    }
+    private func acquisitionDates() async -> [UInt32: Date] {
+        // Owned games still load if optional license metadata is temporarily unavailable.
+        // CatalogStore retains previously known dates; unknown dates sort last.
+        (try? await withCM(purpose: "library-entitlements") { cm in try await cm.ownedEntitlements().appAcquiredAt }) ?? [:]
+    }
+    static func liveConnection() -> SharedConnection<CMLogin, CMClient> {
+        SharedConnection(idleTimeout: .seconds(60), open: { login in
+            let id = UUID()
+            let report: @Sendable (String) -> Void = { SteamConnectionDiagnostics.shared.record("\(id) connection \($0)") }
             let cm = CMClient(depotKeyStore: MemoryDepotKeys(), diagnostic: report)
-            var stage = "connect"
             do {
                 try await cm.connect()
                 report("connected")
-                stage = "logon"
-                _ = try await cm.logOn(accountName: credentials.accountName, refreshToken: credentials.refreshToken)
-                stage = "licenses"
+                _ = try await cm.logOn(accountName: login.accountName, refreshToken: login.refreshToken)
                 try await cm.waitForLicenses()
-                stage = "content"
-                report("content start")
-                let result = try await operation(cm)
-                report("content complete")
-                await cm.disconnect()
-                return result
+                report("ready")
+                return cm
             } catch {
-                report("\(stage) failed: \(SteamConnectionDiagnostics.summary(error))")
+                report("open failed: \(SteamConnectionDiagnostics.summary(error))")
                 await cm.disconnect()
-                if let steam = error as? SteamError, case .authFailed = steam { throw SourceFailure.expired }
                 throw error
             }
-        }
+        }, isAlive: { await $0.sessionID != 0 }, close: { cm in
+            await cm.disconnect()
+            SteamConnectionDiagnostics.shared.record("connection closed")
+        })
     }
     private func validate(_ attempt: Int) throws {
         try Task.checkCancellation()

@@ -21,7 +21,7 @@ private struct DelayedBackend: SteamBackend {
     func renew(_ auth: StoredAuth) async throws -> StoredAuth {
         await started.open(); await release.wait(); return credentials()
     }
-    func ownedGames(_ auth: StoredAuth) async throws -> [SourceGameRecord] { [] }
+    func ownedGames(_ auth: StoredAuth, acquisitionDates: @escaping @Sendable () async -> [UInt32: Date]) async throws -> [SourceGameRecord] { [] }
 }
 private actor RecoveringQRBackend: SteamBackend {
     private var failures: [SourceFailure]
@@ -38,7 +38,7 @@ private actor RecoveringQRBackend: SteamBackend {
         throw SourceFailure.credentialsRejected
     }
     func renew(_ auth: StoredAuth) async throws -> StoredAuth { auth }
-    func ownedGames(_ auth: StoredAuth) async throws -> [SourceGameRecord] { [] }
+    func ownedGames(_ auth: StoredAuth, acquisitionDates: @escaping @Sendable () async -> [UInt32: Date]) async throws -> [SourceGameRecord] { [] }
 }
 final class SteamAccountTests: XCTestCase {
     func testLibraryImportKeepsSteamAcquisitionDateSeparateFromDiscoveryAndPlaytime() {

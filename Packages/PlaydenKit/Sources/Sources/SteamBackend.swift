@@ -8,7 +8,7 @@ protocol SteamBackend: Sendable {
                codeProvider: @escaping @Sendable (GuardChallenge) async throws -> String,
                onEvent: @escaping @Sendable (AuthenticationEvent) -> Void) async throws -> StoredAuth
     func renew(_ auth: StoredAuth) async throws -> StoredAuth
-    func ownedGames(_ auth: StoredAuth) async throws -> [SourceGameRecord]
+    func ownedGames(_ auth: StoredAuth, acquisitionDates: @escaping @Sendable () async -> [UInt32: Date]) async throws -> [SourceGameRecord]
 }
 struct LiveSteamBackend: SteamBackend {
     func loginQR(onEvent: @escaping @Sendable (AuthenticationEvent) -> Void) async throws -> StoredAuth {
@@ -36,10 +36,10 @@ struct LiveSteamBackend: SteamBackend {
         }
         return renewed
     }
-    func ownedGames(_ auth: StoredAuth) async throws -> [SourceGameRecord] {
+    func ownedGames(_ auth: StoredAuth, acquisitionDates: @escaping @Sendable () async -> [UInt32: Date]) async throws -> [SourceGameRecord] {
         guard let token = auth.accessToken else { throw SourceFailure.expired }
         async let owned = SteamLibrary.ownedGames(steamID: auth.steamID, accessToken: token)
-        async let acquired = acquisitionDates(auth)
+        async let acquired = acquisitionDates()
         return try await Self.libraryRecords(owned, acquiredAt: acquired)
     }
     static func libraryRecords(_ games: [OwnedGame], acquiredAt: [UInt32: Date]) -> [SourceGameRecord] {
@@ -49,29 +49,6 @@ struct LiveSteamBackend: SteamBackend {
                 coverURL: URL(string: "\(base)/library_600x900.jpg"), heroURL: URL(string: "\(base)/library_hero.jpg"),
                 logoURL: URL(string: "\(base)/logo.png"), importedPlaytimeSeconds: Int64(game.playtimeMinutes) * 60,
                 sourceLastPlayedAt: game.lastPlayedAt, sourceAcquiredAt: acquiredAt[game.appID])
-        }
-    }
-    private func acquisitionDates(_ auth: StoredAuth) async throws -> [UInt32: Date] {
-        let id = UUID()
-        let report: @Sendable (String) -> Void = { message in
-            SteamConnectionDiagnostics.shared.record("\(id) library-entitlements \(message)")
-        }
-        report("start")
-        defer { report("end") }
-        let cm = CMClient(depotKeyStore: MemoryDepotKeys(), diagnostic: report)
-        do {
-            try await cm.connect()
-            _ = try await cm.logOn(accountName: auth.accountName, refreshToken: auth.refreshToken)
-            let result = try await cm.ownedEntitlements()
-            await cm.disconnect()
-            return result.appAcquiredAt
-        } catch {
-            report("failed: \(SteamConnectionDiagnostics.summary(error))")
-            await cm.disconnect()
-            try Task.checkCancellation()
-            // Owned games still load if optional license metadata is temporarily unavailable.
-            // CatalogStore retains previously known dates; unknown dates sort last.
-            return [:]
         }
     }
     private static func deliver(_ event: AuthEvent, to receiver: @Sendable (AuthenticationEvent) -> Void) {
