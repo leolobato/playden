@@ -39,6 +39,8 @@ extension LibraryModel {
                 guard let self, !Task.isCancelled else { return }
                 for (id, value) in values where previous[id] != value {
                     if value.state != .upToDate || self.identity != nil { self.cloudStatuses[id] = value }
+                    // Offer the sign-in path instead of leaving only a Cloud retry that cannot succeed.
+                    if value.needsSignIn, previous[id]?.needsSignIn != true { self.recordSyncFailure(SourceFailure.expired) }
                 }
                 previous = values
             }

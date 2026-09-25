@@ -15,6 +15,8 @@ public struct CloudSyncStatus: Equatable, Sendable {
     public let message: String
     public let latestCloudSaveAt: Date?
     public let canPlayOffline: Bool
+    /// Steam rejected the saved sign-in, so retrying cannot succeed until the player signs in again.
+    public var needsSignIn = false
     public init(gameID: GameID, state: State, operation: CloudSyncOperation? = nil, message: String,
                 canPlayOffline: Bool = false, latestCloudSaveAt: Date? = nil) {
         self.gameID = gameID; self.state = state; self.operation = operation

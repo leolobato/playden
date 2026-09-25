@@ -28,7 +28,25 @@ private actor CloudUIFixture: CloudSyncManaging {
     }
 }
 
+private actor SignInCloudFixture: CloudSyncManaging {
+    let status: CloudSyncStatus
+    init(_ status: CloudSyncStatus) { self.status = status }
+    func recoverInterruptedOperations() async throws {}
+    func updates() -> AsyncStream<[GameID: CloudSyncStatus]> { AsyncStream { $0.yield([status.gameID: status]); $0.finish() } }
+    func synchronize(_ installation: InstallationRecord, mapping: SaveMapping, preparingSessionID: UUID?, authorization: CloudSyncAuthorization?) async -> CloudSyncStatus { status }
+}
+
 @MainActor final class CloudInteractionTests: XCTestCase {
+    func testRejectedCloudSignInRaisesSignInNotice() async throws {
+        let id = GameID(source: "steam", value: "115100")
+        var status = CloudSyncStatus(gameID: id, state: .unavailable, message: "Your Steam sign-in has expired.", canPlayOffline: true)
+        status.needsSignIn = true
+        let model = LibraryModel(preview: false, cloud: SignInCloudFixture(status))
+        model.startCloudServices(); await model.cloudObserver?.value
+        XCTAssertEqual(model.sessionIssueRecovery, .signIn)
+        XCTAssertEqual(model.sessionIssue?.stage, "Sign-in expired")
+        XCTAssertEqual(model.cloudStatuses[id]?.needsSignIn, true)
+    }
     private func model() -> (LibraryModel, CloudSessionFixture) {
         let sessions = CloudSessionFixture()
         let model = LibraryModel(sessions: sessions, cloud: CloudUIFixture())

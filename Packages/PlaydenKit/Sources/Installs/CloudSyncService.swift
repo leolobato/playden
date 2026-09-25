@@ -316,17 +316,24 @@ public actor CloudSyncService: CloudSyncManaging {
         return publish(status(try current(gameID), state: .upToDate, message: "Up to date"))
     }
     private func fail(_ gameID: GameID, error: Error) -> CloudSyncStatus {
-        let failure = error as? OperationFailure ?? issue(error is CancellationError ? "Save sync was interrupted. Retry to continue." :
+        let signIn = (error as? SourceFailure).map { [.expired, .signedOut, .credentialsRejected].contains($0) } ?? false
+        var result = failureStatus(gameID, error: error, signIn: signIn)
+        result.needsSignIn = signIn
+        return publish(result)
+    }
+    private func failureStatus(_ gameID: GameID, error: Error, signIn: Bool) -> CloudSyncStatus {
+        let failure = error as? OperationFailure ?? issue(signIn ? "Your Steam sign-in has expired. Sign in again to sync saves. Your local progress has been kept." :
+            error is CancellationError ? "Save sync was interrupted. Retry to continue." :
             error is CloudJournalError ? "Save sync needs to be retried after the current game operation finishes." : "Steam Cloud is unavailable. Your local progress has been kept.")
         if let operation = active[gameID], operation.claim != nil {
             do { active[gameID] = try catalog.pauseCloudSync(operation, phase: .pending, failure: failure) }
-            catch { return publish(status(operation, state: .failed, message: "The save-sync checkpoint could not be stored. Retry before playing.")) }
+            catch { return status(operation, state: .failed, message: "The save-sync checkpoint could not be stored. Retry before playing.") }
         }
-        if let operation = active[gameID] { return publish(status(operation, state: .pendingUpload, message: failure.reason)) }
+        if let operation = active[gameID] { return status(operation, state: .pendingUpload, message: failure.reason) }
         if let pending = try? catalog.cloudOperations(for: gameID).last(where: { !$0.phase.isTerminal }) {
-            return publish(status(pending, state: .failed, message: failure.reason))
+            return status(pending, state: .failed, message: failure.reason)
         }
-        return publish(.init(gameID: gameID, state: .unavailable, message: failure.reason, canPlayOffline: error is OperationFailure))
+        return .init(gameID: gameID, state: .unavailable, message: failure.reason, canPlayOffline: error is OperationFailure)
     }
     private func current(_ gameID: GameID) throws -> CloudSyncOperation {
         guard let value = active[gameID] else { throw CloudJournalError.staleAttempt }

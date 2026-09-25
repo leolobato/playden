@@ -30,10 +30,11 @@ private actor CloudServer: CloudReading, CloudWriting {
         contents = Dictionary(uniqueKeysWithValues: files.map { ($0.file.name, $0) }); revision += 1
         if let account { accountKey = account }
     }
-    func setOffline(_ value: Bool) { offline = value }
+    var offlineFailure = SourceFailure.network
+    func setOffline(_ value: Bool, failure: SourceFailure = .network) { offline = value; offlineFailure = failure }
     func failNextCommitResponse() { failAfterCommit = true }
     func files(for gameID: GameID) throws -> CloudFileList {
-        if offline { throw SourceFailure.network }
+        if offline { throw offlineFailure }
         return .init(gameID: gameID, accountKey: accountKey, revision: revision,
                      files: contents.values.map(\.file).sorted { $0.name < $1.name })
     }
@@ -325,7 +326,7 @@ final class CloudSyncServiceTests: XCTestCase {
         await server.replace([payload("remote")]); _ = await cloud.synchronize(installed, mapping: mapping)
         await server.setOffline(true); try put("offline progress", at: game)
         let pending = await cloud.synchronize(installed, mapping: mapping)
-        XCTAssertEqual(pending.state, .pendingUpload); XCTAssertTrue(pending.canPlayOffline)
+        XCTAssertEqual(pending.state, .pendingUpload); XCTAssertTrue(pending.canPlayOffline); XCTAssertFalse(pending.needsSignIn)
         XCTAssertNotNil(pending.operation?.localSnapshotID)
         let baseline = try store.cloudBaseline(for: gameID, accountKey: "account-a")
         try put("newer offline progress", at: game)
@@ -341,6 +342,19 @@ final class CloudSyncServiceTests: XCTestCase {
         XCTAssertEqual(remote.files.first?.sha1, payload("newer offline progress").file.sha1)
     }
 
+    func testRejectedSignInAsksToSignInAgainWhileKeepingOfflinePlay() async throws {
+        let root = try directory(), game = try directory(), store = try CatalogStore(), installed = installed(game)
+        let saves = SaveStore(root: root); try store.saveInstallation(installed)
+        let server = CloudServer(gameID: gameID, catalog: store), cloud = service(store, server: server, saves: saves, root: game)
+        await server.replace([payload("remote")]); _ = await cloud.synchronize(installed, mapping: mapping)
+        await server.setOffline(true, failure: .expired); try put("offline progress", at: game)
+        let pending = await cloud.synchronize(installed, mapping: mapping)
+        XCTAssertEqual(pending.state, .pendingUpload); XCTAssertTrue(pending.canPlayOffline); XCTAssertTrue(pending.needsSignIn)
+        XCTAssertTrue(pending.message.contains("Sign in again"), pending.message)
+        await server.setOffline(false)
+        let retried = await cloud.synchronize(installed, mapping: mapping)
+        XCTAssertEqual(retried.state, .upToDate, retried.message); XCTAssertFalse(retried.needsSignIn)
+    }
     func testPendingUploadArchiveRestoresAfterRepeatedRootLossBeforeSteamIsAvailable() async throws {
         let root = try directory(), game = root.appendingPathComponent("game")
         let path = root.appendingPathComponent("catalog.sqlite").path, store = try CatalogStore(path: path)
