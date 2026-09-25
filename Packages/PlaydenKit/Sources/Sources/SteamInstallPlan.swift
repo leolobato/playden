@@ -94,6 +94,13 @@ enum SteamPlanBuilder {
         }
     }
     private static func launchSpec(_ launch: AppLaunch, files: [DepotManifest.File]) throws -> LaunchSpec {
+        // EA titles such as Need for Speed Most Wanted launch through `steam2ea://`, which hands
+        // off to the EA app instead of starting an executable from the game's content.
+        if let scheme = launch.executable.range(of: #"^[A-Za-z][A-Za-z0-9+.-]*://"#, options: .regularExpression) {
+            throw failure("Resolve", launch.executable[scheme].lowercased() == "steam2ea://"
+                ? "This game launches through the EA app, which Playden doesn’t support yet."
+                : "This game launches through another store’s launcher, which Playden doesn’t support yet.")
+        }
         let path = try relativePath(launch.executable)
         guard path.lowercased().hasSuffix(".exe"), let file = files.first(where: {
             !$0.isDirectory && !$0.isSymlink && (try? relativePath($0.path).lowercased()) == path.lowercased()

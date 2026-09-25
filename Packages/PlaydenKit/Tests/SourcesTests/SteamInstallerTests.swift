@@ -155,6 +155,17 @@ final class SteamInstallerTests: XCTestCase {
         let ownedMode = try SteamPlanBuilder.build(game: game, app: gated, manifests: [manifest([file("Game.exe")])], ownedApps: [100, 900])
         XCTAssertEqual(try SteamPlanBuilder.payload(ownedMode, for: game.id).ownedDLC, [900], "Keep launch-only DLC gates when revalidating an offline plan")
     }
+    func testStoreLauncherHandoffExplainsUnsupportedLauncherInsteadOfPathError() throws {
+        // Need for Speed Most Wanted (1262560) and Mirror's Edge Catalyst (1233570) launch only through the EA app.
+        let ea = app(launches: [.init(id: "0", executable: "steam2ea://launchgame/1262560?platform=steam&theme=nfsmw")])
+        XCTAssertThrowsError(try plan([file("Game.exe")], app: ea)) {
+            XCTAssertEqual(($0 as? OperationFailure)?.reason, "This game launches through the EA app, which Playden doesn’t support yet.")
+        }
+        let other = app(launches: [.init(id: "0", executable: "uplay://launch/123/0")])
+        XCTAssertThrowsError(try plan([file("Game.exe")], app: other)) {
+            XCTAssertEqual(($0 as? OperationFailure)?.reason, "This game launches through another store’s launcher, which Playden doesn’t support yet.")
+        }
+    }
     func testWindowsArgumentsKeepQuotesBackslashesEmptyValuesAndShellSyntaxLiteral() throws {
         XCTAssertEqual(try WindowsArguments.parse(#"one "two three" "" four" five""#), ["one", "two three", "", "four five"])
         XCTAssertEqual(try WindowsArguments.parse(#""C:\My Games\\" a\"b "say ""yes""""#), ["C:\\My Games\\", "a\"b", "say \"yes\""])
