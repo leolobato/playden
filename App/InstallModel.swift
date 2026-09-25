@@ -176,7 +176,7 @@ extension JobRecord {
     }
     var statusTitle: String {
         switch state {
-        case .queued: "Queued"; case .running: stageTitle; case .stopping: cancellationRequested == true ? "Cancelling…" : "Pausing…"
+        case .queued: kind == .uninstall ? "Waiting to remove" : "Queued"; case .running: stageTitle; case .stopping: cancellationRequested == true ? "Cancelling…" : "Pausing…"
         case .paused: pauseReasons.contains(.authentication) ? "Sign in to resume" : pauseReasons.contains(.unavailableDrive) ? "Reconnect your games drive" : pauseReasons.contains(.insufficientSpace) ? "More space needed" : pauseReasons.contains(.user) ? "Paused" : "Paused while playing"
         case .failed: kind == .uninstall ? "Removal needs attention" : kind == .repair ? "Verification failed" : "Installation failed"; case .cancelled: kind == .repair ? "Verification stopped" : "Cancelled"; case .completed: kind == .uninstall ? "Uninstalled" : kind == .repair ? "Files verified" : "Installed"
         }

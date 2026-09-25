@@ -143,6 +143,10 @@ private actor RemovalCloud: CloudSyncManaging {
         XCTAssertEqual(model.downloadActions(for: id), ["Retry", "Open game", "View logs", "Dismiss from history"])
         XCTAssertEqual(job.statusTitle, "Removal needs attention")
         job.state = .completed; XCTAssertEqual(job.statusTitle, "Uninstalled")
+        job.state = .queued; model.installJobs = [job]; model.applyInstallStatuses()
+        XCTAssertEqual(job.statusTitle, "Waiting to remove")
+        XCTAssertEqual(model.downloadStatusTitle(for: job), "Waiting to remove")
+        XCTAssertEqual(JobRecord(gameID: id, kind: .install).statusTitle, "Queued")
     }
     func testReinstallCannotInheritPreviousInstallCloudStatus() throws {
         let (model, catalog, _, _) = try fixture()
