@@ -281,7 +281,7 @@ struct GamePage: View {
                         ForEach(Array(model.detailActions.enumerated()), id: \.offset) { index, title in
                             ActionButton(title: title,
                                          primary: index == 0 && model.detailActionEnabled(at: index), detail: title == "Install" ? game.knownSize : nil, focused: model.detailAction == index, large: index == 0, reducedMotion: model.reducedMotion,
-                                         systemImage: ["Favorite", "Favorited"].contains(title) ? (game.isFavorite ? "heart.fill" : "heart") : title == "Play" ? "play.fill" : title == "Quit game" ? "stop.fill" : title == "Game settings" ? "gearshape" : title == "More" ? "ellipsis" : nil,
+                                         systemImage: ["Favorite", "Favorited"].contains(title) ? (game.isFavorite ? "heart.fill" : "heart") : title == "Play" ? "play.fill" : title == "Quit game" ? "stop.fill" : title == "Game settings" ? "gearshape" : title == "Store page" ? "bag" : title == "More" ? "ellipsis" : nil,
                                          iconOnly: ["Favorite", "Favorited"].contains(title), highlighted: ["Favorite", "Favorited"].contains(title) && game.isFavorite) {
                                 model.detailAction = index; model.activateDetail()
                             }.disabled(!model.detailActionEnabled(at: index))

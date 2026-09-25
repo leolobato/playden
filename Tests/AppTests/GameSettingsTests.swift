@@ -144,8 +144,8 @@ import Catalog
     func testMoreKeepsManagementActionsReachable() throws {
         let model = LibraryModel()
         model.openGame(try XCTUnwrap(model.games.first { $0.status == .installed }))
-        XCTAssertEqual(model.detailActions.count, 4)
-        model.detailAction = 3; model.perform(.confirm)
+        XCTAssertEqual(model.detailActions.last, "More")
+        model.detailAction = model.detailActions.count - 1; model.perform(.confirm)
         XCTAssertEqual(model.panel, .context)
         XCTAssertFalse(model.contextActions.contains("Launch options"))
         for action in ["Game settings", "Add to collection", "Set compatibility", "Hide", "Verify files", "Cloud saves", "Uninstall", "View logs"] {

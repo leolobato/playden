@@ -26,6 +26,7 @@ enum Panel: Equatable {
     case cloudSaves(GameID)
     case uninstall(GameID)
     case textEditor(TextPurpose), collections(GameID), collectionOptions(UUID), confirmation(Confirmation), logs(GameID)
+    case storePage(GameID)
 }
 
 struct HomeRow: Identifiable {
@@ -54,6 +55,11 @@ final class LibraryModel {
     var logScrollFraction = 0.0
     var logCanScroll = false
     var logActionIndex = 0
+    var storeScrollRequest = LogScrollRequest()
+    var storeScrollFraction = 0.0
+    var storeCanScroll = false
+    var storeActionIndex = 0
+    var storeLoadError: String?
     @ObservationIgnored let source: (any GameSource)?
     @ObservationIgnored let syncCoordinator: LibrarySyncCoordinator?
     @ObservationIgnored let runtime: (any BottleManaging)?
@@ -217,6 +223,7 @@ final class LibraryModel {
             if case .downloadActions(let id) = panel { downloadHistoryReview = liveJob(for: id) }
             else { downloadHistoryReview = nil }
             if case .logs(let id) = panel, panel != oldValue { prepareLogView(id) }
+            if case .storePage = panel, panel != oldValue { prepareStorePage() }
             if panel == nil, pendingFirstRunFeedback != nil {
                 Task { [weak self] in self?.presentFirstRunFeedbackIfReady() }
             }
@@ -417,7 +424,7 @@ final class LibraryModel {
     }
     var detailActions: [String] {
         guard let game = focusedGame, let primary = gameActions.first else { return [] }
-        return [primary, "Game settings", game.isFavorite ? "Favorited" : "Favorite", "More"]
+        return [primary, "Game settings", game.isFavorite ? "Favorited" : "Favorite"] + (storePageURL(game.id) != nil ? ["Store page"] : []) + ["More"]
     }
     private var gameActions: [String] {
         guard let game = focusedGame else { return [] }
@@ -561,6 +568,10 @@ final class LibraryModel {
             performLogs(action)
             return
         }
+        if case .storePage = panel {
+            performStorePage(action)
+            return
+        }
         if performGameSettingsInput(action) { return }
         if panel != nil {
             if panel == .volumePicker(nil), case .move(let direction) = action {
@@ -689,6 +700,7 @@ final class LibraryModel {
         case "Set compatibility": show(.compatibility)
         case "Add to collection": if let id = focusedGame?.id { show(.collections(id)) }
         case "View logs": if let id = focusedGame?.id { show(.logs(id)) }
+        case "Store page": if let id = focusedGame?.id, storePageURL(id) != nil { show(.storePage(id)) }
         case "Verify files":
             if !isPreview, let id = focusedGame?.id { beginVerification(id) }
             else { show(.information("Verification checks the installed game and repairs damaged files when connected.")) }

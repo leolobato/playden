@@ -135,6 +135,8 @@ struct ModalLayer: View {
                 ProfileChooser(model: model, gameID: gameID).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if case .logs(let gameID) = model.panel {
                 LogViewer(model: model, gameID: gameID).frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if case .storePage(let gameID) = model.panel {
+                StorePageViewer(model: model, gameID: gameID).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if case .cloudSaves(let gameID) = model.panel {
                 CloudSaveDialog(model: model, gameID: gameID).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if case .uninstall(let gameID) = model.panel {
