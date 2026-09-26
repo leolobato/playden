@@ -57,6 +57,7 @@
 		718FE5FF9175645C4DCE906E /* LibraryFilterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 910367651E023A9A9708A464 /* LibraryFilterTests.swift */; };
 		71ADB580FB6C028240909FD6 /* Input in Frameworks */ = {isa = PBXBuildFile; productRef = 9C7594469A6FEA17F2DB9E43 /* Input */; };
 		72FAC9F13CC34D8C62A87C41 /* SessionInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E7FF4A4C7A6584A35A51B90 /* SessionInteractionTests.swift */; };
+		76F94BD13E1B93DD72F62624 /* StoresInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53232B8F8608E6B3799A5140 /* StoresInteractionTests.swift */; };
 		77621C4F69C43E8D36BE7F13 /* InstallationDriveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D6130A8CDF52CA80FD82B3E /* InstallationDriveTests.swift */; };
 		77C666A070D907379CFC252E /* ImmersiveDisplayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F664BA77DDC5D7269DFF336 /* ImmersiveDisplayTests.swift */; };
 		798536983A24DDA353001A06 /* ImmersiveDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 591E50BAFB12668A60001476 /* ImmersiveDisplay.swift */; };
@@ -175,6 +176,7 @@
 		4FF001A6F36C2F486BC624E1 /* CloudReadCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudReadCheck.swift; sourceTree = "<group>"; };
 		5084C3F2AB0F32E9F11975E6 /* DownloadTransfer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadTransfer.swift; sourceTree = "<group>"; };
 		51796435F52ABE41CE0D367E /* HomeNavigation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeNavigation.swift; sourceTree = "<group>"; };
+		53232B8F8608E6B3799A5140 /* StoresInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoresInteractionTests.swift; sourceTree = "<group>"; };
 		547E91517ED74DA2720CB50D /* DownloadsStorageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadsStorageTests.swift; sourceTree = "<group>"; };
 		557D6CF72A37531CAEF7C0E9 /* GameSettingsCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSettingsCatalogTests.swift; sourceTree = "<group>"; };
 		591E50BAFB12668A60001476 /* ImmersiveDisplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImmersiveDisplay.swift; sourceTree = "<group>"; };
@@ -302,6 +304,7 @@
 				DB3AAA8DAFBFE1E1F465DD6D /* SetupInteractionTests.swift */,
 				42BD3A5D84A9CB072E3078B1 /* SetupLifecycleTests.swift */,
 				CFC0116D9FF090149D461814 /* StorePageTests.swift */,
+				53232B8F8608E6B3799A5140 /* StoresInteractionTests.swift */,
 				2E79718CB4BDC9092602F17F /* UninstallInteractionTests.swift */,
 			);
 			name = AppTests;
@@ -726,6 +729,7 @@
 				BF834C955FE27D51A1E04931 /* SetupInteractionTests.swift in Sources */,
 				BF13F2404DEA6C10DC485C82 /* SetupLifecycleTests.swift in Sources */,
 				F1E404F548D44D23D13D920E /* StorePageTests.swift in Sources */,
+				76F94BD13E1B93DD72F62624 /* StoresInteractionTests.swift in Sources */,
 				54F4DEE69DAF5BDB60169222 /* UninstallInteractionTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

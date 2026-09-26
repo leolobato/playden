@@ -67,6 +67,7 @@ final class LibraryModel {
     @ObservationIgnored let scanCoordinator: LibrarySyncCoordinator?
     @ObservationIgnored var scanTask: Task<Void, Never>?
     var scanErrors: [String: String] = [:]
+    @ObservationIgnored var storedEdits: [GameID: GameEdits] = [:]
     @ObservationIgnored let runtime: (any BottleManaging)?
     @ObservationIgnored let volumeStore: (any VolumeManaging)?
     @ObservationIgnored let installQueue: (any InstallQueuing)?
@@ -340,6 +341,7 @@ final class LibraryModel {
         restoringState = false
     }
     func source(for id: GameID) -> (any GameSource)? { sources[id.source] }
+    var localSource: LocalSource? { sources[SourceID.local] as? LocalSource }
     var searchKeys: [[String]] {
         func keys(_ string: String) -> [String] { string.map { String($0) } }
         if symbols { return [keys("!@#$%&*()?"), keys("-_=+[]{}<>"), keys(".,:;/\\'\"~"), ["ABC", "⌫"], ["Space", "Done"]] }

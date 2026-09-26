@@ -72,6 +72,10 @@ extension LibraryModel {
                     // data is untouched. If the database commit fails, report the signed-out
                     // state honestly and retain the old personalization for an explicit retry.
                     try catalog?.resetAppData(); committed = true
+                    // This Mac's list of games is personalization too; the apps themselves stay.
+                    scanTask?.cancel(); await scanTask?.value
+                    try? await localSource?.reset()
+                    refreshScannedLibraries()
                     persistenceError = nil
                     if catalog != nil { if isPreview { resetPreviewState() }; reloadCatalog() }
                     else { resetPreviewState() }

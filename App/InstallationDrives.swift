@@ -9,7 +9,8 @@ struct InstallationDriveTarget: Equatable {
 extension LibraryModel {
     func updateInstallationDriveTargets(_ installations: [InstallationRecord]) {
         guard !isPreview, volumeStore != nil else { return }
-        let targets = Dictionary(uniqueKeysWithValues: installations.map {
+        // Apps found on this Mac report their own availability when scanned.
+        let targets = Dictionary(uniqueKeysWithValues: installations.filter { !$0.isExternal }.map {
             ($0.gameID, InstallationDriveTarget(installationID: $0.id, location: $0.location))
         })
         guard targets != installationDriveTargets else { return }

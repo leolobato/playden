@@ -60,6 +60,8 @@ struct Artwork: View {
     var fit = false
     var transparent = false
     var fadeIn = false
+    /// A Mac app's icon stands in for cover art that doesn't exist.
+    var appIcon: URL?
     @State private var image: NSImage?
     private struct Request: Hashable { let url: URL?; let fallback: URL? }
     private var request: Request { .init(url: url, fallback: fallbackURL) }
@@ -84,6 +86,14 @@ struct Artwork: View {
                         Image(nsImage: displayed).resizable().aspectRatio(contentMode: fit ? .fit : .fill)
                             .frame(width: geometry.size.width, height: geometry.size.height, alignment: fit ? .leading : .center)
                             .transition(.opacity)
+                    }
+                } else if let appIcon {
+                    let side = min(geometry.size.width, geometry.size.height) * 0.5
+                    VStack(spacing: 16) {
+                        Image(nsImage: NSWorkspace.shared.icon(forFile: appIcon.path)).resizable().interpolation(.high).frame(width: side, height: side)
+                        if !title.isEmpty && geometry.size.height > geometry.size.width {
+                            Text(title).font(Design.condensed(28)).multilineTextAlignment(.center).lineLimit(3).padding(.horizontal, 16)
+                        }
                     }
                 } else if !title.isEmpty {
                     Text(title).font(Design.condensed(36)).multilineTextAlignment(.center).padding(20)
@@ -211,6 +221,7 @@ struct GameTile: View {
         if running { return ("Running", Design.green) }
         if game.status == .queued { return (job?.statusTitle ?? "Queued", job?.state == .failed ? Design.amber : Design.secondary) }
         if game.status == .driveDisconnected { return ("Drive disconnected", Design.amber) }
+        if game.status == .missing { return ("Missing", Design.amber) }
         if game.compatibility == .broken { return ("Broken", Design.red) }
         // The adopted tile design reserves compatibility badges for Broken.
         // Other ratings remain visible on game details and in the library filters.
@@ -219,7 +230,8 @@ struct GameTile: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
             ZStack(alignment: .bottomLeading) {
-                Artwork(url: game.coverURL, fallbackURL: game.coverFallbackURL, title: game.title, placeholderID: game.id)
+                Artwork(url: game.coverURL, fallbackURL: game.coverFallbackURL, title: game.title, placeholderID: game.id, appIcon: game.appURL)
+                    .opacity(game.status == .missing ? 0.45 : 1)
                 if focused && !home {
                     LinearGradient(colors: [.clear, Design.background.opacity(0.92)], startPoint: .top, endPoint: .bottom).frame(height: 105)
                     VStack(alignment: .leading, spacing: 4) {

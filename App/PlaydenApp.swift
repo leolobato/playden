@@ -37,7 +37,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
             do {
                 let support = AppPaths.supportRoot()
                 let root = preview ? support.appendingPathComponent("Preview", isDirectory: true) : support
-                model = LibraryModel(catalog: try CatalogStore(path: root.appendingPathComponent("catalog.sqlite").path), preview: preview, source: preview ? nil : SteamSource(runtimeTools: CrossOverTools()), runtime: preview ? nil : CrossOverRuntime(), volumeStore: preview ? nil : GamesVolumeStore(), diagnosticArchive: preview ? nil : DiagnosticArchive(root: root.appendingPathComponent("logs")))
+                model = LibraryModel(catalog: try CatalogStore(path: root.appendingPathComponent("catalog.sqlite").path), preview: preview, source: preview ? nil : SteamSource(runtimeTools: CrossOverTools()), otherSources: preview ? [] : [LocalSource(store: LocalLibraryStore(file: root.appendingPathComponent("local-games.json")))], runtime: preview ? nil : CrossOverRuntime(), volumeStore: preview ? nil : GamesVolumeStore(), diagnosticArchive: preview ? nil : DiagnosticArchive(root: root.appendingPathComponent("logs")))
             } catch {
                 model = LibraryModel(preview: preview)
                 model.persistenceError = error.localizedDescription

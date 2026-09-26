@@ -29,6 +29,7 @@ extension LibraryModel {
                 guard let source = source(for: entry.id), let options = try? source.installer(for: installed.game).launchOptions(plan) else { return nil }
                 return (entry.id, options)
             })
+            storedEdits = Dictionary(uniqueKeysWithValues: snapshot.entries.map { ($0.id, $0.edits) })
             runtimeProfiles = Dictionary(uniqueKeysWithValues: snapshot.entries.compactMap { entry in
                 entry.edits.runtime.map { (entry.id, $0) }
             })
@@ -37,8 +38,8 @@ extension LibraryModel {
             let fixtures = Dictionary(uniqueKeysWithValues: PreviewCatalog.games.map { ($0.id, $0) })
             games = snapshot.entries.map { entry in
                 let record = entry.source
-                return Game(id: record.id, title: record.title,
-                    status: isPreview ? fixtures[record.id]?.status ?? .notInstalled : entry.installation == nil ? .notInstalled : .installed,
+                var game = Game(id: record.id, title: entry.edits.titleOverride ?? record.title,
+                    status: isPreview ? fixtures[record.id]?.status ?? .notInstalled : Self.status(of: entry.installation),
                     compatibility: entry.edits.compatibility, hoursPlayed: Int(entry.totalPlaytimeSeconds / 3600),
                     size: isPreview ? fixtures[record.id]?.size ?? "—" : entry.installation.map { ByteCountFormatter.string(fromByteCount: $0.installedBytes, countStyle: .file) } ?? record.downloadBytes.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "—",
                     summary: record.summary, genres: record.genres, coverURL: record.coverURL, heroURL: record.heroURL,
@@ -46,6 +47,12 @@ extension LibraryModel {
                     lastPlayedAt: entry.lastPlayedAt, addedAt: record.sourceAcquiredAt, installedAt: entry.installation?.installedAt,
                     controllerSupport: record.controllerSupport, lastSessionOutcome: entry.lastSession?.outcome,
                     installedBytes: isPreview ? fixtures[record.id]?.installedBytes : entry.installation?.installedBytes)
+                game.platforms = record.availablePlatforms
+                game.installedPlatform = entry.installation?.runtimeBinding.platform
+                game.isExternal = entry.installation?.isExternal == true
+                game.appURL = entry.installation?.external?.lastKnownPath
+                if game.isExternal { game.size = "—"; game.installedBytes = nil }
+                return game
             }
             collections = snapshot.collections
             compatibilityNotes = Dictionary(uniqueKeysWithValues: snapshot.entries.map { ($0.id, $0.edits.note) })
@@ -68,8 +75,21 @@ extension LibraryModel {
             reconcileFocus()
         } catch { recordPersistenceError(error) }
     }
-    private func edits(for game: Game) -> GameEdits {
-        var value = GameEdits(isFavorite: game.isFavorite, isHidden: game.isHidden, compatibility: game.compatibility, note: compatibilityNotes[game.id] ?? "")
+    /// Apps on this Mac carry their last scanned availability; owned installs are checked by drive.
+    static func status(of installation: InstallationRecord?) -> InstallStatus {
+        guard let installation else { return .notInstalled }
+        switch installation.external?.availability {
+        case .missing: return .missing
+        case .volumeUnavailable: return .driveDisconnected
+        default: return .installed
+        }
+    }
+    /// Starts from the stored edits, so fields this screen doesn't own (a title override, the
+    /// preferred platform) survive every save.
+    func edits(for game: Game) -> GameEdits {
+        var value = storedEdits[game.id] ?? GameEdits()
+        value.isFavorite = game.isFavorite; value.isHidden = game.isHidden; value.compatibility = game.compatibility
+        value.note = compatibilityNotes[game.id] ?? ""
         value.runtime = runtimeProfiles[game.id]
         return value
     }

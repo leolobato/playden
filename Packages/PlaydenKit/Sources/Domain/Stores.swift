@@ -32,13 +32,20 @@ public enum RuntimeBinding: String, Codable, Sendable {
 
 /// An app Playden found on disk. Its files belong to the user; Playden never writes or removes them.
 public struct ExternalLocation: Codable, Equatable, Sendable {
+    public enum Availability: String, Codable, Sendable { case available, volumeUnavailable, missing }
     public var bookmark: Data?
     public var lastKnownPath: URL
     public var bundleIdentifier: String?
     public var executableName: String?
-    public init(bookmark: Data?, lastKnownPath: URL, bundleIdentifier: String? = nil, executableName: String? = nil) {
+    /// As of the last scan; Play checks again before launching.
+    public var availability: Availability?
+    /// The app embeds the Steam API and may need the Steam client.
+    public var usesSteam: Bool?
+    public init(bookmark: Data?, lastKnownPath: URL, bundleIdentifier: String? = nil, executableName: String? = nil,
+                availability: Availability? = nil, usesSteam: Bool? = nil) {
         self.bookmark = bookmark; self.lastKnownPath = lastKnownPath
         self.bundleIdentifier = bundleIdentifier; self.executableName = executableName
+        self.availability = availability; self.usesSteam = usesSteam
     }
 }
 

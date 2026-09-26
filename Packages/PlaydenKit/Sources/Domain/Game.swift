@@ -40,6 +40,8 @@ public struct Game: Identifiable, Hashable, Sendable {
     public var installedPlatform: GamePlatform?
     /// Files are the user's own (This Mac); Playden never installs or removes them.
     public var isExternal = false
+    /// The app on this Mac, for its icon while no cover art exists.
+    public var appURL: URL?
 
     public var knownInstalledBytes: Int64? {
         guard status == .installed || status == .driveDisconnected,

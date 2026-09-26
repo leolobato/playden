@@ -130,7 +130,7 @@ private struct Store: GameSource {
     func installer(for game: SourceGameRecord) throws -> any Installer { Content(gameID: game.id, events: events) }
     func locate(_ installation: InstallationRecord) async throws -> URL {
         guard installation.isExternal else { throw ExternalLocationFailure.missing }
-        return URL(fileURLWithPath: "/Applications")
+        return URL(fileURLWithPath: "/Applications/Renamed.app")
     }
 }
 private struct Content: Installer {
@@ -296,8 +296,9 @@ final class SessionServiceTests: XCTestCase {
         try await service.start(downloadWhilePlaying: false)
         try await service.play(game.gameID)
         _ = try await wait(service, phase: .launching)
-        let directory = await native.lastDirectory, applied = await events.appliedOptions
+        let directory = await native.lastDirectory, applied = await events.appliedOptions, spec = await native.lastLaunchSpec
         XCTAssertEqual(directory?.path, "/Applications")
+        XCTAssertEqual(spec?.executableRelativePath, "Renamed.app", "A renamed app still launches")
         XCTAssertTrue(applied.isEmpty, "Apps without a store plan get no source options")
         await native.emit(exit: 0); _ = try await wait(service, phase: .idle)
     }

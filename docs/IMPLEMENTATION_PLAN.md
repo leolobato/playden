@@ -463,7 +463,7 @@ working and ships on its own.
   runner selection by runtime, the Steam helpers moved behind the source, generic store copy.
 - [x] **S2 — Native runner.** `NativeRunner`, process inspection by bundle root, a fixture app, and
   session tests.
-- [ ] **S3 — This Mac source.** The `v7_local_games` tables, scanning, identity matching, re-adding
+- [x] **S3 — This Mac source.** The `v7_local_games` tables, scanning, identity matching, re-adding
   removed games, `locate`, the Missing status, the Steam dependency warning, and icon artwork.
 - [ ] **S4 — Steam macOS builds.** `platforms` metadata, resolving by platform, executable file
   modes, native plans in `InstallQueue`, macOS Steam API staging and ad-hoc re-signing, and

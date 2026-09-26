@@ -205,7 +205,7 @@ public actor SessionService: SessionManaging {
         do {
             try await queue.setGameplayPaused(!downloadWhilePlaying)
             try Task.checkCancellation()
-            let directory = try await directory(for: original)
+            let (directory, externalApp) = try await location(for: original)
             let runner = try runner(for: original)
             var installed = original
             if let id = active?.id { catalog.captureDiagnosticEvent(for: id, message: "Preparing runtime", at: clock.wallTime) }
@@ -251,6 +251,8 @@ public actor SessionService: SessionManaging {
                 catalog.captureDiagnosticEvent(for: preparing.id, message: "Game settings · source options applied", at: clock.wallTime)
             }
             var spec = installed.launchSpec
+            // An external app may have been renamed since the last scan.
+            if let externalApp { spec.executableRelativePath = externalApp }
             if let option = activeLaunchOption {
                 guard try launchOptions(for: installed).contains(option) else {
                     throw issue("Launch game", "The selected launch option changed. Choose another option.")
@@ -455,12 +457,15 @@ public actor SessionService: SessionManaging {
         return nativeRunner
     }
     /// Owned installs resolve under their ownership marker; external apps resolve through their store.
-    private func directory(for installation: InstallationRecord) async throws -> URL {
+    private func location(for installation: InstallationRecord) async throws -> (directory: URL, app: String?) {
         guard installation.isExternal else {
-            return try await storage.directory(installation.location, gameID: installation.gameID, owner: installation.ownershipToken)
+            return (try await storage.directory(installation.location, gameID: installation.gameID, owner: installation.ownershipToken), nil)
         }
         guard let source = sources[installation.gameID.source] else { throw issue("Launch game", "This game's store is unavailable.") }
-        do { return try await source.locate(installation) }
+        do {
+            let app = try await source.locate(installation)
+            return (app.deletingLastPathComponent(), app.lastPathComponent)
+        }
         catch ExternalLocationFailure.volumeUnavailable {
             throw issue("Launch game", "Connect the drive that has \(installation.game.title), then try again.")
         } catch ExternalLocationFailure.missing {

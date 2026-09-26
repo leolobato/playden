@@ -77,6 +77,6 @@ public extension GameSource {
     func artworkFallbacks(for id: GameID) -> [URL] { [] }
     /// External sources report the installations they found; Playden never owns these files.
     func externalInstallations(for games: [SourceGameRecord]) async throws -> [InstallationRecord] { [] }
-    /// Resolves an external installation to the directory that contains its app.
+    /// Resolves an external installation to its app, wherever it is now.
     func locate(_ installation: InstallationRecord) async throws -> URL { throw ExternalLocationFailure.missing }
 }
