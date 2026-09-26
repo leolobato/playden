@@ -6,10 +6,12 @@ Playden is a controller-first launcher for your Steam library on Apple Silicon. 
 each Windows game into its own [CrossOver](https://www.codeweavers.com/crossover) environment
 and gets you from the sofa to the game without bottles, shortcuts or the desktop.
 
-**Playden requires CrossOver.** It is a separate, paid product from CodeWeavers with a free
-trial; Playden does not include it, and games cannot be prepared or played without it.
+**Windows games require CrossOver.** It is a separate, paid product from CodeWeavers with a free
+trial; Playden does not include it, and Windows games cannot be prepared or played without it.
+Mac games, both Steam macOS builds and games already installed on this Mac, run without it.
 
-**The current focus is Steam and CrossOver.** Support for other engines and stores is planned.
+**The current focus is Steam, CrossOver and native Mac games.** More stores (itch.io, GOG, Epic,
+Amazon) are planned; see [PRD 08](docs/prd/08-stores.md).
 
 ![Playden Library with sample games](docs/images/library.png)
 
@@ -34,6 +36,13 @@ implemented.
   Game details fetch and cache estimated download sizes when Steam provides them. Download
   progress uses fixed stat columns and a smoothed time estimate to keep the row steady.
   Checks between downloads show file-verification progress instead of a stalled transfer.
+- **Play Mac games too.** Add Mac games you already have from a list of suggestions or by
+  browsing, or let Playden watch folders for them. Playden launches them without changing their
+  files; removing one keeps its playtime if you add it again. Steam games with a Mac version can
+  install it instead of the Windows build, using a bundled macOS Steam API emulator. Mac builds and
+  This Mac games are new in this branch and not yet verified with real games.
+- **Browse by store and platform.** Once a second store has games, the Library lists each store,
+  and filters narrow by store and by platform (Windows or macOS).
 - **Play through CrossOver.** Per-game runtime preparation, game controls for returning or
   quitting, session playtime and recorded exit results. Downloads can pause while you play.
 - **Sync supported Steam Cloud saves.** Download before playing, upload after exit, review

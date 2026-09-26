@@ -8,10 +8,12 @@ The pipeline talks only to the `Installer` and `GameRunner` protocols (01 §3).
 - **FR-SRC-1 (v1):** `SteamSource`: owned games via `SteamCore` `Library`, metadata via PICS,
   `SteamInstaller` for depots. Windows depots always; english by default with the game's language
   configurable in v2 properties.
-- **FR-SRC-2 (v2):** A second source, preferring GOG or itch.io (DRM-free, offline installers or the
-  butler API) because they exercise the protocol without a second emulation layer.
-- **FR-SRC-3 (later):** Epic (legendary-style protocol), `ManualSource` (add an exe already on disk
-  into a new bottle), and non-store games from an existing bottle.
+- **FR-SRC-2 (v3, moved by [08](08-stores.md) §11):** A second download source, preferring GOG or
+  itch.io (DRM-free, offline installers or the butler API) because they exercise the protocol
+  without a second emulation layer.
+- **FR-SRC-3 (v3 and later, see [08](08-stores.md)):** Epic (legendary-style protocol) is v3. Games
+  already on disk became the v1 This Mac store (native apps) and the v2 Windows import (an exe into
+  a new bottle). Non-store games from an existing bottle stay later.
 - **FR-SRC-4 (v1):** Adding a source in code requires no change to `Catalog`, `Installs`, `Runner` or
   any screen. This is verified by a test that runs the install pipeline against a `FakeSource`.
 
@@ -99,9 +101,12 @@ Scope changed by the user on 7 September 2026: cloud save sync is required for v
   reinstall downloads available Cloud saves before launch. This does not require local uninstall
   archives or a "Keep saves" feature in v1.
 
-## 7. Native macOS games and official Steam integration (v2)
+## 7. Native macOS games and official Steam integration (v1/v2)
 
-- **FR-MAC-1 (v2):** When a game offers a macOS build, expose it as an optional install/launch
+Steam macOS builds (FR-MAC-1) are v1 and specified in [08-stores.md](08-stores.md) §4. The rest of this
+section stays v2.
+
+- **FR-MAC-1 (v1, moved by [08](08-stores.md) §4):** When a game offers a macOS build, expose it as an optional install/launch
   choice alongside Windows/CrossOver. Never force the macOS version or silently replace an existing
   Windows installation. Remember the player’s choice and allow it to change.
 - **FR-MAC-2 (v2):** Discover installed games in the official Steam macOS client’s configured library

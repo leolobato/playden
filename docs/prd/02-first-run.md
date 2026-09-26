@@ -32,6 +32,9 @@ step is the one exception and is designed for it.
 
 ## 3. Sign in
 
+First run now asks how to add games before this step: Steam, This Mac or both. A player with only This Mac
+games skips the games drive and CrossOver steps. See [08-stores.md](08-stores.md) §7.
+
 - **FR-AUTH-1 (v1):** Steam sign-in is via QR code shown large on the TV, scanned with the Steam
   mobile app (`SteamCore` `SteamAuth` QR path). States: waiting, approved, expired (auto-refresh with
   a new code), network failure with retry.

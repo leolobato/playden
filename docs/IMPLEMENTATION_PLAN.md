@@ -475,6 +475,14 @@ working and ships on its own.
   add a native game from `/Applications` and one from an external drive; install A Short Hike's
   macOS build, then play, verify and switch platform.
 
+Progress, 26 September 2026: S0–S5 are built and committed on `feat/multi-store-launcher`. Automated
+coverage: SteamKit 62 tests, PlaydenKit 392 (6 skipped) and app 241, all passing. This includes real
+bundle process inspection, real ad-hoc re-signing of a bundle holding the gbe_fork dylib, and the
+gbe_fork smoke test on arm64 and x86_64. Docs for S6 are updated. Still open:
+- the manual acceptance below;
+- native (not offscreen) captures of the new screens;
+- the game-settings *Steam emulator* section for Mac builds, which is v2.
+
 Gate: a native `/Applications` game and a Steam macOS build both reach controller-driven gameplay
 and return to Playden with playtime recorded, while Steam Windows regression tests still pass.
 

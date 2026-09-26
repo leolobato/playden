@@ -17,11 +17,13 @@ local edits. Nothing here names Steam except the artwork endpoint.
 ## 2. Library
 
 - **FR-LIB-1 (v1):** Left rail: Installed, All, Favorites, Hidden, then user collections. Right: a
-  cover grid, 6 columns at 1080p. The rail's selection persists.
+  cover grid, 6 columns at 1080p. The rail's selection persists. Once a second store has games, a
+  Stores section sits between Hidden and the collections ([08](08-stores.md) §5.1).
 - **FR-LIB-2 (v1):** Sort (Options): name, recently played, playtime, recently added. Filters
   (Options): installed state, source (when >1), genre, controller support, compatibility rating.
   Recently added uses the source account's acquisition date (Steam purchases/activations), newest
   first, rather than when Playden first discovered the game. Unknown acquisition dates sort last.
+  The Store and Platform filters and the Missing value are specified in [08](08-stores.md) §5.2.
 - **FR-LIB-3 (v1):** Search (touchpad or `search`): live filter across titles; results replace the
   grid; `back` clears.
 - **FR-LIB-4 (v1):** Cover states are visible on the tile: not installed (full-color cover with

@@ -386,36 +386,42 @@ it as `source: (any GameSource)?`. `InstallQueue` and `SessionService` already a
   flag 32) is ignored.
   - Files with that flag become `0o755`, and so do Mach-O files under `Contents/MacOS`, because some
     depots omit the flag.
-  - Symlinks are already written safely (`createSymlink`). Frameworks need them.
-  - Verification also checks modes, so Verify files can repair a lost executable bit.
+  - Symlinks are already written safely (`createSymlink`). Frameworks need them, so preparation
+    allows a link only when it resolves inside the game folder.
+  - Preparation sets the modes every time it runs, including after Verify files repairs a file.
 - **FR-SMAC-6 (v1):** **Steam API without the Steam client.** This is the macOS equivalent of the
   gbe_fork DLL staging (`Prepare.swift`, `GBEAssets`):
-  - Playden bundles a universal (arm64 + x86_64) gbe_fork `libsteam_api.dylib`, with pinned hashes
-    as for the DLLs.
+  - Playden bundles a universal (arm64 + x86_64) gbe_fork `libsteam_api.dylib`, with a pinned hash
+    as for the DLLs (decision 12).
   - It replaces each `libsteam_api.dylib` in the bundle (`Contents/Frameworks`, Unity's
-    `Contents/Plugins`, and so on). The original is kept as a `FileMutation` with a `.orig` backup,
-    so verify and repair work as they do for Windows.
-  - It writes `steam_settings` next to each replaced library, using the same account, app ID,
-    interface and DLC data as the Windows path.
+    `Contents/Plugins`, and so on). The original goes to `.playden-originals/` in the game folder,
+    outside the app bundle, which must not contain unsigned code. It is recorded as a
+    `FileMutation`, so verify and repair work as they do for Windows.
+  - It writes one `steam_settings` folder in `.playden-steam/`, also outside the bundle, with the
+    same account, app ID, interface and DLC data as the Windows path. The launch environment's
+    `GseAppPath` points gbe_fork there.
+  - Emulator saves go to Playden's support folder (`Steam Emulator/<appid>`), outside the game
+    folder, so uninstalling keeps them.
   - Steamless does not apply, because SteamStub is Windows-only.
-  - **Gate:** gbe_fork has no official macOS release. A spike must first prove a working build
-    (§12 step 0). Until it passes, the macOS choice is offered only for depots with no
-    `libsteam_api.dylib`. Other games show "The macOS version needs the Steam app. Install the
-    Windows version instead." with the macOS choice disabled.
+  - The S0 build passed its smoke test, so every Mac build is offered. A title that still fails
+    is reported through its compatibility rating.
 - **FR-SMAC-7 (v1):** **Code signature.** Replacing a library breaks the bundle's signature, and a
   hardened-runtime executable refuses to load a library with a different signature. After
   staging, Playden therefore:
-  1. re-signs the modified bundle ad hoc (`codesign --force --deep --sign -`), through the existing
-     `CommandExecutor`;
-  2. removes `com.apple.quarantine` if it is present;
+  1. re-signs the modified bundle ad hoc (`codesign --force --sign -`, without `--deep`, so nested
+     frameworks keep their original, still valid signatures);
+  2. records the re-signed executables and the bundle seal as staged files, with their originals
+     kept, so Verify files still checks the downloaded content;
   3. validates the result with `codesign --verify`.
 
-  The staging record keeps a version number, so a later recipe change triggers restaging, as it
-  does for Windows.
-- **FR-SMAC-8 (v1):** **Launch.** `NativeRunner` runs the bundle from the owned install directory,
-  which `InstallationLocator` resolves. Steam emulator options (for example the overlay setting
-  written by `applyRuntimeOptions`) still apply. The CrossOver runtime profile sheet is hidden, and
-  a *Steam emulator* section stays.
+  Files Playden writes itself are not quarantined, so nothing is removed from them. The staging
+  record has its own version (3), so a later recipe change triggers restaging, as it does for
+  Windows.
+- **FR-SMAC-8 (v1):** **Launch.** `NativeRunner` runs the bundle from the owned install directory.
+  `GseAppPath` points gbe_fork at `.playden-steam/steam_settings`, and emulator options written by
+  `applyRuntimeOptions` go there, so they never change the signed bundle. The CrossOver runtime
+  profile sheet is hidden for Mac builds. **(v2):** a *Steam emulator* section in game settings for
+  Mac builds; v1 uses the defaults (overlay off).
 - **FR-SMAC-9 (v1):** **Cloud saves are Windows only for now.** macOS save rules
   (`ufs.savefiles` with `platforms: MacOS`, and roots such as `MacAppSupport` and `MacHome`) point
   outside the game folder. Today the save store resolves only the `game` and `bottle` roots.
@@ -464,8 +470,8 @@ it as `source: (any GameSource)?`. `InstallQueue` and `SessionService` already a
 ### 5.3 Tiles and game page
 
 - **FR-STORE-6 (v1):** When more than one source has games, each tile shows a small store glyph in
-  the top-left corner. The glyph is less prominent than the state badges (04 FR-LIB-4) and never
-  covers the download glyph. With one store, no glyph is shown.
+  the top-right corner. A state badge (04 FR-LIB-4) replaces it, so the two never collide, and it
+  never covers the download glyph. With one store, no glyph is shown.
 - **FR-STORE-7 (v1):** The game page's metadata strip shows two new items:
   - *Store*: the display name. It replaces `game.id.source.capitalized` at `LibraryViews.swift:329`.
   - *Runs as*: "Windows · CrossOver" or "macOS". For a game that is not installed and has both
@@ -494,13 +500,14 @@ it as `source: (any GameSource)?`. `InstallQueue` and `SessionService` already a
 
 ### 5.6 Empty states
 
-- **FR-STORE-13 (v1):** When there are no games and no connected stores, Home and Library say "Add
-  your games" and offer two actions: *Sign in to Steam* and *Add games on this Mac*. The copy no
-  longer assumes Steam (`LibraryViews.swift:227-258`).
+- **FR-STORE-13 (v1):** When there are no games, Home and Library say "Add your games" and explain
+  both ways: "Sign in to Steam, or add games that are already on this Mac." The one action, *Add
+  games*, opens Settings → Stores. Without the This Mac store, the action signs in to Steam
+  directly, as before.
 
 ## 6. Settings
 
-- **FR-SET-STORE-1 (v1):** Settings gains a **Stores** page. It replaces the single Steam account
+- **FR-SET-STORE-1 (v1):** Settings gains a **Stores** page (the former *Account* section). It replaces the single Steam account
   row (`SupportViews.swift:21`) and has one row per source:
   - **Steam:** "Signed in as X" or "Sign in", Sign out, Refresh library, the last sync time or error,
     and the *Prefer macOS versions* toggle (FR-SMAC-2).
