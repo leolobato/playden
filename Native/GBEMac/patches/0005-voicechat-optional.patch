@@ -1,0 +1,33 @@
+Playden macOS port of gbe_fork, patch 5: optional voice chat.
+
+With EMU_NO_VOICECHAT defined, voicechat.h no longer includes opus/portaudio
+and forward-declares the few types its members use. The build then replaces
+dll/voicechat.cpp with Native/GBEMac/src/voicechat_stub.cpp, which reports
+k_EVoiceResultNotInitialized (the same result upstream gives when PortAudio
+cannot start). Upstream behaviour is unchanged when the macro is not defined.
+
+diff --git a/dll/dll/voicechat.h b/dll/dll/voicechat.h
+index b2826dc..fdee312 100644
+--- a/dll/dll/voicechat.h
++++ b/dll/dll/voicechat.h
+@@ -19,8 +19,20 @@
+ #define VOICECHAT_INCLUDE_H
+ 
+ #include "base.h"
++#if defined(EMU_NO_VOICECHAT)
++// [Playden macOS] voice chat is compiled out (no opus/portaudio, and opening
++// the microphone from a game without NSMicrophoneUsageDescription makes TCC
++// kill the process). The class keeps its layout; src/voicechat_stub.cpp in
++// Native/GBEMac implements it as "not initialized".
++typedef struct OpusEncoder OpusEncoder;
++typedef struct OpusDecoder OpusDecoder;
++typedef void PaStream;
++typedef struct PaStreamCallbackTimeInfo PaStreamCallbackTimeInfo;
++typedef unsigned long PaStreamCallbackFlags;
++#else
+ #include <opus/opus.h>
+ #include <portaudio.h>
++#endif
+ 
+ // recording: how many mic samples are recorded in 1 second
+ // playback: ???

@@ -1,0 +1,59 @@
+Playden macOS port of gbe_fork, patch 3: LAN networking.
+
+- get_broadcast_info(): the Linux SIOCGIFCONF walk assumes fixed-size struct
+  ifreq entries, which is wrong on BSD/macOS (entries are variable-length).
+  Use getifaddrs() on macOS to collect the IPv4 broadcast addresses.
+- macOS has no MSG_NOSIGNAL, so a send() to a closed TCP peer would raise
+  SIGPIPE and kill the game. Set SO_NOSIGPIPE on every TCP socket; all of them
+  (outgoing and accepted) go through disable_nagle().
+
+diff --git a/dll/network.cpp b/dll/network.cpp
+index 0a46e53..3c752f9 100644
+--- a/dll/network.cpp
++++ b/dll/network.cpp
+@@ -84,6 +84,33 @@ static void get_broadcast_info(uint16 port)
+     free(pAdapterInfo);
+ }
+ 
++#elif defined(__APPLE__)
++
++// [Playden macOS] BSD ifreq entries are variable-length, so the Linux
++// SIOCGIFCONF walk below does not work; use getifaddrs() instead.
++static void get_broadcast_info(uint16 port)
++{
++    number_broadcasts = 0;
++    struct ifaddrs *ifap = nullptr;
++    if (getifaddrs(&ifap) != 0) return;
++
++    for (struct ifaddrs *ifa = ifap; ifa; ifa = ifa->ifa_next) {
++        if (!ifa->ifa_addr || ifa->ifa_addr->sa_family != AF_INET) continue;
++        if (!(ifa->ifa_flags & IFF_BROADCAST) || !ifa->ifa_broadaddr) continue;
++        if (number_broadcasts >= MAX_BROADCASTS) break;
++
++        struct sockaddr_in *sock4 = (struct sockaddr_in *)ifa->ifa_broadaddr;
++        IP_PORT *ip_port = &broadcasts[number_broadcasts];
++        ip_port->ip = sock4->sin_addr.s_addr;
++        if (ip_port->ip == 0) continue;
++
++        ip_port->port = port;
++        number_broadcasts++;
++    }
++
++    freeifaddrs(ifap);
++}
++
+ #elif defined(__linux__)
+ 
+ static void get_broadcast_info(uint16 port)
+@@ -182,6 +209,11 @@ static int set_socket_nonblocking(sock_t sock)
+ static bool disable_nagle(sock_t sock)
+ {
+     int set = 1;
++#if defined(__MACOS__)
++    // [Playden macOS] no MSG_NOSIGNAL: stop send() on a closed TCP peer from
++    // raising SIGPIPE (which would kill the game). Every TCP socket passes here.
++    setsockopt(sock, SOL_SOCKET, SO_NOSIGPIPE, (char *)&set, sizeof(set));
++#endif
+     return (setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (char *)&set, sizeof(set)) == 0);
+ }
+ 

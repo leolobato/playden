@@ -1,0 +1,82 @@
+Playden macOS port of gbe_fork, patch 2: executable/library paths.
+
+- get_full_exe_path(): no /proc/self/exe on macOS; use _NSGetExecutablePath.
+- get_lib_path(): was Linux-only; enable the dladdr() version on macOS and
+  realpath() the result. This is what makes gbe_fork look for steam_settings/
+  next to the real libsteam_api.dylib (see Native/GBEMac/README.md).
+- get_current_path(): no get_current_dir_name() on macOS; use getcwd(NULL, 0).
+- canonical_path(): no canonicalize_file_name() on macOS; use realpath(p, NULL).
+- load_dlls (experimental builds only): look for .dylib instead of .so.
+
+diff --git a/dll/base.cpp b/dll/base.cpp
+index 6131ead..2c69681 100644
+--- a/dll/base.cpp
++++ b/dll/base.cpp
+@@ -191,6 +191,15 @@ std::string get_full_exe_path()
+         path[1] = 0;
+     }
+     exe_path = canonical_path(utf8_encode(path));
++#elif defined(__MACOS__)
++    // [Playden macOS] there is no /proc/self/exe on macOS.
++    static char path[8192]{};
++    uint32_t size = sizeof(path);
++    if (_NSGetExecutablePath(path, &size) != 0) {
++        path[0] = '.';
++        path[1] = 0;
++    }
++    exe_path = canonical_path(path);
+ #else
+     // https://man7.org/linux/man-pages/man5/proc.5.html
+     // https://linux.die.net/man/5/proc
+@@ -225,12 +234,19 @@ std::string get_exe_dirname()
+ 
+ }
+ 
+-#ifdef __LINUX__
++#if defined(__LINUX__) || defined(__MACOS__)
+ std::string get_lib_path()
+ {
+     Dl_info info;
+     if (dladdr((void*)get_lib_path, &info))
+     {
++#if defined(__MACOS__)
++        // [Playden macOS] dyld reports the path the image was loaded with
++        // (may be relative or go through symlinks); resolve it so that
++        // steam_settings/ is looked up next to the real libsteam_api.dylib.
++        std::string resolved = canonical_path(info.dli_fname);
++        if (!resolved.empty()) return resolved;
++#endif
+         return std::string(info.dli_fname);
+     }
+     return ".";
+@@ -271,6 +287,8 @@ std::string get_current_path()
+     std::string path;
+ #if defined(STEAM_WIN32)
+     char *buffer = _getcwd( NULL, 0 );
++#elif defined(__MACOS__)
++    char *buffer = getcwd( NULL, 0 ); // [Playden macOS] no get_current_dir_name()
+ #else
+     char *buffer = get_current_dir_name();
+ #endif
+@@ -292,6 +310,12 @@ std::string canonical_path(const std::string &path)
+         output = utf8_encode(buffer);
+         free(buffer);
+     }
++#elif defined(__MACOS__)
++    char *buffer = realpath(path.c_str(), NULL); // [Playden macOS] no canonicalize_file_name()
++    if (buffer) {
++        output = buffer;
++        free(buffer);
++    }
+ #else
+     char *buffer = canonicalize_file_name(path.c_str());
+     if (buffer) {
+@@ -346,6 +370,8 @@ static void load_dlls()
+     constexpr static const char LIB_EXTENSION[] =
+ #ifdef __WINDOWS__
+         ".dll"
++#elif defined(__MACOS__)
++        ".dylib" // [Playden macOS]
+ #else
+         ".so"
+ #endif

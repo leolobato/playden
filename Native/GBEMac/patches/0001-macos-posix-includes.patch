@@ -1,0 +1,68 @@
+Playden macOS port of gbe_fork, patch 1: POSIX headers on macOS.
+
+gbe_fork only knows __WINDOWS__ and __LINUX__. common_helpers/os_detector.h
+already defines __MACOS__ for Apple targets, but common_includes.h then has no
+branch for it, so nothing POSIX (sockets, dirent, dlfcn, PATH_SEPARATOR, the
+crash printer) is declared. Take the Linux branch on macOS too, minus the two
+Linux-only headers, plus the BSD/Darwin headers the other patches use.
+Also: MSG_NOSIGNAL does not exist on macOS (defined to 0, SO_NOSIGPIPE is set
+per socket in patch 3), and the debug-log thread id uses pthread_threadid_np
+because there is no SYS_gettid (only matters for debug builds).
+
+diff --git a/dll/dll/common_includes.h b/dll/dll/common_includes.h
+index 92c515f..6677606 100644
+--- a/dll/dll/common_includes.h
++++ b/dll/dll/common_includes.h
+@@ -111,7 +111,8 @@ static inline void reset_LastError()
+     SetLastError(0);
+ }
+ 
+-#elif defined(__LINUX__)
++#elif defined(__LINUX__) || defined(__MACOS__)
++    // [Playden macOS] macOS shares the POSIX code paths with Linux.
+     #ifndef _GNU_SOURCE
+         #define _GNU_SOURCE
+     #endif // _GNU_SOURCE
+@@ -129,8 +130,21 @@ static inline void reset_LastError()
+ 
+     #include <netinet/in.h>
+     #include <netinet/tcp.h>
++#if defined(__MACOS__)
++    // [Playden macOS] no <linux/netdevice.h>/<sys/vfs.h>; BSD equivalents.
++    #include <net/if.h>
++    #include <ifaddrs.h>
++    #include <sys/param.h>
++    #include <mach-o/dyld.h> // _NSGetExecutablePath
++    #include <pthread.h>     // pthread_threadid_np
++    // macOS has no MSG_NOSIGNAL; SO_NOSIGPIPE is set per socket in network.cpp.
++    #ifndef MSG_NOSIGNAL
++        #define MSG_NOSIGNAL 0
++    #endif
++#else
+     #include <linux/netdevice.h>
+     #include <sys/vfs.h>
++#endif
+ 
+     #include <fcntl.h>
+     #include <unistd.h>
+@@ -160,7 +174,7 @@ static inline void reset_LastError()
+ #define AS_STR(x) #x
+ #define EXPAND_AS_STR(x) AS_STR(x)
+ 
+-#if defined(__LINUX__) || defined(GNUC) || defined(__MINGW32__) || defined(__MINGW64__) // MinGw
++#if defined(__LINUX__) || defined(__MACOS__) || defined(GNUC) || defined(__MINGW32__) || defined(__MINGW64__) // MinGw
+     #define EMU_FUNC_NAME __PRETTY_FUNCTION__
+ #else
+     #define EMU_FUNC_NAME __FUNCTION__##"()"
+@@ -175,6 +189,11 @@ static inline void reset_LastError()
+     #if defined(__WINDOWS__)
+         #define PRINT_DEBUG_TID() (long long)GetCurrentThreadId()
+         #define PRINT_DEBUG_CLEANUP() WSASetLastError(0)
++    #elif defined(__MACOS__)
++        // [Playden macOS] no SYS_gettid
++        static inline long long gbe_macos_tid() { uint64_t tid = 0; pthread_threadid_np(nullptr, &tid); return (long long)tid; }
++        #define PRINT_DEBUG_TID() gbe_macos_tid()
++        #define PRINT_DEBUG_CLEANUP() (void)0
+     #elif defined(__LINUX__)
+         #include <sys/syscall.h> // syscall
+ 

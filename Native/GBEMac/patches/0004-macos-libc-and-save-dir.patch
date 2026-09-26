@@ -1,0 +1,56 @@
+Playden macOS port of gbe_fork, patch 4: libc differences and save folder.
+
+- common_helpers::get_utc_time(): the non-Linux branch uses gmtime_s(), which
+  macOS libc does not have; use the gmtime() branch on Apple too.
+- Local_Storage::get_user_appdata_path(): the default save root on Linux is
+  $XDG_DATA_HOME or ~/.local/share. On macOS default to
+  ~/Library/Application Support (XDG_DATA_HOME still wins when set), so saves
+  land in "~/Library/Application Support/GSE Saves/<appid>/" unless
+  configs.user.ini sets [user::saves] local_save_path.
+- crash_printer/linux.cpp: <ucontext.h> errors out on macOS unless
+  _XOPEN_SOURCE is defined; nothing in the file uses it, so skip it on Apple.
+
+diff --git a/crash_printer/linux.cpp b/crash_printer/linux.cpp
+index e1e5864..93f29ac 100644
+--- a/crash_printer/linux.cpp
++++ b/crash_printer/linux.cpp
+@@ -7,7 +7,9 @@
+ #include <chrono>
+ #include <ctime>
+ 
++#if !defined(__APPLE__) // [Playden macOS] needs _XOPEN_SOURCE there, and nothing here uses it
+ #include <ucontext.h>
++#endif
+ #include <signal.h> // SIGBUS + SA_SIGINFO ...
+ #include <string.h> // strsignal
+ #include <execinfo.h> // backtrace + backtrace_symbols
+diff --git a/dll/local_storage.cpp b/dll/local_storage.cpp
+index f541886..d2db0e2 100644
+--- a/dll/local_storage.cpp
++++ b/dll/local_storage.cpp
+@@ -496,7 +496,12 @@ std::string Local_Storage::get_user_appdata_path()
+     } else {
+         char *homedir = getenv("HOME");
+         if (homedir) {
++#if defined(__MACOS__)
++            // [Playden macOS] ~/Library/Application Support/GSE Saves/
++            user_appdata_path = std::string(homedir) + "/Library/Application Support";
++#else
+             user_appdata_path = std::string(homedir) + "/.local/share";
++#endif
+         }
+     }
+ #endif
+diff --git a/helpers/common_helpers.cpp b/helpers/common_helpers.cpp
+index 15f543a..c0aaf64 100644
+--- a/helpers/common_helpers.cpp
++++ b/helpers/common_helpers.cpp
+@@ -436,7 +436,7 @@ std::string common_helpers::get_utc_time()
+     std::tm utc_time{};
+ 
+     bool is_ok = false;
+-#if defined(__linux__) || defined(linux)
++#if defined(__linux__) || defined(linux) || defined(__APPLE__) // [Playden macOS] no gmtime_s
+     {
+         auto utc_ptr = std::gmtime(&time);
+         if (utc_ptr) {

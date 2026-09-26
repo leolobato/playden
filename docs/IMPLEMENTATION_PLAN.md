@@ -454,7 +454,7 @@ test on a machine without CrossOver cannot satisfy the real-platform release gat
 Scope: [PRD 08](prd/08-stores.md). Added 26 September 2026. Each step keeps Steam Windows installs
 working and ships on its own.
 
-- [ ] **S0 — macOS gbe_fork (decision 12).** `scripts/build-gbe-macos.sh` builds a universal
+- [x] **S0 — macOS gbe_fork (decision 12).** `scripts/build-gbe-macos.sh` builds a universal
   `libsteam_api.dylib` from a pinned upstream commit, with the patches in `Native/GBEMac/`. Record
   its hash in `steampipe/PROVENANCE.md`. A test harness loads the library, starts the Steam API with
   `steam_settings`, and reads the account and app ID.
