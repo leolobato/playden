@@ -20,6 +20,7 @@ public struct Game: Identifiable, Hashable, Sendable {
     public var status: InstallStatus
     public var compatibility: Compatibility
     public var hoursPlayed: Int
+    public var installedBytes: Int64?
     public var size: String
     public var summary: String
     public var genres: [String]
@@ -34,12 +35,19 @@ public struct Game: Identifiable, Hashable, Sendable {
     public var controllerSupport: ControllerSupport
     public var lastSessionOutcome: SessionOutcome?
 
+    public var knownInstalledBytes: Int64? {
+        guard status == .installed || status == .driveDisconnected,
+              let installedBytes, installedBytes >= 0 else { return nil }
+        return installedBytes
+    }
+
     public init(id: GameID, title: String, status: InstallStatus = .notInstalled,
                 compatibility: Compatibility = .untested, hoursPlayed: Int = 0, size: String = "—",
                 summary: String = "", genres: [String] = [], coverURL: URL? = nil,
                 heroURL: URL? = nil, logoURL: URL? = nil, isFavorite: Bool = false, isHidden: Bool = false,
                 lastPlayedAt: Date? = nil, addedAt: Date? = nil, installedAt: Date? = nil,
-                controllerSupport: ControllerSupport = .unknown, lastSessionOutcome: SessionOutcome? = nil) {
+                controllerSupport: ControllerSupport = .unknown, lastSessionOutcome: SessionOutcome? = nil, installedBytes: Int64? = nil) {
+        self.installedBytes = installedBytes
         self.id = id; self.title = title; self.status = status; self.compatibility = compatibility
         self.hoursPlayed = hoursPlayed; self.size = size; self.summary = summary; self.genres = genres
         self.coverURL = coverURL; self.heroURL = heroURL; self.logoURL = logoURL

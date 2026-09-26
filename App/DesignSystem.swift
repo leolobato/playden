@@ -199,6 +199,13 @@ struct GameTile: View {
     var transferTitle: String { verification == nil ? (job?.statusTitle ?? (paused ? "Paused" : "Downloading")) : "Verifying file" }
     var width: CGFloat { home ? 213 : 210 }
     var height: CGFloat { home ? 320 : 315 }
+    var installSizeLabel: String? {
+        guard !home, game.status == .installed || game.status == .driveDisconnected else { return nil }
+        if let bytes = game.knownInstalledBytes {
+            return ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+        }
+        return game.knownSize
+    }
     var showsDownloadMark: Bool { !running && game.status == .notInstalled && game.compatibility != .broken }
     var badge: (String, Color)? {
         if running { return ("Running", Design.green) }
@@ -217,7 +224,7 @@ struct GameTile: View {
                     LinearGradient(colors: [.clear, Design.background.opacity(0.92)], startPoint: .top, endPoint: .bottom).frame(height: 105)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(game.title).font(Design.condensed(24)).lineLimit(2)
-                        Text(game.subtitle).font(Design.body(15)).foregroundStyle(Design.secondary)
+                        Text([installSizeLabel, game.subtitle].compactMap { $0 }.joined(separator: " · ")).font(Design.body(15)).foregroundStyle(Design.secondary)
                     }.padding(.trailing, showsDownloadMark ? 36 : 0).padding(14)
                 }
                 if game.status == .downloading {
@@ -235,6 +242,14 @@ struct GameTile: View {
                 }
             }
             .overlay(alignment: .bottomTrailing) {
+                if !focused, let installSizeLabel {
+                    Text(installSizeLabel).font(Design.body(16, weight: "SemiBold"))
+                        .foregroundStyle(Design.text)
+                        .padding(.horizontal, 10).padding(.vertical, 6)
+                        .background(Design.background.opacity(0.85), in: RoundedRectangle(cornerRadius: 6))
+                        .padding(10)
+                        .accessibilityLabel("Installed size: \(installSizeLabel)")
+                }
                 if showsDownloadMark {
                     Image(systemName: "arrow.down.to.line")
                         .font(.system(size: 13, weight: .medium)).foregroundStyle(Design.text)

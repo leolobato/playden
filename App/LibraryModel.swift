@@ -389,6 +389,10 @@ final class LibraryModel {
             case .playtime: if lhs.hoursPlayed != rhs.hoursPlayed { return lhs.hoursPlayed > rhs.hoursPlayed }
             case .recentlyPlayed: if lhs.lastPlayedAt != rhs.lastPlayedAt { return (lhs.lastPlayedAt ?? .distantPast) > (rhs.lastPlayedAt ?? .distantPast) }
             case .recentlyAdded: if lhs.addedAt != rhs.addedAt { return (lhs.addedAt ?? .distantPast) > (rhs.addedAt ?? .distantPast) }
+            case .installSize:
+                if lhs.knownInstalledBytes != rhs.knownInstalledBytes {
+                    return (lhs.knownInstalledBytes ?? -1) > (rhs.knownInstalledBytes ?? -1)
+                }
             case .name: break
             }
             let order = lhs.title.localizedStandardCompare(rhs.title)

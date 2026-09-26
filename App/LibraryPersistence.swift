@@ -44,7 +44,8 @@ extension LibraryModel {
                     summary: record.summary, genres: record.genres, coverURL: record.coverURL, heroURL: record.heroURL,
                     logoURL: record.logoURL, isFavorite: entry.edits.isFavorite, isHidden: entry.edits.isHidden,
                     lastPlayedAt: entry.lastPlayedAt, addedAt: record.sourceAcquiredAt, installedAt: entry.installation?.installedAt,
-                    controllerSupport: record.controllerSupport, lastSessionOutcome: entry.lastSession?.outcome)
+                    controllerSupport: record.controllerSupport, lastSessionOutcome: entry.lastSession?.outcome,
+                    installedBytes: isPreview ? fixtures[record.id]?.installedBytes : entry.installation?.installedBytes)
             }
             collections = snapshot.collections
             compatibilityNotes = Dictionary(uniqueKeysWithValues: snapshot.entries.map { ($0.id, $0.edits.note) })

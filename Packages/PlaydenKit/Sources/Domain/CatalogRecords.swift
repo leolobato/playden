@@ -53,9 +53,9 @@ public struct GameEdits: Codable, Equatable, Sendable {
 
 public enum LibraryScope: Codable, Hashable, Sendable { case installed, all, favorites, hidden, collection(UUID) }
 public enum LibrarySort: String, Codable, CaseIterable, Sendable {
-    case name, recentlyPlayed, playtime, recentlyAdded
+    case name, recentlyPlayed, playtime, recentlyAdded, installSize
     public var title: String {
-        switch self { case .name: "Name"; case .recentlyPlayed: "Recently played"; case .playtime: "Playtime"; case .recentlyAdded: "Recently added" }
+        switch self { case .name: "Name"; case .recentlyPlayed: "Recently played"; case .playtime: "Playtime"; case .recentlyAdded: "Recently added"; case .installSize: "Install size" }
     }
 }
 public struct LibraryPreferences: Codable, Equatable, Sendable {

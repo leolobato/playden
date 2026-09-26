@@ -4,6 +4,63 @@ import Catalog
 @testable import Playden
 
 final class LibraryFilterTests: XCTestCase {
+    @MainActor func testInstallSizeSortUsesRecordedBytesAndSurvivesReload() throws {
+        let catalog = try CatalogStore()
+        let records = ["Small", "Large", "Equal", "Unknown", "Download only"].enumerated().map { index, title in
+            SourceGameRecord(id: .init(source: "fixture", value: String(index)), title: title, downloadBytes: 99_000_000_000)
+        }
+        try catalog.replaceSourceCatalog(source: "fixture", games: records)
+        for (index, bytes) in [(0, Int64(900_000_000)), (1, 12_000_000_000), (2, 12_000_000_000)] {
+            try catalog.saveInstallation(.init(game: records[index],
+                location: .init(volumeID: "fixture", rootBookmark: Data(), lastKnownRoot: URL(fileURLWithPath: "/tmp/playden-size-tests"), relativePath: "game"),
+                bottleID: "fixture", manifestIDs: [:], templateVersion: "1",
+                launchSpec: .init(executableRelativePath: "game.exe"), installedBytes: bytes))
+        }
+        let model = LibraryModel(catalog: catalog, preview: false)
+        defer { model.stopServices() }
+        model.selectTab(.library)
+        let sort = try XCTUnwrap(LibrarySort(rawValue: "installSize"))
+        model.activateFilter(.sort(sort))
+        XCTAssertEqual(model.filteredGames.map(\.title), ["Equal", "Large", "Small", "Download only", "Unknown"])
+        XCTAssertTrue(model.filterLayout.chips.contains { $0.choice == .sort(sort) })
+        let restored = LibraryModel(catalog: catalog, preview: false)
+        defer { restored.stopServices() }
+        XCTAssertEqual(restored.sort, sort)
+        XCTAssertEqual(restored.filteredGames.map(\.title), model.filteredGames.map(\.title))
+        model.games[1].status = .driveDisconnected
+        XCTAssertEqual(model.filteredGames.map(\.title), ["Equal", "Large", "Small", "Download only", "Unknown"])
+        model.refinements.installation = .installed
+        XCTAssertEqual(model.filteredGames.map(\.title), ["Equal", "Large", "Small"])
+    }
+
+    @MainActor func testInstallSizeSortKeepsZeroAheadOfUnknownAndIgnoresUninstalledBytes() {
+        let model = LibraryModel(preview: false)
+        defer { model.stopServices() }
+        model.games = [
+            Game(id: .init(source: "fixture", value: "1"), title: "Unknown", status: .installed),
+            Game(id: .init(source: "fixture", value: "2"), title: "Zero", status: .installed, installedBytes: 0),
+            Game(id: .init(source: "fixture", value: "3"), title: "Uninstalled", installedBytes: 99_000_000_000),
+            Game(id: .init(source: "fixture", value: "4"), title: "Disconnected", status: .driveDisconnected, installedBytes: 100)
+        ]
+        model.sort = .installSize
+        XCTAssertEqual(model.filteredGames.map(\.title), ["Disconnected", "Zero", "Uninstalled", "Unknown"])
+        model.games[0].installedBytes = 200
+        XCTAssertEqual(model.filteredGames.map(\.title), ["Unknown", "Disconnected", "Zero", "Uninstalled"])
+    }
+
+    @MainActor func testLibraryTilesShowInstalledSizesIncludingDisconnectedDrives() {
+        var game = Game(id: .init(source: "fixture", value: "1"), title: "Game", status: .installed,
+                        size: "99 GB", installedBytes: 12_000_000_000)
+        XCTAssertEqual(GameTile(game: game, focused: false).installSizeLabel, "12 GB")
+        XCTAssertEqual(GameTile(game: game, focused: true).installSizeLabel, "12 GB")
+        game.status = .driveDisconnected
+        XCTAssertEqual(GameTile(game: game, focused: false).installSizeLabel, "12 GB")
+        game.status = .notInstalled
+        XCTAssertNil(GameTile(game: game, focused: false).installSizeLabel)
+        game.status = .installed; game.installedBytes = nil; game.size = "—"
+        XCTAssertNil(GameTile(game: game, focused: false).installSizeLabel)
+    }
+
     @MainActor func testRecentlyAddedSortUsesAccountAcquisitionInsteadOfLocalDiscovery() throws {
         let catalog = try CatalogStore(), discovery = Date(timeIntervalSince1970: 1_700_000_000)
         let old = SourceGameRecord(id: .init(source: "steam", value: "1"), title: "Old purchase",
