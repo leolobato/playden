@@ -99,6 +99,8 @@ public struct VerificationResult: Equatable, Sendable {
 public protocol Installer: Sendable {
     var gameID: GameID { get }
     func resolve() async throws -> InstallPlan
+    /// Resolves the build for one platform. Stores with a single build answer only for Windows.
+    func resolve(platform: GamePlatform) async throws -> InstallPlan
     func launchOptions(_ plan: InstallPlan) throws -> [LaunchOption]
     func download(_ plan: InstallPlan, to directory: URL,
                   progress: @escaping @Sendable (InstallProgress) -> Void) async throws
@@ -124,6 +126,12 @@ public protocol Installer: Sendable {
     func uninstall(_ plan: InstallPlan, at directory: URL) async throws
 }
 public extension Installer {
+    func resolve(platform: GamePlatform) async throws -> InstallPlan {
+        guard platform == .windows else {
+            throw OperationFailure(stage: "Resolve", reason: "This store has no \(platform.title) version of this game.", output: "")
+        }
+        return try await resolve()
+    }
     func postInstall(_ plan: InstallPlan, at directory: URL, in bottle: GameBottle,
         progress: @escaping @Sendable (InstallPreparationProgress) -> Void) async throws -> InstallStaging {
         try await postInstall(plan, at: directory, in: bottle)

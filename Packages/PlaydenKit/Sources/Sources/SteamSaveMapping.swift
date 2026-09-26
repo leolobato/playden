@@ -22,12 +22,16 @@ extension SteamInstaller {
         guard declaration.version == 1, String(declaration.app.appID) == gameID.value else {
             throw SteamPlanBuilder.failure("Cloud availability", "The saved Cloud declaration is invalid.")
         }
+        // Steam Cloud for Mac builds waits for v2: their saves live outside the game folder.
+        guard plan.resolvedPlatform == .windows else { return false }
         let mapping = SteamSaveMapping.build(declaration.app.ufs, appID: declaration.app.appID)
         return mapping.coverage != .unknown && mapping.unresolved.isEmpty && mapping.rules.contains { $0.cloudPrefix != nil }
     }
 
     public func saveMapping(_ plan: InstallPlan) throws -> SaveMapping {
         let payload = try SteamPlanBuilder.payload(plan, for: gameID)
+        // Mac builds save in the player's Library folder, which Playden neither syncs nor removes.
+        guard payload.platform != .macOS else { return SaveMapping() }
         return SteamSaveMapping.build(payload.app.ufs, appID: payload.app.appID)
     }
 }

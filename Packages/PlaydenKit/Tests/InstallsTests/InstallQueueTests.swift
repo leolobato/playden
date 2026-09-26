@@ -68,6 +68,12 @@ private struct OfflineInstaller: Installer {
         return .init(game: game, manifestIDs: [:], estimate: .init(downloadBytes: 8, installedBytes: 8, requiredBytes: 1024),
             launchSpec: .init(executableRelativePath: "game.exe"), sourcePayload: Data("offline-content-v1".utf8))
     }
+    func resolve(platform: GamePlatform) async throws -> InstallPlan {
+        guard platform == .macOS else { return try await resolve() }
+        try await content.record("resolve-mac:" + gameID.value)
+        return .init(game: game, manifestIDs: [:], estimate: .init(downloadBytes: 8, installedBytes: 8, requiredBytes: 1024),
+            launchSpec: .init(executableRelativePath: "Game.app"), sourcePayload: Data("offline-content-v1".utf8), platform: .macOS)
+    }
     func download(_ plan: InstallPlan, to directory: URL, progress: @escaping @Sendable (InstallProgress) -> Void) async throws {
         try await content.record("download:" + gameID.value)
         try Data("part".utf8).write(to: directory.appendingPathComponent("partial"))
@@ -248,6 +254,27 @@ final class InstallQueueTests: XCTestCase {
         if let value, value.state == state { return value }
         XCTFail("Expected \(state), got \(String(describing: value?.state)); \(value?.failure?.reason ?? "")", file: file, line: line)
         throw SourceFailure.unavailable
+    }
+    func testMacBuildsInstallAndUninstallWithoutABottle() async throws {
+        let root = try root(), catalog = try CatalogStore(), volumes = FixtureVolumes(root: root)
+        let storage = InstallStorage(volumes: volumes), bottles = FixtureBottles(), game = game("mac")
+        try catalog.replaceSourceCatalog(source: game.id.source, games: [game])
+        let queue = try InstallQueue(catalog: catalog, sources: [OfflineSource(content: OfflineContent())], storage: storage, bottles: bottles)
+        let offer = try await queue.offer(for: game, volume: volumes.selection, platform: .macOS)
+        XCTAssertEqual(offer.plan.resolvedPlatform, .macOS)
+        let job = try await queue.enqueue(offer)
+        try await queue.start(); _ = try await waitFor(queue, jobID: job, state: .completed)
+        let installed = try XCTUnwrap(catalog.snapshot().entries.first?.installation)
+        XCTAssertEqual(installed.runtimeBinding, .native); XCTAssertFalse(installed.isExternal)
+        let prepared = await bottles.preparations, acknowledged = await bottles.acknowledgments
+        XCTAssertEqual(prepared, 0, "A Mac build never creates a bottle"); XCTAssertEqual(acknowledged, 0)
+        let removal = try await queue.uninstall(.init(review: catalog.reviewUninstall(game.id), discardUnsyncedProgress: true))
+        _ = try await waitFor(queue, jobID: removal, state: .completed)
+        try await storage.verifyRemoved(installed.location, gameID: game.id, owner: installed.ownershipToken)
+        XCTAssertNil(try catalog.snapshot().entries.first?.installation)
+        let removals = await bottles.removals
+        XCTAssertEqual(removals, 0, "There is no bottle to remove")
+        await queue.shutdown()
     }
     func testStoresWithGamesAlreadyOnDiskNeverInstall() async throws {
         let root = try root(), catalog = try CatalogStore(), volumes = FixtureVolumes(root: root)

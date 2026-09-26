@@ -8,17 +8,17 @@ struct ResolvedSteamContent: Sendable {
     let entitlements: SteamEntitlements
 }
 protocol SteamInstallBackend: Sendable {
-    func resolve(appID: UInt32) async throws -> ResolvedSteamContent
+    func resolve(appID: UInt32, platform: GamePlatform) async throws -> ResolvedSteamContent
     func download(_ payload: SteamInstallPayload, to directory: URL, progress: @escaping @Sendable (InstallProgress) -> Void) async throws
 }
 struct LiveSteamInstallBackend: SteamInstallBackend {
     let account: SteamAccount
-    func resolve(appID: UInt32) async throws -> ResolvedSteamContent {
+    func resolve(appID: UInt32, platform: GamePlatform) async throws -> ResolvedSteamContent {
         try await account.withCM(purpose: "resolve", appID: appID) { cm in
             let app = try await cm.appInfo(appID: appID)
             let owned = try await cm.ownedEntitlements()
             guard owned.appIDs.contains(appID) else { throw SteamPlanBuilder.failure("Resolve", "This account does not own the selected game.") }
-            let depots = try SteamPlanBuilder.selectedDepots(app, ownedApps: owned.appIDs, ownedDepots: owned.depotIDs)
+            let depots = try SteamPlanBuilder.selectedDepots(app, ownedApps: owned.appIDs, ownedDepots: owned.depotIDs, platform: platform)
             let servers = try await CDNClient.contentServers(cellID: cm.cellID)
             // Manifest resolution does not create or write a destination directory.
             let engine = DownloadEngine(cm: cm, appID: appID, destination: URL(fileURLWithPath: "/"))

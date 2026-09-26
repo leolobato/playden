@@ -227,9 +227,9 @@ public struct SteamPreparer {
         return RestoreResult(restoredDLLs: restored)
     }
 
-    private func writeSettings(appID: UInt32, beside dll: URL, gameDirectory: URL,
-                               account: PrepareAccount, metadata: PrepareMetadata,
-                               offline: Bool) throws {
+    func writeSettings(appID: UInt32, beside dll: URL, gameDirectory: URL,
+                       account: PrepareAccount, metadata: PrepareMetadata,
+                       offline: Bool, localSavePath: String? = nil) throws {
         let parent = dll.deletingLastPathComponent()
         let settings = parent.appendingPathComponent("steam_settings")
         try FileManager.default.createDirectory(at: settings, withIntermediateDirectories: true)
@@ -257,7 +257,7 @@ public struct SteamPreparer {
         userLines += [
             "",
             "[user::saves]",
-            "local_save_path=C:\\Program Files (x86)\\Steam\\userdata\\\(account.accountID)",
+            "local_save_path=\(localSavePath ?? "C:\\Program Files (x86)\\Steam\\userdata\\\(account.accountID)")",
         ]
         try SteamSettingsINI.write(userLines.joined(separator: "\n") + "\n",
                   to: settings.appendingPathComponent("configs.user.ini"),
@@ -315,10 +315,10 @@ public struct SteamPreparer {
         }
     }
 
-    private func files(in root: URL, matching predicate: (String) -> Bool) throws -> [URL] {
+    func files(in root: URL, includingPackages: Bool = false, matching predicate: (String) -> Bool) throws -> [URL] {
         guard let enumerator = FileManager.default.enumerator(
             at: root, includingPropertiesForKeys: [.isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey],
-            options: [.skipsHiddenFiles, .skipsPackageDescendants]) else { return [] }
+            options: includingPackages ? [.skipsHiddenFiles] : [.skipsHiddenFiles, .skipsPackageDescendants]) else { return [] }
         let rootComponents = root.standardizedFileURL.pathComponents.count
         var result: [URL] = []
         for case let url as URL in enumerator {
@@ -336,7 +336,7 @@ public struct SteamPreparer {
         return result.sorted { $0.path < $1.path }
     }
 
-    private func prepareInterfaces(from original: URL, beside dll: URL) throws -> Int {
+    func prepareInterfaces(from original: URL, beside dll: URL) throws -> Int {
         let directory = dll.deletingLastPathComponent()
         let settings = directory.appendingPathComponent("steam_settings")
         let canonical = settings.appendingPathComponent("steam_interfaces.txt")

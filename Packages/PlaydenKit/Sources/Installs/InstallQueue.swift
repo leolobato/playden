@@ -29,6 +29,8 @@ public protocol InstallQueuing: Sendable {
     func shutdown() async
     func updates() async -> AsyncStream<InstallQueueSnapshot>
     func offer(for game: SourceGameRecord, volume: GamesVolumeSelection) async throws -> InstallOffer
+    /// An offer for one of the game's builds; a Mac build needs no bottle.
+    func offer(for game: SourceGameRecord, volume: GamesVolumeSelection, platform: GamePlatform) async throws -> InstallOffer
     func enqueue(_ offer: InstallOffer) async throws -> UUID
     func repair(_ gameID: GameID) async throws -> UUID
     func uninstall(_ authorization: UninstallAuthorization) async throws -> UUID
@@ -37,6 +39,13 @@ public protocol InstallQueuing: Sendable {
     func cancel(_ jobID: UUID) async throws
     func move(_ jobID: UUID, before otherID: UUID) async throws
     func setGameplayPaused(_ paused: Bool) async throws
+}
+
+public extension InstallQueuing {
+    func offer(for game: SourceGameRecord, volume: GamesVolumeSelection, platform: GamePlatform) async throws -> InstallOffer {
+        guard platform == .windows else { throw OperationFailure(stage: "Resolve", reason: "Mac versions can't be installed here.", output: "") }
+        return try await offer(for: game, volume: volume)
+    }
 }
 
 /// The sole writer of install-job state. UI tasks may subscribe or disconnect without owning work.
@@ -125,10 +134,14 @@ public actor InstallQueue: InstallQueuing {
         await activeTask?.value
     }
     public func offer(for game: SourceGameRecord, volume: GamesVolumeSelection) async throws -> InstallOffer {
+        try await offer(for: game, volume: volume, platform: .windows)
+    }
+    public func offer(for game: SourceGameRecord, volume: GamesVolumeSelection, platform: GamePlatform) async throws -> InstallOffer {
         guard let source = sources[game.id.source] else { throw Self.failure("Resolve", "This game's store is unavailable.") }
         guard source.capabilities.acquisition == .download else { throw Self.externalFailure("Resolve") }
         let installer = try source.installer(for: game)
-        let plan = try await installer.resolve()
+        let plan = platform == .windows ? try await installer.resolve() : try await installer.resolve(platform: platform)
+        guard plan.resolvedPlatform == platform else { throw Self.failure("Resolve", "The store returned a different version of this game.") }
         guard plan.game.id == game.id, installer.gameID == game.id else { throw Self.failure("Resolve", "The store returned a plan for a different game.") }
         return try await offer(plan: plan, volume: volume)
     }
@@ -245,16 +258,21 @@ public actor InstallQueue: InstallQueuing {
             let installer = try source.installer(for: plan.game)
             guard installer.gameID == initial.gameID else { throw Self.failure("Recover", "The installer's game identity does not match this job.") }
             if initial.cancellationRequested == true { try await cleanup(initial, installer: installer); return }
-            if initial.completedStages.contains(.createBottle), try await !bottles.isReady(bottle) {
+            // A Mac build runs natively: no bottle is created, prepared or checked.
+            let native = plan.resolvedPlatform == .macOS
+            if !native, initial.completedStages.contains(.createBottle), try await !bottles.isReady(bottle) {
                 try invalidateRuntimeStages(id)
             }
             for stage in stages {
                 try checkpoint(id)
                 guard var job = records[id] else { return }
                 if job.completedStages.contains(stage) { continue }
+                if native && [.createBottle, .prerequisites].contains(stage) {
+                    try update(id) { $0.completedStages.insert(stage) }; continue
+                }
                 stageVerification = nil; preparationProgress = nil; progressTime = 0
                 job.stage = stage; job.state = .running; try save(job)
-                if [.prerequisites, .stage, .validate, .commit].contains(stage), try await !bottles.isReady(bottle) {
+                if !native, [.prerequisites, .stage, .validate, .commit].contains(stage), try await !bottles.isReady(bottle) {
                     try invalidateRuntimeStages(id)
                     throw Self.failure("Game runtime", "The game's runtime is missing or incomplete. Retry to prepare it again.")
                 }
@@ -303,12 +321,15 @@ public actor InstallQueue: InstallQueuing {
                     guard let location = job.location, let staging = job.staging, let launch = job.launchSpec else { throw Self.failure("Finish install", "The installation has not finished validation.") }
                     // Staging and launch validation are already checkpointed in the job. If
                     // acknowledgment or the installation commit fails, Retry resumes here.
-                    try await bottles.updatePresentation(bottle, title: plan.game.title, directory: directory(job), spec: launch)
-                    try await bottles.completeSourcePreparation(bottle)
+                    if !native {
+                        try await bottles.updatePresentation(bottle, title: plan.game.title, directory: directory(job), spec: launch)
+                        try await bottles.completeSourcePreparation(bottle)
+                    }
                     var installation = InstallationRecord(game: plan.game, location: location, bottleID: bottle.name, ownershipToken: bottle.ownershipToken,
                         manifestIDs: plan.manifestIDs, language: plan.language, templateVersion: bottle.templateVersion, recipeVersion: plan.recipeVersion,
                         stagingVersion: staging.version, launchSpec: launch, installedBytes: plan.estimate.installedBytes)
                     installation.plan = plan; installation.staging = staging
+                    if native { installation.runtime = .native }
                     if let original = job.originalInstallation, job.kind == .repair {
                         installation.id = original.id; installation.installedAt = original.installedAt
                         installation.needsRepair = false
@@ -364,7 +385,8 @@ public actor InstallQueue: InstallQueuing {
         if job.completedStages.contains(.reserve), let plan = job.plan {
             try await installer.uninstall(plan, at: directory(job))
         }
-        if let bottle = job.bottle, job.completedStages.contains(.createBottle) || stages.firstIndex(of: job.stage).map({ $0 >= 3 }) == true {
+        if let bottle = job.bottle, job.plan?.resolvedPlatform != .macOS,
+           job.completedStages.contains(.createBottle) || stages.firstIndex(of: job.stage).map({ $0 >= 3 }) == true {
             try await bottles.remove(bottle)
         }
         if let location = job.location { try await storage.remove(location, gameID: job.gameID, owner: job.ownershipToken) }
@@ -449,20 +471,22 @@ public actor InstallQueue: InstallQueuing {
               bottle.name == CrossOverGameBottles.name(for: installed.gameID), bottle.gameID == installed.gameID,
               bottle.ownershipToken == installed.ownershipToken, initial.ownershipToken == installed.ownershipToken,
               initial.location == installed.location else { throw Self.failure("Uninstall", "The saved removal ownership does not match this game.") }
+        // Mac builds never had a bottle; their saves are in the player's Library, not the game folder.
+        let native = installed.runtimeBinding == .native
         for stage in [JobStage.removeFiles, .removeBottle, .commit] {
             try checkpoint(id)
             guard let current = records[id] else { return }
             if current.completedStages.contains(stage) { continue }
             try update(id) { $0.stage = stage; $0.state = .running; $0.failure = nil }
-            try await bottles.checkRemoval(bottle, previousRuntime: catalog.latestRuntimeSession(for: installed.gameID)?.runtime)
+            if !native { try await bottles.checkRemoval(bottle, previousRuntime: catalog.latestRuntimeSession(for: installed.gameID)?.runtime) }
             // Revalidate the durable reservation after any asynchronous runtime inspection.
             try update(id) { $0.state = .running }
             switch stage {
             case .removeFiles: try await storage.remove(installed.location, gameID: installed.gameID, owner: installed.ownershipToken)
-            case .removeBottle: try await bottles.remove(bottle)
+            case .removeBottle: if !native { try await bottles.remove(bottle) }
             case .commit:
                 try await storage.verifyRemoved(installed.location, gameID: installed.gameID, owner: installed.ownershipToken)
-                try await bottles.verifyRemoved(bottle)
+                if !native { try await bottles.verifyRemoved(bottle) }
                 try checkpoint(id)
                 guard let expected = records[id] else { return }
                 let completed = try catalog.completeUninstall(expected)

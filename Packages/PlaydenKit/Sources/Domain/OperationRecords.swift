@@ -19,6 +19,16 @@ public struct LaunchOption: Codable, Equatable, Sendable, Identifiable {
         self.id = id; self.title = title; self.spec = spec
     }
 }
+public extension LaunchSpec {
+    /// Environment values starting with this token are paths inside the game's folder. Runners
+    /// expand it at launch, so a moved games drive still resolves.
+    static let gameDirectoryToken = "@game/"
+    func environment(expandingIn directory: URL) -> [String: String] {
+        environment.mapValues { value in
+            value.hasPrefix(Self.gameDirectoryToken) ? directory.appendingPathComponent(String(value.dropFirst(Self.gameDirectoryToken.count))).path : value
+        }
+    }
+}
 public struct LaunchSpec: Codable, Equatable, Sendable {
     public var executableRelativePath: String
     public var workingDirectoryRelativePath: String

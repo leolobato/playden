@@ -574,7 +574,7 @@ private actor FixtureUnpackingTools: RuntimeToolRunning {
 private struct FixtureContentBackend: SteamInstallBackend {
     let content: ResolvedSteamContent
     let chunks: [Data: Data]
-    func resolve(appID: UInt32) async throws -> ResolvedSteamContent { content }
+    func resolve(appID: UInt32, platform: GamePlatform) async throws -> ResolvedSteamContent { content }
     func download(_ payload: SteamInstallPayload, to directory: URL, progress: @escaping @Sendable (InstallProgress) -> Void) async throws {
         for manifest in payload.manifests {
             try await ResumableDepotDownload(destination: directory).download(manifest: manifest) { chunk in

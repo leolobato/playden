@@ -68,7 +68,8 @@ public struct WorkspaceAppController: NativeAppControlling {
         configuration.activates = true
         configuration.createsNewApplicationInstance = false
         configuration.arguments = arguments
-        if !environment.isEmpty { configuration.environment = environment }
+        // A configured environment replaces the inherited one, so merge rather than set.
+        if !environment.isEmpty { configuration.environment = ProcessInfo.processInfo.environment.merging(environment) { _, game in game } }
         let app = try await NSWorkspace.shared.openApplication(at: bundle, configuration: configuration)
         return app.processIdentifier
     }
@@ -111,10 +112,13 @@ public actor NativeRunner: GameRunner {
     public func launch(_ spec: LaunchSpec, in bottle: GameBottle, directory: URL) async throws -> RunningGame {
         guard active == nil else { throw failure("Launch game", "Quit the current game before starting another game.") }
         let bundle = try Self.bundle(spec, in: directory)
+        if let executable = Bundle(url: bundle)?.executableURL, MachOArchitectures.requiresRosetta(executable), !MachOArchitectures.rosettaInstalled {
+            throw failure("Launch game", "This game is built for Intel Macs and needs Rosetta. Install it in Terminal with “softwareupdate --install-rosetta”, then try again.")
+        }
         let pid: Int32
         do {
             if let running = await apps.runningInstance(of: bundle) { pid = running }
-            else { pid = try await apps.open(bundle, arguments: spec.arguments, environment: spec.environment) }
+            else { pid = try await apps.open(bundle, arguments: spec.arguments, environment: spec.environment(expandingIn: directory)) }
         } catch {
             throw failure("Launch game", "macOS couldn’t open this app.", output: error.localizedDescription)
         }
@@ -233,4 +237,35 @@ public actor NativeRunner: GameRunner {
         return bundle
     }
     private func failure(_ stage: String, _ reason: String, output: String = "") -> OperationFailure { .init(stage: stage, reason: reason, output: output) }
+}
+
+/// Which CPU slices an executable has. Apple silicon runs x86_64-only apps through Rosetta.
+enum MachOArchitectures {
+    static var rosettaInstalled: Bool { FileManager.default.fileExists(atPath: "/Library/Apple/usr/share/rosetta/rosetta") }
+    static func requiresRosetta(_ executable: URL) -> Bool {
+        #if arch(arm64)
+        guard let types = cpuTypes(executable) else { return false }
+        return !types.contains(0x0100_000C) && types.contains(0x0100_0007)
+        #else
+        return false
+        #endif
+    }
+    static func cpuTypes(_ url: URL) -> Set<UInt32>? {
+        guard let handle = try? FileHandle(forReadingFrom: url), let header = try? handle.read(upToCount: 4096) else { return nil }
+        try? handle.close()
+        func word(_ offset: Int, bigEndian: Bool) -> UInt32? {
+            guard header.count >= offset + 4 else { return nil }
+            let value = header[header.startIndex + offset ..< header.startIndex + offset + 4].reduce(UInt32(0)) { $0 << 8 | UInt32($1) }
+            return bigEndian ? value : value.byteSwapped
+        }
+        guard let magic = word(0, bigEndian: true) else { return nil }
+        switch magic {
+        case 0xCAFE_BABE:
+            guard let count = word(4, bigEndian: true), count < 32 else { return nil }
+            return Set((0..<Int(count)).compactMap { word(8 + $0 * 20, bigEndian: true) })
+        case 0xCFFA_EDFE, 0xCEFA_EDFE: return word(4, bigEndian: false).map { [$0] }
+        case 0xFEED_FACF, 0xFEED_FACE: return word(4, bigEndian: true).map { [$0] }
+        default: return nil
+        }
+    }
 }
