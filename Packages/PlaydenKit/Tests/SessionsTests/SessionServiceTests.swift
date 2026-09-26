@@ -75,7 +75,9 @@ private actor Runner: GameRunner {
     var listener: AsyncStream<RunSnapshot>.Continuation?
     var changed = false, held = false, graceful = true
     var lastLaunchSpec: LaunchSpec?
-    init(_ events: Events) { self.events = events }
+    var lastDirectory: URL?
+    var native = false
+    init(_ events: Events, native: Bool = false) { self.events = events; self.native = native }
     func configure(changed: Bool = false, held: Bool = false, graceful: Bool = true) { self.changed = changed; self.held = held; self.graceful = graceful }
     func prepare(_ bottle: GameBottle) async throws -> Bool {
         await events.add("prepare")
@@ -84,9 +86,10 @@ private actor Runner: GameRunner {
     }
     func completePreparation(_ bottle: GameBottle) async throws { try await events.preparationStep("acknowledge") }
     func launch(_ spec: LaunchSpec, in bottle: GameBottle, directory: URL) async throws -> RunningGame {
-        lastLaunchSpec = spec
+        lastLaunchSpec = spec; lastDirectory = directory
         await events.add("launch:" + spec.executableRelativePath)
-        let run = RunningGame(bottle: bottle, launcher: .init(pid: 99999, startSeconds: 1, startMicroseconds: 0))
+        let run = RunningGame(bottle: bottle, launcher: .init(pid: 99999, startSeconds: 1, startMicroseconds: 0),
+                              native: native ? NativeRun(bundleURL: directory.appendingPathComponent(spec.executableRelativePath), bundleIdentifier: nil) : nil)
         snapshot = .init(run: run)
         return run
     }
@@ -125,6 +128,10 @@ private struct Store: GameSource {
     func ownedGames() async throws -> [SourceGameRecord] { [] }
     func metadata(for game: SourceGameRecord) async throws -> SourceGameRecord { game }
     func installer(for game: SourceGameRecord) throws -> any Installer { Content(gameID: game.id, events: events) }
+    func locate(_ installation: InstallationRecord) async throws -> URL {
+        guard installation.isExternal else { throw ExternalLocationFailure.missing }
+        return URL(fileURLWithPath: "/Applications")
+    }
 }
 private struct Content: Installer {
     let gameID: GameID
@@ -255,6 +262,44 @@ final class SessionServiceTests: XCTestCase {
         let actual = await runner.lastLaunchSpec
         XCTAssertEqual(actual?.executableRelativePath, game.launchSpec.executableRelativePath)
         await runner.emit(exit: 0); _ = try await wait(service, phase: .idle)
+    }
+    func testNativeInstallsLaunchWithTheNativeRunnerAndSkipBottleWork() async throws {
+        let catalog = try CatalogStore(), clock = TestClock(), events = Events(), queue = Queue(events)
+        let crossOver = Runner(events), nativeEvents = Events(), native = Runner(nativeEvents, native: true)
+        var game = try installed(catalog)
+        game.runtime = .native; game.launchSpec = .init(executableRelativePath: "Game.app"); try catalog.saveInstallation(game)
+        let service = try SessionService(catalog: catalog, sources: [Store(events: events)], runner: crossOver, queue: queue, storage: Storage(),
+                                         clock: clock, quitGrace: .milliseconds(20), stopTimeout: .seconds(1), nativeRunner: native)
+        try await service.start(downloadWhilePlaying: false)
+        try await service.play(game.gameID)
+        _ = try await wait(service, phase: .launching)
+        let nativeValues = await nativeEvents.values, values = await events.values
+        let checks = await events.prerequisiteChecks, applied = await events.appliedOptions
+        XCTAssertEqual(nativeValues.filter { $0.hasPrefix("launch:") }, ["launch:Game.app"])
+        XCTAssertFalse(values.contains { $0 == "prepare" || $0.hasPrefix("launch:") }, "CrossOver is never touched")
+        XCTAssertEqual(checks, 0, "Bottle prerequisites do not apply to Mac apps")
+        XCTAssertEqual(applied.count, 1, "Source options still apply to native builds")
+        await native.emit(exit: 0)
+        let done = try await wait(service, phase: .idle)
+        XCTAssertNil(done.failure)
+        XCTAssertEqual(try catalog.snapshot().entries.first?.lastSession?.outcome, .clean)
+    }
+    func testExternalAppsResolveThroughTheirStoreNotOwnedStorage() async throws {
+        let catalog = try CatalogStore(), clock = TestClock(), events = Events(), queue = Queue(events)
+        let native = Runner(Events(), native: true)
+        var game = try installed(catalog)
+        game.runtime = .native; game.plan = nil; game.launchSpec = .init(executableRelativePath: "Game.app")
+        game.external = ExternalLocation(bookmark: nil, lastKnownPath: URL(fileURLWithPath: "/Applications/Game.app"))
+        try catalog.saveInstallation(game)
+        let service = try SessionService(catalog: catalog, sources: [Store(events: events)], runner: Runner(events), queue: queue, storage: Storage(),
+                                         clock: clock, quitGrace: .milliseconds(20), stopTimeout: .seconds(1), nativeRunner: native)
+        try await service.start(downloadWhilePlaying: false)
+        try await service.play(game.gameID)
+        _ = try await wait(service, phase: .launching)
+        let directory = await native.lastDirectory, applied = await events.appliedOptions
+        XCTAssertEqual(directory?.path, "/Applications")
+        XCTAssertTrue(applied.isEmpty, "Apps without a store plan get no source options")
+        await native.emit(exit: 0); _ = try await wait(service, phase: .idle)
     }
     func testRuntimeProfileSourceOptionsAreAppliedOnEveryLaunch() async throws {
         let catalog = try CatalogStore(), clock = TestClock(), events = Events(), runner = Runner(events), queue = Queue(events)

@@ -461,7 +461,7 @@ working and ships on its own.
 - [x] **S1 — Plumbing.** `SourceRegistry`, `SourceCapabilities`, `SourceID`, `GamePlatform`,
   installation ownership and runtime with legacy decoding, the runtime environment in `RunningGame`,
   runner selection by runtime, the Steam helpers moved behind the source, generic store copy.
-- [ ] **S2 — Native runner.** `NativeRunner`, process inspection by bundle root, a fixture app, and
+- [x] **S2 — Native runner.** `NativeRunner`, process inspection by bundle root, a fixture app, and
   session tests.
 - [ ] **S3 — This Mac source.** The `v7_local_games` tables, scanning, identity matching, re-adding
   removed games, `locate`, the Missing status, the Steam dependency warning, and icon artwork.

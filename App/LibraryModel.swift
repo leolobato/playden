@@ -329,7 +329,7 @@ final class LibraryModel {
                     audioDeviceUID: { @MainActor in try catalog.preferences().selectedAudioDeviceUID },
                     runtimeSettings: { @MainActor id in (try? catalog.edits(for: id).runtimeProfile).map { RuntimeResolver.settings($0, catalog: CuratedProfileCatalog.bundled()) } ?? .playdenDefault })
                 self.sessions = try SessionService(catalog: catalog, sources: sources.all, runner: runner, queue: queue,
-                    storage: InstallStorage(volumes: volumeStore ?? GamesVolumeStore()), cloud: self.cloudService)
+                    storage: InstallStorage(volumes: volumeStore ?? GamesVolumeStore()), cloud: self.cloudService, nativeRunner: NativeRunner())
             }
             catch { self.sessions = nil; self.sessionIssue = error as? OperationFailure ?? .init(stage: "Start sessions", reason: error.localizedDescription, output: error.localizedDescription) }
         } else { self.sessions = nil }
