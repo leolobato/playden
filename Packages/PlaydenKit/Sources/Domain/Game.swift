@@ -42,6 +42,8 @@ public struct Game: Identifiable, Hashable, Sendable {
     public var isExternal = false
     /// The app on this Mac, for its icon while no cover art exists.
     public var appURL: URL?
+    /// A This Mac app that embeds the Steam API and may need the Steam client.
+    public var usesSteamClient = false
 
     public var knownInstalledBytes: Int64? {
         guard status == .installed || status == .driveDisconnected,

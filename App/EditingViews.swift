@@ -60,6 +60,10 @@ struct InstallOfferDialog: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 28) {
             Text("Install \(model.gameName(gameID))?").font(Design.condensed(40)).fixedSize(horizontal: false, vertical: true)
+            if let platforms = model.games.first(where: { $0.id == gameID })?.platforms, platforms.count > 1 || model.installPlatform == .macOS {
+                Text(model.installPlatform == .macOS ? "Mac version · Steam Cloud saves are Windows only for now" : "Windows version · runs with CrossOver")
+                    .font(Design.body(24, weight: "Medium")).foregroundStyle(Design.text)
+            }
             if let destination = model.installDestination {
                 Text("Install on: " + model.volumeLabel(destination) + (destination.volumeID == model.gamesVolume?.volumeID ? " (default)" : ""))
                     .font(Design.body(24)).foregroundStyle(Design.secondary)

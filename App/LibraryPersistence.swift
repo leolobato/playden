@@ -51,6 +51,7 @@ extension LibraryModel {
                 game.installedPlatform = entry.installation?.runtimeBinding.platform
                 game.isExternal = entry.installation?.isExternal == true
                 game.appURL = entry.installation?.external?.lastKnownPath
+                game.usesSteamClient = entry.installation?.external?.usesSteam == true
                 if game.isExternal { game.size = "—"; game.installedBytes = nil }
                 return game
             }
@@ -67,6 +68,7 @@ extension LibraryModel {
             selectedDisplayUUID = preferences.selectedDisplayUUID; selectedDisplayName = preferences.selectedDisplayName
             selectedAudioDeviceUID = preferences.selectedAudioDeviceUID; selectedAudioDeviceName = preferences.selectedAudioDeviceName
             startInFullscreen = preferences.startInFullscreen ?? true
+            preferMacVersions = preferences.preferMacVersions ?? true
             useNintendoButtonLayout = preferences.useNintendoButtonLayout ?? false
             let wasImmersive = immersiveMode
             immersiveMode = preferences.immersiveMode ?? false

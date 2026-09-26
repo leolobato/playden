@@ -4,7 +4,11 @@ import Input
 import Focus
 
 extension LibraryModel {
-    var libraryFilters: [LibraryFilter] { [.installed, .all, .favorites, .hidden] + collections.map { .collection($0.id) } }
+    var libraryFilters: [LibraryFilter] {
+        [.installed, .all, .favorites, .hidden] + (showsStores ? storesWithGames.map { .store($0) } : []) + collections.map { .collection($0.id) }
+    }
+    /// Rail entries between Hidden and the collections; zero while only one store has games.
+    var libraryStoreEntryCount: Int { showsStores ? storesWithGames.count : 0 }
     func filterTitle(_ value: LibraryFilter) -> String {
         switch value {
         case .installed: "Installed"
@@ -12,6 +16,7 @@ extension LibraryModel {
         case .favorites: "Favorites"
         case .hidden: "Hidden"
         case .collection(let id): collections.first { $0.id == id }?.name ?? "Collection"
+        case .store(let id): StoreNames.name(id)
         }
     }
     func count(for value: LibraryFilter) -> Int {
@@ -20,10 +25,11 @@ extension LibraryModel {
             guard !game.isHidden else { return false }
             return switch value {
             case .all: true
-            case .installed: [.installed, .driveDisconnected].contains(game.status)
+            case .installed: [.installed, .driveDisconnected, .missing].contains(game.status)
             case .favorites: game.isFavorite
             case .hidden: false
             case .collection(let id): collections.first { $0.id == id }?.gameIDs.contains(game.id) == true
+            case .store(let id): game.id.source == id
             }
         }.count
     }
@@ -41,6 +47,7 @@ extension LibraryModel {
         case .textEditor(.guardCode): "Steam Guard code"
         case .textEditor(.renameCollection): "Rename collection"
         case .textEditor(.compatibilityNote): "Compatibility note"
+        case .textEditor(.renameGame): "Rename game"
         case .textEditor(.runtimeText(_, let setting)): GameSettingsCatalog.definition(setting).title
         default: "Enter text"
         }
@@ -53,6 +60,7 @@ extension LibraryModel {
         case .password, .guardCode: initial = ""
         case .renameCollection(let id): initial = collections.first { $0.id == id }?.name ?? ""
         case .compatibilityNote(let id): initial = compatibilityNotes[id] ?? ""
+        case .renameGame(let id): initial = games.first { $0.id == id }?.title ?? ""
         case .runtimeText(let id, let setting):
             if case .list(let values)? = resolvedValues(id).resolved[setting] {
                 initial = setting == .launchArguments
@@ -146,12 +154,13 @@ extension LibraryModel {
         case .renameCollection(let id):
             if let index = collections.firstIndex(where: { $0.id == id }) { collections[index].name = value }
             show(.collectionOptions(id))
+        case .renameGame(let id): renameGame(id, to: value); panel = nil
         case .compatibilityNote, .accountName, .password, .guardCode, .runtimeText: break
         }
         reconcileFocus()
     }
     func confirmationAction(_ intent: Confirmation) -> String {
-        switch intent { case .deleteCollection: "Delete collection"; case .uninstall: "Uninstall"; case .install: "Add to downloads"; case .cancelDownload(let id): liveJob(for: id)?.kind == .repair ? "Stop verifying" : "Cancel download"; case .switchGame: "Quit and play" }
+        switch intent { case .deleteCollection: "Delete collection"; case .uninstall: "Uninstall"; case .install: "Add to downloads"; case .cancelDownload(let id): liveJob(for: id)?.kind == .repair ? "Stop verifying" : "Cancel download"; case .switchGame: "Quit and play"; case .removeFromLibrary: "Remove from library"; case .switchPlatform: "Switch" }
     }
     func confirmationTitle(_ intent: Confirmation) -> String {
         switch intent {
@@ -160,6 +169,8 @@ extension LibraryModel {
         case .install(let id): "Install \(gameName(id))?"
         case .cancelDownload(let id): liveJob(for: id)?.kind == .repair ? "Stop verifying \(gameName(id))?" : "Cancel \(gameName(id)) download?"
         case .switchGame(let id): "Play \(gameName(id))?"
+        case .removeFromLibrary(let id): "Remove \(gameName(id)) from Playden?"
+        case .switchPlatform(_, let platform): "Switch to the \(platform == .macOS ? "Mac" : "Windows") version?"
         }
     }
     func confirmationMessage(_ intent: Confirmation) -> String {
@@ -169,11 +180,15 @@ extension LibraryModel {
         case .install(let id): "\(games.first { $0.id == id }?.size ?? "Unknown size") required. This adds a preview queue entry; downloading will be available when Steam is connected."
         case .cancelDownload(let id): liveJob(for: id)?.kind == .repair ? "Your game files and saves are kept. Verification must finish before you can play again." : isPreview ? "Remove this entry from the preview queue. No game files on your Mac are changed." : "Stop this installation and remove its downloaded files. You can install the game again from your library."
         case .switchGame: "\(session.game?.title ?? "Another game") is still running. Quit it before starting this game. Unsaved progress may be lost."
+        case .removeFromLibrary: "The app stays on your Mac. If you add it again, its playtime comes back."
+        case .switchPlatform(_, let platform): "Playden removes the installed version first, then offers the \(platform == .macOS ? "Mac" : "Windows") version to download. Saves are handled as they are when you uninstall."
         }
     }
     func confirm(_ intent: Confirmation) {
         switch intent {
         case .switchGame(let id): switchToGame(id); return
+        case .removeFromLibrary(let id): removeFromLibrary(id); return
+        case .switchPlatform(let id, let platform): panel = nil; beginPlatformSwitch(id, to: platform); return
         case .deleteCollection(let id):
             collections.removeAll { $0.id == id }
             if filter == .collection(id) { filter = .all }
@@ -201,6 +216,9 @@ extension LibraryModel {
         case .filters: "Sort & filter"
         case .persistenceFailure: "Changes weren’t saved"
         case .signOut: "Sign out of Steam?"
+        case .localGames(let id): id == nil ? "Add games on this Mac" : "Locate \(gameName(id!))"
+        case .localFolders: "Watched folders"
+        case .localFolderOptions(let id): localFolderOptionsTitle(id)
         case .compatibility: "Compatibility"
         case .collections: "Add to collection"
         case .collectionOptions(let id): collections.first { $0.id == id }?.name ?? "Collection"

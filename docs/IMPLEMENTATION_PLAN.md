@@ -468,7 +468,7 @@ working and ships on its own.
 - [x] **S4 — Steam macOS builds.** `platforms` metadata, resolving by platform, executable file
   modes, native plans in `InstallQueue`, macOS Steam API staging and ad-hoc re-signing, and
   switching platform.
-- [ ] **S5 — UI.** The Stores page in Settings, the This Mac picker and folders, the Stores section
+- [x] **S5 — UI.** The Stores page in Settings, the This Mac picker and folders, the Stores section
   in the rail, the Store and Platform filters, tile glyphs, the platform choice in the install
   offer, the game-page changes, empty states, first-run changes, and captures.
 - [ ] **S6 — Docs and acceptance.** Update PRD 01, 02, 04 and 05 and the README. Manual acceptance:

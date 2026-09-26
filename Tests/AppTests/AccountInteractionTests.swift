@@ -45,7 +45,7 @@ final class AccountInteractionTests: XCTestCase {
         defer { model.stopServices() }
         model.identity = SourceIdentity(sourceID: "fixture", displayName: "Fixture")
         model.settingsSection = 0; model.settingsIndex = 0; model.settingsRailFocused = false
-        XCTAssertEqual(SettingsScreen(model: model).settings.map { $0.2 }, ["Sign in again", "Sign out"])
+        XCTAssertEqual(SettingsScreen(model: model).settings.map { $0.2 }, ["Sign in again", "Sign out", "On"], "Steam rows, then Prefer macOS versions")
         model.activateSetting()
         XCTAssertEqual(model.authScreen, .qr)
         XCTAssertNotNil(model.identity)

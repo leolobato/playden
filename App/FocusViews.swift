@@ -12,7 +12,8 @@ struct FocusedLibraryGrid: View {
             ForEach(Array(model.libraryVisibleIndices), id: \.self) { index in
                 if let game = games[safe: index] {
                     GameTile(game: game, focused: model.libraryCursor.index == index && !model.railFocused,
-                             reducedMotion: model.reducedMotion, paused: model.downloadPaused, job: model.isPreview ? nil : model.liveJob(for: game.id), running: model.isGameRunning(game.id), verification: model.liveJob(for: game.id).flatMap { model.fileVerification(for: $0) })
+                             reducedMotion: model.reducedMotion, paused: model.downloadPaused, job: model.isPreview ? nil : model.liveJob(for: game.id), running: model.isGameRunning(game.id), verification: model.liveJob(for: game.id).flatMap { model.fileVerification(for: $0) },
+                             storeSymbol: model.showsStores ? StoreNames.symbol(game.id.source) : nil)
                         .offset(x: 24 + Double(index % 6) * 234,
                                 y: 24 + Double(index / 6) * 339 - model.libraryScrollOffset)
                         .zIndex(model.libraryCursor.index == index ? 1 : 0)
@@ -41,7 +42,8 @@ struct FocusedHomeRows: View {
                                 if let game = row.games[safe: column] {
                                     GameTile(game: game, focused: !model.tabsFocused && model.homeRow == index && model.homeColumns[index, default: 0] == column,
                                              home: true, reducedMotion: model.reducedMotion,
-                                             subtitle: model.isPreview && index == 0 && column == 0 ? "31 h played · yesterday" : nil, paused: model.downloadPaused, job: model.isPreview ? nil : model.liveJob(for: game.id), running: model.isGameRunning(game.id), verification: model.liveJob(for: game.id).flatMap { model.fileVerification(for: $0) })
+                                             subtitle: model.isPreview && index == 0 && column == 0 ? "31 h played · yesterday" : nil, paused: model.downloadPaused, job: model.isPreview ? nil : model.liveJob(for: game.id), running: model.isGameRunning(game.id), verification: model.liveJob(for: game.id).flatMap { model.fileVerification(for: $0) },
+                                             storeSymbol: model.showsStores ? StoreNames.symbol(game.id.source) : nil)
                                         .onTapGesture { model.homeRow = index; model.homeColumns[index] = column; model.openGame(game) }
                                 } else if row.showsLibraryCard && column == row.games.count {
                                     HomeLibraryCard(focused: !model.tabsFocused && model.homeRow == index && model.homeColumns[index, default: 0] == column,
@@ -67,9 +69,14 @@ struct LibraryRail: View {
     var body: some View {
         let filters = model.libraryFilters
         let items = filters.map { model.filterTitle($0) } + ["＋ New collection"]
-        let offset = max(0, Double(model.libraryRailIndex - 9) * 66)
+        let stores = model.libraryStoreEntryCount
+        let offset = max(0, Double(model.libraryRailIndex - 9) * 66 + (stores > 0 && model.libraryRailIndex >= 9 ? 40 : 0))
         ZStack(alignment: .topLeading) {
             Rectangle().fill(Design.text.opacity(0.12)).frame(width: 256, height: 1).offset(x: 46, y: 303 - offset)
+            if stores > 0 {
+                // Stores sit between the built-in scopes and the collections.
+                Rectangle().fill(Design.text.opacity(0.12)).frame(width: 256, height: 1).offset(x: 46, y: 303 + Double(stores) * 66 + 40 - offset)
+            }
             ForEach(Array(items.enumerated()), id: \.offset) { index, title in
                 Button {
                     model.libraryRailIndex = index
@@ -77,6 +84,7 @@ struct LibraryRail: View {
                     else { model.beginText(.newCollection(nil)) }
                 } label: {
                     HStack {
+                        if case .store(let id) = filters[safe: index] { Image(systemName: StoreNames.symbol(id)).font(.system(size: 20)).frame(width: 26) }
                         Text(title).font(Design.condensed(28, bold: filters[safe: index] == model.filter)).lineLimit(1)
                         Spacer(minLength: 8)
                         if let filter = filters[safe: index] { Text(String(model.count(for: filter))).font(Design.body(20)).foregroundStyle(Design.muted) }
@@ -84,7 +92,7 @@ struct LibraryRail: View {
                         .foregroundStyle(filters[safe: index] == model.filter ? Design.text : Design.secondary)
                         .background(filters[safe: index] == model.filter ? Design.text.opacity(0.1) : .clear, in: RoundedRectangle(cornerRadius: 8))
                         .focusRing(model.railFocused && model.libraryRailIndex == index, compact: true)
-                }.buttonStyle(.plain).offset(x: 24, y: 24 + Double(index) * 66 + (index >= 4 ? 40 : 0) - offset)
+                }.buttonStyle(.plain).offset(x: 24, y: 24 + Double(index) * 66 + (index >= 4 ? 40 : 0) + (stores > 0 && index >= 4 + stores ? 40 : 0) - offset)
             }
         }.frame(width: 348, height: 840, alignment: .topLeading).clipped()
             .animation(model.reducedMotion ? nil : .easeOut(duration: 0.18), value: offset)

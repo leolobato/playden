@@ -205,6 +205,8 @@ struct GameTile: View {
     var job: JobRecord? = nil
     var running = false
     var verification: InstallFileVerification? = nil
+    /// Shown only once a second store has games.
+    var storeSymbol: String? = nil
     var transferProgress: Double { verification?.fraction ?? job?.displayProgress ?? 0.43 }
     var transferTitle: String { verification == nil ? (job?.statusTitle ?? (paused ? "Paused" : "Downloading")) : "Verifying file" }
     var width: CGFloat { home ? 213 : 210 }
@@ -230,7 +232,8 @@ struct GameTile: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
             ZStack(alignment: .bottomLeading) {
-                Artwork(url: game.coverURL, fallbackURL: game.coverFallbackURL, title: game.title, placeholderID: game.id, appIcon: game.appURL)
+                // The focus overlay names a focused tile, so the placeholder need not repeat it.
+                Artwork(url: game.coverURL, fallbackURL: game.coverFallbackURL, title: focused && !home ? "" : game.title, placeholderID: game.id, appIcon: game.appURL)
                     .opacity(game.status == .missing ? 0.45 : 1)
                 if focused && !home {
                     LinearGradient(colors: [.clear, Design.background.opacity(0.92)], startPoint: .top, endPoint: .bottom).frame(height: 105)
@@ -251,6 +254,12 @@ struct GameTile: View {
                 if let badge {
                     HStack(spacing: 6) { Circle().fill(badge.1).frame(width: 8, height: 8); Text(badge.0).font(Design.body(16, weight: "SemiBold")) }
                         .padding(.horizontal, 10).padding(.vertical, 6).background(Design.background.opacity(0.85), in: RoundedRectangle(cornerRadius: 6)).padding(10)
+                }
+            }
+            .overlay(alignment: .topTrailing) {
+                if let storeSymbol, badge == nil {
+                    Image(systemName: storeSymbol).font(.system(size: 14, weight: .medium)).foregroundStyle(Design.text.opacity(0.85))
+                        .frame(width: 30, height: 30).background(Design.background.opacity(0.7), in: RoundedRectangle(cornerRadius: 6)).padding(10)
                 }
             }
             .overlay(alignment: .bottomTrailing) {

@@ -16,12 +16,16 @@ public struct LocalSource: GameSource {
         public let app: LocalAppBundle
         /// Already in the library; picking it again does nothing.
         public let added: Bool
+        public init(app: LocalAppBundle, added: Bool) { self.app = app; self.added = added }
     }
     public struct FolderSummary: Equatable, Sendable, Identifiable {
         public var id: UUID { folder.id }
         public let folder: LocalLibrary.Folder
         public let gameCount: Int
         public let available: Bool
+        public init(folder: LocalLibrary.Folder, gameCount: Int, available: Bool) {
+            self.folder = folder; self.gameCount = gameCount; self.available = available
+        }
     }
 
     public init(store: LocalLibraryStore, suggestionRoots: [URL] = LocalSource.standardSuggestionRoots) {

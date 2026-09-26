@@ -172,7 +172,8 @@ extension LibraryModel {
     }
     private func leaveAuthentication() {
         cancelAuthentication()
-        if setupScreen == .account { openVolumeSetup(firstRun: true) }
+        // With This Mac available, leaving sign-in returns to the choice of stores.
+        if setupScreen == .account { if localSource != nil { setupScreen = .games; setupIndex = 1 } else { openVolumeSetup(firstRun: true) } }
     }
     func refreshLibrary() {
         guard !resetBusy else { return }

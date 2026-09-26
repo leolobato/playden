@@ -11,10 +11,11 @@ struct SetupView: View {
         case .display: "Pick your screen."
         case .audio: "Choose your audio output."
         case .volume: "Where should games go?"
+        case .games: "Add your games"
         default: model.runtimeInfo?.templateReady == true && !model.setupBusy && model.setupFailure == nil ? "Ready when you are." : "Preparing your Mac"
         }
     }
-    var step: Int { switch model.setupScreen { case .controller, .display: 1; case .permissions: 2; case .account: 3; case .volume: 4; default: 5 } }
+    var step: Int { switch model.setupScreen { case .controller, .display: 1; case .permissions: 2; case .games, .account: 3; case .volume: 4; default: 5 } }
     var body: some View {
         if model.setupScreen == .runtime && !model.onboarding {
             RuntimeSettingsView(model: model)
@@ -37,6 +38,10 @@ struct SetupView: View {
             VStack(alignment: .leading, spacing: 34) {
                 Text(title).font(Design.condensed(72)).fixedSize(horizontal: false, vertical: true)
                 if model.setupScreen == .controller { controllerInstructions }
+                else if model.setupScreen == .games {
+                    Text("Bring your Steam library, add Mac games you already have, or both. You can change this later in Settings → Stores.")
+                        .font(Design.body(30)).foregroundStyle(Design.secondary).lineSpacing(8)
+                }
                 else if model.setupScreen == .permissions {
                     Text("macOS may ask for access when you choose a games drive or prepare a game. You can continue now and grant access when it is needed.")
                         .font(Design.body(30)).foregroundStyle(Design.secondary).lineSpacing(8)
@@ -51,7 +56,7 @@ struct SetupView: View {
                         Text(failure.reason).font(Design.body(25)).foregroundStyle(Design.secondary).lineSpacing(5)
                     }
                 }
-                if model.setupScreen == .controller || model.setupScreen == .runtime || model.setupScreen == .permissions {
+                if model.setupScreen == .controller || model.setupScreen == .runtime || model.setupScreen == .permissions || model.setupScreen == .games {
                     VStack(alignment: .leading, spacing: 20) {
                         ForEach(Array(model.setupActions.enumerated()), id: \.offset) { index, action in
                             ActionButton(title: action, primary: index == 0, focused: model.setupIndex == index, large: index == 0, reducedMotion: model.reducedMotion) { model.setupIndex = index; model.activateSetup() }
@@ -63,6 +68,7 @@ struct SetupView: View {
                 if model.setupScreen == .controller { controllerArt }
                 else if model.setupScreen == .runtime { runtimeProgress }
                 else if model.setupScreen == .permissions { permissionInstructions }
+                else if model.setupScreen == .games { storeInstructions }
                 else { choices }
             }.frame(width: model.setupScreen == .controller ? 700 : 924, height: 690, alignment: .topLeading)
                 .offset(x: model.setupScreen == .controller ? 1120 : 900, y: 250)
@@ -83,6 +89,12 @@ struct SetupView: View {
                 .font(Design.body(23)).foregroundStyle(Design.secondary).lineSpacing(5)
         }.padding(32).frame(width: 924, alignment: .leading)
             .background(Design.text.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
+    }
+    private var storeInstructions: some View {
+        VStack(alignment: .leading, spacing: 32) {
+            permissionCard("Steam", symbol: StoreNames.symbol(SourceID.steam), text: model.identity.map { "Signed in as \($0.displayName). Windows games install with CrossOver; games with a Mac version can install natively." } ?? "Scan a QR code with the Steam app. Playden installs your games; CrossOver runs the Windows ones.")
+            permissionCard("This Mac", symbol: StoreNames.symbol(SourceID.local), text: model.games.contains { $0.id.source == SourceID.local } ? "\(model.games.filter { $0.id.source == SourceID.local }.count) games added. Playden launches them and never changes their files." : "Mac games already in your Applications or Games folders. Playden launches them and never changes their files.")
+        }
     }
     private func permissionCard(_ title: String, symbol: String, text: String) -> some View {
         VStack(alignment: .leading, spacing: 14) {

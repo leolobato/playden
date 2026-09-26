@@ -14,12 +14,18 @@ struct DownloadsScreen: View {
 
 struct SettingsScreen: View {
     @Bindable var model: LibraryModel
-    let sections = ["Account", "Library", "Display", "Audio", "Controller", "About", "Quit Playden"]
+    let sections = ["Stores", "Library", "Display", "Audio", "Controller", "About", "Quit Playden"]
     var settings: [(String, String, String)] {
         switch model.settingsSection {
-        case 0:
-            [("Steam", model.syncError ?? (model.isPreview ? "Using designer preview data" : model.identity.map { "Signed in as \($0.displayName)" } ?? "Sign in to see your games"), model.identity == nil ? "Sign in" : "Sign in again")]
-            + (model.identity == nil ? [] : [("Sign out", "Disconnect your Steam account from Playden", "Sign out")])
+        case 0: model.storeSettingsRows.map { row in
+            switch row {
+            case .steam: ("Steam", model.syncError ?? (model.isPreview ? "Using designer preview data" : model.identity.map { "Signed in as \($0.displayName)" } ?? "Sign in to see your games"), model.identity == nil ? "Sign in" : "Sign in again")
+            case .signOut: ("Sign out", "Disconnect your Steam account from Playden", "Sign out")
+            case .preferMac: ("Prefer macOS versions", "Offer a Steam game’s Mac version first when it has one", model.preferMacVersions ? "On" : "Off")
+            case .thisMac: ("This Mac", model.thisMacSummary, "Add games ›")
+            case .folders: ("Watched folders", "Playden checks these folders for new games every time it scans", "Manage ›")
+            }
+        }
         case 1: librarySettings
         case 2: [
             ("Preferred display", model.displaySummary, "Change ›"),
@@ -154,6 +160,16 @@ struct ModalLayer: View {
                     if model.panel == .persistenceFailure { Text(model.persistenceError ?? "The library database is unavailable.").font(Design.body(24)).foregroundStyle(Design.secondary) }
                     if model.panel == .compatibility { Text(model.isPreview ? "Your rating · preview library" : "Your rating").font(Design.body(22)).foregroundStyle(Design.secondary) }
                     if model.panel == .signOut { Text("Installed games, saves, collections and play history stay on this Mac.").font(Design.body(24)).foregroundStyle(Design.secondary) }
+                    if case .localGames(let id) = model.panel {
+                        Text(model.localBusy ? "Looking for games in your Applications and Games folders…" : model.localMessage ?? (id == nil ? "Games found on this Mac. Pick one to add it; Playden never changes its files." : "Pick the app’s new location."))
+                            .font(Design.body(22)).foregroundStyle(Design.secondary).lineLimit(3)
+                    }
+                    if model.panel == .localFolders {
+                        Text("New games in these folders join your library automatically.").font(Design.body(22)).foregroundStyle(Design.secondary)
+                    }
+                    if case .localFolderOptions = model.panel {
+                        Text("Keep its games in your library, or remove them too. The apps stay on your Mac either way.").font(Design.body(22)).foregroundStyle(Design.secondary)
+                    }
                     PanelActionList(model: model)
                     if let note = model.downloadHistoryNote { Text(note).font(Design.body(22)).foregroundStyle(Design.secondary).lineSpacing(4) }
                     if model.panel == .compatibility, let id = model.focusedGame?.id {

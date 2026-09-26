@@ -18,6 +18,7 @@ extension LibraryModel {
                     self.installPersistenceError = snapshot.persistenceFailure?.reason
                     if Set(snapshot.jobs.filter { [.completed, .cancelled].contains($0.state) }.map(\.id)) != completedBefore { self.reloadCatalog() }
                     self.applyInstallStatuses()
+                    self.completePendingPlatformSwitches(snapshot.jobs)
                     if let focusedDownload, let index = self.downloadGames.firstIndex(where: { $0.id == focusedDownload }) { self.downloadIndex = index }
                     self.reconcileFocus()
                 }
@@ -35,10 +36,12 @@ extension LibraryModel {
             } catch { self?.show(.information((error as? OperationFailure)?.reason ?? error.localizedDescription)) }
         }
     }
-    func beginInstall(_ id: GameID, volume requestedVolume: GamesVolumeSelection? = nil) {
+    func beginInstall(_ id: GameID, volume requestedVolume: GamesVolumeSelection? = nil, platform requestedPlatform: GamePlatform? = nil) {
         guard let installQueue, let catalog else { show(.information(installPersistenceError ?? "The install queue is unavailable.")); return }
         guard let volume = requestedVolume ?? gamesVolume else { openVolumeSetup(); return }
         installDestination = volume
+        let platform = requestedPlatform ?? defaultInstallPlatform(id)
+        installPlatform = platform
         installOfferTask?.cancel(); installOffer = nil; installOfferError = nil; installOfferRequiresSignIn = false; resolvingInstall = true
         show(.installOffer(id))
         installOfferTask = Task { [weak self] in
@@ -46,7 +49,7 @@ extension LibraryModel {
             do {
                 guard let game = try catalog.snapshot().entries.first(where: { $0.id == id })?.source else { throw SourceFailure.unavailable }
                 let sizeAccount = try? await self.source(for: id)?.downloadSizeAccountKey()
-                let offer = try await installQueue.offer(for: game, volume: volume)
+                let offer = try await installQueue.offer(for: game, volume: volume, platform: platform)
                 guard !Task.isCancelled, self.panel == .installOffer(id) else { return }
                 if let sizeAccount, (try? await self.source(for: id)?.downloadSizeAccountKey()) == sizeAccount {
                     self.cacheResolvedDownloadSize(offer.plan, accountKey: sizeAccount)
@@ -69,6 +72,7 @@ extension LibraryModel {
             do {
                 _ = try await installQueue.enqueue(offer)
                 guard let self, !Task.isCancelled else { return }
+                self.rememberInstallPlatform(offer.plan.game.id)
                 self.resolvingInstall = false; self.panel = nil; self.detailID = nil
             } catch {
                 guard let self, !Task.isCancelled else { return }

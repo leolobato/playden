@@ -22,6 +22,9 @@ import Installs
         }
         if let index = model.games.firstIndex(where: { $0.id == game.id }) { model.games[index].size = "2.1 GB" }
         if screen.hasPrefix("install-offer") {
+            if screen == "install-offer-platform", let index = model.games.firstIndex(where: { $0.id == game.id }) {
+                model.games[index].platforms = [.windows, .macOS]; model.installPlatform = .macOS
+            }
             model.openGame(game)
             model.show(.installOffer(game.id))
             model.installOffer = .init(plan: plan, volume: volume, freeBytes: screen.hasSuffix("space") ? 5_000_000_000 : 206_000_000_000, reservedBytes: 1_000_000_000)

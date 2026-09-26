@@ -5,13 +5,14 @@ import Focus
 
 enum FilterChoice: Equatable {
     case sort(LibrarySort), installation(InstallationFilter), genre(String?), source(String?)
-    case controller(ControllerSupport?), compatibility(Compatibility?), moreGenres, reset
+    case controller(ControllerSupport?), compatibility(Compatibility?), platform(GamePlatform?), moreGenres, reset
     var title: String {
         switch self {
         case .sort(let sort): sort.title
         case .installation(let value): value.rawValue
         case .genre(let value): value ?? "Any"
-        case .source(let value): value?.capitalized ?? "Any"
+        case .source(let value): value.map(StoreNames.name) ?? "Any"
+        case .platform(let value): value?.title ?? "Any"
         case .controller(let value): value?.rawValue.capitalized ?? "Any"
         case .compatibility(let value): value?.rawValue ?? "Any"
         case .moreGenres: "More…"
@@ -45,13 +46,21 @@ extension LibraryModel {
             if shownGenres.count == 5 { shownGenres.removeLast() }
             shownGenres.append(selected)
         }
+        // Missing appears only when a Mac app has gone missing, or while it is selected.
+        let installation = InstallationFilter.allCases.filter { $0 != .missing || refinements.installation == .missing || games.contains { $0.status == .missing } }
         var groups: [(String, [FilterChoice])] = [
             ("Sort by", LibrarySort.allCases.map(FilterChoice.sort)),
-            ("Installed", InstallationFilter.allCases.map(FilterChoice.installation))
+            ("Installed", installation.map(FilterChoice.installation))
         ]
         var sources = Set(games.map { $0.id.source })
         if let selected = refinements.source { sources.insert(selected) }
-        if sources.count > 1 || refinements.source != nil { groups.append(("Source", [.source(nil)] + sources.sorted().map { .source($0) })) }
+        // A store scope in the rail already narrows the library to one store.
+        if case .store = filter {} else if sources.count > 1 || refinements.source != nil {
+            groups.append(("Store", [.source(nil)] + storesWithGames.filter(sources.contains).map { .source($0) }))
+        }
+        var platforms = Set(games.flatMap { $0.installedPlatform.map { [$0] } ?? $0.platforms })
+        if let selected = refinements.platform { platforms.insert(selected) }
+        if platforms.count > 1 { groups.append(("Platform", [.platform(nil)] + GamePlatform.allCases.filter(platforms.contains).map { .platform($0) })) }
         groups += [
             ("Genre", [.genre(nil)] + shownGenres.map { .genre($0) } + (!expandedGenres && allGenres.count > 5 ? [.moreGenres] : [])),
             ("Controller support", [.controller(nil)] + [ControllerSupport.full, .partial, .none, .unknown].map { .controller($0) }),
@@ -82,6 +91,7 @@ extension LibraryModel {
         case .source(let value): refinements.source == value
         case .controller(let value): refinements.controller == value
         case .compatibility(let value): refinements.compatibility == value
+        case .platform(let value): refinements.platform == value
         default: false
         }
     }
@@ -93,6 +103,7 @@ extension LibraryModel {
         case .source(let value): refinements.source = value
         case .controller(let value): refinements.controller = value
         case .compatibility(let value): refinements.compatibility = value
+        case .platform(let value): refinements.platform = value
         case .moreGenres: expandedGenres = true
         case .reset: refinements = .init(); sort = .name; filterChoiceIndex = 0; filterScrollOffset = 0
         }

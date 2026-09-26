@@ -58,7 +58,7 @@ public struct GameEdits: Codable, Equatable, Sendable {
     }
 }
 
-public enum LibraryScope: Codable, Hashable, Sendable { case installed, all, favorites, hidden, collection(UUID) }
+public enum LibraryScope: Codable, Hashable, Sendable { case installed, all, favorites, hidden, collection(UUID), store(String) }
 public enum LibrarySort: String, Codable, CaseIterable, Sendable {
     case name, recentlyPlayed, playtime, recentlyAdded, installSize
     public var title: String {
@@ -84,6 +84,8 @@ public struct LibraryPreferences: Codable, Equatable, Sendable {
     /// Games whose first-session check-in has already been presented.
     public var firstRunFeedbackShown: [GameID]?
     public var gamesVolume: GamesVolumeSelection?
+    /// Preselect a Steam game's Mac version when it has one. Nil means on.
+    public var preferMacVersions: Bool?
     public var setupCompleted = false
     public init() {}
 }

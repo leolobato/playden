@@ -185,7 +185,7 @@ struct BottomBar: View {
                     .onTapGesture { model.showGameControls() }
             }
             Spacer(minLength: 0)
-            if model.detailID != nil, let game = model.focusedGame, game.status == .installed,
+            if model.detailID != nil, let game = model.focusedGame, game.status == .installed, !game.isExternal, game.installedPlatform != .macOS,
                model.liveJob(for: game.id).map({ $0.kind != .uninstall || $0.state == .completed }) ?? true { CloudStatusLabel(model: model, gameID: game.id) }
             if model.detailID == nil && model.tab != .downloads && model.tab != .settings, let download = model.activeDownload {
                 if !model.isPreview, let job = model.liveJob(for: download.id) {
@@ -223,10 +223,10 @@ struct HomeScreen: View {
             LinearGradient(colors: [.clear, Design.background.opacity(0.6), Design.background], startPoint: .top, endPoint: .bottom)
             if model.rows.isEmpty {
                 VStack(spacing: 28) {
-                    Text(!model.isPreview && model.identity == nil ? "Welcome to Playden" : "Your next adventure starts here").font(Design.condensed(56))
-                    Text(!model.isPreview && model.identity == nil ? "Sign in to Steam to see your library." : model.syncing ? "Loading your library…" : "Find a game in your library and make yourself at home.").font(Design.body(26)).foregroundStyle(Design.secondary)
-                    ActionButton(title: !model.isPreview && model.identity == nil ? "Sign in to Steam" : "Browse library", primary: true, focused: true, reducedMotion: model.reducedMotion) {
-                        if !model.isPreview && model.identity == nil { model.beginSignIn() } else { model.browseAvailableGames() }
+                    Text(model.needsGames ? "Add your games" : "Your next adventure starts here").font(Design.condensed(56))
+                    Text(model.needsGames ? model.addGamesMessage : model.syncing ? "Loading your library…" : "Find a game in your library and make yourself at home.").font(Design.body(26)).foregroundStyle(Design.secondary)
+                    ActionButton(title: model.needsGames ? model.addGamesTitle : "Browse library", primary: true, focused: true, reducedMotion: model.reducedMotion) {
+                        if model.needsGames { model.startAddingGames() } else { model.browseAvailableGames() }
                     }
                 }.frame(width: 1920, height: 1080)
             }
@@ -253,10 +253,10 @@ struct LibraryScreen: View {
                 .offset(x: 420, y: model.libraryHasSummary ? 216 : 126)
             if model.filteredGames.isEmpty {
                 VStack(spacing: 24) {
-                    Text(!model.isPreview && model.identity == nil && model.games.isEmpty && model.query.isEmpty ? "Your Steam library starts here" : model.refinements.isActive ? "No games match these filters" : model.query.isEmpty ? "Nothing here yet" : "No games match ‘\(model.query)’").font(Design.condensed(56))
-                    Text(!model.isPreview && model.identity == nil && model.games.isEmpty && model.query.isEmpty ? "Sign in to bring your games to Playden." : model.refinements.isActive ? "Reset your filters, or browse all your games." : "Try another collection or clear your search.").font(Design.body(26)).foregroundStyle(Design.secondary)
-                    ActionButton(title: !model.isPreview && model.identity == nil && model.games.isEmpty && model.query.isEmpty ? "Sign in to Steam" : "Browse all games", primary: true, focused: !model.railFocused) {
-                        if !model.isPreview && model.identity == nil && model.games.isEmpty && model.query.isEmpty { model.beginSignIn() } else { model.browseAvailableGames() }
+                    Text(model.needsGames && model.query.isEmpty ? "Add your games" : model.refinements.isActive ? "No games match these filters" : model.query.isEmpty ? "Nothing here yet" : "No games match ‘\(model.query)’").font(Design.condensed(56))
+                    Text(model.needsGames && model.query.isEmpty ? model.addGamesMessage : model.refinements.isActive ? "Reset your filters, or browse all your games." : "Try another collection or clear your search.").font(Design.body(26)).foregroundStyle(Design.secondary)
+                    ActionButton(title: model.needsGames && model.query.isEmpty ? model.addGamesTitle : "Browse all games", primary: true, focused: !model.railFocused) {
+                        if model.needsGames && model.query.isEmpty { model.startAddingGames() } else { model.browseAvailableGames() }
                     }
                 }.frame(width: 1380, height: 650).offset(x: 444, y: 150)
             }
@@ -297,6 +297,13 @@ struct GamePage: View {
                         Label(message, systemImage: "externaldrive.badge.exclamationmark")
                             .font(Design.body(22)).foregroundStyle(Design.amber).lineLimit(2)
                     }
+                    if game.status == .missing {
+                        Label("\(game.title) isn’t where Playden last saw it. Locate it, or remove it from your library.", systemImage: "questionmark.app.dashed")
+                            .font(Design.body(22)).foregroundStyle(Design.amber).lineLimit(2)
+                    }
+                    if let notice = model.steamClientNotice {
+                        Label(notice, systemImage: "exclamationmark.bubble").font(Design.body(22)).foregroundStyle(Design.secondary).lineLimit(2)
+                    }
                     if !model.isPreview, let job = model.liveJob(for: game.id), ![.completed, .cancelled].contains(job.state) {
                         VStack(alignment: .leading, spacing: 12) {
                             HStack { Text(model.downloadStatusTitle(for: job)); Spacer(); if let percentage = model.downloadPercentage(for: job) { Text(percentage) } }.font(Design.body(22, weight: "Medium"))
@@ -325,11 +332,17 @@ struct GamePage: View {
                     }
                 }.frame(width: 1128, alignment: .leading)
                 VStack(alignment: .leading, spacing: 18) {
-                    HStack(alignment: .top, spacing: 40) { metadata("Playtime", game.hoursPlayed == 0 ? "Never played" : "\(game.hoursPlayed) hours"); metadata([.installed, .driveDisconnected].contains(game.status) ? "Size" : "Download", model.detailSizeLabel(for: game)) }
-                    HStack(alignment: .top, spacing: 40) { metadata("Source", game.id.source.capitalized); metadata("Compatibility", game.compatibility.rawValue) }
                     HStack(alignment: .top, spacing: 40) {
-                        metadata("Profile", model.profileLabel(game.id))
+                        metadata("Playtime", game.hoursPlayed == 0 ? "Never played" : "\(game.hoursPlayed) hours")
+                        if game.isExternal { metadata("Folder", game.appURL?.deletingLastPathComponent().lastPathComponent ?? "—") }
+                        else { metadata([.installed, .driveDisconnected].contains(game.status) ? "Size" : "Download", model.detailSizeLabel(for: game)) }
+                    }
+                    HStack(alignment: .top, spacing: 40) { metadata("Store", StoreNames.name(game.id.source)); metadata("Runs as", model.runsAsLabel(game)) }
+                    HStack(alignment: .top, spacing: 40) {
+                        metadata("Compatibility", game.installedPlatform == .macOS && game.platforms.count > 1 ? game.compatibility.rawValue + " · Mac" : game.compatibility.rawValue)
                         if let date = game.lastPlayedAt { metadata("Last played", lastPlayedLabel(date)) }
+                        else if model.hasGameSettings(game) { metadata("Profile", model.profileLabel(game.id)) }
+                        else { metadata("Saves", "By the game") }
                     }
                 }.frame(width: 520)
             }.offset(x: 96, y: 754)

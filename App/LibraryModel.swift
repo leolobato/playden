@@ -13,8 +13,8 @@ enum AppTab: String, CaseIterable { case home = "Home", library = "Library", dow
     var symbol: String { switch self { case .home: "house"; case .library: "square.grid.2x2"; case .downloads: "arrow.down.to.line"; case .settings: "gearshape" } }
 }
 typealias LibraryFilter = LibraryScope
-enum TextPurpose: Equatable { case newCollection(GameID?), renameCollection(UUID), compatibilityNote(GameID), accountName, password, guardCode, runtimeText(GameID, RuntimeSettingID) }
-enum Confirmation: Equatable { case deleteCollection(UUID), uninstall(GameID), install(GameID), cancelDownload(GameID), switchGame(GameID) }
+enum TextPurpose: Equatable { case newCollection(GameID?), renameCollection(UUID), compatibilityNote(GameID), accountName, password, guardCode, runtimeText(GameID, RuntimeSettingID), renameGame(GameID) }
+enum Confirmation: Equatable { case deleteCollection(UUID), uninstall(GameID), install(GameID), cancelDownload(GameID), switchGame(GameID), removeFromLibrary(GameID), switchPlatform(GameID, GamePlatform) }
 enum Panel: Equatable {
     case context, gameSettings(GameID), filters, search, compatibility, information(String), persistenceFailure, signOut, controllerTest, resetAppData
     case firstRunFeedback(GameID)
@@ -27,6 +27,10 @@ enum Panel: Equatable {
     case uninstall(GameID)
     case textEditor(TextPurpose), collections(GameID), collectionOptions(UUID), confirmation(Confirmation), logs(GameID)
     case storePage(GameID)
+    /// This Mac: suggestions and Browse; with a game, picking an app relocates that game.
+    case localGames(GameID?)
+    case localFolders
+    case localFolderOptions(UUID)
 }
 
 struct HomeRow: Identifiable {
@@ -68,6 +72,13 @@ final class LibraryModel {
     @ObservationIgnored var scanTask: Task<Void, Never>?
     var scanErrors: [String: String] = [:]
     @ObservationIgnored var storedEdits: [GameID: GameEdits] = [:]
+    var localCandidates: [LocalSource.Candidate] = []
+    var localFolderSummaries: [LocalSource.FolderSummary] = []
+    var localBusy = false
+    var localMessage: String?
+    var preferMacVersions = true
+    var installPlatform: GamePlatform = .windows
+    @ObservationIgnored var pendingPlatformSwitch: [GameID: (platform: GamePlatform, requestedAt: Date)] = [:]
     @ObservationIgnored let runtime: (any BottleManaging)?
     @ObservationIgnored let volumeStore: (any VolumeManaging)?
     @ObservationIgnored let installQueue: (any InstallQueuing)?
@@ -387,9 +398,10 @@ final class LibraryModel {
         let result = games.filter { game in
             guard game.isHidden == (filter == .hidden) else { return false }
             let matches = switch filter {
-            case .installed: game.status == .installed || game.status == .driveDisconnected
+            case .installed: [.installed, .driveDisconnected, .missing].contains(game.status)
             case .favorites: game.isFavorite
             case .collection(let id): collections.first { $0.id == id }?.gameIDs.contains(game.id) == true
+            case .store(let id): game.id.source == id
             case .all, .hidden: true
             }
             return matches && refinements.includes(game) && (query.isEmpty || game.title.localizedCaseInsensitiveContains(query))
@@ -438,7 +450,7 @@ final class LibraryModel {
     }
     var detailActions: [String] {
         guard let game = focusedGame, let primary = gameActions.first else { return [] }
-        return [primary, "Game settings", game.isFavorite ? "Favorited" : "Favorite"] + (storePageURL(game.id) != nil ? ["Store page"] : []) + ["More"]
+        return [primary] + (hasGameSettings(game) ? ["Game settings"] : []) + [game.isFavorite ? "Favorited" : "Favorite"] + (storePageURL(game.id) != nil ? ["Store page"] : []) + ["More"]
     }
     private var gameActions: [String] {
         guard let game = focusedGame else { return [] }
@@ -454,15 +466,27 @@ final class LibraryModel {
         else if isCheckingInstallationDrive(game.id) { primary = "Checking drive…" }
         else if gamesNeedingRepair.contains(game.id) { primary = "Verify files" }
         else { primary = switch game.status { case .installed: "Play"; case .downloading: downloadPaused ? "Resume download" : "Pause download"; case .queued: "View download"; case .driveDisconnected: "Drive disconnected"; case .missing: "Locate game"; case .notInstalled: "Install" } }
-        return [primary] + (canShowGameControls && session.session?.gameID == game.id ? ["Quit game"] : []) + [game.isFavorite ? "Favorited" : "Favorite", "Add to collection", game.isHidden ? "Unhide" : "Hide", "Set compatibility"] + (game.status == .installed ? (primary == "Verify files" ? ["Uninstall", "Cloud saves"] : ["Verify files", "Uninstall", "Cloud saves"]) : []) + ["View logs"]
+        return [primary] + (canShowGameControls && session.session?.gameID == game.id ? ["Quit game"] : []) + [game.isFavorite ? "Favorited" : "Favorite", "Add to collection", game.isHidden ? "Unhide" : "Hide", "Set compatibility"] + installedActions(game, primary: primary) + ["View logs"]
     }
+    /// This Mac apps are never installed or removed by Playden; Mac builds have no Cloud sync yet.
+    private func installedActions(_ game: Game, primary: String) -> [String] {
+        if game.isExternal {
+            return ["Rename", "Remove from library"] + (steamVersion(of: game) != nil && game.usesSteamClient ? ["Show Steam version"] : [])
+        }
+        guard game.status == .installed else { return [] }
+        let cloud = game.installedPlatform == .macOS ? [] : ["Cloud saves"]
+        let switchVersion = otherPlatform(for: game.id).map { ["Switch to \($0 == .macOS ? "Mac" : "Windows") version"] } ?? []
+        return (primary == "Verify files" ? [] : ["Verify files"]) + ["Uninstall"] + cloud + switchVersion
+    }
+    /// Game settings are CrossOver runtime profiles; Mac apps and Mac builds don't use them.
+    func hasGameSettings(_ game: Game) -> Bool { !game.isExternal && game.installedPlatform != .macOS }
     var contextActions: [String] {
         let actions = gameActions
-        var result = [actions.first ?? "Open game", "Game settings"]
+        var result = [actions.first ?? "Open game"] + ((focusedGame.map(hasGameSettings) ?? true) ? ["Game settings"] : [])
         if actions.contains("Quit game") { result.append("Quit game") }
         result += [focusedGame?.isFavorite == true ? "Unfavorite" : "Favorite", "Set compatibility",
                    focusedGame?.isHidden == true ? "Unhide" : "Hide", "View logs", "Add to collection"]
-        for action in ["Verify files", "Cloud saves", "Uninstall"] where actions.contains(action) && actions.first != action {
+        for action in ["Verify files", "Cloud saves", "Uninstall", "Rename", "Remove from library", "Show Steam version", "Switch to Mac version", "Switch to Windows version"] where actions.contains(action) && actions.first != action {
             result.append(action)
         }
         return result
@@ -475,7 +499,8 @@ final class LibraryModel {
         case .downloadActions(let id): downloadActions(for: id)
         case .volumePicker(nil): installVolumeRows.flatMap { ["Use " + $0.name, "Make default"] } + ["Done"]
         case .volumePicker: enabledInstallVolumes.map { volumeLabel($0) } + ["Back"]
-        case .installOffer: (resolvingInstall ? [installOffer == nil ? "Cancel" : "Close"] : installOfferError != nil ? ["Cancel", installOfferRequiresSignIn ? "Sign in" : "Retry"] : installOffer?.canInstall == true ? ["Cancel", "Install"] : ["Cancel", "Check space again"]) + (resolvingInstall ? [] : ["Choose volume…"])
+        case .installOffer(let id): (resolvingInstall ? [installOffer == nil ? "Cancel" : "Close"] : installOfferError != nil ? ["Cancel", installOfferRequiresSignIn ? "Sign in" : "Retry"] : installOffer?.canInstall == true ? ["Cancel", "Install"] : ["Cancel", "Check space again"]) + (resolvingInstall ? [] : ["Choose volume…"])
+            + (resolvingInstall || installOfferRequiresSignIn ? [] : otherPlatform(for: id).map { ["Use \($0 == .macOS ? "Mac" : "Windows") version"] } ?? [])
         case .filters: []
         case .compatibility: Compatibility.allCases.map(\.rawValue) + ["Edit note"]
         case .collections: collections.map(\.name) + ["New collection…"]
@@ -484,6 +509,9 @@ final class LibraryModel {
         case .information: ["Got it"]
         case .persistenceFailure: ["Retry saving", "Continue without saving"]
         case .signOut: ["Stay signed in", "Sign out"]
+        case .localGames(let id): localGamesActions(relocating: id)
+        case .localFolders: localFolderActions
+        case .localFolderOptions: ["Keep its games", "Remove its games too", "Cancel"]
         default: []
         }
     }
@@ -645,7 +673,7 @@ final class LibraryModel {
             }
             else if let game = focusedGame { openGame(game) }
             else if tab == .home || tab == .library {
-                if !isPreview && games.isEmpty && identity == nil && query.isEmpty { beginSignIn() } else { browseAvailableGames() }
+                if needsGames && query.isEmpty { startAddingGames() } else { browseAvailableGames() }
             }
         case .back:
             if detailID != nil { detailID = nil }
@@ -693,7 +721,7 @@ final class LibraryModel {
             if direction == .left { settingsRailFocused = true }
             else if direction == .right { settingsRailFocused = settingsSection == 6 }
             else if settingsRailFocused { settingsSection = min(max(0, settingsSection + (direction == .up ? -1 : 1)), 6); settingsIndex = 0 }
-            else { settingsIndex = min(max(0, settingsIndex + (direction == .up ? -1 : 1)), settingsSection == 1 || settingsSection == 2 ? 3 : settingsSection == 5 ? 2 : settingsSection == 4 || (settingsSection == 0 && identity != nil) ? 1 : 0) }
+            else { settingsIndex = min(max(0, settingsIndex + (direction == .up ? -1 : 1)), settingsSection == 0 ? max(0, storeSettingsRows.count - 1) : settingsSection == 1 || settingsSection == 2 ? 3 : settingsSection == 5 ? 2 : settingsSection == 4 ? 1 : 0) }
         }
     }
     func activateDetail() {
@@ -723,6 +751,12 @@ final class LibraryModel {
         case "Install":
             if !isPreview, let id = focusedGame?.id { beginInstall(id) }
             else if let id = focusedGame?.id { show(.confirmation(.install(id))) }
+        case "Locate game": if let id = focusedGame?.id { showLocalGames(relocating: id) }
+        case "Rename": if let id = focusedGame?.id { beginText(.renameGame(id)) }
+        case "Remove from library": if let id = focusedGame?.id { show(.confirmation(.removeFromLibrary(id))) }
+        case "Show Steam version": if let game = focusedGame, let steam = steamVersion(of: game) { openGame(steam) }
+        case "Switch to Mac version", "Switch to Windows version":
+            if let id = focusedGame?.id { show(.confirmation(.switchPlatform(id, label.contains("Mac") ? .macOS : .windows))) }
         case "Pause download", "Resume download": downloadPaused.toggle()
         case "View download", "View verification", "View removal":
             if let id = focusedGame?.id { revealDownloadHistory(for: id) }
@@ -744,6 +778,7 @@ final class LibraryModel {
             else { panel = nil }
         case .installOffer(let id):
             if label == "Choose volume…" { show(.volumePicker(id)) }
+            else if label.hasPrefix("Use "), label.hasSuffix(" version") { beginInstall(id, volume: installDestination, platform: label.contains("Mac") ? .macOS : .windows) }
             else if panelIndex == 0 { panel = nil }
             else if installOfferRequiresSignIn { beginSignIn(resumingInstall: id) }
             else if installOfferError != nil || installOffer?.canInstall != true { beginInstall(id, volume: installDestination) }
@@ -755,7 +790,7 @@ final class LibraryModel {
         case .context:
             if !panelActionEnabled(at: panelIndex) { return }
             if panelIndex == 0, let game = focusedGame { openGame(game); activateDetail() }
-            else if ["Game settings", "Verify files", "Cloud saves", "Quit game"].contains(label) { activateGameAction(label) }
+            else if ["Game settings", "Verify files", "Cloud saves", "Quit game", "Rename", "Remove from library", "Show Steam version", "Switch to Mac version", "Switch to Windows version"].contains(label) { activateGameAction(label) }
             else if label == "Favorite" || label == "Unfavorite" { toggleFavorite(); panel = nil }
             else if label == "Set compatibility" { show(.compatibility) }
             else if label == "Hide" || label == "Unhide" { hideFocused(); panel = nil }
@@ -776,6 +811,9 @@ final class LibraryModel {
             else if label == "Delete collection…" { show(.confirmation(.deleteCollection(id))) }
             else { collections[index].isPinned.toggle(); reconcileFocus(); panel = nil }
         case .downloadActions(let id): activateDownloadAction(label, id: id)
+        case .localGames(let id): activateLocalGames(panelIndex, relocating: id)
+        case .localFolders: activateLocalFolders(panelIndex)
+        case .localFolderOptions(let id): activateLocalFolderOption(label, id: id)
         case .confirmation(let intent):
             if panelIndex == 0 { panel = nil }
             else { confirm(intent) }
@@ -789,10 +827,7 @@ final class LibraryModel {
     func activateSetting() {
         if settingsSection == 6 { quitLauncherFromUI(); return }
         if settingsRailFocused { settingsRailFocused = false; return }
-        if settingsSection == 0 && !isPreview {
-            if settingsIndex == 0 { beginSignIn() }
-            else { show(.signOut) }
-        }
+        if settingsSection == 0 { activateStoreSetting() }
         else if settingsSection == 1 && settingsIndex == 0 && !isPreview { refreshLibrary() }
         else if settingsSection == 1 && settingsIndex == 1 { show(.volumePicker(nil)) }
         else if settingsSection == 1 && settingsIndex == 3 { openRuntimeSetup() }

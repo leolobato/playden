@@ -4,7 +4,7 @@ import Input
 import Runner
 import AppKit
 
-enum SetupScreen { case controller, display, audio, permissions, account, volume, runtime }
+enum SetupScreen { case controller, display, audio, permissions, games, account, volume, runtime }
 struct DisplayChoice: Identifiable, Equatable {
     var id: UInt32
     var name: String
@@ -116,6 +116,7 @@ extension LibraryModel {
         switch setupScreen {
         case .controller: [controllerName == nil ? "Continue with keyboard" : "Continue", "Open Bluetooth settings"]
         case .permissions: ["Continue", "Open App Management", "Open Files & Folders"]
+        case .games: [identity == nil ? "Sign in to Steam" : "Signed in to Steam", "Add games on this Mac", games.isEmpty && identity == nil ? "Skip for now" : "Continue"]
         case .display: displays.map { $0.name } + ["Back"]
         case .audio: ["System default"] + audioDevices.map(\.name) + ["Back"]
         case .volume:
@@ -142,6 +143,7 @@ extension LibraryModel {
             if setupBusy { setupTask?.cancel() }
             else if setupScreen == .permissions && onboarding { setupScreen = displays.count > 1 ? .display : .controller; setupIndex = 0 }
             else if setupScreen == .display && onboarding { setupScreen = .controller; setupIndex = 0 }
+            else if setupScreen == .games && onboarding { setupScreen = .permissions; setupIndex = 0 }
             else { finishSetup() }
         default: break
         }
@@ -169,6 +171,13 @@ extension LibraryModel {
         case .permissions:
             if setupIndex == 0 { advanceToAccount() }
             else { openPermissionSettings(appManagement: setupIndex == 1) }
+        case .games:
+            switch setupIndex {
+            case 0: if identity == nil { setupScreen = .account; beginSignIn() }
+            case 1: showLocalGames()
+            // The games drive and CrossOver are only needed once a download store is connected.
+            default: if identity != nil { openVolumeSetup(firstRun: true) } else { finishSetup() }
+            }
         case .audio:
             if setupIndex == 0 { selectAudioDevice(nil) }
             else if let device = audioDevices[safe: setupIndex - 1] { selectAudioDevice(device) }
@@ -188,6 +197,7 @@ extension LibraryModel {
         }
     }
     private func advanceToAccount() {
+        if localSource != nil { setupScreen = .games; setupIndex = identity == nil ? 0 : 2; return }
         setupScreen = .account
         if identity != nil { openVolumeSetup(firstRun: true) }
         else { beginSignIn() }
