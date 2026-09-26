@@ -449,6 +449,35 @@ Dependencies: M0–M5 gates passed.
 Gate: README's corrected MVP bar and all retained v1 requirements pass. A skipped CrossOver integration
 test on a machine without CrossOver cannot satisfy the real-platform release gate.
 
+### M7 — Stores, This Mac games and Steam macOS builds
+
+Scope: [PRD 08](prd/08-stores.md). Added 26 September 2026. Each step keeps Steam Windows installs
+working and ships on its own.
+
+- [ ] **S0 — macOS gbe_fork (decision 12).** `scripts/build-gbe-macos.sh` builds a universal
+  `libsteam_api.dylib` from a pinned upstream commit, with the patches in `Native/GBEMac/`. Record
+  its hash in `steampipe/PROVENANCE.md`. A test harness loads the library, starts the Steam API with
+  `steam_settings`, and reads the account and app ID.
+- [ ] **S1 — Plumbing.** `SourceRegistry`, `SourceCapabilities`, `SourceID`, `GamePlatform`,
+  installation ownership and runtime with legacy decoding, the runtime environment in `RunningGame`,
+  runner selection by runtime, the Steam helpers moved behind the source, generic store copy.
+- [ ] **S2 — Native runner.** `NativeRunner`, process inspection by bundle root, a fixture app, and
+  session tests.
+- [ ] **S3 — This Mac source.** The `v7_local_games` tables, scanning, identity matching, re-adding
+  removed games, `locate`, the Missing status, the Steam dependency warning, and icon artwork.
+- [ ] **S4 — Steam macOS builds.** `platforms` metadata, resolving by platform, executable file
+  modes, native plans in `InstallQueue`, macOS Steam API staging and ad-hoc re-signing, and
+  switching platform.
+- [ ] **S5 — UI.** The Stores page in Settings, the This Mac picker and folders, the Stores section
+  in the rail, the Store and Platform filters, tile glyphs, the platform choice in the install
+  offer, the game-page changes, empty states, first-run changes, and captures.
+- [ ] **S6 — Docs and acceptance.** Update PRD 01, 02, 04 and 05 and the README. Manual acceptance:
+  add a native game from `/Applications` and one from an external drive; install A Short Hike's
+  macOS build, then play, verify and switch platform.
+
+Gate: a native `/Applications` game and a Steam macOS build both reach controller-driven gameplay
+and return to Playden with playtime recorded, while Steam Windows regression tests still pass.
+
 ## 5. Acceptance matrix
 
 | Area | Required evidence |

@@ -35,7 +35,8 @@ Every requirement carries one tag. A requirement without a tag is a bug in this 
 | Tag | Meaning |
 |---|---|
 | **v1** | The MVP: "install and play from the couch". Ships first. |
-| **v2** | "A real living-room console": properties, overlays, a second store, background helper. |
+| **v2** | "A real living-room console": properties, overlays, Windows game import, background helper. |
+| **v3** | More stores: itch.io, GOG, Epic, Amazon (see [08-stores.md](08-stores.md) §11). |
 | **later** | Known and wanted, not scheduled. |
 
 ## Decisions (dated 2026-09-07)
@@ -70,6 +71,7 @@ Every requirement carries one tag. A requirement without a tag is a bug in this 
 | [05-install.md](05-install.md) | **Install a game** | Source and installer protocols, install pipeline, downloads queue, bottles, uninstall, storage |
 | [06-play-session.md](06-play-session.md) | **Play** | Launch, in-game behavior, exit, playtime, crash handling |
 | [07-settings-diagnostics.md](07-settings-diagnostics.md) | **Fix something** | Settings, failure contract, logs, testing strategy |
+| [08-stores.md](08-stores.md) | **Play from more than one place** | Source registry, This Mac games, Steam macOS builds, native runner, store and platform filters, Windows import (v2), more stores (v3) |
 
 ## MVP bar (v1 success criteria)
 
@@ -90,14 +92,14 @@ v1 ships when, with the Mac connected to a TV and only a PS4 controller in hand:
 
 ## v1 non-goals
 
-- Any store other than Steam (protocols exist; implementations do not).
+- Any download store other than Steam (v3; see 08). Local "This Mac" games are in v1.
 - Per-game properties editing beyond the compatibility badge and note (v2).
 - In-game overlay beyond the exit prompt (v2).
 - Kiosk behaviors: auto-launch at login, owning the display, sleep/wake from the controller (later).
 - Controllers other than a DualShock 4 for the tested path. Other GameController-supported pads work
   with generic glyphs; remapping UI is later.
 - Achievements UI, DLC management, multiplayer or anti-cheat titles.
-- Native macOS game versions and integration with the official Steam macOS installation (v2).
+- Integration with the official Steam macOS installation (v2). Steam macOS builds are v1 (08 §4).
 - Intel Macs. Distribution and notarization polish.
 
 ## Dependencies
