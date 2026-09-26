@@ -51,6 +51,14 @@ public struct InstallationRecord: Codable, Equatable, Sendable, Identifiable {
     public var staging: InstallStaging?
     /// Set before maintenance writes; only successful validation makes the game playable again.
     public var needsRepair: Bool?
+    /// Nil on legacy records, which run in CrossOver.
+    public var runtime: RuntimeBinding?
+    /// Set for apps found on disk. `location` then only mirrors the app's parent folder, and removal
+    /// code must refuse the record: the files are the user's.
+    public var external: ExternalLocation?
+    public var runtimeBinding: RuntimeBinding { runtime ?? .crossOver }
+    public var isExternal: Bool { external != nil }
+    public var usesBottle: Bool { runtimeBinding == .crossOver }
     public init(id: UUID = UUID(), game: SourceGameRecord, location: GameLocation, bottleID: String,
                 ownershipToken: UUID = UUID(), manifestIDs: [String: String], language: String = "english",
                 templateVersion: String, recipeVersion: Int = 1, stagingVersion: Int = 1,

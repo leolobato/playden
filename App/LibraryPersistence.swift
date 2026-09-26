@@ -11,13 +11,13 @@ extension LibraryModel {
     private func restoreCatalogContents() {
         guard let catalog else { return }
         do {
-            if isPreview, try catalog.lastSync(for: "steam") == nil {
+            if isPreview, try catalog.lastSync(for: SourceID.steam) == nil {
                 let records = PreviewCatalog.games.map { game in
                     SourceGameRecord(id: game.id, title: game.title, summary: game.summary, genres: game.genres,
                         controllerSupport: .full, coverURL: game.coverURL, heroURL: game.heroURL, logoURL: game.logoURL,
                         importedPlaytimeSeconds: Int64(game.hoursPlayed) * 3600, metadataUpdatedAt: .now)
                 }
-                try catalog.replaceSourceCatalog(source: "steam", games: records)
+                try catalog.replaceSourceCatalog(source: SourceID.steam, games: records)
                 try catalog.saveLibraryState(edits: Dictionary(uniqueKeysWithValues: games.map { ($0.id, edits(for: $0)) }),
                     collections: collections, preferences: try catalog.preferences())
             }
@@ -26,7 +26,7 @@ extension LibraryModel {
                 guard let installed = entry.installation, let plan = installed.plan else { return nil }
                 if let options = plan.launchOptions { return (entry.id, options) }
                 // Older installs retain Steam metadata, so choices can be recovered offline.
-                guard let source, let options = try? source.installer(for: installed.game).launchOptions(plan) else { return nil }
+                guard let source = source(for: entry.id), let options = try? source.installer(for: installed.game).launchOptions(plan) else { return nil }
                 return (entry.id, options)
             })
             runtimeProfiles = Dictionary(uniqueKeysWithValues: snapshot.entries.compactMap { entry in

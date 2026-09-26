@@ -6,7 +6,7 @@ enum CloudChoice: String { case local = "Use local save", remote = "Use Cloud sa
 
 extension LibraryModel {
     func refreshCloudAvailability() {
-        guard !isPreview, let catalog, let source else { return }
+        guard !isPreview, let catalog else { return }
         do {
             let entries = try catalog.snapshot().entries
             let identities = Dictionary(uniqueKeysWithValues: entries.compactMap { entry in entry.installation.map { (entry.id, $0.id) } })
@@ -22,7 +22,7 @@ extension LibraryModel {
                 if let previous = cloudAvailabilityCache[entry.id], previous.plan == plan {
                     available = previous.available
                 } else {
-                    available = try? source.installer(for: installed.game).supportsCloudSaves(plan)
+                    available = try? source(for: entry.id)?.installer(for: installed.game).supportsCloudSaves(plan)
                 }
                 cached[entry.id] = (plan, available)
                 values[entry.id] = available
@@ -142,7 +142,7 @@ extension LibraryModel {
             }
             return
         }
-        guard let catalog, let source else { return }
+        guard let catalog, let source = source(for: id) else { return }
         cloudCommands[id] = Task { [weak self] in
             guard let self else { return }
             defer { cloudCommands[id] = nil }

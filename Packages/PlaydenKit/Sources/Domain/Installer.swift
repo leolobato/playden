@@ -22,9 +22,13 @@ public struct InstallPlan: Codable, Equatable, Sendable, Identifiable {
     public let sourcePayload: Data
     public let recipeVersion: Int
     public let resolvedAt: Date
+    /// Nil on plans resolved before platforms existed, which are Windows plans.
+    public var platform: GamePlatform?
+    public var resolvedPlatform: GamePlatform { platform ?? .windows }
     public init(id: UUID = UUID(), game: SourceGameRecord, language: String = "english", manifestIDs: [String: String],
                 estimate: InstallEstimate, launchSpec: LaunchSpec, sourcePayload: Data, recipeVersion: Int = 1, resolvedAt: Date = .now,
-                launchOptions: [LaunchOption]? = nil) {
+                launchOptions: [LaunchOption]? = nil, platform: GamePlatform? = nil) {
+        self.platform = platform
         self.id = id; self.game = game; self.language = language; self.manifestIDs = manifestIDs
         self.estimate = estimate; self.launchSpec = launchSpec; self.sourcePayload = sourcePayload
         self.recipeVersion = recipeVersion; self.resolvedAt = resolvedAt

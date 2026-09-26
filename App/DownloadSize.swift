@@ -16,7 +16,7 @@ extension LibraryModel {
     func loadDetailDownloadSize() {
         detailSizeTask?.cancel(); detailSizeTask = nil
         detailDownloadSize = nil; detailSizeLoading = false
-        guard !isPreview, let id = detailID, let source, let catalog,
+        guard !isPreview, let id = detailID, let source = source(for: id), let catalog,
               let game = games.first(where: { $0.id == id }), ![.installed, .driveDisconnected].contains(game.status) else { return }
         detailSizeLoading = true
         detailSizeTask = Task { [weak self] in

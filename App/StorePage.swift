@@ -3,11 +3,16 @@ import AppKit
 import WebKit
 import Domain
 import Input
+import Sources
 
 extension LibraryModel {
     func storePageURL(_ id: GameID) -> URL? {
-        guard id.source == "steam", let appID = UInt32(id.value) else { return nil }
-        return URL(string: "https://store.steampowered.com/app/\(appID)/")
+        if let source = source(for: id) { return source.storePageURL(for: id) }
+        return isPreview ? SteamStorePage.url(for: id) : nil
+    }
+    func storePageAllows(host: String, for id: GameID) -> Bool {
+        if let source = source(for: id) { return source.storePageAllows(host: host) }
+        return isPreview && SteamStorePage.allows(host: host)
     }
     var storeActions: [String] { ["Close", "Open in browser"] }
     func prepareStorePage() {
@@ -48,7 +53,8 @@ struct StorePageViewer: View {
                 Text("· Store page").font(Design.condensed(40)).foregroundStyle(Design.secondary)
             }
             if let url = model.storePageURL(gameID) {
-                StoreWebView(url: url, request: model.storeScrollRequest, smooth: !model.reducedMotion) { fraction, canScroll in
+                StoreWebView(url: url, request: model.storeScrollRequest, smooth: !model.reducedMotion,
+                             allows: { model.storePageAllows(host: $0, for: gameID) }) { fraction, canScroll in
                     model.storeScrollFraction = fraction; model.storeCanScroll = canScroll
                 } failed: { model.storeLoadError = $0 }
                 .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -80,6 +86,7 @@ struct StoreWebView: NSViewRepresentable {
     let url: URL
     let request: LogScrollRequest
     let smooth: Bool
+    let allows: (String) -> Bool
     let position: (Double, Bool) -> Void
     let failed: (String?) -> Void
     private static let positionScript = """
@@ -135,7 +142,8 @@ struct StoreWebView: NSViewRepresentable {
         var sequence = 0
         private var position: ((Double, Bool) -> Void)?
         private var failed: ((String?) -> Void)?
-        func update(_ view: StoreWebView) { position = view.position; failed = view.failed }
+        private var allows: ((String) -> Bool)?
+        func update(_ view: StoreWebView) { position = view.position; failed = view.failed; allows = view.allows }
         func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
             guard let body = message.body as? [String: Any], let fraction = body["fraction"] as? Double, let canScroll = body["canScroll"] as? Bool else { return }
             position?(fraction, canScroll)
@@ -143,7 +151,7 @@ struct StoreWebView: NSViewRepresentable {
         func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction) async -> WKNavigationActionPolicy {
             guard action.targetFrame?.isMainFrame == true else { return .allow }
             let host = action.request.url?.host?.lowercased() ?? ""
-            return host == "store.steampowered.com" || host.hasSuffix(".store.steampowered.com") ? .allow : .cancel
+            return allows?(host) == true ? .allow : .cancel
         }
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { failed?(nil) }
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { report(error) }

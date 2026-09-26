@@ -60,8 +60,13 @@ final class LibraryModel {
     var storeCanScroll = false
     var storeActionIndex = 0
     var storeLoadError: String?
+    /// The store that owns account sign-in (Steam). Per-game work uses `source(for:)`.
     @ObservationIgnored let source: (any GameSource)?
+    @ObservationIgnored let sources: SourceRegistry
     @ObservationIgnored let syncCoordinator: LibrarySyncCoordinator?
+    @ObservationIgnored let scanCoordinator: LibrarySyncCoordinator?
+    @ObservationIgnored var scanTask: Task<Void, Never>?
+    var scanErrors: [String: String] = [:]
     @ObservationIgnored let runtime: (any BottleManaging)?
     @ObservationIgnored let volumeStore: (any VolumeManaging)?
     @ObservationIgnored let installQueue: (any InstallQueuing)?
@@ -282,15 +287,17 @@ final class LibraryModel {
     var keyColumn = 0
     var keyPreferredX: Double?
     var uppercase = false
-    init(catalog: CatalogStore? = nil, preview: Bool = true, source: (any GameSource)? = nil, runtime: (any BottleManaging)? = nil, volumeStore: (any VolumeManaging)? = nil, installQueue: (any InstallQueuing)? = nil, sessions: (any SessionManaging)? = nil, cloud: (any CloudSyncManaging)? = nil, gamesStorageReader: (any GamesStorageReading)? = nil, diagnosticArchive: DiagnosticArchive? = nil) {
+    init(catalog: CatalogStore? = nil, preview: Bool = true, source: (any GameSource)? = nil, otherSources: [any GameSource] = [], runtime: (any BottleManaging)? = nil, volumeStore: (any VolumeManaging)? = nil, installQueue: (any InstallQueuing)? = nil, sessions: (any SessionManaging)? = nil, cloud: (any CloudSyncManaging)? = nil, gamesStorageReader: (any GamesStorageReading)? = nil, diagnosticArchive: DiagnosticArchive? = nil) {
         self.catalog = catalog; self.isPreview = preview; self.source = source
+        self.sources = SourceRegistry((source.map { [$0] } ?? []) + otherSources)
         self.diagnosticArchive = diagnosticArchive
         self.runtime = runtime; self.volumeStore = volumeStore
         self.gamesStorageReader = gamesStorageReader ?? (!preview && catalog != nil ? GamesStorageReader(volumes: volumeStore ?? GamesVolumeStore()) : nil)
         self.syncCoordinator = catalog.map { LibrarySyncCoordinator(catalog: $0) }
+        self.scanCoordinator = catalog.map { LibrarySyncCoordinator(catalog: $0) }
         if let installQueue { self.installQueue = installQueue }
         else if !preview, let catalog, let source {
-            do { self.installQueue = try InstallQueue(catalog: catalog, sources: [source], storage: InstallStorage(volumes: volumeStore ?? GamesVolumeStore()), bottles: CrossOverGameBottles(runtime: runtime ?? CrossOverRuntime())) }
+            do { self.installQueue = try InstallQueue(catalog: catalog, sources: sources.all, storage: InstallStorage(volumes: volumeStore ?? GamesVolumeStore()), bottles: CrossOverGameBottles(runtime: runtime ?? CrossOverRuntime())) }
             catch { self.installQueue = nil; self.installPersistenceError = error.localizedDescription }
         } else { self.installQueue = nil }
         if let cloud { self.cloudService = cloud }
@@ -321,7 +328,7 @@ final class LibraryModel {
                     },
                     audioDeviceUID: { @MainActor in try catalog.preferences().selectedAudioDeviceUID },
                     runtimeSettings: { @MainActor id in (try? catalog.edits(for: id).runtimeProfile).map { RuntimeResolver.settings($0, catalog: CuratedProfileCatalog.bundled()) } ?? .playdenDefault })
-                self.sessions = try SessionService(catalog: catalog, sources: [source], runner: runner, queue: queue,
+                self.sessions = try SessionService(catalog: catalog, sources: sources.all, runner: runner, queue: queue,
                     storage: InstallStorage(volumes: volumeStore ?? GamesVolumeStore()), cloud: self.cloudService)
             }
             catch { self.sessions = nil; self.sessionIssue = error as? OperationFailure ?? .init(stage: "Start sessions", reason: error.localizedDescription, output: error.localizedDescription) }
@@ -332,6 +339,7 @@ final class LibraryModel {
         refreshCloudAvailability()
         restoringState = false
     }
+    func source(for id: GameID) -> (any GameSource)? { sources[id.source] }
     var searchKeys: [[String]] {
         func keys(_ string: String) -> [String] { string.map { String($0) } }
         if symbols { return [keys("!@#$%&*()?"), keys("-_=+[]{}<>"), keys(".,:;/\\'\"~"), ["ABC", "⌫"], ["Space", "Done"]] }
@@ -443,7 +451,7 @@ final class LibraryModel {
         else if game.status == .driveDisconnected { primary = "Drive disconnected" }
         else if isCheckingInstallationDrive(game.id) { primary = "Checking drive…" }
         else if gamesNeedingRepair.contains(game.id) { primary = "Verify files" }
-        else { primary = switch game.status { case .installed: "Play"; case .downloading: downloadPaused ? "Resume download" : "Pause download"; case .queued: "View download"; case .driveDisconnected: "Drive disconnected"; case .notInstalled: "Install" } }
+        else { primary = switch game.status { case .installed: "Play"; case .downloading: downloadPaused ? "Resume download" : "Pause download"; case .queued: "View download"; case .driveDisconnected: "Drive disconnected"; case .missing: "Locate game"; case .notInstalled: "Install" } }
         return [primary] + (canShowGameControls && session.session?.gameID == game.id ? ["Quit game"] : []) + [game.isFavorite ? "Favorited" : "Favorite", "Add to collection", game.isHidden ? "Unhide" : "Hide", "Set compatibility"] + (game.status == .installed ? (primary == "Verify files" ? ["Uninstall", "Cloud saves"] : ["Verify files", "Uninstall", "Cloud saves"]) : []) + ["View logs"]
     }
     var contextActions: [String] {

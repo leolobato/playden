@@ -42,6 +42,14 @@ private actor OfflineContent {
         while held.contains(id) { try await Task.sleep(for: .milliseconds(10)) }
     }
 }
+private struct ExternalFixtureSource: GameSource {
+    let id = "externalfixture", displayName = "This Mac"
+    let auth: any SourceAuth = NoSourceAuth()
+    var capabilities: SourceCapabilities { SourceCapabilities(account: .none, acquisition: .external) }
+    func ownedGames() async throws -> [SourceGameRecord] { [] }
+    func metadata(for game: SourceGameRecord) async throws -> SourceGameRecord { game }
+    func installer(for game: SourceGameRecord) throws -> any Installer { XCTFail("External stores have no installer"); throw SourceFailure.unavailable }
+}
 /// A store with no sign-in, no numeric IDs, no depots and no Steam emulation. The same queue runs it.
 private struct OfflineSource: GameSource {
     let id = "offlinefixture", displayName = "Offline files"
@@ -240,6 +248,13 @@ final class InstallQueueTests: XCTestCase {
         if let value, value.state == state { return value }
         XCTFail("Expected \(state), got \(String(describing: value?.state)); \(value?.failure?.reason ?? "")", file: file, line: line)
         throw SourceFailure.unavailable
+    }
+    func testStoresWithGamesAlreadyOnDiskNeverInstall() async throws {
+        let root = try root(), catalog = try CatalogStore(), volumes = FixtureVolumes(root: root)
+        let queue = try InstallQueue(catalog: catalog, sources: [ExternalFixtureSource()], storage: InstallStorage(volumes: volumes), bottles: FixtureBottles())
+        let record = SourceGameRecord(id: GameID(source: "externalfixture", value: "app"), title: "App")
+        do { _ = try await queue.offer(for: record, volume: volumes.selection); XCTFail("An external store must not offer an install") }
+        catch let failure as OperationFailure { XCTAssertEqual(failure.stage, "Resolve") }
     }
     func testVerificationSnapshotRejectsDelayedDownloadEventsAndClearsOnPause() async throws {
         let root = try root(), catalog = try CatalogStore(), content = OfflineContent(), volumes = FixtureVolumes(root: root)

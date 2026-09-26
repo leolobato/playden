@@ -458,7 +458,7 @@ working and ships on its own.
   `libsteam_api.dylib` from a pinned upstream commit, with the patches in `Native/GBEMac/`. Record
   its hash in `steampipe/PROVENANCE.md`. A test harness loads the library, starts the Steam API with
   `steam_settings`, and reads the account and app ID.
-- [ ] **S1 — Plumbing.** `SourceRegistry`, `SourceCapabilities`, `SourceID`, `GamePlatform`,
+- [x] **S1 — Plumbing.** `SourceRegistry`, `SourceCapabilities`, `SourceID`, `GamePlatform`,
   installation ownership and runtime with legacy decoding, the runtime environment in `RunningGame`,
   runner selection by runtime, the Steam helpers moved behind the source, generic store copy.
 - [ ] **S2 — Native runner.** `NativeRunner`, process inspection by bundle root, a fixture app, and

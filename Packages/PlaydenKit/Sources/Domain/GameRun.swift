@@ -27,8 +27,10 @@ public struct RunningGame: Codable, Equatable, Sendable, Identifiable {
     public let bottle: GameBottle
     public let launcher: ProcessIdentity
     public let startedAt: Date
-    public init(id: UUID = UUID(), bottle: GameBottle, launcher: ProcessIdentity, startedAt: Date = .now) {
-        self.id = id; self.bottle = bottle; self.launcher = launcher; self.startedAt = startedAt
+    /// Set for native runs; `bottle` then carries only the game and ownership identity.
+    public var native: NativeRun?
+    public init(id: UUID = UUID(), bottle: GameBottle, launcher: ProcessIdentity, startedAt: Date = .now, native: NativeRun? = nil) {
+        self.id = id; self.bottle = bottle; self.launcher = launcher; self.startedAt = startedAt; self.native = native
     }
 }
 public enum RunPhase: String, Codable, Sendable { case launching, running, stopping, exited }

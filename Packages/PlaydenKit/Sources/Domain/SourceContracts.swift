@@ -38,17 +38,45 @@ public protocol SourceAuth: Sendable {
     func cancelSignIn() async
     func signOut() async throws
 }
+/// For stores without an account: no identity, and sign-in is unavailable.
+public struct NoSourceAuth: SourceAuth {
+    public init() {}
+    public func identity() async throws -> SourceIdentity? { nil }
+    public func signInWithQR(onEvent: @escaping @Sendable (AuthenticationEvent) -> Void) async throws -> SourceIdentity { throw SourceFailure.unavailable }
+    public func signIn(accountName: String, password: String,
+                       codeProvider: @escaping @Sendable (GuardChallenge) async throws -> String,
+                       onEvent: @escaping @Sendable (AuthenticationEvent) -> Void) async throws -> SourceIdentity { throw SourceFailure.unavailable }
+    public func cancelSignIn() async {}
+    public func signOut() async throws {}
+}
 public protocol GameSource: Sendable {
     var id: String { get }
     var displayName: String { get }
     var auth: any SourceAuth { get }
+    var capabilities: SourceCapabilities { get }
     func ownedGames() async throws -> [SourceGameRecord]
     func metadata(for game: SourceGameRecord) async throws -> SourceGameRecord
     func downloadSizeAccountKey() async throws -> String?
     func downloadSize(for game: SourceGameRecord) async throws -> DownloadSizeEstimate?
     func installer(for game: SourceGameRecord) throws -> any Installer
+    func storePageURL(for id: GameID) -> URL?
+    func storePageAllows(host: String) -> Bool
+    func artworkFallbacks(for id: GameID) -> [URL]
+    func externalInstallations(for games: [SourceGameRecord]) async throws -> [InstallationRecord]
+    func locate(_ installation: InstallationRecord) async throws -> URL
 }
 public extension GameSource {
+    var capabilities: SourceCapabilities { SourceCapabilities(account: .steam, acquisition: .download) }
     func downloadSizeAccountKey() async throws -> String? { nil }
     func downloadSize(for game: SourceGameRecord) async throws -> DownloadSizeEstimate? { nil }
+    /// Public store page; nil hides the action.
+    func storePageURL(for id: GameID) -> URL? { nil }
+    /// Hosts the store page may navigate within.
+    func storePageAllows(host: String) -> Bool { false }
+    /// Art tried after the record's own cover fails.
+    func artworkFallbacks(for id: GameID) -> [URL] { [] }
+    /// External sources report the installations they found; Playden never owns these files.
+    func externalInstallations(for games: [SourceGameRecord]) async throws -> [InstallationRecord] { [] }
+    /// Resolves an external installation to the directory that contains its app.
+    func locate(_ installation: InstallationRecord) async throws -> URL { throw ExternalLocationFailure.missing }
 }

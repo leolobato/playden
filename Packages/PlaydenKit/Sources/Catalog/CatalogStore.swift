@@ -125,22 +125,51 @@ public final class CatalogStore: Sendable {
     /// A complete successful owned-library response replaces only this source's cache. A failed
     /// network fetch must not call this method. Lightweight sync preserves enriched metadata.
     public func replaceSourceCatalog(source: String, games: [SourceGameRecord], syncedAt: Date = .now) throws {
+        try Self.validateCatalog(source: source, games: games)
+        try database.write { try Self.replaceSourceCatalog(db: $0, source: source, games: games, syncedAt: syncedAt) }
+    }
+    private static func validateCatalog(source: String, games: [SourceGameRecord]) throws {
         guard games.allSatisfy({ $0.id.source == source }) else { throw CatalogError.sourceMismatch }
         guard Set(games.map(\.id)).count == games.count else { throw CatalogError.duplicateGame }
-        try database.write { db in
-            let old: [SourceGameRecord] = try Self.values(db, table: "source_games", whereSQL: "source = ?", arguments: [source])
-            let previous = Dictionary(uniqueKeysWithValues: old.map { ($0.id, $0) })
-            try db.execute(sql: "DELETE FROM source_games WHERE source = ?", arguments: [source])
-            for var record in games {
-                if let prior = previous[record.id] {
-                    record.firstObservedAt = prior.firstObservedAt
-                    // A transient acquisition-metadata failure must not erase a known date.
-                    if record.sourceAcquiredAt == nil { record.sourceAcquiredAt = prior.sourceAcquiredAt }
-                    if record.metadataUpdatedAt == nil { Self.copyMetadata(from: prior, to: &record) }
-                }
-                try Self.putGame(db, table: "source_games", id: record.id, value: record)
+    }
+    private static func replaceSourceCatalog(db: Database, source: String, games: [SourceGameRecord], syncedAt: Date) throws {
+        let old: [SourceGameRecord] = try values(db, table: "source_games", whereSQL: "source = ?", arguments: [source])
+        let previous = Dictionary(uniqueKeysWithValues: old.map { ($0.id, $0) })
+        try db.execute(sql: "DELETE FROM source_games WHERE source = ?", arguments: [source])
+        for var record in games {
+            if let prior = previous[record.id] {
+                record.firstObservedAt = prior.firstObservedAt
+                // A transient acquisition-metadata failure must not erase a known date.
+                if record.sourceAcquiredAt == nil { record.sourceAcquiredAt = prior.sourceAcquiredAt }
+                if record.metadataUpdatedAt == nil { copyMetadata(from: prior, to: &record) }
             }
-            try db.execute(sql: "INSERT INTO source_sync (source, syncedAt) VALUES (?, ?) ON CONFLICT(source) DO UPDATE SET syncedAt = excluded.syncedAt", arguments: [source, syncedAt])
+            try putGame(db, table: "source_games", id: record.id, value: record)
+        }
+        try db.execute(sql: "INSERT INTO source_sync (source, syncedAt) VALUES (?, ?) ON CONFLICT(source) DO UPDATE SET syncedAt = excluded.syncedAt", arguments: [source, syncedAt])
+    }
+
+    /// External sources report what is on disk: the library and its installations change together.
+    /// Only this source's external installations are replaced; owned installs are never touched here.
+    public func replaceExternalCatalog(source: String, games: [SourceGameRecord], installations: [InstallationRecord], syncedAt: Date = .now) throws {
+        guard installations.allSatisfy({ $0.isExternal && $0.gameID.source == source && $0.gameID == $0.game.id }) else { throw CatalogError.sourceMismatch }
+        guard Set(installations.map(\.gameID)).count == installations.count else { throw CatalogError.duplicateGame }
+        try Self.validateCatalog(source: source, games: games)
+        try database.write { db in
+            try Self.replaceSourceCatalog(db: db, source: source, games: games, syncedAt: syncedAt)
+            let existing: [InstallationRecord] = try Self.values(db, table: "installations", whereSQL: "source = ?", arguments: [source])
+            let byGame = Dictionary(uniqueKeysWithValues: existing.map { ($0.gameID, $0) })
+            let incoming = Set(installations.map(\.gameID))
+            for stale in existing where stale.isExternal && !incoming.contains(stale.gameID) {
+                try db.execute(sql: "DELETE FROM installations WHERE id = ?", arguments: [stale.id.uuidString])
+            }
+            for var installation in installations {
+                if let prior = byGame[installation.gameID] {
+                    guard prior.isExternal else { continue }
+                    installation.id = prior.id; installation.installedAt = prior.installedAt
+                    if prior == installation { continue }
+                }
+                try Self.putOperation(db, table: "installations", id: installation.id, gameID: installation.gameID, value: installation)
+            }
         }
     }
 
@@ -359,6 +388,7 @@ public final class CatalogStore: Sendable {
         target.summary = source.summary; target.genres = source.genres; target.controllerSupport = source.controllerSupport
         target.coverURL = source.coverURL; target.heroURL = source.heroURL; target.logoURL = source.logoURL
         target.downloadBytes = source.downloadBytes; target.metadataUpdatedAt = source.metadataUpdatedAt
+        if let platforms = source.platforms { target.platforms = platforms }
     }
     private static func putPreferences(_ db: Database, _ preferences: LibraryPreferences) throws {
         try db.execute(sql: "INSERT INTO preferences (id, payload) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET payload = excluded.payload", arguments: [try encode(preferences)])

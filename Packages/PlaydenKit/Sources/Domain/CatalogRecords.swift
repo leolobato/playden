@@ -19,6 +19,9 @@ public struct SourceGameRecord: Codable, Equatable, Sendable, Identifiable {
     public var downloadBytes: Int64?
     public var firstObservedAt: Date
     public var metadataUpdatedAt: Date?
+    /// Builds the source offers. Legacy Steam records predate platforms and are Windows only.
+    public var platforms: [GamePlatform]?
+    public var availablePlatforms: [GamePlatform] { platforms ?? (id.source == SourceID.steam ? [.windows] : []) }
 
     public init(id: GameID, title: String, summary: String = "", genres: [String] = [],
                 controllerSupport: ControllerSupport = .unknown, coverURL: URL? = nil, heroURL: URL? = nil,
@@ -46,6 +49,10 @@ public struct GameEdits: Codable, Equatable, Sendable {
     public var note: String
     public var runtime: RuntimeProfile?
     public var runtimeProfile: RuntimeProfile { runtime ?? RuntimeProfile() }
+    /// Player-chosen title for sources whose names come from app bundles.
+    public var titleOverride: String?
+    /// Last build the player chose in an install offer.
+    public var preferredPlatform: GamePlatform?
     public init(isFavorite: Bool = false, isHidden: Bool = false, compatibility: Compatibility = .untested, note: String = "") {
         self.isFavorite = isFavorite; self.isHidden = isHidden; self.compatibility = compatibility; self.note = note
     }

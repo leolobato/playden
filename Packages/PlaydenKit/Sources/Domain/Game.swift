@@ -7,7 +7,7 @@ public struct GameID: Hashable, Codable, Sendable {
 }
 
 public enum InstallStatus: String, Codable, Sendable {
-    case notInstalled, installed, queued, downloading, driveDisconnected
+    case notInstalled, installed, queued, downloading, driveDisconnected, missing
 }
 
 public enum Compatibility: String, CaseIterable, Codable, Sendable {
@@ -34,6 +34,12 @@ public struct Game: Identifiable, Hashable, Sendable {
     public var installedAt: Date?
     public var controllerSupport: ControllerSupport
     public var lastSessionOutcome: SessionOutcome?
+    /// Builds the source offers; empty when unknown.
+    public var platforms: [GamePlatform] = []
+    /// Set while installed; what the installed build runs as.
+    public var installedPlatform: GamePlatform?
+    /// Files are the user's own (This Mac); Playden never installs or removes them.
+    public var isExternal = false
 
     public var knownInstalledBytes: Int64? {
         guard status == .installed || status == .driveDisconnected,

@@ -45,7 +45,7 @@ final class ArtworkCache {
 // Keep this source-specific fallback out of generic artwork URLs (heroes, logos, other stores).
 extension Game {
     var coverFallbackURL: URL? {
-        guard id.source == "steam", let appID = UInt32(id.value) else { return nil }
+        guard id.source == SourceID.steam, let appID = UInt32(id.value) else { return nil }
         return URL(string: "https://cdn.cloudflare.steamstatic.com/steam/apps/\(appID)/header.jpg")
     }
 }

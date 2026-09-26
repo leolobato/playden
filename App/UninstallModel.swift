@@ -61,7 +61,7 @@ extension LibraryModel {
                     try Task.checkCancellation()
                     guard panel == .uninstall(id), let installed = try catalog.snapshot().entries.first(where: { $0.id == id })?.installation else { return }
                     var synchronized = false
-                    if let cloudService, let source, let plan = installed.plan {
+                    if let cloudService, let source = source(for: id), let plan = installed.plan {
                         do {
                             let mapping = try source.installer(for: installed.game).saveMapping(plan)
                             let result = await cloudService.synchronize(installed, mapping: mapping, preparingSessionID: nil, authorization: nil)

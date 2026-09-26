@@ -308,7 +308,8 @@ extension Game {
         switch status {
         case .queued: knownSize.map { "Queued · \($0)" } ?? "Queued"
         case .downloading: "43% · 38 MB/s"
-        case .driveDisconnected: "Reconnect your games drive"
+        case .driveDisconnected: isExternal ? "Reconnect its drive" : "Reconnect your games drive"
+        case .missing: "Can’t find this app"
         case .notInstalled: knownSize.map { "Not installed · \($0)" } ?? "Not installed"
         case .installed: "\(hoursPlayed) h played"
         }

@@ -9,19 +9,20 @@ extension LibraryModel {
     func startServices() {
         startLogServices()
         requestInstallationDriveRefresh()
-        guard !isPreview, let source else { return }
+        guard !isPreview else { return }
         startInstallServices()
         startCloudServices()
         startSessionServices()
         startAccountPolling()
+        refreshScannedLibraries()
     }
     func startAccountPolling() {
-        guard !isPreview, periodicSyncTask == nil, let source else { return }
+        guard !isPreview, periodicSyncTask == nil, let source, case let auth = source.auth else { return }
         let attempt = authAttempt
         periodicSyncTask = Task { [weak self] in
             guard let self else { return }
             do {
-                let restoredIdentity = try await source.auth.identity()
+                let restoredIdentity = try await auth.identity()
                 guard !Task.isCancelled else { return }
                 // Startup restoration may finish after the player has signed in again.
                 if authAttempt == attempt {
@@ -43,7 +44,7 @@ extension LibraryModel {
         installationDriveTask?.cancel(); installationDriveTask = nil; installationDriveGeneration = UUID()
         notifications = []; notificationJobs = nil
         logObserver?.cancel(); logObserver = nil
-        cancelAuthentication(); syncTask?.cancel(); periodicSyncTask?.cancel(); setupTask?.cancel()
+        cancelAuthentication(); syncTask?.cancel(); periodicSyncTask?.cancel(); scanTask?.cancel(); setupTask?.cancel()
         installObserver?.cancel(); installOfferTask?.cancel()
         sessionObserver?.cancel()
         cloudObserver?.cancel()
@@ -61,7 +62,7 @@ extension LibraryModel {
         runAuthentication(password: false)
     }
     private func runAuthentication(password: Bool) {
-        guard let source else { return }
+        guard let auth = source?.auth else { return }
         authTask?.cancel(); authError = nil
         let attempt = UUID(); authAttempt = attempt
         let name = accountNameDraft, secret = passwordDraft
@@ -81,12 +82,12 @@ extension LibraryModel {
             do {
                 let result: SourceIdentity
                 if password {
-                    result = try await source.auth.signIn(accountName: name, password: secret,
+                    result = try await auth.signIn(accountName: name, password: secret,
                         codeProvider: { [weak self] challenge in
                             guard let self else { throw CancellationError() }
                             return try await self.requestGuardCode(challenge, attempt: attempt)
                         }, onEvent: events)
-                } else { result = try await source.auth.signInWithQR(onEvent: events) }
+                } else { result = try await auth.signInWithQR(onEvent: events) }
                 try Task.checkCancellation()
                 guard authAttempt == attempt else { return }
                 let pendingInstall = installAfterAuthentication
@@ -190,6 +191,27 @@ extension LibraryModel {
             }
         }
     }
+    /// Stores that scan this Mac refresh on their own coordinator, so a Steam refresh never
+    /// cancels a scan. A failed scan keeps the last library it found.
+    func refreshScannedLibraries() {
+        guard !isPreview, !resetBusy, let scanCoordinator else { return }
+        let scanned = sources.all.filter { $0.capabilities.acquisition == .external }
+        guard !scanned.isEmpty else { return }
+        scanTask?.cancel()
+        scanTask = Task { [weak self] in
+            for source in scanned {
+                do {
+                    _ = try await scanCoordinator.refresh(source: source)
+                    guard !Task.isCancelled else { return }
+                    self?.scanErrors[source.id] = nil
+                } catch {
+                    guard !Task.isCancelled else { return }
+                    self?.scanErrors[source.id] = error.localizedDescription
+                }
+            }
+            self?.reloadCatalog()
+        }
+    }
     /// A stale sign-in is a dead end for the passive library notice: nothing the player does in
     /// the launcher clears it. Raise those failures as a notification that offers the way out.
     func recordSyncFailure(_ error: Error) {
@@ -207,6 +229,7 @@ extension LibraryModel {
     func signOut() {
         guard !resetBusy else { return }
         guard let source, let catalog else { return }
+        let auth = source.auth
         cancelAuthentication(); syncTask?.cancel(); panel = nil
         Task { [weak self] in
             guard let self else { return }
@@ -214,7 +237,7 @@ extension LibraryModel {
                 await syncCoordinator?.cancel()
                 await stopUninstallPreparation()
                 await stopCloudCommands()
-                try await source.auth.signOut()
+                try await auth.signOut()
                 try catalog.clearSourceCatalog(source.id)
                 identity = nil; syncError = nil; clearSignInIssue(); syncing = false; cloudStatuses.removeAll(); reloadCatalog()
             } catch { show(.information(error.localizedDescription)) }

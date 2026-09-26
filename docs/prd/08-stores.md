@@ -121,8 +121,8 @@ it as `source: (any GameSource)?`. `InstallQueue` and `SessionService` already a
   }
   ```
 
-- **AR-SRC-3 (v1):** `GameSource.auth` becomes optional (`(any SourceAuth)?`). A source with
-  `account == .none` has no sign-in, no sign-out and no "Signed in as" row.
+- **AR-SRC-3 (v1):** A source with `account == .none` returns `NoSourceAuth`: it has no identity,
+  its sign-in fails, and the UI shows no sign-in, no sign-out and no "Signed in as" row.
 - **AR-SRC-4 (v1):** `installer(for:)` is used only when `acquisition == .download`. External sources
   instead provide `func locate(_ game: SourceGameRecord) async throws -> ExternalInstall`. It returns
   the app's current URL, `missing` or `volumeUnavailable`.
@@ -149,23 +149,22 @@ it as `source: (any GameSource)?`. `InstallQueue` and `SessionService` already a
 
 ### 2.2 Installations: ownership, runtime and platform
 
-- **AR-INST-1 (v1):** `InstallationRecord` records who owns the files and how the game runs:
+- **AR-INST-1 (v1):** `InstallationRecord` records who owns the files and how the game runs. The
+  fields are added to the existing record, so nothing about the stored format changes for owned
+  installs:
 
   ```swift
-  enum InstallOwnership: Codable { case playden(GameLocation, ownershipToken: UUID)
-                                   case external(ExternalLocation) }
-  enum RuntimeBinding: Codable   { case crossOver(bottleID: String, templateVersion: String)
-                                   case native }
-  struct ExternalLocation: Codable { var bookmark: Data; var lastKnownPath: URL
-                                     var volumeID: String?; var bundleIdentifier: String? }
+  var runtime: RuntimeBinding?     // .crossOver or .native; nil on legacy records = .crossOver
+  var external: ExternalLocation?  // set for apps found on disk; the files are the user's
+  struct ExternalLocation: Codable { var bookmark: Data?; var lastKnownPath: URL
+                                     var bundleIdentifier: String?; var executableName: String? }
   ```
 
-  The platform follows from the runtime: `.crossOver` is Windows and `.native` is macOS. The
-  Steam-specific fields (`manifestIDs`, `language`, `recipeVersion`, `staging`, `plan`) stay optional
-  and are nil for external installs.
-- **AR-INST-2 (v1):** Records are JSON payload blobs (`installations` table), so this change needs no
-  table migration. The decoder maps a legacy record (it has `location` and `bottleID`, but no
-  `ownership`) to `.playden` + `.crossOver`. A test round-trips a stored v0.1 record.
+  For an external install, `location` only mirrors the app's parent folder, and `bottleID` is
+  empty. The platform follows from the runtime: `.crossOver` is Windows and `.native` is macOS.
+- **AR-INST-2 (v1):** Records are JSON payload blobs (`installations` table), and the new fields are
+  optional. A legacy record therefore decodes as a Playden-owned CrossOver install, with no
+  migration code. A test decodes a record without the new keys.
 - **AR-INST-3 (v1):** An `InstallationLocator` replaces `InstallStorage.directory(_:gameID:owner:)`
   and resolves both ownership cases:
   - Owned locations keep today's ownership-marker checks.
@@ -185,13 +184,14 @@ it as `source: (any GameSource)?`. `InstallQueue` and `SessionService` already a
 
 ### 2.3 Runners
 
-- **AR-RUN-1 (v1):** `RunningGame` stores a `RuntimeEnvironment` instead of a `GameBottle`:
-  `.crossOver(GameBottle)` or `.native(bundleURL: URL, bundleIdentifier: String?)`. Persisted
-  `RunSnapshot`s (in `sessions`) decode the legacy `bottle` key as `.crossOver`, so crash recovery
-  still works across the upgrade.
-- **AR-RUN-2 (v1):** Add `RunnerRegistry`. `SessionService` picks the runner from the installation's
-  `RuntimeBinding`, and it no longer receives a single `runner`. `CrossOverRunner` does not change,
-  except that it unwraps its environment.
+- **AR-RUN-1 (v1):** `RunningGame` gains an optional `native: NativeRun` (the bundle URL and
+  bundle identifier). For a native run, `bottle` carries only the game and ownership identity.
+  Persisted `RunSnapshot`s (in `sessions`) without the key decode as CrossOver runs, so crash
+  recovery still works across the upgrade.
+- **AR-RUN-2 (v1):** `SessionService` takes an optional `nativeRunner` next to its CrossOver
+  `runner`. It picks the runner from the installation's `RuntimeBinding`, and it picks it from
+  `RunningGame.native` during recovery. `NativeRunner` conforms to the existing `GameRunner`
+  protocol, so `CrossOverRunner` does not change.
 - **AR-RUN-3 (v1):** `NativeRunner` (in `Runner`) implements `GameRunner`:
   - `prepare` / `completePreparation`: no-op, returns `false`.
   - `launch`: `NSWorkspace.openApplication(at:configuration:)` with `activates = true` and
@@ -238,17 +238,20 @@ it as `source: (any GameSource)?`. `InstallQueue` and `SessionService` already a
 
 ### 3.1 Storage
 
-- **FR-LOCAL-1 (v1):** `LocalSource` keeps its own tables (new GRDB migration `v7_local_games`). It
-  cannot rely on the catalog because `replaceSourceCatalog` replaces a source's rows on each sync.
+- **FR-LOCAL-1 (v1):** `LocalSource` keeps its own store, `local-games.json` in the app's support
+  folder, written atomically. It cannot rely on the catalog, because `replaceSourceCatalog` replaces
+  a source's rows on each sync, and the `Sources` module does not depend on the database.
+  `LibrarySyncCoordinator` writes the scanned games and their installation records in one catalog
+  transaction (`CatalogStore.replaceExternalCatalog`).
 
-  | Table | Columns (payload JSON) |
+  | Collection | Fields |
   |---|---|
-  | `local_entries` | `gameID`, `bookmark`, `lastKnownPath`, `bundleIdentifier`, `executableName`, `origin` (`manual` / `folder(id)` / `suggested`), `addedAt` |
-  | `local_folders` | `id`, `bookmark`, `lastKnownPath`, `depth` (default 2) |
-  | `local_removed` | `gameID`, `lastKnownPath`, `bundleIdentifier`, `executableName`, `removedAt` (games the player removed; §3.5) |
+  | `entries` | `gameID`, `bookmark`, `lastKnownPath`, `bundleIdentifier`, `executableName`, `origin` (`manual` / `folder(id)` / `suggested`), `addedAt` |
+  | `folders` | `id`, `bookmark`, `lastKnownPath`, `depth` (default 2) |
+  | `removed` | `gameID`, `lastKnownPath`, `bundleIdentifier`, `executableName`, `removedAt` (games the player removed; §3.5) |
 
 - **FR-LOCAL-2 (v1):** `ownedGames()` returns one `SourceGameRecord` for each entry that still
-  exists, plus each new app found in a watched folder that is not in `local_removed`. It creates the
+  exists, plus each new app found in a watched folder that is not in `removed`. It creates the
   matching `InstallationRecord` (`.external` + `.native`) in the same catalog transaction. A This
   Mac game is therefore always installed, disconnected or missing, and never "not installed".
 
@@ -316,8 +319,8 @@ it as `source: (any GameSource)?`. `InstallQueue` and `SessionService` already a
   - *Show in Finder* (hidden in controller-only mode);
   - *Remove from library*.
 
-  **Remove from library** deletes the `local_entries` row and the installation record, and adds a
-  `local_removed` row. Watched folders then skip the app. The game's rows in `game_edits` and
+  **Remove from library** deletes the `entries` item and the installation record, and adds a
+  `removed` item. Watched folders then skip the app. The game's rows in `game_edits` and
   `sessions` are kept.
 
   - The confirmation says: "Removes <Title> from Playden. The app stays on your Mac, and your
@@ -333,7 +336,7 @@ it as `source: (any GameSource)?`. `InstallQueue` and `SessionService` already a
 - **FR-LOCAL-16 (v1):** The cloud save UI (`CloudViews`) never shows for This Mac games. The game
   page's metadata strip shows "Saves: managed by the game".
 - **FR-LOCAL-17 (v1):** **Steam dependency warning.** A scan checks whether the bundle contains
-  `libsteam_api.dylib` (anywhere under `Contents/`) and stores the result in `local_entries`. If it
+  `libsteam_api.dylib` (anywhere under `Contents/`) and stores the result with the entry. If it
   does, the game page shows a notice:
 
   > "This game uses Steam. It may close or ask for the Steam app when started from Playden."
@@ -527,14 +530,14 @@ it as `source: (any GameSource)?`. `InstallQueue` and `SessionService` already a
   a source with `acquisition == .external`, and a test covers this rule.
 - **FR-JOB-STORE-2 (v1):** Steam macOS installs appear in Downloads like Windows installs. Their row
   shows "macOS version".
-- **FR-JOB-STORE-3 (v1):** Reset app data (`ResetModel`) also clears the `local_*` tables. It never
+- **FR-JOB-STORE-3 (v1):** Reset app data (`ResetModel`) also deletes `local-games.json`. It never
   touches This Mac app files.
 
 ## 9. Tests and verification
 
 - **Domain/Catalog:**
   - legacy `InstallationRecord`, `RunSnapshot` and `SourceGameRecord` decoding;
-  - the `local_*` migration;
+  - the `local-games.json` store;
   - identity matching (FR-LOCAL-4), including the shared Unity bundle ID case;
   - remove followed by re-add, which restores playtime and edits.
 - **Sources, LocalSource:** scans of fixture folders in a temp directory, built from minimal `.app`

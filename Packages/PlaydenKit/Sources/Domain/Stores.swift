@@ -1,0 +1,69 @@
+import Foundation
+
+/// Stable source identifiers. The UI and orchestration branch on capabilities, never on these.
+public enum SourceID {
+    public static let steam = "steam"
+    public static let local = "local"
+}
+
+/// What a game runs as, independent of the store it comes from.
+public enum GamePlatform: String, Codable, CaseIterable, Hashable, Sendable {
+    case windows, macOS
+    public var title: String { self == .windows ? "Windows" : "macOS" }
+}
+
+public struct SourceCapabilities: Equatable, Sendable {
+    public enum Account: Equatable, Sendable { case none, steam }
+    /// `download`: Playden installs owned files. `external`: games are already on disk and never owned.
+    public enum Acquisition: Equatable, Sendable { case download, external }
+    public var account: Account
+    public var acquisition: Acquisition
+    public var cloudSaves: Bool
+    public init(account: Account, acquisition: Acquisition, cloudSaves: Bool = false) {
+        self.account = account; self.acquisition = acquisition; self.cloudSaves = cloudSaves
+    }
+}
+
+/// Legacy installations carry no binding and run in CrossOver.
+public enum RuntimeBinding: String, Codable, Sendable {
+    case crossOver, native
+    public var platform: GamePlatform { self == .crossOver ? .windows : .macOS }
+}
+
+/// An app Playden found on disk. Its files belong to the user; Playden never writes or removes them.
+public struct ExternalLocation: Codable, Equatable, Sendable {
+    public var bookmark: Data?
+    public var lastKnownPath: URL
+    public var bundleIdentifier: String?
+    public var executableName: String?
+    public init(bookmark: Data?, lastKnownPath: URL, bundleIdentifier: String? = nil, executableName: String? = nil) {
+        self.bookmark = bookmark; self.lastKnownPath = lastKnownPath
+        self.bundleIdentifier = bundleIdentifier; self.executableName = executableName
+    }
+}
+
+/// A native app run. The bundle bounds process discovery the way a bottle prefix does for CrossOver.
+public struct NativeRun: Codable, Equatable, Sendable {
+    public let bundleURL: URL
+    public let bundleIdentifier: String?
+    public init(bundleURL: URL, bundleIdentifier: String?) { self.bundleURL = bundleURL; self.bundleIdentifier = bundleIdentifier }
+}
+
+public enum ExternalLocationFailure: Error, Equatable, Sendable {
+    /// The volume that held the app is not mounted.
+    case volumeUnavailable
+    /// The app is gone from its location and its bookmark cannot find it.
+    case missing
+}
+
+public struct SourceRegistry: Sendable {
+    public let all: [any GameSource]
+    public init(_ sources: [any GameSource]) {
+        var seen = Set<String>()
+        all = sources.filter { seen.insert($0.id).inserted }
+    }
+    public subscript(id: String) -> (any GameSource)? { all.first { $0.id == id } }
+    public func displayName(for id: String) -> String { self[id]?.displayName ?? id.capitalized }
+    /// The source that owns account sign-in, when one is configured.
+    public var account: (any GameSource)? { all.first { $0.capabilities.account != .none } }
+}

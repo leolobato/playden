@@ -126,6 +126,7 @@ public actor InstallQueue: InstallQueuing {
     }
     public func offer(for game: SourceGameRecord, volume: GamesVolumeSelection) async throws -> InstallOffer {
         guard let source = sources[game.id.source] else { throw Self.failure("Resolve", "This game's store is unavailable.") }
+        guard source.capabilities.acquisition == .download else { throw Self.externalFailure("Resolve") }
         let installer = try source.installer(for: game)
         let plan = try await installer.resolve()
         guard plan.game.id == game.id, installer.gameID == game.id else { throw Self.failure("Resolve", "The store returned a plan for a different game.") }
@@ -137,6 +138,7 @@ public actor InstallQueue: InstallQueuing {
     }
     @discardableResult public func enqueue(_ offer: InstallOffer) async throws -> UUID {
         guard let source = sources[offer.plan.game.id.source] else { throw Self.failure("Queue", "This game's store is unavailable.") }
+        guard source.capabilities.acquisition == .download else { throw Self.externalFailure("Queue") }
         _ = try source.installer(for: offer.plan.game)
         let checked = try await self.offer(plan: offer.plan, volume: offer.volume)
         try Task.checkCancellation()
@@ -168,7 +170,7 @@ public actor InstallQueue: InstallQueuing {
     }
     @discardableResult public func repair(_ gameID: GameID) throws -> UUID {
         guard let installed = try catalog.snapshot().entries.first(where: { $0.id == gameID })?.installation,
-              let plan = installed.plan, let bookmark = installed.location.rootBookmark,
+              !installed.isExternal, let plan = installed.plan, let bookmark = installed.location.rootBookmark,
               let relativeRoot = installed.location.relativeRoot, let source = sources[gameID.source] else {
             throw Self.failure("Verify files", "The installed manifest or games drive is unavailable.")
         }
@@ -433,6 +435,7 @@ public actor InstallQueue: InstallQueuing {
     }
     @discardableResult public func uninstall(_ authorization: UninstallAuthorization) async throws -> UUID {
         let installed = authorization.review.installation
+        guard !installed.isExternal else { throw Self.externalFailure("Uninstall") }
         guard installed.bottleID == CrossOverGameBottles.name(for: installed.gameID),
               installed.location.relativePath == installed.bottleID + "/game" else {
             throw Self.failure("Uninstall", "This game's folder or runtime identity is invalid. Its files have been kept.")
@@ -475,4 +478,8 @@ public actor InstallQueue: InstallQueuing {
         guard value.downloadBytes >= 0, value.installedBytes >= 0, value.requiredBytes >= value.installedBytes else { throw Self.failure("Estimate", "The store returned an invalid space estimate.") }
     }
     private static func failure(_ stage: String, _ reason: String) -> OperationFailure { .init(stage: stage, reason: reason, output: reason) }
+    /// Apps found on disk belong to the user; Playden never installs, repairs or removes them.
+    private static func externalFailure(_ stage: String) -> OperationFailure {
+        failure(stage, "This game is already on your Mac. Playden doesn't install or remove its files.")
+    }
 }

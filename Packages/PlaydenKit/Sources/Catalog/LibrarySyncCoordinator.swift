@@ -20,6 +20,13 @@ public actor LibrarySyncCoordinator {
         revision += 1; let run = revision
         let owned = try await source.ownedGames()
         try check(run)
+        if source.capabilities.acquisition == .external {
+            let installations = try await source.externalInstallations(for: owned)
+            try check(run)
+            try catalog.replaceExternalCatalog(source: source.id, games: owned, installations: installations)
+            onUpdate()
+            return LibrarySyncResult(ownedCount: owned.count, metadataUpdated: 0, metadataFailed: 0)
+        }
         try catalog.replaceSourceCatalog(source: source.id, games: owned)
         try catalog.invalidateDownloadSizes(source: source.id)
         onUpdate()

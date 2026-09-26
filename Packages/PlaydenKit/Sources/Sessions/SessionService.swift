@@ -40,6 +40,7 @@ public actor SessionService: SessionManaging {
     private let catalog: CatalogStore
     private let sources: [String: any GameSource]
     private let runner: any GameRunner
+    private let nativeRunner: (any GameRunner)?
     private let queue: any InstallQueuing
     private let storage: any InstallStorageManaging
     private let clock: any SessionClock
@@ -61,8 +62,8 @@ public actor SessionService: SessionManaging {
     public init(catalog: CatalogStore, sources: [any GameSource], runner: any GameRunner, queue: any InstallQueuing,
                 storage: any InstallStorageManaging = InstallStorage(), clock: any SessionClock = SystemSessionClock(),
                 quitGrace: Duration = .seconds(10), stopTimeout: Duration = .seconds(10),
-                cloud: (any CloudSyncManaging)? = nil) throws {
-        self.catalog = catalog; self.runner = runner; self.queue = queue; self.storage = storage; self.clock = clock
+                cloud: (any CloudSyncManaging)? = nil, nativeRunner: (any GameRunner)? = nil) throws {
+        self.catalog = catalog; self.runner = runner; self.nativeRunner = nativeRunner; self.queue = queue; self.storage = storage; self.clock = clock
         self.quitGrace = quitGrace; self.stopTimeout = stopTimeout
         self.cloud = cloud
         var registry: [String: any GameSource] = [:]
@@ -89,7 +90,7 @@ public actor SessionService: SessionManaging {
             let entry = try catalog.snapshot().entries.first { $0.id == saved.gameID }
             if let runtime = saved.runtime {
                 let recovered = try await DiagnosticOutputContext.$sink.withValue(catalog.diagnosticSink(for: saved.id)) {
-                    try await runner.recover(runtime)
+                    try await runner(for: runtime.run).recover(runtime)
                 }
                 saved.runtime = recovered
                 if recovered.phase != .exited {
@@ -106,7 +107,7 @@ public actor SessionService: SessionManaging {
                 // An interrupted pre-launch record has no PID receipt. The runner refuses to
                 // prepare a bottle with a live game, so uncertainty cannot restart downloads.
                 _ = try await DiagnosticOutputContext.$sink.withValue(catalog.diagnosticSink(for: saved.id)) {
-                    try await runner.prepare(bottle(installed))
+                    try await runner(for: installed).prepare(bottle(installed))
                 }
             }
             if saved.runtime?.phase == .exited, cloud != nil {
@@ -204,13 +205,14 @@ public actor SessionService: SessionManaging {
         do {
             try await queue.setGameplayPaused(!downloadWhilePlaying)
             try Task.checkCancellation()
-            let directory = try await storage.directory(original.location, gameID: original.gameID, owner: original.ownershipToken)
+            let directory = try await directory(for: original)
+            let runner = try runner(for: original)
             var installed = original
             if let id = active?.id { catalog.captureDiagnosticEvent(for: id, message: "Preparing runtime", at: clock.wallTime) }
             let runtimeChanged = try await runner.prepare(bottle(installed))
             // A prerequisite can fail after the runtime itself becomes ready. Check its own
             // receipts on every launch, so Retry cannot skip a half-prepared runtime.
-            if let source = sources[installed.gameID.source], let plan = installed.plan {
+            if installed.usesBottle, let source = sources[installed.gameID.source], let plan = installed.plan {
                 try await source.installer(for: installed.game).preparePrerequisites(plan, at: directory, in: bottle(installed))
             }
             if runtimeChanged {
@@ -274,7 +276,7 @@ public actor SessionService: SessionManaging {
         }
     }
     private func observe(_ run: RunningGame) async {
-        for await runtime in await runner.observe(run) {
+        for await runtime in await runner(for: run).observe(run) {
             guard var session = active, session.runtime?.run.id == run.id else { return }
             let changed = session.runtime?.phase != runtime.phase || session.runtime?.window != runtime.window || session.runtime?.processes != runtime.processes
             if runtime.hadWindow && playAnchor == nil { playAnchor = clock.uptime }
@@ -352,14 +354,14 @@ public actor SessionService: SessionManaging {
         }
         guard let run = session.runtime?.run else { throw issue("Quit game", "Game preparation has not finished stopping. Try again.") }
         let start = ContinuousClock.now
-        do { try await runner.terminate(run, force: false) }
+        do { try await runner(for: run).terminate(run, force: false) }
         catch { value.failure = error as? OperationFailure ?? issue("Quit game", error.localizedDescription); publish() }
         let remaining = quitGrace - start.duration(to: .now)
         if remaining > .zero {
             let deadline = ContinuousClock.now.advanced(by: remaining)
             while active?.id == session.id && active?.runtime?.phase != .exited && ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(100)) }
         }
-        if active?.id == session.id && active?.runtime?.phase != .exited { try await runner.terminate(run, force: true) }
+        if active?.id == session.id && active?.runtime?.phase != .exited { try await runner(for: run).terminate(run, force: true) }
         let deadline = ContinuousClock.now.advanced(by: stopTimeout)
         while active?.id == session.id && active?.runtime?.phase != .exited && ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(100)) }
         if active?.id == session.id, active?.runtime?.phase == .exited {
@@ -442,6 +444,28 @@ public actor SessionService: SessionManaging {
     }
     private func outcome(_ runtime: RunSnapshot) -> SessionOutcome {
         runtime.forced ? .forced : !runtime.hadWindow ? .launchFailed : runtime.exitCode == 0 ? .clean : runtime.exitCode == nil ? .interrupted : .crash
+    }
+    /// Native runs carry their app bundle; everything else runs in CrossOver.
+    private func runner(for run: RunningGame) -> any GameRunner {
+        run.native != nil ? nativeRunner ?? runner : runner
+    }
+    private func runner(for installation: InstallationRecord) throws -> any GameRunner {
+        guard installation.runtimeBinding == .native else { return runner }
+        guard let nativeRunner else { throw issue("Launch game", "Playden can't start Mac games in this configuration.") }
+        return nativeRunner
+    }
+    /// Owned installs resolve under their ownership marker; external apps resolve through their store.
+    private func directory(for installation: InstallationRecord) async throws -> URL {
+        guard installation.isExternal else {
+            return try await storage.directory(installation.location, gameID: installation.gameID, owner: installation.ownershipToken)
+        }
+        guard let source = sources[installation.gameID.source] else { throw issue("Launch game", "This game's store is unavailable.") }
+        do { return try await source.locate(installation) }
+        catch ExternalLocationFailure.volumeUnavailable {
+            throw issue("Launch game", "Connect the drive that has \(installation.game.title), then try again.")
+        } catch ExternalLocationFailure.missing {
+            throw issue("Launch game", "\(installation.game.title) isn't where Playden last saw it. Locate it or remove it from your library.")
+        }
     }
     private func bottle(_ installation: InstallationRecord) -> GameBottle { .init(gameID: installation.gameID, name: installation.bottleID, ownershipToken: installation.ownershipToken, templateVersion: installation.templateVersion) }
     private func phase(_ runtime: RunSnapshot) -> SessionPhase {

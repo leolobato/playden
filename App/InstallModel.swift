@@ -45,10 +45,10 @@ extension LibraryModel {
             guard let self else { return }
             do {
                 guard let game = try catalog.snapshot().entries.first(where: { $0.id == id })?.source else { throw SourceFailure.unavailable }
-                let sizeAccount = try? await self.source?.downloadSizeAccountKey()
+                let sizeAccount = try? await self.source(for: id)?.downloadSizeAccountKey()
                 let offer = try await installQueue.offer(for: game, volume: volume)
                 guard !Task.isCancelled, self.panel == .installOffer(id) else { return }
-                if let sizeAccount, (try? await self.source?.downloadSizeAccountKey()) == sizeAccount {
+                if let sizeAccount, (try? await self.source(for: id)?.downloadSizeAccountKey()) == sizeAccount {
                     self.cacheResolvedDownloadSize(offer.plan, accountKey: sizeAccount)
                 }
                 guard !Task.isCancelled, self.panel == .installOffer(id) else { return }
