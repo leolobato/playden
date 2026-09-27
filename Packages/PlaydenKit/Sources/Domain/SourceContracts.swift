@@ -66,7 +66,8 @@ public protocol GameSource: Sendable {
     func locate(_ installation: InstallationRecord) async throws -> URL
 }
 public extension GameSource {
-    var capabilities: SourceCapabilities { SourceCapabilities(account: .steam, acquisition: .download) }
+    /// The default describes a Steam-like store: an account, downloads and Cloud saves.
+    var capabilities: SourceCapabilities { SourceCapabilities(account: .steam, acquisition: .download, cloudSaves: true) }
     func downloadSizeAccountKey() async throws -> String? { nil }
     func downloadSize(for game: SourceGameRecord) async throws -> DownloadSizeEstimate? { nil }
     /// Public store page; nil hides the action.

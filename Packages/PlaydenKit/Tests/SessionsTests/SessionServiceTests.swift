@@ -292,11 +292,14 @@ final class SessionServiceTests: XCTestCase {
         game.external = ExternalLocation(bookmark: nil, lastKnownPath: URL(fileURLWithPath: "/Applications/Game.app"))
         try catalog.saveInstallation(game)
         let service = try SessionService(catalog: catalog, sources: [Store(events: events)], runner: Runner(events), queue: queue, storage: Storage(),
-                                         clock: clock, quitGrace: .milliseconds(20), stopTimeout: .seconds(1), nativeRunner: native)
+                                         clock: clock, quitGrace: .milliseconds(20), stopTimeout: .seconds(1),
+                                         cloud: SessionCloud(catalog, events), nativeRunner: native)
         try await service.start(downloadWhilePlaying: false)
         try await service.play(game.gameID)
         _ = try await wait(service, phase: .launching)
         let directory = await native.lastDirectory, applied = await events.appliedOptions, spec = await native.lastLaunchSpec
+        let order = await events.values
+        XCTAssertFalse(order.contains("cloud:launch"), "Apps the player added have no Cloud saves to sync")
         XCTAssertEqual(directory?.path, "/Applications")
         XCTAssertEqual(spec?.executableRelativePath, "Renamed.app", "A renamed app still launches")
         XCTAssertTrue(applied.isEmpty, "Apps without a store plan get no source options")

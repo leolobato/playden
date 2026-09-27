@@ -435,7 +435,8 @@ public actor SessionService: SessionManaging {
         return baseSeconds + Int64(seconds)
     }
     private func mapping(_ installed: InstallationRecord) throws -> SaveMapping? {
-        guard cloud != nil else { return nil }
+        // Apps the player added and stores without Cloud never sync; they have no install plan to map.
+        guard cloud != nil, !installed.isExternal, sources[installed.gameID.source]?.capabilities.cloudSaves != false else { return nil }
         guard let source = sources[installed.gameID.source], let plan = installed.plan else {
             throw issue("Cloud saves", "The installed game's save mapping is unavailable. Verify its files before syncing.")
         }
