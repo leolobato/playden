@@ -101,7 +101,9 @@ final class SharedConnectionTests: XCTestCase {
     }
 
     func testOnlyDroppedSessionsReconnect() {
-        XCTAssertTrue(SteamAccount.isDroppedSession(SteamError.eresult(.logonSessionReplaced, context: "")))
+        // Another client took the sign-in; logging straight back on would kick it in turn.
+        XCTAssertFalse(SteamAccount.isDroppedSession(SteamError.eresult(.logonSessionReplaced, context: "")))
+        XCTAssertTrue(SteamAccount.isReplacedSession(SteamError.eresult(.logonSessionReplaced, context: "")))
         XCTAssertTrue(SteamAccount.isDroppedSession(SteamError.authSessionExpired))
         XCTAssertTrue(SteamAccount.isDroppedSession(URLError(.networkConnectionLost)))
         XCTAssertFalse(SteamAccount.isDroppedSession(SteamError.authFailed("rejected")))

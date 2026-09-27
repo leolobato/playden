@@ -90,7 +90,7 @@ public actor CMClient {
         catch { if connectionID == epoch { disconnect() }; throw error }
     }
 
-    public func logOn(accountName: String, refreshToken: String) async throws -> CMsgClientLogonResponse {
+    static func logonMessage(accountName: String, refreshToken: String, cellID: UInt32, device: CMDeviceIdentity?) -> CMsgClientLogon {
         var logon = CMsgClientLogon()
         logon.protocolVersion = 65580
         logon.clientPackageVersion = 1771
@@ -100,6 +100,17 @@ public actor CMClient {
         logon.accountName = accountName
         logon.accessToken = refreshToken  // CM logon takes the *refresh* token here
         logon.cellID = cellID
+        if let device {
+            var address = CMsgIPAddress(); address.v4 = device.loginID
+            logon.obfuscatedPrivateIp = address
+            logon.machineName = device.machineName
+            logon.machineID = device.machineID
+        }
+        return logon
+    }
+
+    public func logOn(accountName: String, refreshToken: String, device: CMDeviceIdentity? = nil) async throws -> CMsgClientLogonResponse {
+        let logon = Self.logonMessage(accountName: accountName, refreshToken: refreshToken, cellID: cellID, device: device)
 
         guard !pendingJobs.values.contains(where: { $0.kind == .logon }), sessionID == 0 else {
             throw SteamError.protocolError("CM logon is already active")

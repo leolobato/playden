@@ -20,7 +20,7 @@ public enum SteamInstallDiagnostics {
             stage = "Steam connection"
             try await cm.connect()
             stage = "Steam logon"
-            _ = try await cm.logOn(accountName: credentials.accountName, refreshToken: credentials.refreshToken)
+            _ = try await cm.logOn(accountName: credentials.accountName, refreshToken: credentials.refreshToken, device: SteamDeviceIdentity.current)
             report("Steam logon: accepted")
             stage = "License list"
             try await cm.waitForLicenses()

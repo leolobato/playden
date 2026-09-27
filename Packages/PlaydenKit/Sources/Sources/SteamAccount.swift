@@ -14,9 +14,14 @@ public actor SteamAccount: SourceAuth {
     private var generation = 0
     private var operations: [UUID: @Sendable () -> Void] = [:]
     private let connection: SharedConnection<CMLogin, CMClient>
+    /// Game launches whose in-bottle Steam client is signed in with this account. While any is active Playden holds no
+    /// CM session of its own: two differently identified clients using one sign-in at once is what gets it revoked.
+    private var steamClientSessions: Set<UUID> = []
     public init() { self.init(store: KeychainCredentials(), backend: LiveSteamBackend()) }
-    init(store: any AuthCredentialStore, backend: any SteamBackend, connection: SharedConnection<CMLogin, CMClient> = SteamAccount.liveConnection()) {
-        self.store = store; self.backend = backend; self.connection = connection
+    private let diagnostics: SteamConnectionDiagnostics
+    init(store: any AuthCredentialStore, backend: any SteamBackend, connection: SharedConnection<CMLogin, CMClient> = SteamAccount.liveConnection(),
+         diagnostics: SteamConnectionDiagnostics = .shared) {
+        self.store = store; self.backend = backend; self.connection = connection; self.diagnostics = diagnostics
     }
     public func identity() async throws -> SourceIdentity? {
         do { return try store.load().map(Self.identity) } catch { throw credentialFailure(error) }
@@ -111,15 +116,30 @@ public actor SteamAccount: SourceAuth {
         } catch let failure as OperationFailure { throw failure }
         catch { throw sourceFailure(error) }
     }
+    /// Hands the sign-in to a game's Steam client: closes Playden's own CM session and refuses new CM work until the
+    /// matching `endSteamClientSession`. Callers pause downloads first so no transfer is cut off.
+    func beginSteamClientSession(_ id: UUID) async {
+        steamClientSessions.insert(id)
+        diagnostics.record("steam-client session begin active=\(steamClientSessions.count)")
+        await connection.reset()
+    }
+    func endSteamClientSession(_ id: UUID) {
+        guard steamClientSessions.remove(id) != nil else { return }
+        diagnostics.record("steam-client session end active=\(steamClientSessions.count)")
+    }
     /// Runs `operation` on the account's shared, logged-on CM connection. Operations must not
     /// disconnect the client: other operations may be using it at the same time.
     func withCM<T: Sendable>(purpose: String = "operation", appID: UInt32? = nil, _ operation: @escaping @Sendable (CMClient) async throws -> T) async throws -> T {
-        let id = UUID()
+        let id = UUID(), diagnostics = diagnostics
         let report: @Sendable (String) -> Void = { message in
-            SteamConnectionDiagnostics.shared.record("\(id) \(purpose) app=\(appID.map(String.init) ?? "none") \(message)")
+            diagnostics.record("\(id) \(purpose) app=\(appID.map(String.init) ?? "none") \(message)")
         }
         report("start active=\(operations.count)")
         defer { report("end") }
+        guard steamClientSessions.isEmpty else {
+            report("refused: a game's Steam client holds the sign-in")
+            throw SourceFailure.unavailable
+        }
         let connection = connection
         return try await authenticatedOperation(diagnostic: report) { credentials in
             let login = CMLogin(accountName: credentials.accountName, refreshToken: credentials.refreshToken)
@@ -135,8 +155,10 @@ public actor SteamAccount: SourceAuth {
                 } catch {
                     report("failed: \(SteamConnectionDiagnostics.summary(error))")
                     if let steam = error as? SteamError, case .authFailed = steam { throw SourceFailure.expired }
-                    // A dropped or replaced session is not an expired sign-in. Reconnect; a revoked
-                    // sign-in then surfaces as a rejected logon above.
+                    // A dropped connection is not an expired sign-in. Reconnect; a revoked sign-in then surfaces
+                    // as a rejected logon above. A replaced session means another client took the sign-in:
+                    // logging straight back on would kick it in turn.
+                    if Self.isReplacedSession(error) { report("session replaced by another client; not reconnecting") }
                     guard Self.isDroppedSession(error), reconnects < 2, !Task.isCancelled else { throw error }
                     reconnects += 1
                     report("reconnecting attempt=\(reconnects)")
@@ -149,16 +171,19 @@ public actor SteamAccount: SourceAuth {
         guard let steam = error as? SteamError else { return false }
         switch steam {
         case .authSessionExpired: return true
-        case .eresult(let result, _): return result == .logonSessionReplaced
         default: return false
         }
+    }
+    static func isReplacedSession(_ error: Error) -> Bool {
+        if let steam = error as? SteamError, case .eresult(let result, _) = steam { return result == .logonSessionReplaced }
+        return false
     }
     private func acquisitionDates() async -> [UInt32: Date] {
         // Owned games still load if optional license metadata is temporarily unavailable.
         // CatalogStore retains previously known dates; unknown dates sort last.
         (try? await withCM(purpose: "library-entitlements") { cm in try await cm.ownedEntitlements().appAcquiredAt }) ?? [:]
     }
-    static func liveConnection() -> SharedConnection<CMLogin, CMClient> {
+    static func liveConnection(device: CMDeviceIdentity = SteamDeviceIdentity.current) -> SharedConnection<CMLogin, CMClient> {
         SharedConnection(idleTimeout: .seconds(60), open: { login in
             let id = UUID()
             let report: @Sendable (String) -> Void = { SteamConnectionDiagnostics.shared.record("\(id) connection \($0)") }
@@ -166,9 +191,11 @@ public actor SteamAccount: SourceAuth {
             do {
                 try await cm.connect()
                 report("connected")
-                _ = try await cm.logOn(accountName: login.accountName, refreshToken: login.refreshToken)
+                _ = try await cm.logOn(accountName: login.accountName, refreshToken: login.refreshToken, device: device)
                 try await cm.waitForLicenses()
-                report("ready")
+                let today = SteamConnectionDiagnostics.shared.logonsToday()
+                report("ready logons-today=\(today)")
+                if today > SteamConnectionDiagnostics.logonWarningThreshold { report("warning: unusually many Steam logons today") }
                 return cm
             } catch {
                 report("open failed: \(SteamConnectionDiagnostics.summary(error))")

@@ -37,6 +37,19 @@ final class SteamConnectionDiagnostics: Sendable {
         }
     }
 
+    /// Steam logons recorded so far on the current UTC day, across the current and rotated logs. A healthy day has a
+    /// handful; Steam has revoked sign-ins after bursts of hundreds.
+    static let logonWarningThreshold = 30
+    func logonsToday(now: Date = .now) -> Int {
+        let day = String(now.ISO8601Format().prefix(10))
+        return lock.withLock { _ in
+            ["steam-connections.previous.log", "steam-connections.log"].reduce(0) { count, name in
+                guard let text = try? String(contentsOf: root.appendingPathComponent(name), encoding: .utf8) else { return count }
+                return count + text.split(separator: "\n").filter { $0.hasPrefix(day) && $0.contains("CM logon result=") }.count
+            }
+        }
+    }
+
     // Never stringify arbitrary errors: HTTP URLs, server messages and credential errors
     // may contain secrets even when they do not use a recognizable key=value format.
     static func summary(_ error: Error) -> String {
