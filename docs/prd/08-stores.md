@@ -273,13 +273,17 @@ it as `source: (any GameSource)?`. `InstallQueue` and `SessionService` already a
 
 - **FR-LOCAL-5 (v1):** **Add a game.** Settings → Stores → This Mac → *Add a game* opens a picker
   that works with the controller:
-  - It lists candidate apps (FR-LOCAL-7), each with an icon, a name and a path.
-  - A *Browse…* item opens `NSOpenPanel`, filtered to `.app`, for keyboard and mouse users.
+  - Its first item, *Choose an app…*, opens `NSOpenPanel`, filtered to `.app`, to add an app
+    from any folder or drive. It is available at once, before suggestions finish loading.
+  - The candidate apps (FR-LOCAL-7) follow, each with an icon, a name and a path.
 - **FR-LOCAL-6 (v1):** **Watched folders.** Settings → Stores → This Mac → *Folders* lists each
   folder with its game count, and offers *Add folder* (`NSOpenPanel`, directories only) and
   *Remove*.
   - Removing a folder asks whether to also remove its games from the library. By default, the games
     stay as manual entries.
+- **FR-LOCAL-6a (v1):** **Added games.** Settings → Stores → *Added games* lists every This Mac game
+  by title, marking missing and disconnected ones. Selecting games checks them, and *Remove N games*
+  removes them from the library as in FR-LOCAL-14. The list stays open so more can be removed.
   - A scan checks two levels deep, which covers `Steam/steamapps/common/<Game>/<Game>.app`.
   - A scan skips `.app` bundles that are nested inside another bundle.
 - **FR-LOCAL-7 (v1):** **Suggestions.** The picker also lists apps in `/Applications`,
@@ -312,7 +316,7 @@ it as `source: (any GameSource)?`. `InstallQueue` and `SessionService` already a
 ### 3.5 Game-page actions for This Mac games
 
 - **FR-LOCAL-13 (v1):** The primary action is Play or Return to game. There is never Install, a
-  download size, Verify files or Uninstall.
+  download size, Verify files, Uninstall or a Cloud save sync, before launch or after exit.
 - **FR-LOCAL-14 (v1):** The secondary actions are:
   - Favorite, Add to collection, Hide, Rename and Set compatibility;
   - View logs;

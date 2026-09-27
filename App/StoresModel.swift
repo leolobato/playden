@@ -4,7 +4,7 @@ import Installs
 import Focus
 import Sources
 
-enum StoreSettingsRow: Equatable { case steam, signOut, preferMac, thisMac, folders }
+enum StoreSettingsRow: Equatable { case steam, signOut, preferMac, thisMac, addedGames, folders }
 
 /// Names and glyphs for stores. Store IDs never appear in the UI.
 enum StoreNames {
@@ -58,9 +58,9 @@ extension LibraryModel {
     var addGamesMessage: String { localSource == nil ? "Sign in to Steam to see your library." : "Sign in to Steam, or add games that are already on this Mac." }
 
     var storeSettingsRows: [StoreSettingsRow] {
-        guard !isPreview else { return [.steam, .preferMac, .thisMac, .folders] }
+        guard !isPreview else { return [.steam, .preferMac, .thisMac, .addedGames, .folders] }
         var rows: [StoreSettingsRow] = source == nil ? [] : [.steam] + (identity == nil ? [] : [.signOut]) + [.preferMac]
-        if localSource != nil { rows += [.thisMac, .folders] }
+        if localSource != nil { rows += [.thisMac, .addedGames, .folders] }
         return rows
     }
     var thisMacSummary: String {
@@ -77,8 +77,40 @@ extension LibraryModel {
             preferMacVersions.toggle()
             try? updateSetupPreferences { $0.preferMacVersions = preferMacVersions }
         case .thisMac: if isPreview { show(.information("Adding Mac games is available in the live app.")) } else { showLocalGames() }
+        case .addedGames: showAddedGames()
         case .folders: if isPreview { show(.information("Watched folders are available in the live app.")) } else { showLocalFolders() }
         }
+    }
+
+    // MARK: Added games
+
+    /// Every This Mac game, added by hand or found in a watched folder, by title.
+    var addedLocalGames: [Game] {
+        games.filter { $0.id.source == SourceID.local }.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+    }
+    var addedGamesSummary: String {
+        let count = addedLocalGames.count
+        return count == 0 ? "No Mac games in your library yet" : "\(count) game\(count == 1 ? "" : "s") · pick ones to remove from Playden"
+    }
+    func showAddedGames() {
+        localRemovalSelection = []
+        show(.localAdded)
+    }
+    var addedGamesActions: [String] {
+        let rows = addedLocalGames.map { game in
+            game.title + (game.status == .missing ? " · Missing" : game.status == .driveDisconnected ? " · Not connected" : "")
+        }
+        let count = localRemovalSelection.count
+        return rows + (count == 0 ? [] : ["Remove \(count) game\(count == 1 ? "" : "s")"]) + ["Done"]
+    }
+    func activateAddedGames(_ index: Int) {
+        let listed = addedLocalGames
+        if let game = listed[safe: index] {
+            if localRemovalSelection.remove(game.id) == nil { localRemovalSelection.insert(game.id) }
+            return
+        }
+        guard index == addedGamesActions.count - 2, !localRemovalSelection.isEmpty else { panel = nil; return }
+        removeFromLibrary(Array(localRemovalSelection), returningToList: true)
     }
 
     // MARK: This Mac
@@ -91,34 +123,36 @@ extension LibraryModel {
             let found = (try? await localSource.suggestions()) ?? []
             guard let self, self.panel == .localGames(id) else { return }
             self.localCandidates = found; self.localBusy = false
-            if found.isEmpty { self.localMessage = "No games found in your Applications or Games folders. Choose Browse to pick an app." }
+            if found.isEmpty { self.localMessage = "No games found in your Applications or Games folders. Choose an app to add one from anywhere." }
         }
     }
+    static let browseForAppTitle = "Choose an app…"
+    /// Choosing any app comes first and works while suggestions are still loading; suggestions follow.
     func localGamesActions(relocating id: GameID?) -> [String] {
-        if localBusy { return ["Done"] }
-        return localCandidates.map { $0.added && id == nil ? $0.app.title + " · Added" : $0.app.title } + ["Browse…", "Done"]
+        let suggestions = localBusy ? [] : localCandidates.map { $0.added && id == nil ? $0.app.title + " · Added" : $0.app.title }
+        return [Self.browseForAppTitle] + suggestions + ["Done"]
     }
     func activateLocalGames(_ index: Int, relocating id: GameID?) {
         let actions = localGamesActions(relocating: id)
-        guard let label = actions[safe: index] else { return }
-        if label == "Done" { panel = nil; return }
-        if label == "Browse…" { browseForApp(relocating: id); return }
-        guard let candidate = localCandidates[safe: index] else { return }
+        guard actions.indices.contains(index) else { return }
+        if index == actions.count - 1 { panel = nil; return }
+        if index == 0 { browseForApp(relocating: id); return }
+        guard let candidate = localCandidates[safe: index - 1] else { return }
         if candidate.added && id == nil { return }
-        addLocalApp(candidate.app.url, relocating: id)
+        addLocalApp(candidate.app.url, origin: .suggested, relocating: id)
     }
     func browseForApp(relocating id: GameID?) {
         let open = NSOpenPanel()
         open.allowedContentTypes = [.applicationBundle]; open.allowsMultipleSelection = false
         open.directoryURL = URL(fileURLWithPath: "/Applications"); open.prompt = id == nil ? "Add game" : "Locate"
         guard open.runModal() == .OK, let url = open.url else { return }
-        addLocalApp(url, relocating: id)
+        addLocalApp(url, origin: .manual, relocating: id)
     }
-    private func addLocalApp(_ url: URL, relocating id: GameID?) {
+    private func addLocalApp(_ url: URL, origin: LocalLibrary.Entry.Origin, relocating id: GameID?) {
         guard let localSource else { return }
         Task { [weak self] in
             do {
-                if let id { try await localSource.relocate(id, to: url) } else { try await localSource.add(url, origin: .suggested) }
+                if let id { try await localSource.relocate(id, to: url) } else { try await localSource.add(url, origin: origin) }
                 guard let self else { return }
                 self.refreshScannedLibraries()
                 if id != nil { self.panel = nil; return }
@@ -180,14 +214,21 @@ extension LibraryModel {
             self?.reloadLocalFolders()
         }
     }
-    func removeFromLibrary(_ id: GameID) {
+    func removeFromLibrary(_ id: GameID) { removeFromLibrary([id], returningToList: false) }
+    /// The apps stay on the Mac; adding one again brings its playtime back.
+    func removeFromLibrary(_ ids: [GameID], returningToList: Bool) {
         guard let localSource else { return }
         Task { [weak self] in
-            do { try await localSource.remove(id) } catch { self?.show(.information(error.localizedDescription)); return }
+            for id in ids {
+                do { try await localSource.remove(id) } catch { self?.show(.information(error.localizedDescription)); return }
+            }
             guard let self else { return }
-            if self.detailID == id { self.detailID = nil }
-            self.panel = nil
+            if let detail = self.detailID, ids.contains(detail) { self.detailID = nil }
+            self.localRemovalSelection.subtract(ids)
             self.refreshScannedLibraries()
+            guard returningToList else { self.panel = nil; return }
+            await self.scanTask?.value
+            if self.panel == .localAdded { self.panelIndex = min(self.panelIndex, max(0, self.addedGamesActions.count - 1)) }
         }
     }
     func renameGame(_ id: GameID, to value: String) {

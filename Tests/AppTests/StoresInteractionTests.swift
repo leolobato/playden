@@ -120,13 +120,45 @@ final class StoresInteractionTests: XCTestCase {
         addTeardownBlock { try? FileManager.default.removeItem(at: root) }
         let local = LocalSource(store: LocalLibraryStore(file: root.appendingPathComponent("local.json")), suggestionRoots: [])
         let model = LibraryModel(catalog: try CatalogStore(), preview: false, otherSources: [local])
-        XCTAssertEqual(model.storeSettingsRows, [.thisMac, .folders])
+        XCTAssertEqual(model.storeSettingsRows, [.thisMac, .addedGames, .folders])
         model.settingsSection = 0
-        XCTAssertEqual(SettingsScreen(model: model).settings.map(\.0), ["This Mac", "Watched folders"])
+        XCTAssertEqual(SettingsScreen(model: model).settings.map(\.0), ["This Mac", "Added games", "Watched folders"])
         XCTAssertTrue(model.needsGames)
         XCTAssertEqual(model.addGamesTitle, "Add games")
         model.startAddingGames()
         XCTAssertEqual(model.tab, .settings); XCTAssertEqual(model.settingsSection, 0)
+    }
+
+    @MainActor func testChoosingAnyAppComesFirstEvenWhileSuggestionsLoad() {
+        let model = mixedLibrary()
+        model.localBusy = true
+        XCTAssertEqual(model.localGamesActions(relocating: nil), ["Choose an app…", "Done"])
+        model.localBusy = false
+        XCTAssertEqual(model.localGamesActions(relocating: nil).first, "Choose an app…")
+        XCTAssertEqual(model.localGamesActions(relocating: nil).last, "Done")
+    }
+
+    @MainActor func testAddedGamesListsThisMacGamesAndRemovesThePickedOnes() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("StoresAdded-\(UUID().uuidString)")
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let local = LocalSource(store: LocalLibraryStore(file: root.appendingPathComponent("local.json")), suggestionRoots: [])
+        let chess = try await local.add(URL(fileURLWithPath: "/System/Applications/Chess.app"))
+        let stickies = try await local.add(URL(fileURLWithPath: "/System/Applications/Stickies.app"))
+        let model = LibraryModel(catalog: try CatalogStore(), preview: false, otherSources: [local])
+        model.refreshScannedLibraries(); await model.scanTask?.value
+        model.settingsSection = 0; model.settingsIndex = model.storeSettingsRows.firstIndex(of: .addedGames)!
+        model.activateStoreSetting()
+        XCTAssertEqual(model.panel, .localAdded)
+        XCTAssertEqual(model.panelActions, ["Chess", "Stickies", "Done"])
+        model.panelIndex = 1; model.activatePanel()
+        XCTAssertTrue(model.panelItemSelected(at: 1)); XCTAssertFalse(model.panelItemSelected(at: 0))
+        XCTAssertEqual(model.panelActions, ["Chess", "Stickies", "Remove 1 game", "Done"])
+        model.panelIndex = 2; model.activatePanel()
+        for _ in 0..<200 where model.games.contains(where: { $0.id == stickies }) { try await Task.sleep(for: .milliseconds(10)) }
+        await model.scanTask?.value
+        XCTAssertEqual(model.games.filter { $0.id.source == SourceID.local }.map(\.id), [chess])
+        XCTAssertEqual(model.panel, .localAdded, "The list stays open to remove more")
+        XCTAssertEqual(model.panelActions, ["Chess", "Done"])
     }
 
     @MainActor func testFirstRunCanFinishWithOnlyThisMac() throws {

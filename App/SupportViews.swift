@@ -23,6 +23,7 @@ struct SettingsScreen: View {
             case .signOut: ("Sign out", "Disconnect your Steam account from Playden", "Sign out")
             case .preferMac: ("Prefer macOS versions", "Offer a Steam game’s Mac version first when it has one", model.preferMacVersions ? "On" : "Off")
             case .thisMac: ("This Mac", model.thisMacSummary, "Add games ›")
+            case .addedGames: ("Added games", model.addedGamesSummary, "Manage ›")
             case .folders: ("Watched folders", "Playden checks these folders for new games every time it scans", "Manage ›")
             }
         }
@@ -161,7 +162,11 @@ struct ModalLayer: View {
                     if model.panel == .compatibility { Text(model.isPreview ? "Your rating · preview library" : "Your rating").font(Design.body(22)).foregroundStyle(Design.secondary) }
                     if model.panel == .signOut { Text("Installed games, saves, collections and play history stay on this Mac.").font(Design.body(24)).foregroundStyle(Design.secondary) }
                     if case .localGames(let id) = model.panel {
-                        Text(model.localBusy ? "Looking for games in your Applications and Games folders…" : model.localMessage ?? (id == nil ? "Games found on this Mac. Pick one to add it; Playden never changes its files." : "Pick the app’s new location."))
+                        Text(model.localBusy ? "Looking for games in your Applications and Games folders…" : model.localMessage ?? (id == nil ? "Choose any app, or pick one Playden found. Playden never changes its files." : "Pick the app’s new location."))
+                            .font(Design.body(22)).foregroundStyle(Design.secondary).lineLimit(3)
+                    }
+                    if model.panel == .localAdded {
+                        Text(model.addedLocalGames.isEmpty ? "Games you add from this Mac appear here." : "Select games to remove. The apps stay on your Mac, and adding one again brings its playtime back.")
                             .font(Design.body(22)).foregroundStyle(Design.secondary).lineLimit(3)
                     }
                     if model.panel == .localFolders {

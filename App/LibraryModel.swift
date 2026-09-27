@@ -31,6 +31,8 @@ enum Panel: Equatable {
     case localGames(GameID?)
     case localFolders
     case localFolderOptions(UUID)
+    /// This Mac games in the library, to pick ones to remove.
+    case localAdded
 }
 
 struct HomeRow: Identifiable {
@@ -75,6 +77,7 @@ final class LibraryModel {
     var localCandidates: [LocalSource.Candidate] = []
     var localFolderSummaries: [LocalSource.FolderSummary] = []
     var localBusy = false
+    var localRemovalSelection: Set<GameID> = []
     var localMessage: String?
     var preferMacVersions = true
     var installPlatform: GamePlatform = .windows
@@ -511,6 +514,7 @@ final class LibraryModel {
         case .signOut: ["Stay signed in", "Sign out"]
         case .localGames(let id): localGamesActions(relocating: id)
         case .localFolders: localFolderActions
+        case .localAdded: addedGamesActions
         case .localFolderOptions: ["Keep its games", "Remove its games too", "Cancel"]
         default: []
         }
@@ -813,6 +817,7 @@ final class LibraryModel {
         case .downloadActions(let id): activateDownloadAction(label, id: id)
         case .localGames(let id): activateLocalGames(panelIndex, relocating: id)
         case .localFolders: activateLocalFolders(panelIndex)
+        case .localAdded: activateAddedGames(panelIndex)
         case .localFolderOptions(let id): activateLocalFolderOption(label, id: id)
         case .confirmation(let intent):
             if panelIndex == 0 { panel = nil }

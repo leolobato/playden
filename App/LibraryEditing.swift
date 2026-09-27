@@ -218,6 +218,7 @@ extension LibraryModel {
         case .signOut: "Sign out of Steam?"
         case .localGames(let id): id == nil ? "Add games on this Mac" : "Locate \(gameName(id!))"
         case .localFolders: "Watched folders"
+        case .localAdded: "Added games"
         case .localFolderOptions(let id): localFolderOptionsTitle(id)
         case .compatibility: "Compatibility"
         case .collections: "Add to collection"
@@ -230,6 +231,7 @@ extension LibraryModel {
         case .volumePicker(let id): enabledInstallVolumes[safe: index]?.volumeID == (id == nil ? gamesVolume : installDestination)?.volumeID
         case .collections(let id): collections[safe: index]?.gameIDs.contains(id) == true
         case .compatibility: index < Compatibility.allCases.count && focusedGame?.compatibility == Compatibility.allCases[index]
+        case .localAdded: addedLocalGames[safe: index].map { localRemovalSelection.contains($0.id) } == true
         default: false
         }
     }
