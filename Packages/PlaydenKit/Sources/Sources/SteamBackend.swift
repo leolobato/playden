@@ -76,7 +76,8 @@ func sourceFailure(_ error: Error) -> SourceFailure {
         case .eresult(let result, _):
             if result == .expired { return .expired }
             if result == .accessDenied { return .accessDenied }
-            if [.invalidPassword, .invalidParam].contains(result) { return .credentialsRejected }
+            // Steam answers a revoked refresh token with AccountLogonDenied; retrying cannot help.
+            if [.invalidPassword, .invalidParam, .accountLogonDenied].contains(result) { return .credentialsRejected }
             if [.rateLimitExceeded, .accountLoginDeniedThrottle].contains(result) { return .throttled }
             return .unavailable
         default: return .unavailable

@@ -197,4 +197,8 @@ final class SteamAccountTests: XCTestCase {
         XCTAssertEqual(sourceFailure(SteamError.authSessionExpired), .expired)
         XCTAssertEqual(sourceFailure(SteamError.http(status: 401, url: "https://fixture.invalid")), .expired)
     }
+    func testDeniedLogonIsRejectedCredentialsNotAnOutage() {
+        // Token renewal turns rejected credentials into "sign in again" instead of "try again shortly".
+        XCTAssertEqual(sourceFailure(SteamError.eresult(.accountLogonDenied, context: "GenerateAccessTokenForApp")), .credentialsRejected)
+    }
 }
