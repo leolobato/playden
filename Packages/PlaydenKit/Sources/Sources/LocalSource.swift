@@ -28,6 +28,17 @@ public struct LocalSource: GameSource {
         }
     }
 
+    public struct RemovedGame: Equatable, Sendable, Identifiable {
+        public let id: GameID
+        public let title: String
+        public let lastKnownPath: URL
+        /// The app is still where it was, or in a watched folder, so it can be restored as is.
+        public let found: Bool
+        public init(id: GameID, title: String, lastKnownPath: URL, found: Bool) {
+            self.id = id; self.title = title; self.lastKnownPath = lastKnownPath; self.found = found
+        }
+    }
+
     public init(store: LocalLibraryStore, suggestionRoots: [URL] = LocalSource.standardSuggestionRoots) {
         self.store = store; self.suggestionRoots = suggestionRoots
     }
@@ -97,7 +108,8 @@ public struct LocalSource: GameSource {
         }
         return try await store.update { library in
             if let index = Self.entryIndex(for: app, in: library) { return gameID(library.entries[index]) }
-            let entry = Self.entry(for: app, origin: origin, reusing: Self.removedIndex(for: app, in: library).map { library.removed.remove(at: $0).id })
+            let entry = Self.entry(for: app, origin: Self.watchedFolder(containing: app.url, in: library).map { .folder($0) } ?? origin,
+                                   reusing: Self.removedIndex(for: app, in: library).map { library.removed.remove(at: $0).id })
             library.entries.append(entry)
             return gameID(entry)
         }
@@ -108,8 +120,38 @@ public struct LocalSource: GameSource {
             guard let index = library.entries.firstIndex(where: { gameID($0) == id }) else { return }
             let entry = library.entries.remove(at: index)
             library.removed.removeAll { $0.id == entry.id }
+            let folderID: UUID? = if case .folder(let folder) = entry.origin { folder } else { nil }
             library.removed.append(.init(id: entry.id, lastKnownPath: Self.resolve(entry).url ?? entry.lastKnownPath,
-                                         bundleIdentifier: entry.bundleIdentifier, executableName: entry.executableName, removedAt: .now))
+                                         bundleIdentifier: entry.bundleIdentifier, executableName: entry.executableName, removedAt: .now,
+                                         title: entry.title, folderID: folderID))
+        }
+    }
+    /// Games the player removed, most recent first.
+    public func removedGames() async throws -> [RemovedGame] {
+        let library = try await store.load()
+        return library.removed.sorted { $0.removedAt > $1.removedAt }.map { removed in
+            RemovedGame(id: GameID(source: id, value: removed.id),
+                        title: removed.title ?? removed.lastKnownPath.deletingPathExtension().lastPathComponent,
+                        lastKnownPath: removed.lastKnownPath, found: Self.locate(removed, in: library) != nil)
+        }
+    }
+    /// Puts a removed game back with its identity and playtime. A game from a watched folder
+    /// becomes a folder game again; one that moved is looked for in the watched folders.
+    @discardableResult public func restore(_ id: GameID) async throws -> GameID {
+        try await store.update { library in
+            guard let index = library.removed.firstIndex(where: { GameID(source: self.id, value: $0.id) == id }) else { throw ExternalLocationFailure.missing }
+            let removed = library.removed[index]
+            guard let app = Self.locate(removed, in: library) else {
+                throw OperationFailure(stage: "Restore game", reason: "Playden can’t find this app anymore. Choose an app to add it from its new place.",
+                                       output: removed.lastKnownPath.path)
+            }
+            library.removed.remove(at: index)
+            if let existing = Self.entryIndex(for: app, in: library) { return gameID(library.entries[existing]) }
+            let folder = Self.watchedFolder(containing: app.url, in: library)
+                ?? removed.folderID.flatMap { folderID in library.folders.contains { $0.id == folderID } ? folderID : nil }
+            let entry = Self.entry(for: app, origin: folder.map { .folder($0) } ?? .manual, reusing: removed.id)
+            library.entries.append(entry)
+            return gameID(entry)
         }
     }
     /// Points a missing game at the app's new location, keeping its identity.
@@ -203,6 +245,30 @@ public struct LocalSource: GameSource {
         library.entries.firstIndex { entry in
             matches(path: resolve(entry).url ?? entry.lastKnownPath, bundleIdentifier: entry.bundleIdentifier, executableName: entry.executableName, app)
         }
+    }
+    /// Where a removed app is now: its last place, else the watched folders.
+    static func locate(_ removed: LocalLibrary.Removed, in library: LocalLibrary) -> LocalAppBundle? {
+        if let app = LocalAppBundle(url: removed.lastKnownPath),
+           matches(path: removed.lastKnownPath, bundleIdentifier: removed.bundleIdentifier, executableName: removed.executableName, app) { return app }
+        for folder in library.folders {
+            guard let root = resolveFolder(folder) else { continue }
+            for url in LocalAppBundle.apps(in: root, depth: folder.depth) {
+                if let app = LocalAppBundle(url: url),
+                   matches(path: removed.lastKnownPath, bundleIdentifier: removed.bundleIdentifier, executableName: removed.executableName, app) { return app }
+            }
+        }
+        return nil
+    }
+    /// The watched folder an app sits in, within that folder's scan depth.
+    static func watchedFolder(containing app: URL, in library: LocalLibrary) -> UUID? {
+        let path = realPath(app)
+        return library.folders.first { folder in
+            guard let root = resolveFolder(folder) else { return false }
+            let rootPath = realPath(root)
+            guard path.hasPrefix(rootPath + "/") else { return false }
+            let levels = path.dropFirst(rootPath.count + 1).split(separator: "/").count
+            return levels <= folder.depth
+        }?.id
     }
     static func removedIndex(for app: LocalAppBundle, in library: LocalLibrary) -> Int? {
         library.removed.firstIndex { matches(path: $0.lastKnownPath, bundleIdentifier: $0.bundleIdentifier, executableName: $0.executableName, app) }

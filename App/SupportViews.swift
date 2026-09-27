@@ -166,7 +166,7 @@ struct ModalLayer: View {
                             .font(Design.body(22)).foregroundStyle(Design.secondary).lineLimit(3)
                     }
                     if model.panel == .localAdded {
-                        Text(model.addedLocalGames.isEmpty ? "Games you add from this Mac appear here." : "Select games to remove. The apps stay on your Mac, and adding one again brings its playtime back.")
+                        Text(model.localMessage ?? (model.addedLocalGames.isEmpty && model.localRemovedGames.isEmpty ? "Games you add from this Mac appear here." : "Select games to remove. The apps stay on your Mac. Restore a removed game to bring it back with its playtime."))
                             .font(Design.body(22)).foregroundStyle(Design.secondary).lineLimit(3)
                     }
                     if model.panel == .localFolders {

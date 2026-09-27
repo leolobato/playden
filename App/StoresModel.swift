@@ -93,15 +93,28 @@ extension LibraryModel {
         return count == 0 ? "No Mac games in your library yet" : "\(count) game\(count == 1 ? "" : "s") · pick ones to remove from Playden"
     }
     func showAddedGames() {
-        localRemovalSelection = []
+        localRemovalSelection = []; localMessage = nil
         show(.localAdded)
+        reloadRemovedGames()
+    }
+    func reloadRemovedGames() {
+        guard let localSource else { return }
+        Task { [weak self] in
+            let removed = (try? await localSource.removedGames()) ?? []
+            self?.localRemovedGames = removed
+        }
+    }
+    /// The panel lists games in the library, then the remove action once some are checked, then removed games to restore.
+    private var addedGamesRemoveAction: [String] {
+        let count = localRemovalSelection.count
+        return count == 0 ? [] : ["Remove \(count) game\(count == 1 ? "" : "s")"]
     }
     var addedGamesActions: [String] {
         let rows = addedLocalGames.map { game in
             game.title + (game.status == .missing ? " · Missing" : game.status == .driveDisconnected ? " · Not connected" : "")
         }
-        let count = localRemovalSelection.count
-        return rows + (count == 0 ? [] : ["Remove \(count) game\(count == 1 ? "" : "s")"]) + ["Done"]
+        let restores = localRemovedGames.map { "Restore \($0.title)" + ($0.found ? "" : " · Not found") }
+        return rows + addedGamesRemoveAction + restores + ["Done"]
     }
     func activateAddedGames(_ index: Int) {
         let listed = addedLocalGames
@@ -109,8 +122,26 @@ extension LibraryModel {
             if localRemovalSelection.remove(game.id) == nil { localRemovalSelection.insert(game.id) }
             return
         }
-        guard index == addedGamesActions.count - 2, !localRemovalSelection.isEmpty else { panel = nil; return }
-        removeFromLibrary(Array(localRemovalSelection), returningToList: true)
+        let removeIndex = listed.count, restoreStart = listed.count + addedGamesRemoveAction.count
+        if !addedGamesRemoveAction.isEmpty && index == removeIndex {
+            removeFromLibrary(Array(localRemovalSelection), returningToList: true); return
+        }
+        guard let removed = localRemovedGames[safe: index - restoreStart] else { panel = nil; return }
+        restoreRemovedGame(removed)
+    }
+    func restoreRemovedGame(_ removed: LocalSource.RemovedGame) {
+        guard let localSource else { return }
+        Task { [weak self] in
+            do { try await localSource.restore(removed.id) } catch {
+                self?.localMessage = (error as? OperationFailure)?.reason ?? error.localizedDescription; return
+            }
+            guard let self else { return }
+            self.localMessage = "Restored \(removed.title)."
+            self.refreshScannedLibraries()
+            self.localRemovedGames = (try? await localSource.removedGames()) ?? []
+            await self.scanTask?.value
+            if self.panel == .localAdded { self.panelIndex = min(self.panelIndex, max(0, self.addedGamesActions.count - 1)) }
+        }
     }
 
     // MARK: This Mac
@@ -227,6 +258,7 @@ extension LibraryModel {
             self.localRemovalSelection.subtract(ids)
             self.refreshScannedLibraries()
             guard returningToList else { self.panel = nil; return }
+            self.localRemovedGames = (try? await localSource.removedGames()) ?? []
             await self.scanTask?.value
             if self.panel == .localAdded { self.panelIndex = min(self.panelIndex, max(0, self.addedGamesActions.count - 1)) }
         }

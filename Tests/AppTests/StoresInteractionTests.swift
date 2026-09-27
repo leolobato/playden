@@ -158,7 +158,12 @@ final class StoresInteractionTests: XCTestCase {
         await model.scanTask?.value
         XCTAssertEqual(model.games.filter { $0.id.source == SourceID.local }.map(\.id), [chess])
         XCTAssertEqual(model.panel, .localAdded, "The list stays open to remove more")
-        XCTAssertEqual(model.panelActions, ["Chess", "Done"])
+        XCTAssertEqual(model.panelActions, ["Chess", "Restore Stickies", "Done"])
+        model.panelIndex = 1; model.activatePanel()
+        for _ in 0..<200 where !model.games.contains(where: { $0.id == stickies }) { try await Task.sleep(for: .milliseconds(10)) }
+        await model.scanTask?.value
+        XCTAssertEqual(model.panelActions, ["Chess", "Stickies", "Done"], "Restoring brings the same game back")
+        XCTAssertEqual(model.localMessage, "Restored Stickies.")
     }
 
     @MainActor func testFirstRunCanFinishWithOnlyThisMac() throws {

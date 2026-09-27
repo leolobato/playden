@@ -78,6 +78,7 @@ final class LibraryModel {
     var localFolderSummaries: [LocalSource.FolderSummary] = []
     var localBusy = false
     var localRemovalSelection: Set<GameID> = []
+    var localRemovedGames: [LocalSource.RemovedGame] = []
     var localMessage: String?
     var preferMacVersions = true
     var installPlatform: GamePlatform = .windows

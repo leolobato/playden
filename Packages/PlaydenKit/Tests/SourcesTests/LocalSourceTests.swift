@@ -109,6 +109,49 @@ final class LocalSourceTests: XCTestCase {
         XCTAssertEqual(value5, [id])
     }
 
+    func testRemovedFolderGamesAreListedAndRestoreAsFolderGames() async throws {
+        let url = try app("Library/Kept.app", name: "Kept", id: "a.kept")
+        let local = source()
+        try await local.addFolder(root.appendingPathComponent("Library"))
+        let owned = try await local.ownedGames()
+        let id = try XCTUnwrap(owned.first?.id)
+        try await local.remove(id)
+        var removed = try await local.removedGames()
+        XCTAssertEqual(removed.map(\.title), ["Kept"]); XCTAssertEqual(removed.first?.id, id); XCTAssertEqual(removed.first?.found, true)
+        let restored = try await local.restore(id)
+        XCTAssertEqual(restored, id, "Restoring keeps the identity, so playtime returns")
+        removed = try await local.removedGames(); XCTAssertTrue(removed.isEmpty)
+        let summary = try await local.folders().first
+        XCTAssertEqual(summary?.gameCount, 1, "The game counts as a folder game again")
+
+        // An app added by hand from inside a watched folder is a folder game too.
+        try await local.remove(id)
+        let again = try await local.add(url)
+        XCTAssertEqual(again, id)
+        let counted = try await local.folders().first?.gameCount
+        XCTAssertEqual(counted, 1)
+    }
+
+    func testRestoreFindsMovedAppsInWatchedFoldersAndReportsLostOnes() async throws {
+        let url = try app("Library/Moved.app", id: "a.moved", executable: "Moved")
+        let lost = try app("Elsewhere/Lost.app", id: "a.lost", executable: "Lost")
+        let local = source()
+        try await local.addFolder(root.appendingPathComponent("Library"))
+        let moved = try await local.add(url), gone = try await local.add(lost)
+        try await local.remove(moved); try await local.remove(gone)
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("Library/Sub"), withIntermediateDirectories: true)
+        try FileManager.default.moveItem(at: url, to: root.appendingPathComponent("Library/Sub/Moved.app"))
+        try FileManager.default.removeItem(at: lost)
+        let found = try await local.removedGames().map(\.found)
+        XCTAssertEqual(Set(found), [true, false])
+        try await local.restore(moved)
+        let titles = try await local.ownedGames().map(\.title)
+        XCTAssertEqual(titles, ["Moved"])
+        do { try await local.restore(gone); XCTFail("A lost app can't be restored") } catch {}
+        let stillRemoved = try await local.removedGames().map(\.id)
+        XCTAssertEqual(stillRemoved, [gone], "A failed restore keeps the game in the removed list")
+    }
+
     func testRemovingAFolderCanKeepOrRemoveItsGames() async throws {
         try app("Library/Game.app")
         let local = source()

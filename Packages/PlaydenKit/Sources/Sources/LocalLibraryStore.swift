@@ -40,6 +40,10 @@ public struct LocalLibrary: Codable, Equatable, Sendable {
         public var bundleIdentifier: String?
         public var executableName: String?
         public var removedAt: Date
+        /// Shown in the Removed list. Records from before titles were kept show the file name.
+        public var title: String?
+        /// The watched folder the game came from, so restoring it makes it a folder game again.
+        public var folderID: UUID?
     }
     public var entries: [Entry] = []
     public var folders: [Folder] = []

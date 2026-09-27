@@ -284,6 +284,11 @@ it as `source: (any GameSource)?`. `InstallQueue` and `SessionService` already a
 - **FR-LOCAL-6a (v1):** **Added games.** Settings → Stores → *Added games* lists every This Mac game
   by title, marking missing and disconnected ones. Selecting games checks them, and *Remove N games*
   removes them from the library as in FR-LOCAL-14. The list stays open so more can be removed.
+  - Below them, a *Restore* row for each removed game, newest first, puts it back with its identity
+    and playtime. A game that moved is looked for in the watched folders. One that can't be found
+    is marked *Not found*, and restoring it explains how to add it from its new place.
+  - A game restored, or added by hand, from inside a watched folder counts as that folder's game,
+    so stopping watching the folder with *Remove its games too* removes it as well.
   - A scan checks two levels deep, which covers `Steam/steamapps/common/<Game>/<Game>.app`.
   - A scan skips `.app` bundles that are nested inside another bundle.
 - **FR-LOCAL-7 (v1):** **Suggestions.** The picker also lists apps in `/Applications`,
