@@ -9,6 +9,10 @@ created by `scripts/epic-sign-in.sh` (the `epic-dev` tool in `EpicKit`), which a
 
 ## Step 0 — Auth spike
 
+Run `scripts/epic-sign-in.sh` and approve the code on a phone; it completes both items below and
+saves the session. Then `EPIC_LIVE=1 swift test --package-path Packages/EpicKit --filter LiveTests`
+checks the library calls with the real token.
+
 - [ ] Switch device code → exchange code → launcher `exchange_code` grant, with a real account.
 - [ ] The launcher token lists the assets and the library, creates a launch exchange code, and
   refreshes.

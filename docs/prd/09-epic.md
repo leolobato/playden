@@ -95,8 +95,8 @@ These changes make a second account store work. Steam's behavior does not change
   - a QR code for the full activation URL;
   - a countdown;
   - one line saying that the page shows Fortnite branding and that this is expected.
-- **FR-EPIC-2 (v3):** Playden polls at the interval Epic returns. When the code expires, the screen
-  offers a new code. Back cancels.
+- **FR-EPIC-2 (v3):** Playden polls at the interval Epic returns. When the code expires, Playden
+  shows a new one. "Get a new code" replaces it at any time. Back cancels.
 - **FR-EPIC-3 (v3):** After approval, Playden trades the Switch session for a launcher session
   (exchange code), ends the Switch session, stores the launcher refresh token (AR-MULTI-8) and
   refreshes the Epic library.
@@ -212,7 +212,8 @@ These changes make a second account store work. Steam's behavior does not change
   - quit and record playtime;
   - pause and resume a download across a relaunch;
   - verify files after deleting one;
-  - play a `CanRunOffline` game with the network off.
+  - with the network off, start a `CanRunOffline` game, and see "Epic needs to be online to start
+    this game." for one that isn't.
 
   The test games avoid Denuvo (`OwnershipToken`) and anti-cheat.
 
@@ -229,8 +230,7 @@ Each step ships on its own and keeps Steam and This Mac working.
 4. **`EpicCore` downloads:** the planner, the writer, the resume journal, verify and repair.
 5. **Shared plumbing:** AR-MULTI-1 to AR-MULTI-9, with Steam unchanged.
 6. **`EpicSource`:** account, library, installer and launch.
-7. **UI:** the device-code screen, the Stores row, first run, unavailable and blocked states, and
-   the anti-cheat notice.
+7. **UI:** the device-code screen, the Stores row and first run.
 8. **Acceptance and docs:** the manual acceptance above, the README and captures.
 
 ## Open questions
