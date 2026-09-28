@@ -21,18 +21,18 @@ from the step 0 spike. Anything that refreshes it must write the new refresh tok
 
 ## Step 2 — `EpicCore` parsers (`Packages/EpicKit`)
 
-- [ ] `Package.swift` with the `EpicCore` library and `EpicCoreTests`. Link `libz` (`linkedLibrary("z")`)
+- [x] `Package.swift` with the `EpicCore` library and `EpicCoreTests`. Link `libz` (`linkedLibrary("z")`)
   for zlib streams, and use CryptoKit for AES-GCM.
-- [ ] `BinaryReader` (LE ints, FString ASCII/UTF-16, GUID).
-- [ ] `Manifest`: the header and zlib body with a SHA-1 check, then Meta, CDL, FML and CustomFields.
+- [x] `BinaryReader` (LE ints, FString ASCII/UTF-16, GUID).
+- [x] `Manifest`: the header and zlib body with a SHA-1 check, then Meta, CDL, FML and CustomFields.
   Each section seeks to its end by its size. v22+ adds secret GUIDs and encrypted data. `build_id`
   is computed when absent.
-- [ ] `JSONManifest` with blob decoding. It converts to the same `Manifest` model.
-- [ ] `Chunk`: the header (v1–v4), zlib and AES-GCM decoding, and the SHA-1 check against the CDL.
-- [ ] `ChunkInfo.path` for every chunk-dir version and for v22+ base64url paths.
-- [ ] Fixtures: `overlay.manifest` and one overlay chunk (the public EOS Overlay app). Synthetic
+- [x] `JSONManifest` with blob decoding. It converts to the same `Manifest` model.
+- [x] `Chunk`: the header (v1–v4), zlib and AES-GCM decoding, and the SHA-1 check against the CDL.
+- [x] `ChunkInfo.path` for every chunk-dir version and for v22+ base64url paths.
+- [x] Fixtures: `overlay.manifest` and one overlay chunk (the public EOS Overlay app). Synthetic
   manifests built in the tests cover compressed, JSON and encrypted.
-- [ ] `scripts/test.sh` runs `swift test --package-path Packages/EpicKit`.
+- [x] `scripts/test.sh` runs `swift test --package-path Packages/EpicKit`.
 
 ## Step 3 — `EpicCore` API
 

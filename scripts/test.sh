@@ -2,6 +2,7 @@
 set -eu
 cd "$(dirname "$0")/.."
 swift test --package-path Packages/SteamKit
+swift test --package-path Packages/EpicKit
 swift test --package-path Packages/PlaydenKit
 xcodegen generate
 signing_identity=$(python3 scripts/signing-identity.py)

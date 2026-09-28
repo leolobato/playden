@@ -1,0 +1,61 @@
+{
+ "version": 16,
+ "featureLevel": 16,
+ "appName": "98bc04bc842e4906993fd6d6644ffb8d",
+ "buildVersion": "1.3.7++EOSSDK+Release-Overlay-CL-57923510-Windows",
+ "launchExe": "",
+ "buildID": "JZeF0xl9GtAq5yLbT0rW97rFr1g",
+ "fileCount": 151,
+ "chunkCount": 570,
+ "installSize": 655786744,
+ "downloadSize": 258993956,
+ "firstFiles": [
+  {
+   "filename": "Engine/Binaries/Win32/CrashReportClient.exe",
+   "sha1": "03f575c851423860635e239aafa22917bd7bfffa",
+   "size": 12530072,
+   "parts": 12,
+   "flags": 0
+  },
+  {
+   "filename": "Engine/Programs/CrashReportClient/Config/DefaultEngine.ini",
+   "sha1": "8fc894c1cde5a63f08459719a53733c6e4efcff0",
+   "size": 319,
+   "parts": 1,
+   "flags": 0
+  },
+  {
+   "filename": "EOSOverlayRenderer-Win32-Shipping.exe",
+   "sha1": "a653bdef40f3ef4db1b97d8ebb89a46ee04a8203",
+   "size": 752568,
+   "parts": 2,
+   "flags": 0
+  },
+  {
+   "filename": "EOSOverlayRenderer-Win64-Shipping.exe",
+   "sha1": "667c228a5c535b38928857775428c9727378f2df",
+   "size": 899512,
+   "parts": 2,
+   "flags": 0
+  },
+  {
+   "filename": "EOSOverlayVkLayer-Win32.json",
+   "sha1": "0f9f5502031e8f9426f5e6358758128912291185",
+   "size": 683,
+   "parts": 1,
+   "flags": 0
+  }
+ ],
+ "chunkPaths": [
+  "ChunksV4/82/B347FC52BDC6D23F_1C45C7A14957596554012FBF7CF64B16.chunk",
+  "ChunksV4/70/BA578AF689DE552B_80B179F14F1372C9E5A77AA09C17A722.chunk",
+  "ChunksV4/27/8E772748C6B349BE_9B52267D456065BF60DA6E90D0FCE094.chunk"
+ ],
+ "fixtureChunk": {
+  "path": "ChunksV4/45/AA2B6E8BF64D7A66_0675986D4E08387E2A11A78C3BEC1D6C.chunk",
+  "guid": "0675986D4E08387E2A11A78C3BEC1D6C",
+  "sha1": "27fb2e3616a32e688a672be97e5bdbe193ffd0b5",
+  "size": 1048573
+ },
+ "customFields": {}
+}
