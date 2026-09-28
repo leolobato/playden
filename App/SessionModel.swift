@@ -95,9 +95,11 @@ extension LibraryModel {
         }
         if let failure = snapshot.failure {
             let retryable = snapshot.phase == .idle && [.launchFailed, .crash].contains(snapshot.session?.outcome)
-            reportSessionIssue(failure, gameID: snapshot.session?.gameID,
-                               recovery: failure.stage == "Save session" ? snapshot.session.map { .checkpoint($0.id) } :
-                                retryable ? snapshot.session.map { .play($0.gameID) } : nil)
+            // A store whose sign-in expired at launch offers that store's sign-in instead of Retry.
+            let recovery: SessionIssueRecovery? = failure.stage == "Save session" ? snapshot.session.map { .checkpoint($0.id) }
+                : failure.stage == "Sign-in expired" ? snapshot.session.map { .signIn($0.gameID.source) }
+                : retryable ? snapshot.session.map { .play($0.gameID) } : nil
+            reportSessionIssue(failure, gameID: snapshot.session?.gameID, recovery: recovery)
         }
         if let window = snapshot.session?.runtime?.window,
            previous.session?.runtime?.window != window && snapshot.session?.runtime?.hadWindow == true &&

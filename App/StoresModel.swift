@@ -11,7 +11,9 @@ enum StoreNames {
     static func name(_ id: String) -> String {
         switch id { case SourceID.steam: "Steam"; case SourceID.local: "This Mac"; case SourceID.epic: "Epic Games"; default: id.capitalized }
     }
-    static func symbol(_ id: String) -> String { id == SourceID.local ? "desktopcomputer" : "bag" }
+    static func symbol(_ id: String) -> String {
+        switch id { case SourceID.local: "desktopcomputer"; case SourceID.epic: "shippingbox"; default: "bag" }
+    }
 }
 
 extension LibraryModel {

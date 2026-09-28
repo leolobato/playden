@@ -162,6 +162,9 @@ public struct EpicLibraryAPI: Sendable {
         throw lastError
     }
 
+    /// Fetches chunks over the same transport and user agent as the API.
+    public func chunkFetcher(baseURLs: [URL]) -> EpicChunkFetcher { EpicChunkFetcher(baseURLs: baseURLs, http: http) }
+
     /// The `.ovt` file bytes that Denuvo-protected games read through `-epicovt`.
     public func ownershipToken(accountID: String, namespace: String, catalogItemID: String, accessToken: String) async throws -> Data {
         try await http.request("POST", http.url(http.config.ecommerceHost,

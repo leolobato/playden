@@ -103,8 +103,8 @@ These changes make a second account store work. Steam's behavior does not change
 - **FR-EPIC-4 (v3):** Before each operation, Playden refreshes the access token when fewer than 10
   minutes remain. A rejected refresh token clears the credentials and shows "Sign in to Epic" with
   the source-scoped recovery (AR-MULTI-2). A network error keeps them.
-- **FR-EPIC-5 (v3):** When Epic returns `corrective_action_required`, Playden shows the
-  `continuationUrl` as a QR code with "Accept Epic's updated terms on your phone, then try again."
+- **FR-EPIC-5 (v3):** When Epic returns `corrective_action_required`, the Stores row shows "Epic
+  needs you to accept updated terms." Showing the `continuationUrl` as a QR code is **later**.
 - **FR-EPIC-6 (v3):** Sign out ends the launcher session on Epic, deletes the Keychain item and
   clears the Epic catalog only. Installed Epic games stay installed. Play asks the player to sign
   in again.
@@ -119,10 +119,9 @@ These changes make a second account store work. Steam's behavior does not change
   - items in the `mods` category;
   - DLC (`mainGameItem` is set);
   - library records that have no asset.
-- **FR-EPIC-9 (v3):** Games that another launcher must install are shown on their game page as
-  "Needs the EA app" or "Needs Ubisoft Connect", with no Install action. These are games with
-  `ThirdPartyManagedApp` or `ThirdPartyManagedProvider`, or with `partnerLinkType == ubisoft`.
-  They are hidden from the Library unless the player turns on *Show unavailable games*.
+- **FR-EPIC-9 (v3):** Games that another launcher must install are not listed. These are games
+  with `ThirdPartyManagedApp` or `ThirdPartyManagedProvider`, or with `partnerLinkType == ubisoft`.
+  Showing them as "Needs the EA app" or "Needs Ubisoft Connect" is **later**.
 - **FR-EPIC-10 (v3):** Records carry `platforms = [.windows]`, the title, the description and the
   artwork:
   - cover: `DieselGameBoxTall`, then `OfferImageTall`, then `Thumbnail`;
@@ -141,7 +140,8 @@ These changes make a second account store work. Steam's behavior does not change
   (compressed, uncompressed and encrypted v22+) and JSON manifests are supported.
 - **FR-EPIC-13 (v3):** The plan's estimate uses the chunk list: the download size is the total of
   the compressed chunk sizes, and the installed size is the total of the file sizes.
-  `downloadSize(for:)` returns the same estimate for the install offer.
+  The install offer shows it. The game page shows no size before the offer (**later**: an
+  estimate from the manifest).
 - **FR-EPIC-14 (v3):** The download fetches each unique chunk once, checks the SHA-1 of the
   decoded chunk, and writes each file from its chunk parts. It keeps a bounded cache of chunks that
   more than one file part still needs, and runs several requests in parallel. Failures are retried
@@ -158,8 +158,9 @@ These changes make a second account store work. Steam's behavior does not change
 - **FR-EPIC-19 (v3):** Encrypted chunks and manifests are decrypted with AES-GCM, using the keys
   that the manifest API returns. A build without keys (a preload) fails with
   "This game isn't released yet."
-- **FR-EPIC-20 (v3):** The bottle name is derived from the lowercased app name, so it matches the
-  `playden-<source>-<value>` pattern whenever it can.
+- **FR-EPIC-20 (v3):** Bottle names follow the existing rule: `playden-epic-<app name>` when the
+  app name is lowercase letters, digits and dashes, and a hash of the ID otherwise. Lowercasing
+  would let two app names that differ only in case share a bottle.
 - **FR-EPIC-21 (later):** Game updates, delta manifests, install tags (selective downloads) and
   running the prerequisites that the manifest lists.
 

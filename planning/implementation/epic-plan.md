@@ -87,15 +87,15 @@ created by `scripts/epic-sign-in.sh` (the `epic-dev` tool in `EpicKit`), which a
 
 ## Step 6 — `EpicSource` (PlaydenKit `Sources`)
 
-- [ ] `EpicAccount`: a `SourceAuth` actor with Keychain `<bundle>.epic`, the device-code sign-in,
+- [x] `EpicAccount`: a `SourceAuth` actor with Keychain `<bundle>.epic`, the device-code sign-in,
   refresh before each operation, and error mapping to `SourceFailure`.
-- [ ] `EpicSource`: `ownedGames` (assets plus catalog, filtered), `metadata`, artwork, store
-  page (`store.epicgames.com`), and `downloadSize`.
-- [ ] `EpicInstaller`: `resolve` (manifest API → `InstallPlan` with the payload), download, verify,
-  repair, validate (the exe exists, PE check), `prepareLaunch` (exchange code, ovt, arguments), and
-  `launchAvailability`.
-- [ ] Register it in `PlaydenApp`. `StoreNames` gets "Epic" and a glyph.
-- [ ] Tests mirroring `SteamInstallerTests` with a fixture backend.
+- [x] `EpicSource`: `ownedGames` (assets plus catalog, filtered), `metadata`, artwork, store
+  catalog cached on disk per build. Store page and a pre-offer size are later.
+- [x] `EpicInstaller`: `resolve` (manifest API → `InstallPlan` with the payload), download, verify,
+  repair, validate (the exe exists, matched case-insensitively), and `prepareLaunch` (exchange code,
+  ovt, arguments, offline rule, expired sign-in → "Sign in again" for Epic).
+- [x] Register it in `PlaydenApp`. `StoreNames` gets "Epic" and a glyph.
+- [x] Tests mirroring `SteamInstallerTests` with a fixture backend.
 
 ## Step 7 — UI
 

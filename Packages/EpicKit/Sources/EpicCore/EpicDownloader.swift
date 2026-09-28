@@ -28,6 +28,12 @@ public struct EpicChunkFetcher: Sendable {
         self.http = http; self.baseURLs = baseURLs
     }
 
+    init(baseURLs: [URL], http: EpicHTTP) {
+        var http = http
+        http.attempts = 1
+        self.http = http; self.baseURLs = baseURLs
+    }
+
     public func fetch(_ path: String) async throws -> Data {
         guard !baseURLs.isEmpty else { throw EpicError.malformed("no CDN base URL") }
         var lastError: Error = EpicError.network("no attempt")
