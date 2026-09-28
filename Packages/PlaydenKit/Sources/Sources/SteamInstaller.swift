@@ -406,9 +406,15 @@ extension SteamInstaller {
             return parts[...index].joined(separator: "/")
         })).sorted()
     }
+    /// Bundles that shipped with a code signature. Unsigned ones (older Intel builds such as
+    /// DEMON'S TILT) stay unsigned: `codesign` refuses them for their unsigned nested libraries.
+    private func signedMacBundles(_ payload: SteamInstallPayload) throws -> [String] {
+        let files = Set(try payload.manifests.flatMap(\.files).filter { !$0.isDirectory }.map { try SteamPlanBuilder.relativePath($0.path) })
+        return macBundles(try apiPaths(payload)).filter { files.contains($0 + "/Contents/_CodeSignature/CodeResources") }
+    }
     /// Files that ad-hoc signing a bundle rewrites: its executables and its resource seal.
     private func macSignedFiles(_ payload: SteamInstallPayload) throws -> [String] {
-        let bundles = macBundles(try apiPaths(payload))
+        let bundles = try signedMacBundles(payload)
         return try payload.manifests.flatMap(\.files).filter { !$0.isDirectory && !$0.isSymlink }.map { try SteamPlanBuilder.relativePath($0.path) }.filter { path in
             bundles.contains { bundle in
                 let macOS = bundle + "/Contents/MacOS/"
@@ -462,7 +468,7 @@ extension SteamInstaller {
             let relative = String(path.dropFirst(root.count))
             mutations.append(FileMutation(relativePath: relative, originalRelativePath: Self.macOriginals + "/" + relative, stagedSHA256: try digest(library.library)))
         }
-        for bundle in macBundles(apis) {
+        for bundle in try signedMacBundles(payload) {
             let files = signed.filter { $0.hasPrefix(bundle + "/") }
             for file in files where !FileManager.default.fileExists(atPath: originals.appendingPathComponent(file).path) {
                 let backup = originals.appendingPathComponent(file)
@@ -497,7 +503,7 @@ extension SteamInstaller {
               FileManager.default.isExecutableFile(atPath: bundle.appendingPathComponent("Contents/MacOS/" + executable).path) else {
             throw SteamPlanBuilder.failure("Verify", "The Mac app is missing or can’t be opened. Verify files to repair it.")
         }
-        for signed in macBundles(Array(apis)) { try await codeSigner.verify(directory.appendingPathComponent(signed)) }
+        for signed in try signedMacBundles(payload) { try await codeSigner.verify(directory.appendingPathComponent(signed)) }
         var spec = plan.launchSpec
         if !apis.isEmpty { spec.environment["GseAppPath"] = LaunchSpec.gameDirectoryToken + Self.macSettingsRoot }
         return spec

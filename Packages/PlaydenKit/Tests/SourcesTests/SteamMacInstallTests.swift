@@ -139,6 +139,22 @@ final class SteamMacInstallTests: XCTestCase {
         XCTAssertFalse(try installer.supportsCloudSaves(plan))
     }
 
+    func testUnsignedMacBundlesAreNotSigned() async throws {
+        let files = macFiles.filter { !$0.path.contains("_CodeSignature") }
+        let chunks = self.chunks
+        let content = ResolvedSteamContent(app: app(), manifests: [manifest(files, depot: 102)], entitlements: .init(appIDs: [100], depotIDs: [102]))
+        let signer = FixtureSigner()
+        let installer = SteamInstaller(game: game, backend: MacBackend(content: content, chunks: chunks), emulatorSaves: try temporaryDirectory(), codeSigner: signer)
+        let plan = try await installer.resolve(platform: .macOS), directory = try temporaryDirectory()
+        try await installer.download(plan, to: directory) { _ in }
+        let bottle = GameBottle(gameID: game.id, name: "playden-steam-100", ownershipToken: UUID())
+        let staging = try await installer.postInstall(plan, at: directory, in: bottle)
+        XCTAssertEqual(staging.mutations.map(\.relativePath), ["Game.app/Contents/Frameworks/libsteam_api.dylib"], "Only the Steam API changes")
+        _ = try await installer.validate(plan, at: directory, staging: staging)
+        let signed = await signer.signed, verified = await signer.verified
+        XCTAssertEqual(signed, []); XCTAssertEqual(verified, [])
+    }
+
     func testMacPreparationRejectsLinksThatLeaveTheGameFolder() async throws {
         let files = macFiles
         let chunks = self.chunks
