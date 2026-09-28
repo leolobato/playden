@@ -261,6 +261,10 @@ public actor SessionService: SessionManaging {
                 // Preparation applies to every executable in the installation.
                 spec.dllOverrides = installed.launchSpec.dllOverrides
             }
+            if let plan = installed.plan, let source = sources[installed.gameID.source] {
+                spec = try await source.installer(for: installed.game).prepareLaunch(spec, plan: plan, at: directory, offline: offline)
+                try Task.checkCancellation()
+            }
             let run = try await runner.launch(spec, in: bottle(installed), directory: directory)
             guard var session = active else { try await runner.terminate(run, force: true); return }
             session.runtime = .init(run: run)

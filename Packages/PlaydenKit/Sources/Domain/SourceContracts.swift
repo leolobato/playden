@@ -9,6 +9,8 @@ public struct SourceIdentity: Equatable, Sendable {
 public enum GuardChallenge: Equatable, Sendable { case authenticator, email }
 public enum AuthenticationEvent: Equatable, Sendable {
     case qrChallenge(URL, expiresAt: Date)
+    /// Enter `userCode` at `verificationURL`, or open `completeURL` (shown as a QR code).
+    case deviceCode(userCode: String, verificationURL: URL, completeURL: URL, expiresAt: Date)
     case awaitingApproval
     case expired
 }
@@ -18,7 +20,7 @@ public enum SourceFailure: Error, Equatable, Sendable, LocalizedError {
         switch self {
         case .signedOut: "Sign in to refresh your library."
         case .expired: "Your sign-in has expired. Sign in again to continue."
-        case .accessDenied: "Steam denied access to the requested content. Retry, or check that your account owns this edition."
+        case .accessDenied: "The store denied access to the requested content. Retry, or check that your account owns this edition."
         case .network: "The store can’t be reached. Check your connection and try again."
         case .throttled: "The store is receiving too many requests. Wait a moment, then retry."
         case .credentialsRejected: "The store couldn’t verify those details. Check your account name, password or code."
@@ -35,8 +37,15 @@ public protocol SourceAuth: Sendable {
     func signIn(accountName: String, password: String,
                 codeProvider: @escaping @Sendable (GuardChallenge) async throws -> String,
                 onEvent: @escaping @Sendable (AuthenticationEvent) -> Void) async throws -> SourceIdentity
+    /// Device-code sign-in: reports `.deviceCode` events until the player approves on another device.
+    func signInWithDeviceCode(onEvent: @escaping @Sendable (AuthenticationEvent) -> Void) async throws -> SourceIdentity
     func cancelSignIn() async
     func signOut() async throws
+}
+public extension SourceAuth {
+    func signInWithDeviceCode(onEvent: @escaping @Sendable (AuthenticationEvent) -> Void) async throws -> SourceIdentity {
+        throw SourceFailure.unavailable
+    }
 }
 /// For stores without an account: no identity, and sign-in is unavailable.
 public struct NoSourceAuth: SourceAuth {

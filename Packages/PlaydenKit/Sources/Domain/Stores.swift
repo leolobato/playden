@@ -4,6 +4,7 @@ import Foundation
 public enum SourceID {
     public static let steam = "steam"
     public static let local = "local"
+    public static let epic = "epic"
 }
 
 /// What a game runs as, independent of the store it comes from.
@@ -13,7 +14,8 @@ public enum GamePlatform: String, Codable, CaseIterable, Hashable, Sendable {
 }
 
 public struct SourceCapabilities: Equatable, Sendable {
-    public enum Account: Equatable, Sendable { case none, steam }
+    /// `steam`: QR or password with Steam Guard. `deviceCode`: a code on the TV, approved on the phone.
+    public enum Account: Equatable, Sendable { case none, steam, deviceCode }
     /// `download`: Playden installs owned files. `external`: games are already on disk and never owned.
     public enum Acquisition: Equatable, Sendable { case download, external }
     public var account: Account
@@ -71,6 +73,6 @@ public struct SourceRegistry: Sendable {
     }
     public subscript(id: String) -> (any GameSource)? { all.first { $0.id == id } }
     public func displayName(for id: String) -> String { self[id]?.displayName ?? id.capitalized }
-    /// The source that owns account sign-in, when one is configured.
-    public var account: (any GameSource)? { all.first { $0.capabilities.account != .none } }
+    /// Sources the player signs in to, in registry order.
+    public var accountSources: [any GameSource] { all.filter { $0.capabilities.account != .none } }
 }

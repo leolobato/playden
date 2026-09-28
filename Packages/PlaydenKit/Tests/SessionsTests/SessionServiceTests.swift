@@ -22,6 +22,18 @@ private actor Events {
     var preparationPending = false
     var failedPreparationStep: String?
     var appliedOptions: [[String: String]] = []
+    var launchTokens: Int?
+    var launchFailure: OperationFailure?
+    var offlineLaunches: [Bool] = []
+    func issueLaunchTokens() { launchTokens = 0 }
+    func failLaunchPreparation(_ failure: OperationFailure?) { launchFailure = failure }
+    /// Nil unless the test opted in, so other tests launch the saved spec unchanged.
+    func nextLaunchToken(offline: Bool) throws -> Int? {
+        offlineLaunches.append(offline)
+        if let launchFailure { throw launchFailure }
+        guard let launchTokens else { return nil }
+        self.launchTokens = launchTokens + 1; return launchTokens + 1
+    }
     func recordAppliedOptions(_ options: [String: String]) { appliedOptions.append(options) }
     func failPreparationOnce(_ step: String) { failedPreparationStep = step }
     func preparationRequired(changed: Bool) -> Bool {
@@ -143,6 +155,12 @@ private struct Content: Installer {
     func preparePrerequisites(_ plan: InstallPlan, at directory: URL, in bottle: GameBottle) async throws { try await events.checkPrerequisite() }
     func validate(_ plan: InstallPlan, at directory: URL, staging: InstallStaging) async throws -> LaunchSpec { try await events.preparationStep("validate"); return .init(executableRelativePath: "rebuilt.exe") }
     func applyRuntimeOptions(_ options: [String: String], plan: InstallPlan, at directory: URL) async throws { await events.recordAppliedOptions(options) }
+    func prepareLaunch(_ spec: LaunchSpec, plan: InstallPlan, at directory: URL, offline: Bool) async throws -> LaunchSpec {
+        guard let token = try await events.nextLaunchToken(offline: offline) else { return spec }
+        var launch = spec
+        launch.arguments += ["-token=\(token)"]
+        return launch
+    }
     func uninstall(_ plan: InstallPlan, at directory: URL) async throws {}
     func saveMapping(_ plan: InstallPlan) throws -> SaveMapping {
         .init(rules: [.init(root: .game, directory: "saves", pattern: "*.sav", cloudPrefix: "%GameInstall%saves")], coverage: .metadata)
@@ -323,6 +341,37 @@ final class SessionServiceTests: XCTestCase {
         XCTAssertEqual(applied.count, 2, "Source options must be re-applied on every launch")
         XCTAssertEqual(applied.last?["steam.overlay"], "1")
         await runner.emit(exit: 0); _ = try await wait(service, phase: .idle)
+    }
+    func testStoreLaunchArgumentsAreFreshOnEveryLaunchAndNeverSaved() async throws {
+        let catalog = try CatalogStore(), clock = TestClock(), events = Events(), runner = Runner(events), queue = Queue(events)
+        let game = try installed(catalog)
+        await events.issueLaunchTokens()
+        let service = try make(catalog, runner, queue, clock, events)
+        try await service.start(downloadWhilePlaying: false)
+        for token in 1...2 {
+            try await service.play(game.gameID)
+            _ = try await wait(service, phase: .launching)
+            let launched = await runner.lastLaunchSpec
+            XCTAssertEqual(launched?.arguments, ["-token=\(token)"])
+            await runner.emit(exit: 0); _ = try await wait(service, phase: .idle)
+        }
+        XCTAssertEqual(try catalog.snapshot().entries.first?.installation?.launchSpec.arguments, [])
+        let offline = await events.offlineLaunches
+        XCTAssertEqual(offline, [false, false])
+    }
+    func testFailedStoreLaunchPreparationReportsItsReasonWithoutLaunching() async throws {
+        let catalog = try CatalogStore(), clock = TestClock(), events = Events(), runner = Runner(events), queue = Queue(events)
+        let game = try installed(catalog)
+        await events.failLaunchPreparation(OperationFailure(stage: "Start game", reason: "The store needs to be online to start this game.", output: ""))
+        let service = try make(catalog, runner, queue, clock, events)
+        try await service.start(downloadWhilePlaying: false)
+        try await service.play(game.gameID)
+        let deadline = ContinuousClock.now.advanced(by: .seconds(3))
+        var snapshot = await current(service)
+        while snapshot.failure == nil, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(5)); snapshot = await current(service) }
+        XCTAssertEqual(snapshot.failure?.reason, "The store needs to be online to start this game.")
+        let launched = await runner.lastLaunchSpec
+        XCTAssertNil(launched)
     }
     private func installed(_ catalog: CatalogStore, id: String = "one") throws -> InstallationRecord {
         let game = SourceGameRecord(id: GameID(source: "fixture", value: id), title: id)

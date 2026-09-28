@@ -149,7 +149,7 @@ public struct OperationFailure: Codable, Equatable, Sendable, Error {
     }
 }
 public enum DiagnosticRedactor {
-    static let secretKey = #"(?:refresh_?token|access_?token|password|steam_?guard|guard_?code|shared_?secret|identity_?secret|sessionid|ticket|account_?name|username|challenge_?url)"#
+    static let secretKey = #"(?:refresh_?token|access_?token|password|steam_?guard|guard_?code|shared_?secret|identity_?secret|sessionid|ticket|account_?name|username|challenge_?url|exchange_?code|device_?code|epicuserid|epicusername)"#
     private static let expressions: [NSRegularExpression] = {
         // Redact headers, structured fields, query parameters, SteamIDs and JWTs before persistence.
         let prefix = #"(?i)([\"']?"# + secretKey + #"[\"']?\s*[:=]\s*)"#

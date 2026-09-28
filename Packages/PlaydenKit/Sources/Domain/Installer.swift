@@ -124,6 +124,9 @@ public protocol Installer: Sendable {
     func applyRuntimeOptions(_ options: [String: String], plan: InstallPlan, at directory: URL) async throws
     /// Source-side cleanup only. Removing the owned game directory/bottle is the orchestrator's job.
     func uninstall(_ plan: InstallPlan, at directory: URL) async throws
+    /// Adds what a store must hand the game fresh on every launch, such as sign-in codes. Runs right
+    /// before launch; the result is never saved or logged. `offline` is the player's offline choice.
+    func prepareLaunch(_ spec: LaunchSpec, plan: InstallPlan, at directory: URL, offline: Bool) async throws -> LaunchSpec
 }
 public extension Installer {
     func resolve(platform: GamePlatform) async throws -> InstallPlan {
@@ -155,6 +158,7 @@ public extension Installer {
         return mapping.coverage != .unknown && mapping.unresolved.isEmpty && mapping.rules.contains { $0.cloudPrefix != nil }
     }
     func applyRuntimeOptions(_ options: [String: String], plan: InstallPlan, at directory: URL) async throws {}
+    func prepareLaunch(_ spec: LaunchSpec, plan: InstallPlan, at directory: URL, offline: Bool) async throws -> LaunchSpec { spec }
     /// Unmodified sources can reuse their resumable downloader. Sources with staged originals
     /// must provide a repair implementation so backups are never replaced with modified files.
     func repair(_ plan: InstallPlan, at directory: URL, staging: InstallStaging?,

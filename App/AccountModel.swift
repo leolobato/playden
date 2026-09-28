@@ -76,6 +76,7 @@ extension LibraryModel {
                     case .qrChallenge(let url, let expiry): self.authQR = url; self.authExpiresAt = expiry; self.authMessage = "Waiting for your phone"
                     case .awaitingApproval: self.authScreen = .approval; self.authMessage = "Approve Playden in the Steam app on your phone."
                     case .expired: self.authQR = nil; self.authMessage = "Code expired · getting a new one…"
+                    case .deviceCode: break // Steam signs in with a QR code or a password.
                     }
                 }
             }
