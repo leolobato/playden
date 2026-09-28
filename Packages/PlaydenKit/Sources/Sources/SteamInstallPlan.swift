@@ -74,14 +74,18 @@ enum SteamPlanBuilder {
             platform: platform == .windows ? nil : platform)
     }
     static func selectedDepots(_ app: AppInfo, ownedApps: Set<UInt32>, ownedDepots: Set<UInt32>? = nil, platform: GamePlatform = .windows) throws -> [DepotInfo] {
-        let selected = app.depots.filter { depot in
+        let eligible = app.depots.filter { depot in
             SteamOS.matches(depot.osList, platform) && depot.isEnglishOrAll && !depot.isSharedInstall
                 && (ownedDepots?.contains(depot.id) ?? true)
                 && ((!depot.isDLC && depot.dlcAppID == nil) || depot.dlcAppID.map { ownedApps.contains($0) } == true)
         }
-        guard !selected.isEmpty else { throw failure("Resolve", "This game has no downloadable \(platform.title) content for English.") }
-        guard Set(selected.map(\.id)).count == selected.count,
-              selected.allSatisfy({ $0.manifestGID != nil && $0.manifestGID != 0 }) else { throw failure("Resolve", "The game’s \(platform.title) content is not available on its public branch.") }
+        guard !eligible.isEmpty else { throw failure("Resolve", "This game has no downloadable \(platform.title) content for English.") }
+        // Like the Steam client, skip depots with nothing on the public branch (beta-only or empty
+        // depots, as in DEMON'S TILT's Mac build); the game still needs at least one that has content.
+        let selected = eligible.filter { $0.manifestGID != nil && $0.manifestGID != 0 }
+        guard !selected.isEmpty, Set(selected.map(\.id)).count == selected.count else {
+            throw failure("Resolve", "The game’s \(platform.title) content is not available on its public branch.")
+        }
         return selected.sorted { $0.id < $1.id }
     }
     static func launchOptions(_ app: AppInfo, files: [DepotManifest.File], ownedApps: Set<UInt32>, platform: GamePlatform = .windows) throws -> [LaunchOption] {

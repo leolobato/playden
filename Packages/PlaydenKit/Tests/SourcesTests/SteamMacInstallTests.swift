@@ -82,6 +82,16 @@ final class SteamMacInstallTests: XCTestCase {
         let noMac = AppInfo(appID: 100, name: "Fixture", depots: [DepotInfo(id: 101, osList: "windows", manifestGID: 101)], launches: [])
         XCTAssertThrowsError(try SteamPlanBuilder.selectedDepots(noMac, ownedApps: [100], platform: .macOS))
     }
+    func testDepotsWithoutPublicContentAreSkipped() throws {
+        // DEMON'S TILT lists a beta-only and an empty Mac depot beside the real one.
+        let app = AppInfo(appID: 100, name: "Fixture", depots: [
+            DepotInfo(id: 101, osList: "windows", manifestGID: 101), DepotInfo(id: 102, osList: "macos", manifestGID: 102),
+            DepotInfo(id: 103, osList: "macos"), DepotInfo(id: 104, osList: "macos", manifestGID: 0),
+        ], launches: [])
+        XCTAssertEqual(try SteamPlanBuilder.selectedDepots(app, ownedApps: [100], platform: .macOS).map(\.id), [102])
+        let betaOnly = AppInfo(appID: 100, name: "Fixture", depots: [DepotInfo(id: 103, osList: "macos")], launches: [])
+        XCTAssertThrowsError(try SteamPlanBuilder.selectedDepots(betaOnly, ownedApps: [100], platform: .macOS))
+    }
 
     func testPOSIXArgumentsFollowShellQuoting() throws {
         XCTAssertEqual(try POSIXArguments.parse(#"-a 'single quoted' "double \"x\"" back\ slash"#), ["-a", "single quoted", #"double "x""#, "back slash"])
