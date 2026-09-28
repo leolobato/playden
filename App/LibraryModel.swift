@@ -20,6 +20,8 @@ enum Panel: Equatable {
     case firstRunFeedback(GameID)
     case downloadActions(GameID)
     case volumePicker(GameID?)
+    /// Games with Mac and Windows builds pick one before the install offer.
+    case platformPicker(GameID)
     case installOffer(GameID)
     case settingPicker(GameID, RuntimeSettingID)
     case profileChooser(GameID)
@@ -503,8 +505,8 @@ final class LibraryModel {
         case .downloadActions(let id): downloadActions(for: id)
         case .volumePicker(nil): installVolumeRows.flatMap { ["Use " + $0.name, "Make default"] } + ["Done"]
         case .volumePicker: enabledInstallVolumes.map { volumeLabel($0) } + ["Back"]
-        case .installOffer(let id): (resolvingInstall ? [installOffer == nil ? "Cancel" : "Close"] : installOfferError != nil ? ["Cancel", installOfferRequiresSignIn ? "Sign in" : "Retry"] : installOffer?.canInstall == true ? ["Cancel", "Install"] : ["Cancel", "Check space again"]) + (resolvingInstall ? [] : ["Choose volume…"])
-            + (resolvingInstall || installOfferRequiresSignIn ? [] : otherPlatform(for: id).map { ["Use \($0 == .macOS ? "Mac" : "Windows") version"] } ?? [])
+        case .platformPicker: installPlatformChoices.map(\.title) + ["Cancel"]
+        case .installOffer: (resolvingInstall ? [installOffer == nil ? "Cancel" : "Close"] : installOfferError != nil ? ["Cancel", installOfferRequiresSignIn ? "Sign in" : "Retry"] : installOffer?.canInstall == true ? ["Cancel", "Install"] : ["Cancel", "Check space again"]) + (resolvingInstall ? [] : ["Choose volume…"])
         case .filters: []
         case .compatibility: Compatibility.allCases.map(\.rawValue) + ["Edit note"]
         case .collections: collections.map(\.name) + ["New collection…"]
@@ -624,9 +626,13 @@ final class LibraryModel {
             if panel == .volumePicker(nil), case .move(let direction) = action {
                 moveInstallVolumeFocus(direction); return
             }
+            if case .installOffer = panel, case .move(let direction) = action, panelActions.contains("Choose volume…") {
+                moveInstallOfferFocus(direction); return
+            }
             switch action {
             case .back:
-                if case .volumePicker(let id) = panel, let id { beginInstall(id, volume: installDestination) }
+                if case .volumePicker(let id) = panel, let id { beginInstall(id, volume: installDestination, platform: installPlatform) }
+                else if case .installOffer(let id) = panel, offersPlatformChoice(id) { showPlatformPicker(id, focusing: installPlatform) }
                 else { panel = nil }
             case .move(let direction): panelIndex = min(max(0, panelIndex + (direction == .up || direction == .left ? -1 : 1)), max(0, panelActions.count - 1))
             case .confirm: activatePanel()
@@ -754,7 +760,7 @@ final class LibraryModel {
         case "Uninstall":
             if let id = focusedGame?.id { beginUninstall(id) }
         case "Install":
-            if !isPreview, let id = focusedGame?.id { beginInstall(id) }
+            if !isPreview, let id = focusedGame?.id { startInstall(id) }
             else if let id = focusedGame?.id { show(.confirmation(.install(id))) }
         case "Locate game": if let id = focusedGame?.id { showLocalGames(relocating: id) }
         case "Rename": if let id = focusedGame?.id { beginText(.renameGame(id)) }
@@ -777,16 +783,17 @@ final class LibraryModel {
             activateInstallVolumePicker()
         case .volumePicker(let id):
             if let volume = enabledInstallVolumes[safe: panelIndex] {
-                if let id { beginInstall(id, volume: volume) }
+                if let id { beginInstall(id, volume: volume, platform: installPlatform) }
                 else { setDefaultInstallVolume(volume); panel = nil }
-            } else if let id { beginInstall(id, volume: installDestination) }
+            } else if let id { beginInstall(id, volume: installDestination, platform: installPlatform) }
             else { panel = nil }
+        case .platformPicker(let id):
+            if let platform = installPlatformChoices[safe: panelIndex] { beginInstall(id, platform: platform) } else { panel = nil }
         case .installOffer(let id):
             if label == "Choose volume…" { show(.volumePicker(id)) }
-            else if label.hasPrefix("Use "), label.hasSuffix(" version") { beginInstall(id, volume: installDestination, platform: label.contains("Mac") ? .macOS : .windows) }
             else if panelIndex == 0 { panel = nil }
             else if installOfferRequiresSignIn { beginSignIn(resumingInstall: id) }
-            else if installOfferError != nil || installOffer?.canInstall != true { beginInstall(id, volume: installDestination) }
+            else if installOfferError != nil || installOffer?.canInstall != true { beginInstall(id, volume: installDestination, platform: installPlatform) }
             else { confirmInstall() }
         case .signOut:
             if panelIndex == 1 { signOut() } else { panel = nil }

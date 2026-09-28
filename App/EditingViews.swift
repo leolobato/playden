@@ -54,6 +54,46 @@ struct ConfirmDialog: View {
     private var isInstall: Bool { if case .install = intent { true } else { false } }
 }
 
+/// Picks the build before the install offer, which then shows only that build.
+struct PlatformPickerDialog: View {
+    @Bindable var model: LibraryModel
+    let gameID: GameID
+    var body: some View {
+        VStack(alignment: .leading, spacing: 28) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Install \(model.gameName(gameID))?").font(Design.condensed(40)).fixedSize(horizontal: false, vertical: true)
+                Text("This game has a Windows and a Mac version. Choose one to install.").font(Design.body(24)).foregroundStyle(Design.secondary)
+            }
+            VStack(spacing: 16) {
+                ForEach(Array(model.installPlatformChoices.enumerated()), id: \.offset) { index, platform in
+                    Button { model.panelIndex = index; model.activatePanel() } label: {
+                        HStack(spacing: 24) {
+                            Image(systemName: platform == .macOS ? "apple.logo" : "pc").font(.system(size: 34, weight: .medium)).frame(width: 48)
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(platform.title).font(Design.condensed(32))
+                                Text(platform == .macOS ? "Runs natively · Steam Cloud saves are Windows only for now" : "Runs with CrossOver · Steam Cloud saves")
+                                    .font(Design.body(22)).foregroundStyle(Design.secondary)
+                            }
+                            Spacer(minLength: 0)
+                        }.padding(.horizontal, 28).frame(maxWidth: .infinity, minHeight: 104)
+                            .background(Design.text.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Design.text.opacity(0.2), lineWidth: 2))
+                            .focusRing(model.panelIndex == index)
+                    }.buttonStyle(.plain)
+                }
+            }
+            HStack {
+                Spacer()
+                let cancel = model.installPlatformChoices.count
+                ActionButton(title: "Cancel", focused: model.panelIndex == cancel, reducedMotion: model.reducedMotion) {
+                    model.panelIndex = cancel; model.activatePanel()
+                }
+            }
+        }.padding(40).frame(width: 800).background(Design.panel, in: RoundedRectangle(cornerRadius: 12))
+            .shadow(color: .black.opacity(0.7), radius: 50, y: 40)
+    }
+}
+
 struct InstallOfferDialog: View {
     @Bindable var model: LibraryModel
     let gameID: GameID
@@ -65,8 +105,21 @@ struct InstallOfferDialog: View {
                     .font(Design.body(24, weight: "Medium")).foregroundStyle(Design.text)
             }
             if let destination = model.installDestination {
-                Text("Install on: " + model.volumeLabel(destination) + (destination.volumeID == model.gamesVolume?.volumeID ? " (default)" : ""))
-                    .font(Design.body(24)).foregroundStyle(Design.secondary)
+                HStack(spacing: 24) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(destination.volumeID == model.gamesVolume?.volumeID ? "Install on · default" : "Install on").font(Design.body(20)).foregroundStyle(Design.secondary)
+                        Text(model.volumeLabel(destination)).font(Design.body(24, weight: "Medium")).lineLimit(1).truncationMode(.middle)
+                        if model.volumeLabel(destination) != destination.lastKnownRoot.path {
+                            Text(destination.lastKnownRoot.path).font(Design.body(20)).foregroundStyle(Design.muted).lineLimit(1).truncationMode(.middle)
+                        }
+                    }
+                    Spacer(minLength: 0)
+                    if let index = model.panelActions.firstIndex(of: "Choose volume…") {
+                        ActionButton(title: "Choose volume…", focused: model.panelIndex == index, reducedMotion: model.reducedMotion) {
+                            model.panelIndex = index; model.activatePanel()
+                        }.fixedSize()
+                    }
+                }.padding(.horizontal, 24).padding(.vertical, 18).background(Design.text.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
             }
             if model.resolvingInstall {
                 HStack(spacing: 20) {
@@ -83,7 +136,6 @@ struct InstallOfferDialog: View {
                 VStack(alignment: .leading, spacing: 16) {
                     sizeLine("Space needed to install", offer.plan.estimate.requiredBytes)
                     sizeLine("Available after queued games", offer.availableBytes)
-                    Text(offer.volume.lastKnownRoot.path).font(Design.body(20)).foregroundStyle(Design.muted).lineLimit(2)
                 }
                 if !offer.canInstall {
                     Text("Free up \(bytes(offer.plan.estimate.requiredBytes - offer.availableBytes)) to install this game.")
@@ -92,12 +144,14 @@ struct InstallOfferDialog: View {
             }
             HStack(spacing: 20) {
                 ForEach(Array(model.panelActions.enumerated()), id: \.offset) { index, title in
-                    Button { model.panelIndex = index; model.activatePanel() } label: {
-                        Text(title).font(Design.condensed(28)).frame(maxWidth: .infinity).frame(height: 68)
-                            .background(index == 1 ? Design.accent.opacity(0.18) : Design.text.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
-                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(index == 1 ? Design.accent.opacity(0.5) : Design.text.opacity(0.2), lineWidth: 2))
-                            .focusRing(model.panelIndex == index)
-                    }.buttonStyle(.plain)
+                    if title != "Choose volume…" {
+                        Button { model.panelIndex = index; model.activatePanel() } label: {
+                            Text(title).font(Design.condensed(28)).frame(maxWidth: .infinity).frame(height: 68)
+                                .background(index == 1 ? Design.accent.opacity(0.18) : Design.text.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+                                .overlay(RoundedRectangle(cornerRadius: 8).stroke(index == 1 ? Design.accent.opacity(0.5) : Design.text.opacity(0.2), lineWidth: 2))
+                                .focusRing(model.panelIndex == index)
+                        }.buttonStyle(.plain)
+                    }
                 }
             }.padding(.top, 12)
         }.padding(40).frame(width: 800).background(Design.panel, in: RoundedRectangle(cornerRadius: 12))

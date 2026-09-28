@@ -132,6 +132,8 @@ struct ModalLayer: View {
                 SearchKeyboard(model: model).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if case .confirmation(let intent) = model.panel {
                 ConfirmDialog(model: model, intent: intent).frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if case .platformPicker(let gameID) = model.panel {
+                PlatformPickerDialog(model: model, gameID: gameID).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if case .installOffer(let gameID) = model.panel {
                 InstallOfferDialog(model: model, gameID: gameID).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if case .gameSettings(let gameID) = model.panel {

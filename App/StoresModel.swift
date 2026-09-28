@@ -279,6 +279,35 @@ extension LibraryModel {
         guard game.platforms.contains(.windows) else { return .macOS }
         return storedEdits[id]?.preferredPlatform ?? (preferMacVersions ? .macOS : .windows)
     }
+    /// Only a game that isn't installed yet chooses its build before the offer; an installed one switches instead.
+    func offersPlatformChoice(_ id: GameID) -> Bool {
+        guard let game = games.first(where: { $0.id == id }) else { return false }
+        return game.installedPlatform == nil && Set(game.platforms) == [.windows, .macOS]
+    }
+    /// The order the version picker lists builds in.
+    var installPlatformChoices: [GamePlatform] { [.windows, .macOS] }
+    /// Install starts with the version picker when the game has both builds.
+    func startInstall(_ id: GameID) {
+        guard offersPlatformChoice(id) else { beginInstall(id); return }
+        showPlatformPicker(id, focusing: defaultInstallPlatform(id))
+    }
+    func showPlatformPicker(_ id: GameID, focusing platform: GamePlatform) {
+        show(.platformPicker(id))
+        panelIndex = installPlatformChoices.firstIndex(of: platform) ?? 0
+    }
+    /// "Choose volume…" sits on the destination row above the other buttons.
+    func moveInstallOfferFocus(_ direction: Direction) {
+        let actions = panelActions
+        guard let volume = actions.firstIndex(of: "Choose volume…") else { return }
+        let buttons = actions.indices.filter { $0 != volume }
+        switch direction {
+        case .up: panelIndex = volume
+        case .down: if panelIndex == volume { panelIndex = buttons.last ?? 0 }
+        case .left, .right:
+            guard let position = buttons.firstIndex(of: panelIndex) else { return }
+            panelIndex = buttons[min(max(0, position + (direction == .left ? -1 : 1)), buttons.count - 1)]
+        }
+    }
     func otherPlatform(for id: GameID) -> GamePlatform? {
         guard let game = games.first(where: { $0.id == id }), Set(game.platforms) == [.windows, .macOS] else { return nil }
         return game.installedPlatform.map { $0 == .windows ? .macOS : .windows } ?? (installPlatform == .windows ? .macOS : .windows)

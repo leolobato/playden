@@ -21,12 +21,17 @@ import Installs
             model.gamesStorage = nil; model.gamesStorageError = "Reconnect your games drive. Storage will update automatically."
         }
         if let index = model.games.firstIndex(where: { $0.id == game.id }) { model.games[index].size = "2.1 GB" }
-        if screen.hasPrefix("install-offer") {
+        if screen == "install-platform-picker", let index = model.games.firstIndex(where: { $0.id == game.id }) {
+            model.games[index].platforms = [.windows, .macOS]
+            model.openGame(game)
+            model.showPlatformPicker(game.id, focusing: .macOS)
+        } else if screen.hasPrefix("install-offer") {
             if screen == "install-offer-platform", let index = model.games.firstIndex(where: { $0.id == game.id }) {
                 model.games[index].platforms = [.windows, .macOS]; model.installPlatform = .macOS
             }
             model.openGame(game)
             model.show(.installOffer(game.id))
+            model.installDestination = volume
             model.installOffer = .init(plan: plan, volume: volume, freeBytes: screen.hasSuffix("space") ? 5_000_000_000 : 206_000_000_000, reservedBytes: 1_000_000_000)
             model.panelIndex = 1
         } else {

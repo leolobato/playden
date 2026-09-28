@@ -30,6 +30,11 @@ private actor InteractionQueue: InstallQueuing {
         catch { cancelledOffers += 1; throw error }
         return .init(plan: result.plan, volume: volume, freeBytes: result.availableBytes, reservedBytes: 0)
     }
+    var offeredPlatforms: [GamePlatform] = []
+    func offer(for game: SourceGameRecord, volume: GamesVolumeSelection, platform: GamePlatform) async throws -> InstallOffer {
+        offeredPlatforms.append(platform)
+        return try await offer(for: game, volume: volume)
+    }
     func enqueue(_ offer: InstallOffer) async throws -> UUID { enqueued.append(offer); return UUID() }
     func uninstall(_ authorization: UninstallAuthorization) async throws -> UUID { throw SourceFailure.unavailable }
     func repair(_ gameID: GameID) async throws -> UUID { throw SourceFailure.unavailable }
@@ -100,6 +105,34 @@ final class InstallInteractionTests: XCTestCase {
         XCTAssertEqual(enqueued.first?.volume, second)
         model.beginInstall(id); await model.installOfferTask?.value
         XCTAssertEqual(model.installOffer?.volume, offer.volume)
+    }
+
+    @MainActor func testTwoBuildGamesPickAVersionBeforeTheOffer() async throws {
+        var game = offer().plan.game; game.platforms = [.windows, .macOS]
+        let plan = InstallPlan(game: game, manifestIDs: [:], estimate: offer().plan.estimate, launchSpec: offer().plan.launchSpec, sourcePayload: Data())
+        let offer = InstallOffer(plan: plan, volume: offer().volume, freeBytes: 10_000, reservedBytes: 0), queue = InteractionQueue(offer)
+        let model = try model(queue, offer: offer)
+        defer { model.stopServices() }
+        model.detailID = id
+        model.activateGameAction("Install")
+        XCTAssertEqual(model.panel, .platformPicker(id))
+        XCTAssertEqual(model.panelActions, ["Windows", "macOS", "Cancel"])
+        XCTAssertEqual(model.panelIndex, 1, "Focus starts on the preferred Mac version")
+        model.perform(.move(.up)); model.perform(.confirm); await model.installOfferTask?.value
+        XCTAssertEqual(model.panel, .installOffer(id))
+        XCTAssertEqual(model.installPlatform, .windows)
+        XCTAssertEqual(model.panelActions, ["Cancel", "Install", "Choose volume…"], "The offer no longer switches versions")
+        model.perform(.move(.up)); XCTAssertEqual(model.panelIndex, 2, "Up reaches Choose volume on the destination row")
+        model.perform(.move(.down)); XCTAssertEqual(model.panelIndex, 1)
+        model.perform(.move(.right)); XCTAssertEqual(model.panelIndex, 1, "Left and right stay on the bottom buttons")
+        model.panelIndex = 2; model.activatePanel(); model.perform(.back); await model.installOfferTask?.value
+        XCTAssertEqual(model.panel, .installOffer(id)); XCTAssertEqual(model.installPlatform, .windows, "Changing volume keeps the version")
+        model.perform(.back)
+        XCTAssertEqual(model.panel, .platformPicker(id)); XCTAssertEqual(model.panelIndex, 0, "Back returns to the picker on the chosen version")
+        model.panelIndex = 2; model.activatePanel()
+        XCTAssertNil(model.panel)
+        let platforms = await queue.offeredPlatforms
+        XCTAssertEqual(platforms, [.windows, .windows])
     }
 
     @MainActor func testExpiredInstallCanSignInAndReturnsToConfirmation() async throws {
