@@ -12,6 +12,8 @@ struct DisplayChoice: Identifiable, Equatable {
     var uuid: String? = nil
 }
 
+enum SetupStoreChoice: Equatable { case account(String), local, finish }
+
 extension LibraryModel {
     func openBluetoothSettings() {
         if let url = URL(string: "x-apple.systempreferences:com.apple.BluetoothSettings") { NSWorkspace.shared.open(url) }
@@ -116,7 +118,7 @@ extension LibraryModel {
         switch setupScreen {
         case .controller: [controllerName == nil ? "Continue with keyboard" : "Continue", "Open Bluetooth settings"]
         case .permissions: ["Continue", "Open App Management", "Open Files & Folders"]
-        case .games: [identity == nil ? "Sign in to Steam" : "Signed in to Steam", "Add games on this Mac", games.isEmpty && identity == nil ? "Skip for now" : "Continue"]
+        case .games: setupStoreChoices.map(setupStoreLabel)
         case .display: displays.map { $0.name } + ["Back"]
         case .audio: ["System default"] + audioDevices.map(\.name) + ["Back"]
         case .volume:
@@ -172,9 +174,9 @@ extension LibraryModel {
             if setupIndex == 0 { advanceToAccount() }
             else { openPermissionSettings(appManagement: setupIndex == 1) }
         case .games:
-            switch setupIndex {
-            case 0: if identity == nil { setupScreen = .account; beginSignIn() }
-            case 1: showLocalGames()
+            switch setupStoreChoices[safe: setupIndex] {
+            case .account(let id): if account(id).identity == nil { setupScreen = .account; beginSignIn(id) }
+            case .local: showLocalGames()
             // The games drive and CrossOver are only needed once a download store is connected.
             default: if signedInToDownloadStore { openVolumeSetup(firstRun: true) } else { finishSetup() }
             }
@@ -196,8 +198,23 @@ extension LibraryModel {
         default: break
         }
     }
+    /// First run's "Add your games": each account store, then This Mac, then Continue.
+    var setupStoreChoices: [SetupStoreChoice] {
+        [.account(primaryAccountID)] + otherAccountSources.map { .account($0.id) } + [.local, .finish]
+    }
+    private func setupStoreLabel(_ choice: SetupStoreChoice) -> String {
+        switch choice {
+        case .account(let id): "\(account(id).identity == nil ? "Sign in to" : "Signed in to") \(accountName(id))"
+        case .local: "Add games on this Mac"
+        case .finish: games.isEmpty && !signedInToDownloadStore ? "Skip for now" : "Continue"
+        }
+    }
     private func advanceToAccount() {
-        if localSource != nil { setupScreen = .games; setupIndex = identity == nil ? 0 : 2; return }
+        if localSource != nil || !otherAccountSources.isEmpty {
+            setupScreen = .games
+            setupIndex = signedInToDownloadStore ? setupStoreChoices.count - 1 : 0
+            return
+        }
         setupScreen = .account
         if signedInToDownloadStore { openVolumeSetup(firstRun: true) }
         else { beginSignIn() }

@@ -162,6 +162,20 @@ final class MultiAccountInteractionTests: XCTestCase {
         XCTAssertEqual(signOuts, 1)
     }
 
+    @MainActor func testFirstRunOffersEachStoreAndSignsInToTheChosenOne() async throws {
+        let model = LibraryModel(preview: false, source: PrimarySource(), otherSources: [DeviceCodeSource(auth: DeviceCodeAuth())])
+        defer { model.stopServices() }
+        model.setupScreen = .games; model.setupIndex = 0
+        XCTAssertEqual(model.setupActions, ["Sign in to Steam", "Sign in to Epic Games", "Add games on this Mac", "Skip for now"])
+        model.setupIndex = 1; model.perform(.confirm)
+        XCTAssertEqual(model.setupScreen, .account)
+        XCTAssertEqual(model.authScreen, .deviceCode)
+        XCTAssertEqual(model.authSourceID, SourceID.epic)
+        model.perform(.back)
+        XCTAssertEqual(model.setupScreen, .games)
+        XCTAssertEqual(model.setupActions[model.setupIndex], "Add games on this Mac")
+    }
+
     @MainActor func testStoreWithoutSteamStillGetsDownloadsAndFirstRunDriveSetup() async throws {
         let catalog = try CatalogStore()
         let model = LibraryModel(catalog: catalog, preview: false, otherSources: [DeviceCodeSource(auth: DeviceCodeAuth())])

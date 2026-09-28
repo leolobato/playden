@@ -93,6 +93,10 @@ struct SetupView: View {
     private var storeInstructions: some View {
         VStack(alignment: .leading, spacing: 32) {
             permissionCard("Steam", symbol: StoreNames.symbol(SourceID.steam), text: model.identity.map { "Signed in as \($0.displayName). Windows games install with CrossOver; games with a Mac version can install natively." } ?? "Scan a QR code with the Steam app. Playden installs your games; CrossOver runs the Windows ones.")
+            ForEach(model.otherAccountSources.map(\.id), id: \.self) { id in
+                permissionCard(model.accountName(id), symbol: StoreNames.symbol(id), text: model.account(id).identity.map { "Signed in as \($0.displayName). Windows games install with CrossOver." }
+                    ?? "Enter a code on your phone to sign in. Playden installs your games; CrossOver runs them.")
+            }
             permissionCard("This Mac", symbol: StoreNames.symbol(SourceID.local), text: model.games.contains { $0.id.source == SourceID.local } ? "\(model.games.filter { $0.id.source == SourceID.local }.count) games added. Playden launches them and never changes their files." : "Mac games already in your Applications or Games folders. Playden launches them and never changes their files.")
         }
     }

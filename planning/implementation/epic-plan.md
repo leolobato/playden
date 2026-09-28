@@ -99,12 +99,12 @@ created by `scripts/epic-sign-in.sh` (the `epic-dev` tool in `EpicKit`), which a
 
 ## Step 7 — UI
 
-- [ ] The device-code sign-in screen: code, URL, QR, countdown, the Fortnite note, a new code on
+- [x] The device-code sign-in screen: code, URL, QR, countdown, the Fortnite note, a new code on
   expiry.
-- [ ] The Stores row for Epic (Sign in/out, Refresh, last sync or error). The first-run Epic card.
-- [ ] The game page: "Needs the EA app / Ubisoft Connect", the offline block reason, and the
-  anti-cheat notice.
-- [ ] App tests.
+- [x] The Stores row for Epic (Sign in/out, Refresh, last sync or error). The first-run Epic card.
+- [ ] Later: the game page's "Needs the EA app / Ubisoft Connect" and anti-cheat notices. EA and
+  Ubisoft titles are skipped for now; the offline reason is reported when Play is pressed.
+- [x] App tests.
 
 ## Step 8 — Acceptance and docs
 

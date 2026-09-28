@@ -7,11 +7,18 @@ struct AuthenticationView: View {
         ZStack(alignment: .topLeading) {
             Design.background
             LinearGradient(colors: [Design.accent.opacity(0.06), .clear], startPoint: .topTrailing, endPoint: .bottomLeading)
-            SectionLabel(text: model.onboarding ? "Set up · Step 3 of 5" : "Your Steam library").offset(x: 96, y: 60)
+            SectionLabel(text: model.onboarding ? "Set up · Step 3 of 5" : "Your \(storeName) library").offset(x: 96, y: 60)
             VStack(alignment: .leading, spacing: 34) {
-                Text(model.authScreen == .qr ? "Your games.\nReady to play." : model.authScreen == .credentials ? "Sign in to Steam" : "One more step").font(Design.condensed(72))
-                Text(model.authScreen == .qr ? "Scan the code with Steam on your phone, then approve Playden to bring your library here." : model.authScreen == .credentials ? "Use your Steam account name and password. You may also need a Steam Guard code." : model.authMessage)
-                    .font(Design.body(30)).foregroundStyle(Design.secondary).lineSpacing(8)
+                Text(title).font(Design.condensed(72))
+                Text(message).font(Design.body(30)).foregroundStyle(Design.secondary).lineSpacing(8)
+                if model.authScreen == .deviceCode, let prompt = model.authDeviceCode {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(prompt.verificationURL.host.map { $0.replacingOccurrences(of: "www.", with: "") + prompt.verificationURL.path } ?? prompt.verificationURL.absoluteString)
+                            .font(Design.body(28, weight: "Medium")).foregroundStyle(Design.secondary)
+                        Text(prompt.userCode).font(.system(size: 96, weight: .semibold, design: .monospaced)).kerning(12)
+                            .accessibilityLabel("Code \(prompt.userCode.map(String.init).joined(separator: " "))")
+                    }
+                }
                 if let error = model.authError {
                     Label(error, systemImage: "exclamationmark.circle").font(Design.body(24)).foregroundStyle(Design.amber).fixedSize(horizontal: false, vertical: true)
                 }
@@ -25,12 +32,19 @@ struct AuthenticationView: View {
                     }.padding(.top, 18)
                 }
             }.frame(width: 760, alignment: .leading).offset(x: 96, y: 240)
-            if model.authScreen == .qr {
+            if model.authScreen == .qr || model.authScreen == .deviceCode {
                 VStack(spacing: 30) {
                     QRCodeView(url: model.authQR).frame(width: 560, height: 560)
                     HStack(spacing: 14) {
                         if model.authError == nil { ProgressView().controlSize(.small).tint(Design.accent) }
                         Text(model.authMessage).font(Design.body(24, weight: "Medium"))
+                    }
+                    if model.authScreen == .deviceCode, let expiry = model.authExpiresAt, model.authError == nil {
+                        TimelineView(.periodic(from: .now, by: 1)) { context in
+                            let seconds = max(0, Int(expiry.timeIntervalSince(context.date)))
+                            Text("Code expires in \(seconds / 60):\(String(format: "%02d", seconds % 60))")
+                                .font(Design.body(22)).foregroundStyle(Design.secondary).monospacedDigit()
+                        }
                     }
                 }.offset(x: 1110, y: 190)
             } else if model.authScreen == .credentials {
@@ -66,6 +80,24 @@ struct AuthenticationView: View {
                 LegendItem(glyph: model.controllerName == nil || model.keyboardNavigation ? "ESC" : model.controllerBackGlyph, title: "Back")
             }.offset(x: 96, y: 986)
         }.frame(width: 1920, height: 1080)
+    }
+    private var storeName: String { model.accountName(model.authSourceID ?? model.primaryAccountID) }
+    private var title: String {
+        switch model.authScreen {
+        case .qr: "Your games.\nReady to play."
+        case .credentials: "Sign in to Steam"
+        case .deviceCode: "Sign in to \(storeName)"
+        default: "One more step"
+        }
+    }
+    private var message: String {
+        switch model.authScreen {
+        case .qr: "Scan the code with Steam on your phone, then approve Playden to bring your library here."
+        case .credentials: "Use your Steam account name and password. You may also need a Steam Guard code."
+        case .deviceCode where model.authError == nil && model.authDeviceCode != nil:
+            "Scan the code with your phone, or open this page and enter the code. Sign in and approve Playden. The page shows Fortnite branding; that’s expected."
+        default: model.authMessage
+        }
     }
 }
 private struct QRCodeView: View {

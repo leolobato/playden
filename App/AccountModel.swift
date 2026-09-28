@@ -221,7 +221,11 @@ extension LibraryModel {
     private func leaveAuthentication() {
         cancelAuthentication()
         // With This Mac available, leaving sign-in returns to the choice of stores.
-        if setupScreen == .account { if localSource != nil { setupScreen = .games; setupIndex = 1 } else { openVolumeSetup(firstRun: true) } }
+        if setupScreen == .account {
+            if localSource != nil || !otherAccountSources.isEmpty {
+                setupScreen = .games; setupIndex = setupStoreChoices.firstIndex(of: .local) ?? 0
+            } else { openVolumeSetup(firstRun: true) }
+        }
     }
     /// Steam, and every other store the player is signed in to.
     func refreshLibrary() {
