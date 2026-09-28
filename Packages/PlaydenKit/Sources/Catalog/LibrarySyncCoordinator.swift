@@ -35,6 +35,8 @@ public actor LibrarySyncCoordinator {
         let pending = try catalog.snapshot().entries.filter {
             $0.id.source == source.id && ($0.source.metadataUpdatedAt ?? .distantPast) < cutoff && ownedIDs.contains($0.id)
         }.map(\.source)
+            // Steam throttles long refreshes; the stalest records go first so a cut-off run still reaches them.
+            .sorted { ($0.metadataUpdatedAt ?? .distantPast) < ($1.metadataUpdatedAt ?? .distantPast) }
         var result = LibrarySyncResult(ownedCount: owned.count, metadataUpdated: 0, metadataFailed: 0)
         try await withThrowingTaskGroup(of: (GameID, Result<SourceGameRecord, Error>).self) { group in
             var iterator = pending.makeIterator()

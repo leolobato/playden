@@ -17,9 +17,15 @@ private struct FixtureSource: GameSource {
     var records: [SourceGameRecord]
     var error: SourceFailure?
     var metadataError: SourceFailure?
+    /// Metadata requests after this many succeed are throttled, like a long Steam refresh.
+    var metadataLimit = Int.max
+    let requested = Requested()
+    final class Requested: @unchecked Sendable { var ids: [String] = []; let lock = NSLock() }
     func ownedGames() async throws -> [SourceGameRecord] { if let error { throw error }; return records }
     func metadata(for game: SourceGameRecord) async throws -> SourceGameRecord {
         if let metadataError { throw metadataError }
+        let count = requested.lock.withLock { requested.ids.append(game.id.value); return requested.ids.count }
+        if count > metadataLimit { throw SourceFailure.throttled }
         var result = game; result.summary = "Enriched"; result.metadataUpdatedAt = .now; return result
     }
 }
@@ -53,5 +59,17 @@ final class LibrarySyncTests: XCTestCase {
         let result = try await sync.refresh(source: FixtureSource(records: [record], metadataError: .throttled))
         XCTAssertEqual(result.ownedCount, 1); XCTAssertEqual(result.metadataUpdated, 0); XCTAssertEqual(result.metadataFailed, 1)
         XCTAssertEqual(try store.snapshot().entries.map(\.source), [record])
+    }
+    func testThrottledRefreshReachesTheStalestMetadataFirst() async throws {
+        let recent = Date.now.addingTimeInterval(-7 * 3600), old = Date.now.addingTimeInterval(-7 * 24 * 3600)
+        let records = [SourceGameRecord(id: GameID(source: "fixture", value: "a"), title: "A", metadataUpdatedAt: recent),
+                       SourceGameRecord(id: GameID(source: "fixture", value: "b"), title: "B", metadataUpdatedAt: recent),
+                       SourceGameRecord(id: GameID(source: "fixture", value: "t"), title: "T", metadataUpdatedAt: old)]
+        let store = try CatalogStore()
+        try store.replaceSourceCatalog(source: "fixture", games: records)
+        let source = FixtureSource(records: records.map { SourceGameRecord(id: $0.id, title: $0.title) }, metadataLimit: 1)
+        let result = try await LibrarySyncCoordinator(catalog: store, metadataDelay: .zero).refresh(source: source)
+        XCTAssertEqual(result.metadataUpdated, 1)
+        XCTAssertEqual(try store.snapshot().entries.first { $0.id.value == "t" }?.source.summary, "Enriched")
     }
 }
