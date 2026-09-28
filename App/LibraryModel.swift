@@ -321,7 +321,7 @@ final class LibraryModel {
         if let cloud { self.cloudService = cloud }
         else if !preview, let catalog, let steam = source as? SteamSource {
             let access = CloudSaveAccess(catalog: catalog, storage: InstallStorage(volumes: volumeStore ?? GamesVolumeStore()),
-                bottles: CrossOverGameBottles(runtime: runtime ?? CrossOverRuntime()))
+                bottles: CrossOverGameBottles(runtime: runtime ?? CrossOverRuntime()), emulatorSaves: SteamInstaller.defaultEmulatorSaves)
             self.cloudService = CloudSyncService(catalog: catalog, reader: SteamCloudReader(account: steam.account),
                 writer: SteamCloudUploader(account: steam.account), roots: { try await access.roots(for: $0) },
                 validateUploads: { installed, uploads, deleting in
@@ -480,7 +480,7 @@ final class LibraryModel {
             return ["Rename", "Remove from library"] + (steamVersion(of: game) != nil && game.usesSteamClient ? ["Show Steam version"] : [])
         }
         guard game.status == .installed else { return [] }
-        let cloud = game.installedPlatform == .macOS ? [] : ["Cloud saves"]
+        let cloud = ["Cloud saves"]
         let switchVersion = otherPlatform(for: game.id).map { ["Switch to \($0 == .macOS ? "Mac" : "Windows") version"] } ?? []
         return (primary == "Verify files" ? [] : ["Verify files"]) + ["Uninstall"] + cloud + switchVersion
     }

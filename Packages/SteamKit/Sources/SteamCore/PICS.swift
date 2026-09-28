@@ -86,12 +86,18 @@ public struct SaveFilePattern: Codable, Equatable, Sendable {
 public struct UFS: Codable, Equatable, Sendable {
     public let quota: Int
     public let maxNumFiles: Int
+    /// Save locations for the Windows build, with Windows root overrides applied.
     public let saveFilePatterns: [SaveFilePattern]
+    /// Save locations for the macOS build, with macOS root overrides applied. Absent in plans
+    /// saved before Mac Cloud support, whose app info must be fetched again.
+    public let macSaveFilePatterns: [SaveFilePattern]?
 
-    public init(quota: Int = 0, maxNumFiles: Int = 0, saveFilePatterns: [SaveFilePattern] = []) {
+    public init(quota: Int = 0, maxNumFiles: Int = 0, saveFilePatterns: [SaveFilePattern] = [],
+                macSaveFilePatterns: [SaveFilePattern]? = nil) {
         self.quota = quota
         self.maxNumFiles = maxNumFiles
         self.saveFilePatterns = saveFilePatterns
+        self.macSaveFilePatterns = macSaveFilePatterns
     }
 }
 
@@ -241,13 +247,22 @@ public extension CMClient {
 
     private static func parseUFS(_ root: VDF) -> UFS {
         guard let node = root["ufs"] else { return UFS() }
+        return UFS(quota: Int(node["quota"]?.stringValue ?? "0") ?? 0,
+                   maxNumFiles: Int(node["maxnumfiles"]?.stringValue ?? "0") ?? 0,
+                   saveFilePatterns: saveFilePatterns(node, os: "windows"),
+                   macSaveFilePatterns: saveFilePatterns(node, os: "macos"))
+    }
+
+    /// Steam names platforms "Windows", "MacOS" and "Linux" in `os`, `oslist` and `platforms`.
+    private static func saveFilePatterns(_ node: VDF, os wanted: String) -> [SaveFilePattern] {
+        func same(_ value: Substring) -> Bool { value.trimmingCharacters(in: .whitespaces).lowercased() == wanted }
         let overrides: [RootOverride] = node["rootoverrides"]?.entries.compactMap { _, value in
             let os = value["os"]?.stringValue ?? ""
             let osList = value["oslist"]?.stringValue ?? ""
-            guard os.caseInsensitiveCompare("Windows") == .orderedSame
-                    || osList.split(separator: ",").contains(where: {
-                        $0.trimmingCharacters(in: .whitespaces).caseInsensitiveCompare("windows") == .orderedSame
-                    }) else { return nil }
+            // `oscompare` "!=" applies the override to every other platform.
+            let matches = os.isEmpty ? osList.split(separator: ",").contains(where: same)
+                : (value["oscompare"]?.stringValue == "!=") != same(Substring(os))
+            guard matches else { return nil }
             return RootOverride(
                 from: PathType.from(value["root"]?.stringValue),
                 to: PathType.from(value["useinstead"]?.stringValue),
@@ -257,9 +272,9 @@ public extension CMClient {
                 } ?? [])
         } ?? []
 
-        let patterns: [SaveFilePattern] = node["savefiles"]?.entries.compactMap { _, saveFile in
+        return node["savefiles"]?.entries.compactMap { _, saveFile in
             let platforms = saveFile["platforms"]?.entries.compactMap { $0.1.stringValue?.lowercased() } ?? []
-            if !platforms.isEmpty && !platforms.contains("windows") { return nil }
+            if !platforms.isEmpty && !platforms.contains(wanted) { return nil }
             let originalRoot = PathType.from(saveFile["root"]?.stringValue)
             let rawPath = saveFile["path"]?.stringValue ?? ""
             let originalPath = rawPath == "." || rawPath == "/" ? "" : rawPath
@@ -283,9 +298,6 @@ public extension CMClient {
                 uploadRoot: originalRoot,
                 uploadPath: originalPath)
         } ?? []
-        return UFS(quota: Int(node["quota"]?.stringValue ?? "0") ?? 0,
-                   maxNumFiles: Int(node["maxnumfiles"]?.stringValue ?? "0") ?? 0,
-                   saveFilePatterns: patterns)
     }
 
     // MARK: depot keys

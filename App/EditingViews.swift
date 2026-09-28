@@ -71,7 +71,7 @@ struct PlatformPickerDialog: View {
                             Image(systemName: platform == .macOS ? "apple.logo" : "pc").font(.system(size: 34, weight: .medium)).frame(width: 48)
                             VStack(alignment: .leading, spacing: 6) {
                                 Text(platform.title).font(Design.condensed(32))
-                                Text(platform == .macOS ? "Runs natively · Steam Cloud saves are Windows only for now" : "Runs with CrossOver · Steam Cloud saves")
+                                Text(platform == .macOS ? "Runs natively · Steam Cloud saves" : "Runs with CrossOver · Steam Cloud saves")
                                     .font(Design.body(22)).foregroundStyle(Design.secondary)
                             }
                             Spacer(minLength: 0)
@@ -101,7 +101,7 @@ struct InstallOfferDialog: View {
         VStack(alignment: .leading, spacing: 28) {
             Text("Install \(model.gameName(gameID))?").font(Design.condensed(40)).fixedSize(horizontal: false, vertical: true)
             if let platforms = model.games.first(where: { $0.id == gameID })?.platforms, platforms.count > 1 || model.installPlatform == .macOS {
-                Text(model.installPlatform == .macOS ? "Mac version · Steam Cloud saves are Windows only for now" : "Windows version · runs with CrossOver")
+                Text(model.installPlatform == .macOS ? "Mac version · runs natively" : "Windows version · runs with CrossOver")
                     .font(Design.body(24, weight: "Medium")).foregroundStyle(Design.text)
             }
             if let destination = model.installDestination {

@@ -185,7 +185,7 @@ struct BottomBar: View {
                     .onTapGesture { model.showGameControls() }
             }
             Spacer(minLength: 0)
-            if model.detailID != nil, let game = model.focusedGame, game.status == .installed, !game.isExternal, game.installedPlatform != .macOS,
+            if model.detailID != nil, let game = model.focusedGame, game.status == .installed, !game.isExternal,
                model.liveJob(for: game.id).map({ $0.kind != .uninstall || $0.state == .completed }) ?? true { CloudStatusLabel(model: model, gameID: game.id) }
             if model.detailID == nil && model.tab != .downloads && model.tab != .settings, let download = model.activeDownload {
                 if !model.isPreview, let job = model.liveJob(for: download.id) {

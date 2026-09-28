@@ -50,8 +50,8 @@ platform behavior.
    database. Adding the same app again restores them (FR-LOCAL-14).
 9. **Warn about Steam-dependent Mac apps.** If a This Mac app contains `libsteam_api.dylib`, the
    game page warns that it may need the Steam client (FR-LOCAL-17).
-10. **Steam Cloud sync for macOS builds waits for v2** (FR-SMAC-9). A macOS build has no Steam
-    Cloud sync in v1.
+10. **macOS builds sync Steam Cloud saves from their declared home-folder locations** (FR-SMAC-9).
+    Playden reads and writes only the exact subfolders Steam declares for the Mac build.
 11. ***Prefer macOS versions* is on by default for every game**, including games already rated
     Works on Windows (FR-SMAC-2). The preselection is only a default: the player's last choice for
     a game still wins.
@@ -431,14 +431,25 @@ it as `source: (any GameSource)?`. `InstallQueue` and `SessionService` already a
   `applyRuntimeOptions` go there, so they never change the signed bundle. The CrossOver runtime
   profile sheet is hidden for Mac builds. **(v2):** a *Steam emulator* section in game settings for
   Mac builds; v1 uses the defaults (overlay off).
-- **FR-SMAC-9 (v1):** **Cloud saves are Windows only for now.** macOS save rules
-  (`ufs.savefiles` with `platforms: MacOS`, and roots such as `MacAppSupport` and `MacHome`) point
-  outside the game folder. Today the save store resolves only the `game` and `bottle` roots.
-  - In v1, a macOS build has no Steam Cloud sync (decision 10). The install offer and the game
-    page say "Steam Cloud saves: Windows version only for now".
-  - **(v2):** a `SaveRoot.home` that resolves only an exact declared list of `~/Library` and
-    `~/Documents` subfolders, and never the home folder itself. It reuses `CloudSyncService`
-    unchanged.
+- **FR-SMAC-9 (v2):** **Steam Cloud saves for macOS builds.** The app info parser keeps the macOS
+  save rules separately from the Windows ones (`UFS.macSaveFilePatterns`): `savefiles` entries for
+  `MacOS` or for every platform, with `rootoverrides` for `os: MacOS` applied.
+  - An override keeps the original Cloud name. For example, TUNIC saves under
+    `%WinAppDataLocalLow%Andrew Shouldice/Secret Legend/SAVES` on both builds, so the Windows and Mac
+    versions share one save. A Mac-only entry (DEMON'S TILT) uses its own `%MacAppSupport%` name.
+  - Two save roots serve Mac builds. `SaveRoot.home` is the player's home folder, used only through
+    the declared subfolders: `MacAppSupport` is `Library/Application Support/<path>` and `MacHome` is
+    `<path>`. A rule with an empty path is unresolved, so Playden never syncs all of Application
+    Support or the home folder. `SaveRoot.emulator` is `Steam Emulator/<appid>`, the Steam emulator's
+    save root. It holds the Steam API saves (`<appid>/remote`) and the emulator's account
+    (`settings/configs.user.ini`).
+  - Before a sync, `CloudSaveAccess` checks that no process runs from the game's app bundle. Mac
+    builds have no bottle.
+  - Sync reuses `CloudSyncService` unchanged. On the first sync, local files that differ from the
+    Cloud copy are conflicts, and Playden keeps a local snapshot before it changes anything. This
+    matters because the home-folder saves can also belong to a Steam-client copy of the game.
+  - Plans saved before this change have no Mac save rules. The game page offers no Cloud sync
+    until the game is reinstalled.
 - **FR-SMAC-10 (v1):** **Uninstall** removes the owned install folder. There is no bottle. macOS
   saves live in the player's Library folder, not in the game folder, so uninstall does not touch
   them, and the confirmation says so.

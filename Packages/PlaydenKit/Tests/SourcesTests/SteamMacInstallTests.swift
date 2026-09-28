@@ -135,7 +135,8 @@ final class SteamMacInstallTests: XCTestCase {
         let again = try await installer.postInstall(plan, at: directory, in: bottle)
         XCTAssertEqual(Set(again.mutations.map(\.relativePath)), Set(staging.mutations.map(\.relativePath)), "Preparing again reuses the kept originals")
 
-        XCTAssertEqual(try installer.saveMapping(plan), SaveMapping(), "Steam Cloud waits for v2 on Mac builds")
+        XCTAssertEqual(try installer.saveMapping(plan).unresolved, ["Reinstall this game to sync its saves with Steam Cloud."],
+                       "Plans saved before Mac Cloud support have no Mac save locations")
         XCTAssertFalse(try installer.supportsCloudSaves(plan))
     }
 

@@ -22,37 +22,43 @@ extension SteamInstaller {
         guard declaration.version == 1, String(declaration.app.appID) == gameID.value else {
             throw SteamPlanBuilder.failure("Cloud availability", "The saved Cloud declaration is invalid.")
         }
-        // Steam Cloud for Mac builds waits for v2: their saves live outside the game folder.
-        guard plan.resolvedPlatform == .windows else { return false }
-        let mapping = SteamSaveMapping.build(declaration.app.ufs, appID: declaration.app.appID)
+        let mapping = SteamSaveMapping.build(declaration.app.ufs, appID: declaration.app.appID, platform: plan.resolvedPlatform)
         return mapping.coverage != .unknown && mapping.unresolved.isEmpty && mapping.rules.contains { $0.cloudPrefix != nil }
     }
 
     public func saveMapping(_ plan: InstallPlan) throws -> SaveMapping {
         let payload = try SteamPlanBuilder.payload(plan, for: gameID)
-        // Mac builds save in the player's Library folder, which Playden neither syncs nor removes.
-        guard payload.platform != .macOS else { return SaveMapping() }
-        return SteamSaveMapping.build(payload.app.ufs, appID: payload.app.appID)
+        return SteamSaveMapping.build(payload.app.ufs, appID: payload.app.appID, platform: payload.platform ?? .windows)
     }
 }
 
 enum SteamSaveMapping {
-    static func build(_ ufs: UFS, appID: UInt32? = nil) -> SaveMapping {
-        // This is the exact synthetic-account save root written by SteamInstaller.postInstall.
+    static func build(_ ufs: UFS, appID: UInt32? = nil, platform: GamePlatform = .windows) -> SaveMapping {
+        let mac = platform == .macOS
+        // The emulator's save root: inside the bottle on Windows (written by SteamInstaller.postInstall),
+        // Playden's `Steam Emulator/<appid>` folder on macOS (`local_save_path` in prepareMac).
         // It retains GBE remote-storage files and settings, but is not itself a Cloud mapping.
-        var rules = [SaveRule(root: .bottle, directory: "drive_c/Program Files (x86)/Steam/userdata/0")]
+        let emulator: (SaveRoot, String) = mac ? (.emulator, "") : (.bottle, "drive_c/Program Files (x86)/Steam/userdata/0")
+        var rules = [SaveRule(root: emulator.0, directory: emulator.1)]
         // GBE's local_save_path is account-scoped; it appends appid/remote for the
         // ISteamRemoteStorage API. Bare Cloud filenames belong here, independently
         // of Auto-Cloud's Documents/AppData rules (some games use both).
-        let remoteDirectory = appID.map { "drive_c/Program Files (x86)/Steam/userdata/0/\($0)/remote" }
-        if let remoteDirectory, ufs.quota > 0 || ufs.maxNumFiles > 0 || !ufs.saveFilePatterns.isEmpty {
-            rules.append(.init(root: .bottle, directory: remoteDirectory, cloudPrefix: ""))
+        let remoteDirectory = appID.map { [emulator.1, "\($0)/remote"].filter { !$0.isEmpty }.joined(separator: "/") }
+        // Mac save locations are absent from plans saved before Mac Cloud support.
+        guard let patterns = mac ? ufs.macSaveFilePatterns : ufs.saveFilePatterns else {
+            return SaveMapping(rules: rules, coverage: .unknown, unresolved: ["Reinstall this game to sync its saves with Steam Cloud."])
+        }
+        if let remoteDirectory, ufs.quota > 0 || ufs.maxNumFiles > 0 || !patterns.isEmpty {
+            rules.append(.init(root: emulator.0, directory: remoteDirectory, cloudPrefix: ""))
         }
         var unresolved: [String] = []
-        for item in ufs.saveFilePatterns {
-            let localBase = item.root == .SteamUserData ? remoteDirectory.map { (SaveRoot.bottle, $0) } : base(item.root)
+        for item in patterns {
+            let localBase = item.root == .SteamUserData ? remoteDirectory.map { (emulator.0, $0) } : mac ? macBase(item.root) : base(item.root)
             guard let base = localBase, let path = relative(item.path, accountTokens: true),
-                  let uploadPath = relative(item.uploadPath, accountTokens: true), item.uploadRoot.isWindows,
+                  let uploadPath = relative(item.uploadPath, accountTokens: true),
+                  item.uploadRoot.isWindows || (mac && [.MacHome, .MacAppSupport].contains(item.uploadRoot)),
+                  // A home-folder rule must name its own subfolder, never all of Application Support or home.
+                  base.0 != .home || !path.isEmpty,
                   validPattern(item.pattern), item.recursive == 0 || item.recursive == 1 else {
                 unresolved.append("A Steam save location needs a verified game recipe.")
                 continue
@@ -87,6 +93,15 @@ enum SteamSaveMapping {
         case .WinProgramData: return (.bottle, "drive_c/ProgramData")
         case .Root: return (.bottle, "drive_c/users/crossover")
         // Non-Windows paths cannot be resolved inside this Windows bottle.
+        default: return nil
+        }
+    }
+    /// A Mac build saves in the player's home folder; Windows roots without a macOS override have no Mac location.
+    private static func macBase(_ root: PathType) -> (SaveRoot, String)? {
+        switch root {
+        case .GameInstall: return (.game, "")
+        case .MacAppSupport: return (.home, "Library/Application Support")
+        case .MacHome: return (.home, "")
         default: return nil
         }
     }

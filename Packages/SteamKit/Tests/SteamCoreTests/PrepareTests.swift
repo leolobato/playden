@@ -343,6 +343,46 @@ final class PrepareTests: XCTestCase {
         XCTAssertEqual(app.ufs.saveFilePatterns[0].uploadPath, "slot")
     }
 
+    func testPICSParsesMacSaveLocationsSeparately() throws {
+        // TUNIC (553420) moves its Windows folder on macOS; DEMON'S TILT (422510) lists one entry per platform.
+        let text = #"""
+        "appinfo"
+        {
+          "ufs"
+          {
+            "quota" "52428800" "maxnumfiles" "1000"
+            "rootoverrides"
+            {
+              "0" { "os" "MacOS" "oscompare" "=" "root" "WinAppDataLocalLow" "useinstead" "MacAppSupport" "addpath" "" }
+              "1" { "os" "Windows" "oscompare" "!=" "root" "WinMyDocuments" "useinstead" "MacHome" "addpath" "Documents" }
+            }
+            "savefiles"
+            {
+              "0" { "root" "WinAppDataLocalLow" "path" "Andrew Shouldice/Secret Legend/SAVES" "pattern" "*.tunic" }
+              "1" { "root" "WinAppDataLocalLow" "path" "FLARB LLC/DEMON'S TILT" "pattern" "*.txt" "platforms" { "1" "Windows" } }
+              "2" { "root" "MacAppSupport" "path" "FLARB LLC/DEMON'S TILT" "pattern" "*.txt" "platforms" { "1" "MacOS" } }
+              "3" { "root" "WinMyDocuments" "path" "Slots" "pattern" "*" }
+            }
+          }
+        }
+        """#
+        let app = CMClient.parseAppInfo(appID: 100, root: try VDF.parse(text)["appinfo"]!)
+        XCTAssertEqual(app.ufs.saveFilePatterns.map(\.root), [.WinAppDataLocalLow, .WinAppDataLocalLow, .WinMyDocuments],
+                       "Windows keeps its own roots; a != Windows override never applies to Windows")
+        let mac = try XCTUnwrap(app.ufs.macSaveFilePatterns)
+        XCTAssertEqual(mac.count, 3)
+        XCTAssertEqual(mac[0], SaveFilePattern(root: .MacAppSupport, path: "Andrew Shouldice/Secret Legend/SAVES", pattern: "*.tunic",
+                                               uploadRoot: .WinAppDataLocalLow, uploadPath: "Andrew Shouldice/Secret Legend/SAVES"),
+                       "An override keeps the Windows Cloud name, so both builds share the save")
+        XCTAssertEqual(mac[1], SaveFilePattern(root: .MacAppSupport, path: "FLARB LLC/DEMON'S TILT", pattern: "*.txt"))
+        XCTAssertEqual(mac[2].root, .MacHome); XCTAssertEqual(mac[2].path, "Documents/Slots"); XCTAssertEqual(mac[2].uploadRoot, .WinMyDocuments)
+    }
+
+    func testUFSFromOlderPlansDecodesWithoutMacLocations() throws {
+        let data = Data(#"{"quota":1,"maxNumFiles":1,"saveFilePatterns":[]}"#.utf8)
+        XCTAssertNil(try JSONDecoder().decode(UFS.self, from: data).macSaveFilePatterns)
+    }
+
     private func temporaryDirectory() -> URL {
         FileManager.default.temporaryDirectory.appendingPathComponent("playden-prepare-\(UUID().uuidString)")
     }

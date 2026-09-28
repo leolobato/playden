@@ -6,9 +6,11 @@ extension SaveStore {
     /// Read it beneath the ownership-checked bottle without following links. On first launch,
     /// initialize that same file once so Cloud downloads land where the game will look.
     public func steamLocalAccountID(roots: [SaveRoot: URL], createIfMissing: Bool = true) throws -> UInt64 {
-        guard let root = roots[.bottle] else { throw saveFailure("The game's save account folder is unavailable.") }
+        // Mac builds keep it in the emulator's own save folder; Windows builds inside the bottle.
+        let location: (URL, String)? = roots[.emulator].map { ($0, "settings/configs.user.ini") }
+            ?? roots[.bottle].map { ($0, "drive_c/Program Files (x86)/Steam/userdata/0/settings/configs.user.ini") }
+        guard let (root, path) = location else { throw saveFailure("The game's save account folder is unavailable.") }
         let directory = try SaveDirectory(url: root)
-        let path = "drive_c/Program Files (x86)/Steam/userdata/0/settings/configs.user.ini"
         if let file = try directory.file(path) {
             return try Self.steamLocalAccountID(in: file.contents(maximum: 64 * 1024))
         }

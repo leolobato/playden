@@ -1,6 +1,8 @@
 import Foundation
 
-public enum SaveRoot: String, Codable, Sendable { case game, bottle }
+/// `home` is the player's home folder, used only through the exact subfolders a Mac build declares.
+/// `emulator` is Playden's `Steam Emulator/<appid>` folder, the Steam emulator's save root for Mac builds.
+public enum SaveRoot: String, Codable, Sendable { case game, bottle, home, emulator }
 
 /// A source describes paths; the save store resolves them only inside verified owned roots.
 /// Cloud prefixes deliberately remain separate: Steam root overrides can change the local path.

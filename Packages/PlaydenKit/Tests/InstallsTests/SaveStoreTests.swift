@@ -26,6 +26,24 @@ final class SaveStoreTests: XCTestCase {
         .init(rules: [.init(root: .bottle, directory: "LocalLow/adamgryu/A Short Hike", pattern: "*.mountain", recursive: false),
                       .init(root: .game, directory: "saves", pattern: "*.sav")], coverage: .metadata)
     }
+    func testMacHomeRulesReadOnlyTheirDeclaredFolder() async throws {
+        let root = try directory(), home = try directory(), emulator = try directory()
+        try put("progress", "Library/Application Support/Andrew Shouldice/Secret Legend/SAVES/slot1.tunic", at: home)
+        try put("other game", "Library/Application Support/Other Studio/save.tunic", at: home)
+        try put("preferences", "Library/Preferences/com.example.plist", at: home)
+        try put("api save", "553420/remote/profile.dat", at: emulator)
+        let mapping = SaveMapping(rules: [
+            .init(root: .emulator, directory: ""),
+            .init(root: .emulator, directory: "553420/remote", cloudPrefix: ""),
+            .init(root: .home, directory: "Library/Application Support/Andrew Shouldice/Secret Legend/SAVES", pattern: "*.tunic",
+                  recursive: false, cloudPrefix: "%WinAppDataLocalLow%Andrew Shouldice/Secret Legend/SAVES"),
+        ], coverage: .metadata)
+        let snapshot = try await SaveStore(root: root).snapshot(gameID: game, installationID: UUID(), mapping: mapping,
+                                                                roots: [.home: home, .emulator: emulator])
+        XCTAssertEqual(Set(snapshot.files.map(\.path)), ["Library/Application Support/Andrew Shouldice/Secret Legend/SAVES/slot1.tunic",
+                                                          "553420/remote/profile.dat"])
+        XCTAssertEqual(Set(snapshot.files.map(\.root)), [.home, .emulator])
+    }
     func testRetainRestoreRestartAndIdempotenceWithBothRoots() async throws {
         let root = try directory(), gameRoot = try directory(), bottle = try directory(), restoredGame = try directory(), restoredBottle = try directory()
         try put("progress", "LocalLow/adamgryu/A Short Hike/GameSaveNew.MOUNTAIN", at: bottle)

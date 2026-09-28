@@ -41,6 +41,15 @@ private struct AccessInspector: RuntimeInspecting {
     func identity(of pid: Int32) -> ProcessIdentity? { identities[pid] }
 }
 
+private struct AccessBundleInspector: BundleProcessInspecting {
+    var observation = RuntimeObservation(processes: [])
+    func inspect(bundle: URL) throws -> RuntimeObservation {
+        guard bundle.path == "/fixture/owned-game/Game.app" else { throw SourceFailure.unavailable }
+        return observation
+    }
+    func identity(of pid: Int32) -> ProcessIdentity? { nil }
+}
+
 final class CloudSaveAccessTests: XCTestCase {
     private let gameID = GameID(source: "steam", value: "1055540")
     private func installed(_ store: CatalogStore) throws -> InstallationRecord {
@@ -75,6 +84,29 @@ final class CloudSaveAccessTests: XCTestCase {
         await denied(access, stale)
         let roots = try await access.roots(for: installed)
         XCTAssertEqual(roots[.game]?.path, "/fixture/owned-game"); XCTAssertEqual(roots[.bottle]?.path, "/fixture/owned-bottle")
+    }
+
+    func testMacBuildsUseHomeAndEmulatorFoldersAndTheirBundleProcessesWithoutABottle() async throws {
+        let store = try CatalogStore()
+        var installed = InstallationRecord(game: .init(id: gameID, title: "Mac game"),
+            location: .init(volumeID: "fixture", lastKnownRoot: URL(fileURLWithPath: "/fixture"), relativePath: "game"),
+            bottleID: "playden-steam-1055540", manifestIDs: [:], templateVersion: "1", launchSpec: .init(executableRelativePath: "Game.app"), installedBytes: 1)
+        installed.runtime = .native
+        try store.saveInstallation(installed)
+        _ = try store.beginCloudSync(installation: installed, accountKey: "a", mapping: .init())
+        let real = try XCTUnwrap(realpath(FileManager.default.temporaryDirectory.path, nil)); defer { free(real) }
+        let saves = URL(fileURLWithPath: String(cString: real)).appendingPathComponent("CloudAccess-\(UUID().uuidString)")
+        addTeardownBlock { try? FileManager.default.removeItem(at: saves) }
+        try FileManager.default.createDirectory(at: saves, withIntermediateDirectories: true)
+        func access(_ bundle: AccessBundleInspector = .init()) -> CloudSaveAccess {
+            CloudSaveAccess(catalog: store, storage: AccessStorage(expected: installed), bottles: AccessBottles(expected: installed, refused: true),
+                            inspector: AccessInspector(refused: true), bundleInspector: bundle, home: URL(fileURLWithPath: "/fixture/home"), emulatorSaves: saves)
+        }
+        let roots = try await access().roots(for: installed)
+        XCTAssertEqual(roots[.game]?.path, "/fixture/owned-game"); XCTAssertEqual(roots[.home]?.path, "/fixture/home")
+        XCTAssertEqual(roots[.emulator], saves.appendingPathComponent("1055540", isDirectory: true)); XCTAssertNil(roots[.bottle])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: saves.appendingPathComponent("1055540").path), "The emulator folder is created for the first sync")
+        await denied(access(.init(observation: .init(processes: [process(44)]))), installed)
     }
 
     func testRefusesOwnershipAndInspectionFailuresWithoutPreparingBottle() async throws {

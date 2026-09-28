@@ -14,6 +14,39 @@ final class SteamSaveMappingTests: XCTestCase {
         XCTAssertEqual(SteamSaveMapping.build(UFS(), appID: 123).coverage, .unknown)
     }
 
+    func testMacBuildsSaveInTheirDeclaredHomeFoldersAndTheEmulatorFolder() {
+        // TUNIC keeps its Windows Cloud name through a macOS override; DEMON'S TILT declares a Mac-only name.
+        let ufs = UFS(quota: 52_428_800, maxNumFiles: 1000, saveFilePatterns: [], macSaveFilePatterns: [
+            .init(root: .MacAppSupport, path: "Andrew Shouldice/Secret Legend/SAVES", pattern: "*.tunic",
+                  uploadRoot: .WinAppDataLocalLow, uploadPath: "Andrew Shouldice/Secret Legend/SAVES"),
+            .init(root: .MacAppSupport, path: "FLARB LLC/DEMON'S TILT", pattern: "*.txt"),
+        ])
+        let mapping = SteamSaveMapping.build(ufs, appID: 553420, platform: .macOS)
+        XCTAssertEqual(mapping.coverage, .metadata); XCTAssertTrue(mapping.unresolved.isEmpty)
+        XCTAssertEqual(mapping.rules, [
+            .init(root: .emulator, directory: ""),
+            .init(root: .emulator, directory: "553420/remote", cloudPrefix: ""),
+            .init(root: .home, directory: "Library/Application Support/Andrew Shouldice/Secret Legend/SAVES", pattern: "*.tunic",
+                  recursive: false, cloudPrefix: "%WinAppDataLocalLow%Andrew Shouldice/Secret Legend/SAVES"),
+            .init(root: .home, directory: "Library/Application Support/FLARB LLC/DEMON'S TILT", pattern: "*.txt",
+                  recursive: false, cloudPrefix: "%MacAppSupport%FLARB LLC/DEMON'S TILT"),
+        ])
+        XCTAssertFalse(mapping.permitsRemovingUnmappedFiles)
+        XCTAssertTrue(SteamSaveMapping.build(UFS(saveFilePatterns: ufs.macSaveFilePatterns!), appID: 553420).rules.allSatisfy { $0.root == .bottle },
+                      "Windows builds never use the Mac locations")
+    }
+    func testMacHomeRulesMustNameASubfolderAndWindowsOnlyRootsStayUnresolved() {
+        for item in [SaveFilePattern(root: .MacAppSupport, path: "", pattern: "*", recursive: 1),
+                     SaveFilePattern(root: .MacHome, path: "", pattern: "*.sav"),
+                     SaveFilePattern(root: .WinAppDataRoaming, path: "Studio/Game", pattern: "*.sav")] {
+            let mapping = SteamSaveMapping.build(UFS(macSaveFilePatterns: [item]), appID: 1, platform: .macOS)
+            XCTAssertEqual(mapping.coverage, .unknown, "\(item)")
+            XCTAssertFalse(mapping.rules.contains { $0.root == .home })
+        }
+        let legacy = SteamSaveMapping.build(UFS(quota: 1, saveFilePatterns: [.init(root: .WinMyDocuments, path: "Game", pattern: "*")]), appID: 1, platform: .macOS)
+        XCTAssertEqual(legacy.unresolved, ["Reinstall this game to sync its saves with Steam Cloud."])
+    }
+
     func testAutoCloudAndAPISavesCoexistAndSteamUserDataIsSupported() {
         let mapping = SteamSaveMapping.build(UFS(saveFilePatterns: [
             .init(root: .WinMyDocuments, path: "MGR/SaveData", pattern: "MGR.sav", recursive: 1),

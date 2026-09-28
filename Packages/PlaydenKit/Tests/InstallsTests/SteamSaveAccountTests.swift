@@ -21,6 +21,12 @@ final class SteamSaveAccountTests: XCTestCase {
         XCTAssertEqual(first >> 32, 0x01100001)
         XCTAssertEqual(try Data(contentsOf: path), original)
     }
+    func testMacBuildsKeepTheirIdentityInTheEmulatorFolder() async throws {
+        let root = try folder(), store = SaveStore()
+        let id = try await store.steamLocalAccountID(roots: [.game: root, .home: root, .emulator: root])
+        let text = try String(contentsOf: root.appendingPathComponent("settings/configs.user.ini"), encoding: .utf8)
+        XCTAssertTrue(text.contains("account_steamid=\(id)"))
+    }
     func testReadsRuntimeINIAndRejectsInvalidOrDuplicateIdentity() throws {
         let valid = "[user::general]\r\n# Steam64 format\r\naccount_steamid=76561198012345678\r\n"
         XCTAssertEqual(try SaveStore.steamLocalAccountID(in: Data(valid.utf8)), 76_561_198_012_345_678)

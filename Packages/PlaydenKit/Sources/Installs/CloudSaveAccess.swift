@@ -11,11 +11,19 @@ public struct CloudSaveAccess: Sendable {
     private let storage: any InstallStorageManaging
     private let bottles: any GameBottleManaging
     private let inspector: any RuntimeInspecting
+    private let bundleInspector: any BundleProcessInspecting
+    private let home: URL
+    private let emulatorSaves: URL
 
+    /// `emulatorSaves` holds each Mac build's Steam emulator saves in a folder named after its app ID.
     public init(catalog: CatalogStore, storage: any InstallStorageManaging = InstallStorage(),
                 bottles: any GameBottleManaging = CrossOverGameBottles(),
-                inspector: any RuntimeInspecting = RuntimeProcessInspector()) {
+                inspector: any RuntimeInspecting = RuntimeProcessInspector(),
+                bundleInspector: any BundleProcessInspecting = RuntimeProcessInspector(),
+                home: URL = FileManager.default.homeDirectoryForCurrentUser,
+                emulatorSaves: URL = AppPaths.supportRoot().appendingPathComponent("Steam Emulator", isDirectory: true)) {
         self.catalog = catalog; self.storage = storage; self.bottles = bottles; self.inspector = inspector
+        self.bundleInspector = bundleInspector; self.home = home; self.emulatorSaves = emulatorSaves
     }
 
     public func roots(for installation: InstallationRecord) async throws -> [SaveRoot: URL] {
@@ -30,9 +38,24 @@ public struct CloudSaveAccess: Sendable {
         let bottle = GameBottle(gameID: installation.gameID, name: installation.bottleID,
             ownershipToken: installation.ownershipToken, templateVersion: installation.templateVersion)
         let gameRoot = try await storage.directory(installation.location, gameID: installation.gameID, owner: installation.ownershipToken)
-        let bottleRoot = try await bottles.ownedDirectory(bottle)
-        try Task.checkCancellation()
-        let observation = try inspector.inspect(bottle: bottleRoot)
+        // A Mac build has no bottle: its saves are in the home folder and Playden's emulator folder,
+        // and its writers are the processes running from its app bundle.
+        let native = installation.runtimeBinding == .native
+        var roots: [SaveRoot: URL] = [.game: gameRoot]
+        let observation: RuntimeObservation, identity: (Int32) -> ProcessIdentity?
+        if native {
+            let emulator = emulatorSaves.appendingPathComponent(installation.gameID.value, isDirectory: true)
+            _ = try SaveDirectory(url: emulator, create: true)
+            roots[.home] = home; roots[.emulator] = emulator
+            let bundle = gameRoot.appendingPathComponent(installation.launchSpec.executableRelativePath)
+            try Task.checkCancellation()
+            observation = try bundleInspector.inspect(bundle: bundle); identity = bundleInspector.identity(of:)
+        } else {
+            let bottleRoot = try await bottles.ownedDirectory(bottle)
+            roots[.bottle] = bottleRoot
+            try Task.checkCancellation()
+            observation = try inspector.inspect(bottle: bottleRoot); identity = inspector.identity(of:)
+        }
         guard !observation.processes.contains(where: { $0.kind == .game || $0.kind == .wrapper }) else {
             throw issue("A game or launcher is still using these saves. Close it before syncing.")
         }
@@ -42,7 +65,7 @@ public struct CloudSaveAccess: Sendable {
            previous.run.bottle.name == bottle.name, previous.run.bottle.ownershipToken == bottle.ownershipToken {
             let writers = Set(previous.processes.filter { $0.kind == .game || $0.kind == .wrapper }.map(\.identity) + [previous.run.launcher])
             for writer in writers {
-                let identity = inspector.identity(of: writer.pid)
+                let identity = identity(writer.pid)
                 if identity == writer || (identity == nil && observation.unreadablePIDs.contains(writer.pid)) {
                     throw issue("The previous game process has not been confirmed stopped. Retry save sync in a moment.")
                 }
@@ -53,7 +76,7 @@ public struct CloudSaveAccess: Sendable {
             throw issue("Save sync changed while checking its folders. Retry the current operation.")
         }
         try verifySession(claim, installation: installation)
-        return [.game: gameRoot, .bottle: bottleRoot]
+        return roots
     }
 
     private func verifySession(_ claim: CloudSyncOperation, installation: InstallationRecord) throws {
