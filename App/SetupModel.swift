@@ -176,7 +176,7 @@ extension LibraryModel {
             case 0: if identity == nil { setupScreen = .account; beginSignIn() }
             case 1: showLocalGames()
             // The games drive and CrossOver are only needed once a download store is connected.
-            default: if identity != nil { openVolumeSetup(firstRun: true) } else { finishSetup() }
+            default: if signedInToDownloadStore { openVolumeSetup(firstRun: true) } else { finishSetup() }
             }
         case .audio:
             if setupIndex == 0 { selectAudioDevice(nil) }
@@ -199,7 +199,7 @@ extension LibraryModel {
     private func advanceToAccount() {
         if localSource != nil { setupScreen = .games; setupIndex = identity == nil ? 0 : 2; return }
         setupScreen = .account
-        if identity != nil { openVolumeSetup(firstRun: true) }
+        if signedInToDownloadStore { openVolumeSetup(firstRun: true) }
         else { beginSignIn() }
     }
     private func saveVolumeSelection() {

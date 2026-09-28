@@ -18,7 +18,7 @@ extension LibraryModel {
     var visibleNotification: LauncherNotification? {
         guard launcherActive, panel == nil, authScreen == nil, setupScreen == nil,
               !hasActiveSession, !exitOverlay, !showsSessionIssue,
-              persistenceError == nil, syncError == nil, !controllerDisconnected else { return nil }
+              persistenceError == nil, librarySyncError == nil, !controllerDisconnected else { return nil }
         return notifications.first
     }
 

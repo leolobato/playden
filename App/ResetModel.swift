@@ -58,16 +58,19 @@ extension LibraryModel {
                 do {
                     // Invalidate refresh before joining its tasks, so a late owned-library or
                     // metadata response cannot repopulate the cache after reset commits.
-                    let authentication = authTask, refresh = syncTask, polling = periodicSyncTask, setup = setupTask, offer = installOfferTask
-                    cancelAuthentication(); refresh?.cancel(); polling?.cancel(); setup?.cancel(); offer?.cancel()
-                    periodicSyncTask = nil; syncTask = nil; setupTask = nil; installOfferTask = nil
-                    await syncCoordinator?.cancel()
-                    await source?.auth.cancelSignIn()
-                    await authentication?.value; await refresh?.value; await polling?.value; await setup?.value; await offer?.value
+                    let authentication = authTask, refreshes = Array(accountSyncTasks.values), polling = periodicSyncTask, setup = setupTask, offer = installOfferTask
+                    let accountSources = sources.accountSources
+                    cancelAuthentication(); refreshes.forEach { $0.cancel() }; polling?.cancel(); setup?.cancel(); offer?.cancel()
+                    periodicSyncTask = nil; accountSyncTasks = [:]; setupTask = nil; installOfferTask = nil
+                    for account in accountSources {
+                        await libraryCoordinator(for: account.id)?.cancel()
+                        await account.auth.cancelSignIn()
+                    }
+                    await authentication?.value; for refresh in refreshes { await refresh.value }; await polling?.value; await setup?.value; await offer?.value
                     resolvingInstall = false; runtimeChecking = false
                     try checkResetAvailability()
-                    try await source?.auth.signOut()
-                    signedOut = true; identity = nil; cloudStatuses.removeAll(); syncing = false; syncError = nil; clearSignInIssue()
+                    for account in accountSources { try await account.auth.signOut() }
+                    signedOut = true; identity = nil; accounts = [:]; cloudStatuses.removeAll(); clearSignInIssue()
                     // Keychain and SQLite cannot share a transaction. If sign-out fails, local
                     // data is untouched. If the database commit fails, report the signed-out
                     // state honestly and retain the old personalization for an explicit retry.

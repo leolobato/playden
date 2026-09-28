@@ -43,7 +43,7 @@ private actor SignInCloudFixture: CloudSyncManaging {
         status.needsSignIn = true
         let model = LibraryModel(preview: false, cloud: SignInCloudFixture(status))
         model.startCloudServices(); await model.cloudObserver?.value
-        XCTAssertEqual(model.sessionIssueRecovery, .signIn)
+        XCTAssertEqual(model.sessionIssueRecovery, .signIn(SourceID.steam))
         XCTAssertEqual(model.sessionIssue?.stage, "Sign-in expired")
         XCTAssertEqual(model.cloudStatuses[id]?.needsSignIn, true)
     }

@@ -4,12 +4,12 @@ import Installs
 import Focus
 import Sources
 
-enum StoreSettingsRow: Equatable { case steam, signOut, preferMac, thisMac, addedGames, folders }
+enum StoreSettingsRow: Equatable { case account(String), signOut(String), preferMac, thisMac, addedGames, folders }
 
 /// Names and glyphs for stores. Store IDs never appear in the UI.
 enum StoreNames {
     static func name(_ id: String) -> String {
-        switch id { case SourceID.steam: "Steam"; case SourceID.local: "This Mac"; default: id.capitalized }
+        switch id { case SourceID.steam: "Steam"; case SourceID.local: "This Mac"; case SourceID.epic: "Epic Games"; default: id.capitalized }
     }
     static func symbol(_ id: String) -> String { id == SourceID.local ? "desktopcomputer" : "bag" }
 }
@@ -58,10 +58,21 @@ extension LibraryModel {
     var addGamesMessage: String { localSource == nil ? "Sign in to Steam to see your library." : "Sign in to Steam, or add games that are already on this Mac." }
 
     var storeSettingsRows: [StoreSettingsRow] {
-        guard !isPreview else { return [.steam, .preferMac, .thisMac, .addedGames, .folders] }
-        var rows: [StoreSettingsRow] = source == nil ? [] : [.steam] + (identity == nil ? [] : [.signOut]) + [.preferMac]
+        guard !isPreview else { return [.account(SourceID.steam), .preferMac, .thisMac, .addedGames, .folders] }
+        var rows: [StoreSettingsRow] = []
+        if let source { rows += [.account(source.id)] + (identity == nil ? [] : [.signOut(source.id)]) + [.preferMac] }
+        for other in otherAccountSources {
+            rows += [.account(other.id)] + (account(other.id).identity == nil ? [] : [.signOut(other.id)])
+        }
         if localSource != nil { rows += [.thisMac, .addedGames, .folders] }
         return rows
+    }
+    /// Title, status and action for a store's account row in Settings.
+    func accountRow(_ id: String) -> (String, String, String) {
+        let account = account(id)
+        let status = account.syncError ?? (isPreview ? "Using designer preview data"
+            : account.identity.map { "Signed in as \($0.displayName)" } ?? "Sign in to see your games")
+        return (accountName(id), status, account.identity == nil ? "Sign in" : "Sign in again")
     }
     var thisMacSummary: String {
         let count = games.filter { $0.id.source == SourceID.local }.count
@@ -71,8 +82,8 @@ extension LibraryModel {
     func activateStoreSetting() {
         guard let row = storeSettingsRows[safe: settingsIndex] else { return }
         switch row {
-        case .steam: if isPreview { show(.information("Steam sign-in is available in the live app.")) } else { beginSignIn() }
-        case .signOut: show(.signOut)
+        case .account(let id): if isPreview { show(.information("\(accountName(id)) sign-in is available in the live app.")) } else { beginSignIn(id) }
+        case .signOut(let id): signOutSourceID = id; show(.signOut)
         case .preferMac:
             preferMacVersions.toggle()
             try? updateSetupPreferences { $0.preferMacVersions = preferMacVersions }

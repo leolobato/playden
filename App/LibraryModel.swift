@@ -72,6 +72,9 @@ final class LibraryModel {
     @ObservationIgnored let source: (any GameSource)?
     @ObservationIgnored let sources: SourceRegistry
     @ObservationIgnored let syncCoordinator: LibrarySyncCoordinator?
+    /// One coordinator per account store other than Steam.
+    @ObservationIgnored let accountCoordinators: [String: LibrarySyncCoordinator]
+    @ObservationIgnored var accountSyncTasks: [String: Task<Void, Never>] = [:]
     @ObservationIgnored let scanCoordinator: LibrarySyncCoordinator?
     @ObservationIgnored var scanTask: Task<Void, Never>?
     var scanErrors: [String: String] = [:]
@@ -200,10 +203,27 @@ final class LibraryModel {
     @ObservationIgnored var onImmersiveModeChanged: (() -> Void)?
     var controllerDisconnected = false
     @ObservationIgnored var authTask: Task<Void, Never>?
-    @ObservationIgnored var syncTask: Task<Void, Never>?
+    @ObservationIgnored var syncTask: Task<Void, Never>? {
+        get { accountSyncTasks[primaryAccountID] }
+        set { accountSyncTasks[primaryAccountID] = newValue }
+    }
     @ObservationIgnored var periodicSyncTask: Task<Void, Never>?
     @ObservationIgnored var guardContinuation: CheckedContinuation<String, Error>?
-    var identity: SourceIdentity? { didSet { if identity != oldValue { loadDetailDownloadSize() } } }
+    var accounts: [String: AccountState] = [:]
+    /// Steam's account.
+    var identity: SourceIdentity? {
+        get { accounts[primaryAccountID]?.identity }
+        set {
+            let changed = newValue != identity
+            accounts[primaryAccountID, default: .init()].identity = newValue
+            if changed { loadDetailDownloadSize() }
+        }
+    }
+    /// The store the sign-in screen is for.
+    var authSourceID: String?
+    var authDeviceCode: DeviceCodePrompt?
+    /// The store the sign-out prompt is for; nil is Steam.
+    var signOutSourceID: String?
     var authScreen: AuthenticationScreen?
     var authIndex = 0
     var authAttempt = UUID()
@@ -213,8 +233,14 @@ final class LibraryModel {
     var authError: String?
     var accountNameDraft = ""
     var passwordDraft = ""
-    var syncError: String?
-    var syncing = false
+    var syncError: String? {
+        get { accounts[primaryAccountID]?.syncError }
+        set { accounts[primaryAccountID, default: .init()].syncError = newValue }
+    }
+    var syncing: Bool {
+        get { accounts[primaryAccountID]?.syncing ?? false }
+        set { accounts[primaryAccountID, default: .init()].syncing = newValue }
+    }
     @ObservationIgnored var restoringState = true
     let isPreview: Bool
     var persistenceError: String?
@@ -313,9 +339,15 @@ final class LibraryModel {
         self.runtime = runtime; self.volumeStore = volumeStore
         self.gamesStorageReader = gamesStorageReader ?? (!preview && catalog != nil ? GamesStorageReader(volumes: volumeStore ?? GamesVolumeStore()) : nil)
         self.syncCoordinator = catalog.map { LibrarySyncCoordinator(catalog: $0) }
+        let primaryID = source?.id, registry = self.sources
+        self.accountCoordinators = catalog.map { catalog in
+            Dictionary(registry.accountSources.filter { $0.id != primaryID }.map { ($0.id, LibrarySyncCoordinator(catalog: catalog)) },
+                       uniquingKeysWith: { first, _ in first })
+        } ?? [:]
+        let installsGames = registry.all.contains { $0.capabilities.acquisition == .download }
         self.scanCoordinator = catalog.map { LibrarySyncCoordinator(catalog: $0) }
         if let installQueue { self.installQueue = installQueue }
-        else if !preview, let catalog, let source {
+        else if !preview, let catalog, installsGames {
             do { self.installQueue = try InstallQueue(catalog: catalog, sources: sources.all, storage: InstallStorage(volumes: volumeStore ?? GamesVolumeStore()), bottles: CrossOverGameBottles(runtime: runtime ?? CrossOverRuntime())) }
             catch { self.installQueue = nil; self.installPersistenceError = error.localizedDescription }
         } else { self.installQueue = nil }
@@ -331,7 +363,7 @@ final class LibraryModel {
                 })
         } else { self.cloudService = nil }
         if let sessions { self.sessions = sessions }
-        else if !preview, installQueue == nil, let catalog, let source, let queue = self.installQueue {
+        else if !preview, installQueue == nil, let catalog, installsGames, let queue = self.installQueue {
             do {
                 let presentation = displayPresentation
                 let runner = CrossOverRunner(manager: CrossOverGameBottles(runtime: runtime ?? CrossOverRuntime()),
@@ -793,7 +825,7 @@ final class LibraryModel {
         case .installOffer(let id):
             if label == "Choose volume…" { show(.volumePicker(id)) }
             else if panelIndex == 0 { panel = nil }
-            else if installOfferRequiresSignIn { beginSignIn(resumingInstall: id) }
+            else if installOfferRequiresSignIn { beginSignIn(id.source, resumingInstall: id) }
             else if installOfferError != nil || installOffer?.canInstall != true { beginInstall(id, volume: installDestination, platform: installPlatform) }
             else { confirmInstall() }
         case .signOut:

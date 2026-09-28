@@ -71,18 +71,18 @@ created by `scripts/epic-sign-in.sh` (the `epic-dev` tool in `EpicKit`), which a
 
 ## Step 5 — Shared plumbing (PlaydenKit + App), Steam unchanged
 
-- [ ] `SourceID.epic`. `Account.deviceCode`. `SourceAuth.signInWithDeviceCode`.
+- [x] `SourceID.epic`. `Account.deviceCode`. `SourceAuth.signInWithDeviceCode`.
   `AuthenticationEvent.deviceCode`.
-- [ ] `Installer.prepareLaunch` and `Installer.launchAvailability`, called from
-  `SessionService.launchTracked`. The Play gate goes in `LibraryModel` / `detailActionEnabled`.
-- [ ] Per-source account state in `LibraryModel`/`AccountModel`. The source ID is carried by
+- [x] `Installer.prepareLaunch`, called from `SessionService.launchTracked`. It reports why a game
+  can't start when Play is pressed (no ahead-of-time gate; PRD 09 AR-MULTI-6).
+- [x] Per-source account state in `LibraryModel`/`AccountModel`. The source ID is carried by
   `recordSyncFailure`, `SessionRecovery`, `installOfferRequiresSignIn` and the queue's auth pause.
-- [ ] One `LibrarySyncCoordinator` per remote source.
-- [ ] `InstallQueue`/`SessionService` exist without Steam. First run's drive and runtime gate
+- [x] One `LibrarySyncCoordinator` per remote source.
+- [x] `InstallQueue`/`SessionService` exist without Steam. First run's drive and runtime gate
   checks any signed-in download store.
-- [ ] Redactor: exchange codes, `-epicuserid=`, Epic refresh tokens.
-- [ ] `coverFallbackURL` returns nil for non-Steam games.
-- [ ] Existing tests pass. New tests: two account stores, source-scoped recovery, prepareLaunch
+- [x] Redactor: exchange codes, `-epicuserid=`, Epic refresh tokens.
+- [x] `coverFallbackURL` returns nil for non-Steam games.
+- [x] Existing tests pass. New tests: two account stores, source-scoped recovery, prepareLaunch
   and the offline gate.
 
 ## Step 6 — `EpicSource` (PlaydenKit `Sources`)

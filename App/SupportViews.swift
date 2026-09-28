@@ -19,8 +19,8 @@ struct SettingsScreen: View {
         switch model.settingsSection {
         case 0: model.storeSettingsRows.map { row in
             switch row {
-            case .steam: ("Steam", model.syncError ?? (model.isPreview ? "Using designer preview data" : model.identity.map { "Signed in as \($0.displayName)" } ?? "Sign in to see your games"), model.identity == nil ? "Sign in" : "Sign in again")
-            case .signOut: ("Sign out", "Disconnect your Steam account from Playden", "Sign out")
+            case .account(let id): model.accountRow(id)
+            case .signOut(let id): ("Sign out", "Disconnect your \(model.accountName(id)) account from Playden", "Sign out")
             case .preferMac: ("Prefer macOS versions", "Offer a Steam game’s Mac version first when it has one", model.preferMacVersions ? "On" : "Off")
             case .thisMac: ("This Mac", model.thisMacSummary, "Add games ›")
             case .addedGames: ("Added games", model.addedGamesSummary, "Manage ›")
@@ -44,7 +44,7 @@ struct SettingsScreen: View {
         }
     }
     private var librarySettings: [(String, String, String)] {
-        [("Refresh library", model.syncError ?? (model.syncing ? "Loading your library…" : "Refresh your games and artwork"), model.syncing ? "Refreshing" : "Refresh"),
+        [("Refresh library", model.librarySyncError ?? (model.librarySyncing ? "Loading your library…" : "Refresh your games and artwork"), model.librarySyncing ? "Refreshing" : "Refresh"),
          ("Games volumes", model.gamesVolume.map { model.volumeLabel($0) + " · Default" } ?? "Choose where to install your games", "Manage ›"),
          ("Download while playing", "Downloads pause automatically when a game starts", model.downloadWhilePlaying ? "On" : "Off"),
          ("Runtime", model.runtimeInfo.map { "CrossOver \($0.version ?? "not found") · Template \($0.templateVersion)" } ?? "Checking game setup", model.runtimeInfo?.templateReady == true && model.runtimeInfo?.failure == nil ? "Ready ›" : "Review ›")]

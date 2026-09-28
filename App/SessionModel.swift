@@ -9,9 +9,13 @@ extension LibraryModel {
         return sessionIssue != nil && (!hasActiveSession || stopped) && panel == nil && authScreen == nil && setupScreen == nil
     }
     /// The account notice replaces the passive library warning, so only one of them is on screen.
-    var showsSignInIssue: Bool { showsSessionIssue && sessionIssueRecovery == .signIn }
+    var showsSignInIssue: Bool {
+        guard showsSessionIssue, case .signIn = sessionIssueRecovery else { return false }
+        return true
+    }
     var sessionIssueActions: [String] {
-        let recover = sessionIssueRecovery == .signIn ? "Sign in again" : "Retry"
+        let recover: String
+        if case .signIn = sessionIssueRecovery { recover = "Sign in again" } else { recover = "Retry" }
         return (canRetrySessionIssue ? [recover] : []) + (sessionIssueGameID == nil ? [] : ["View logs"]) + ["Dismiss"]
     }
     func activateSessionIssue() {

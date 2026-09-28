@@ -58,7 +58,7 @@ These changes make a second account store work. Steam's behavior does not change
   `signInWithDeviceCode(onEvent:)`. `AuthenticationEvent` gains
   `.deviceCode(userCode:verificationURL:expiresAt:)`. The default implementation throws
   `.unavailable`.
-- **AR-MULTI-2 (v3):** Account state is per source. `identity`, the sign-in screen, the sync error
+- **AR-MULTI-2 (v3):** Account state is per source (`LibraryModel.accounts`, keyed by source ID). `identity`, the sign-in screen, the sync error
   and "syncing" are keyed by source ID. Everything that asks the player to sign in again names the
   source, and "Sign in again" opens that source's sign-in:
   - `recordSyncFailure`;
@@ -74,10 +74,10 @@ These changes make a second account store work. Steam's behavior does not change
   `prepareLaunch(_ spec: LaunchSpec, plan: InstallPlan, at: URL, offline: Bool) async throws -> LaunchSpec`.
   `SessionService.launchTracked` calls it right before `runner.launch`. The result is never
   persisted or logged. The default returns `spec` unchanged.
-- **AR-MULTI-6 (v3):** A source can block Play before launch with a reason:
-  `Installer.launchAvailability(plan:offline:) -> LaunchAvailability`, where the value is
-  `.available` or `.blocked(reason)`. The game page shows the reason and disables Play, as it does
-  for "Drive disconnected".
+- **AR-MULTI-6 (v3):** A store that cannot start a game says why when the player presses Play.
+  `prepareLaunch` throws an `OperationFailure` with the reason. The failure is reported on the
+  game, like any other launch failure. Playden has no network monitor, so Play is not disabled in
+  advance. Disabling Play ahead of time is **later**.
 - **AR-MULTI-7 (v3):** The diagnostic redactor also removes exchange codes (`-AUTH_PASSWORD=`,
   `exchange_code=`), `-epicuserid=` and Epic refresh tokens.
 - **AR-MULTI-8 (v3):** Credential storage is per source. Epic uses the Keychain service
@@ -172,14 +172,14 @@ These changes make a second account store work. Steam's behavior does not change
   `-AUTH_LOGIN=unused -AUTH_PASSWORD=<code> -AUTH_TYPE=exchangecode -epicapp=<app> -epicenv=Prod -EpicPortal -epicusername=<name> -epicuserid=<id> -epiclocale=<lang> -epicsandboxid=<namespace> [-epicdeploymentid=<id>]`.
 - **FR-EPIC-23 (v3):** Offline, or when the exchange code cannot be fetched because of a network
   error:
-  - if the game has `CanRunOffline == false`, Play is disabled and the game page says "Epic needs
-    to be online to start this game." (AR-MULTI-6);
+  - if the game has `CanRunOffline == false`, the launch stops with "Epic needs to be online to
+    start this game." (AR-MULTI-6);
   - otherwise, the game launches with an empty `-AUTH_PASSWORD`.
 
   An expired sign-in shows "Sign in to Epic" instead.
 - **FR-EPIC-24 (v3):** Games with `OwnershipToken == "true"` (usually Denuvo) get a `.ovt` token.
   Playden fetches it before launch, writes it inside the bottle, and passes its Windows path with
-  `-epicovt=`. Offline, Play is disabled with "Epic needs to be online to start this game."
+  `-epicovt=`. Offline, the launch stops with "Epic needs to be online to start this game."
   Whether Denuvo works under CrossOver is not guaranteed.
 - **FR-EPIC-25 (v3):** When a game's files include `EasyAntiCheat`, `BEClient`, or `equ8.dll`, the
   game page shows "Uses anti-cheat that may not work in CrossOver." Playden does not block these

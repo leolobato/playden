@@ -6,7 +6,8 @@ enum SessionIssueRecovery: Equatable {
     case checkpoint(UUID)
     case recoverSession
     case downloadPolicy
-    case signIn
+    /// Sign in to that store again.
+    case signIn(String)
 }
 
 extension LibraryModel {
@@ -20,7 +21,7 @@ extension LibraryModel {
         guard sessionIssue != nil, let recovery = sessionIssueRecovery, !resetBusy else { return false }
         // Signing in again belongs to the account, not the session service, so it stays
         // offerable even when no session could ever be started.
-        if recovery == .signIn { return source != nil || fixedClock }
+        if case .signIn(let id) = recovery { return sources[id] != nil || fixedClock }
         if case .checkpoint(let id) = recovery {
             return sessions != nil && session.session?.id == id && session.failure?.stage == "Save session" && !sessionBusy
         }
@@ -29,7 +30,7 @@ extension LibraryModel {
 
     func retrySessionIssue() {
         guard canRetrySessionIssue, let recovery = sessionIssueRecovery else { return }
-        if recovery == .signIn { beginSignIn(); return }
+        if case .signIn(let id) = recovery { beginSignIn(id); return }
         guard let sessions else { return }
         panel = nil; sessionIssue = nil
         switch recovery {
