@@ -486,6 +486,25 @@ gbe_fork smoke test on arm64 and x86_64. Docs for S6 are updated. Still open:
 Gate: a native `/Applications` game and a Steam macOS build both reach controller-driven gameplay
 and return to Playden with playtime recorded, while Steam Windows regression tests still pass.
 
+### M8 — Epic Games Store
+
+Scope: [PRD 09](prd/09-epic.md). Added 29 September 2026. The commit plan is
+`planning/implementation/epic-plan.md`. Each step keeps Steam and This Mac working.
+
+- [ ] **E0 — Auth spike.** Device-code sign-in reaches a launcher session with a real account.
+- [ ] **E1 — Docs.** PRD 09, `EPIC_PROTOCOL.md` and the legendary notice.
+- [ ] **E2–E4 — `EpicKit`.** Manifest and chunk parsers, the web API and auth, and the download
+  engine with resume, verify and repair.
+- [ ] **E5 — Shared plumbing.** Several account stores, per-launch arguments, and a Play gate with
+  a reason.
+- [ ] **E6 — `EpicSource`.** Library, installer and launch.
+- [ ] **E7 — UI.** The device-code screen, the Stores row, first run and the game-page states.
+- [ ] **E8 — Acceptance.** PRD 09 §6 on the TV.
+
+Gate: from the couch, sign in to Epic on the phone, install one non-EOS game and one EOS game, play
+both, and return to Playden with playtime recorded, while Steam and This Mac regression tests
+still pass.
+
 ## 5. Acceptance matrix
 
 | Area | Required evidence |

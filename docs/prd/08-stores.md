@@ -661,7 +661,7 @@ What each v3 store needs beyond v1:
 |---|---|---|---|---|---|
 | **itch.io** | v3 | OAuth or API key | Official API: owned keys and uploads for each platform | DRM-free. No staging. Many macOS builds | Low. Good first v3 store |
 | **GOG** | v3 | OAuth (the Galaxy client ID that Heroic and lgogdownloader use) | Unofficial but stable API: owned games, offline installers and Galaxy depot manifests | DRM-free. Windows and macOS builds. Galaxy cloud saves can reuse the §6 cloud design in 05 | Medium |
-| **Epic Games Store** | v3 | Web login that returns an auth code (legendary's protocol) | Manifests and CDN chunks (legendary's protocol) | Games that use Epic Online Services need launch tokens passed as arguments, so `LaunchSpec` must be built fresh before each launch, and offline play is limited. Epic cloud saves are optional. Anti-cheat titles stay out of scope | High |
+| **Epic Games Store** ([PRD 09](09-epic.md)) | v3 | Web login that returns an auth code (legendary's protocol) | Manifests and CDN chunks (legendary's protocol) | Games that use Epic Online Services need launch tokens passed as arguments, so `LaunchSpec` must be built fresh before each launch, and offline play is limited. Epic cloud saves are optional. Anti-cheat titles stay out of scope | High |
 | **Amazon Prime Gaming** | v3 | Amazon device sign-in (nile's protocol) | Manifests and downloads (nile's protocol) | Windows only. Some games need the Amazon Games client's SDK DLL: needs research | Medium |
 | **Humble** | later | Session cookie | Library and DRM-free downloads (Humble Trove and bundle downloads) | Most Humble purchases are Steam keys and are already in the Steam library | Low value |
 | **EA app, Ubisoft Connect, Battle.net** | later | Their own client | Their own client | They need their client running in the bottle. That conflicts with "no store client" and needs a separate "client in a bottle" runtime mode | High |
@@ -671,7 +671,8 @@ What each v3 store needs beyond v1:
   store.
 - **FR-V3-2 (v3):** itch.io source.
 - **FR-V3-3 (v3):** GOG source, including Galaxy cloud saves where the game declares them.
-- **FR-V3-4 (v3):** Epic source, including EOS launch tokens. When a token cannot be fetched
+- **FR-V3-4 (v3):** Epic source, including EOS launch tokens. Specified in [PRD 09](09-epic.md), which
+  comes before FR-V3-1 to FR-V3-3. When a token cannot be fetched
   offline, disable Play and say why.
 - **FR-V3-5 (v3):** Amazon source, after a research spike on its client SDK dependency.
 - **FR-V3-6 (later):** Humble, launcher-bound stores, and emulators and ROM folders.

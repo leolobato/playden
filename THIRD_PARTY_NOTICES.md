@@ -33,6 +33,19 @@ cache behavior (`SteamService.kt`), and the `AppInfo`, `UFS`, `SaveFilePattern` 
 data shapes. Playden is a derivative work of that code and is distributed under the same
 license.
 
+## legendary (GPL-3.0)
+
+- **Project:** [legendary](https://github.com/derrod/legendary) by Rodney (derrod) and
+  contributors.
+- **License:** GNU General Public License v3.0.
+- **Where:** `Packages/EpicKit/Sources/EpicCore`.
+
+Parts of `EpicCore` are Swift ports of Python code from legendary at commit
+`42f6bdeadde3a9526dc8eb713763476999ac217b`: the Epic web API calls (`api/egs.py`), the binary and
+JSON manifest and chunk formats (`models/manifest.py`, `models/json_manifest.py`,
+`models/chunk.py`), the download analysis (`downloader/mp/manager.py`) and the launch parameters
+(`core.py`). Playden is a derivative work of that code and is distributed under the same license.
+
 ## gbe_fork (LGPL-3.0)
 
 - **Project:** [gbe_fork](https://github.com/Detanup01/gbe_fork), a fork of the Goldberg Steam
@@ -96,5 +109,6 @@ command-line tools of the user's own installation. The Windows display helper in
 
 ## Trademarks
 
-Playden is an independent project and is not affiliated with Valve Corporation or CodeWeavers,
-Inc. Steam is a trademark of Valve Corporation. CrossOver is a trademark of CodeWeavers, Inc.
+Playden is an independent project and is not affiliated with Valve Corporation, CodeWeavers,
+Inc., or Epic Games, Inc. Steam is a trademark of Valve Corporation. Epic Games and the Epic
+Games Store are trademarks of Epic Games, Inc. CrossOver is a trademark of CodeWeavers, Inc.

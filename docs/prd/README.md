@@ -72,6 +72,7 @@ Every requirement carries one tag. A requirement without a tag is a bug in this 
 | [06-play-session.md](06-play-session.md) | **Play** | Launch, in-game behavior, exit, playtime, crash handling |
 | [07-settings-diagnostics.md](07-settings-diagnostics.md) | **Fix something** | Settings, failure contract, logs, testing strategy |
 | [08-stores.md](08-stores.md) | **Play from more than one place** | Source registry, This Mac games, Steam macOS builds, native runner, store and platform filters, Windows import (v2), more stores (v3) |
+| [09-epic.md](09-epic.md) | **Play my Epic games** | Epic sign-in on the TV, library, manifest and chunk downloads, launch with Epic arguments (v3) |
 
 ## MVP bar (v1 success criteria)
 

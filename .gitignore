@@ -6,3 +6,4 @@ Config/Local.xcconfig
 *.xcuserstate
 xcuserdata/
 .env
+.epic-session.json
