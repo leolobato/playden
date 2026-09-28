@@ -36,17 +36,17 @@ from the step 0 spike. Anything that refreshes it must write the new refresh tok
 
 ## Step 3 — `EpicCore` API
 
-- [ ] `EpicClientConfig` (client IDs and secrets, user agent), `EpicHTTP` (UA, basic and bearer
+- [x] `EpicClientConfig` (client IDs and secrets, user agent), `EpicHTTP` (UA, basic and bearer
   auth, Epic error JSON → `EpicError`, 429/5xx backoff).
-- [ ] `EpicAuth`:
+- [x] `EpicAuth`:
   - the device-code flow: Switch client credentials, device authorization, polling, exchange,
     launcher redeem, and killing the Switch session;
   - refresh, verify and kill;
   - `exchangeCode()`;
   - `corrective_action_required` handling.
-- [ ] `EpicLibraryAPI`: assets per platform, library items with a cursor, catalog bulk items, the
+- [x] `EpicLibraryAPI`: assets per platform, library items with a cursor, catalog bulk items, the
   manifest API (elements, manifests plus query params, `secrets`, sidecar) and the ownership token.
-- [ ] Tests with `URLProtocol` stubs.
+- [x] Tests with `URLProtocol` stubs.
 - [ ] A live test gated on `EPIC_LIVE=1` reads `.epic-session.json`, lists the assets and fetches
   one manifest.
 
