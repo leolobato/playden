@@ -5,3 +5,4 @@ dist/
 Config/Local.xcconfig
 *.xcuserstate
 xcuserdata/
+.env
