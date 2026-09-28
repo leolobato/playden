@@ -44,7 +44,7 @@ public struct EpicAuth: Sendable {
 
     public init(config: EpicClientConfig = .default, transport: any EpicTransport = URLSession.shared,
                 pause: @escaping @Sendable (Double) async throws -> Void = { try await Task.sleep(nanoseconds: UInt64($0 * 1e9)) },
-                now: @escaping @Sendable () -> Date = Date.init) {
+                now: @escaping @Sendable () -> Date = { Date() }) {
         http = EpicHTTP(config: config, transport: transport, pause: pause); self.now = now
     }
 
@@ -97,6 +97,12 @@ public struct EpicAuth: Sendable {
         // The console session has done its job; don't leave it signed in.
         try? await killSession(accessToken: token)
         return try result.get()
+    }
+
+    /// An anonymous launcher token. Enough for catalog metadata and public apps' manifests.
+    public func clientToken() async throws -> String {
+        try await http.json(TokenResponse.self, "POST", tokenURL, auth: .basic(http.config.launcher),
+                            form: ["grant_type": "client_credentials", "token_type": "eg1"]).access_token
     }
 
     // MARK: Launcher session

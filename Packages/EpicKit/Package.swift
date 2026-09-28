@@ -7,6 +7,7 @@ let package = Package(
     products: [.library(name: "EpicCore", targets: ["EpicCore"])],
     targets: [
         .target(name: "EpicCore", swiftSettings: [.swiftLanguageMode(.v5)]),
+        .executableTarget(name: "epic-dev", dependencies: ["EpicCore"], swiftSettings: [.swiftLanguageMode(.v5)]),
         .testTarget(name: "EpicCoreTests", dependencies: ["EpicCore"],
                     resources: [.copy("Fixtures")],
                     swiftSettings: [.swiftLanguageMode(.v5)]),

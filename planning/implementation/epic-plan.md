@@ -5,7 +5,7 @@ Branch: `epic`. Commit each step once it builds and its tests pass. Mark steps d
 commit this file with them.
 
 Live testing uses `.epic-session.json` in the repo root (gitignored). It holds a launcher session
-from the step 0 spike. Anything that refreshes it must write the new refresh token back.
+created by `scripts/epic-sign-in.sh` (the `epic-dev` tool in `EpicKit`), which also completes step 0. Anything that refreshes it must write the new refresh token back.
 
 ## Step 0 — Auth spike
 
@@ -47,14 +47,15 @@ from the step 0 spike. Anything that refreshes it must write the new refresh tok
 - [x] `EpicLibraryAPI`: assets per platform, library items with a cursor, catalog bulk items, the
   manifest API (elements, manifests plus query params, `secrets`, sidecar) and the ownership token.
 - [x] Tests with `URLProtocol` stubs.
-- [ ] A live test gated on `EPIC_LIVE=1` reads `.epic-session.json`, lists the assets and fetches
-  one manifest.
+- [x] Live tests gated on `EPIC_LIVE=1`: download and verify public EOS Overlay files from the real CDN
+  (passes, no account needed); refresh `.epic-session.json`, list the assets and library, create a launch code
+  (waits for `scripts/epic-sign-in.sh`).
 
 ## Step 4 — `EpicCore` downloads
 
-- [ ] `DownloadPlan`: the unique chunks in first-use order, a reference count per chunk, file
+- [x] `DownloadPlan`: the unique chunks in first-use order, a reference count per chunk, file
   parts, and the sizes (download = Σ compressed chunk sizes, installed = Σ file sizes).
-- [ ] `EpicDownloader`:
+- [x] `EpicDownloader`:
   - parallel chunk fetches over the base URLs with retry and backoff;
   - a bounded cache of decoded chunks, spilling to `.epic-download/chunks` when a chunk is still
     referenced;
@@ -64,9 +65,9 @@ from the step 0 spike. Anything that refreshes it must write the new refresh tok
   - a resume journal in `.epic-download/resume` (`sha1:path`);
   - symlinks, executable bits and empty files;
   - case-insensitive target paths.
-- [ ] `verify(install:manifest:)` → missing and mismatched files. `repair` downloads only those
+- [x] `verify(install:manifest:)` → missing and mismatched files. `repair` downloads only those
   files.
-- [ ] Tests against a stub CDN with synthetic chunks.
+- [x] Tests against a stub CDN with synthetic chunks.
 
 ## Step 5 — Shared plumbing (PlaydenKit + App), Steam unchanged
 
