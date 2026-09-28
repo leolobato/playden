@@ -492,14 +492,18 @@ Scope: [PRD 09](prd/09-epic.md). Added 29 September 2026. The commit plan is
 `planning/implementation/epic-plan.md`. Each step keeps Steam and This Mac working.
 
 - [ ] **E0 — Auth spike.** Device-code sign-in reaches a launcher session with a real account.
-- [ ] **E1 — Docs.** PRD 09, `EPIC_PROTOCOL.md` and the legendary notice.
-- [ ] **E2–E4 — `EpicKit`.** Manifest and chunk parsers, the web API and auth, and the download
+- [x] **E1 — Docs.** PRD 09, `EPIC_PROTOCOL.md` and the legendary notice.
+- [x] **E2–E4 — `EpicKit`.** Manifest and chunk parsers, the web API and auth, and the download
   engine with resume, verify and repair.
-- [ ] **E5 — Shared plumbing.** Several account stores, per-launch arguments, and a Play gate with
+- [x] **E5 — Shared plumbing.** Several account stores, per-launch arguments, and a Play gate with
   a reason.
-- [ ] **E6 — `EpicSource`.** Library, installer and launch.
-- [ ] **E7 — UI.** The device-code screen, the Stores row, first run and the game-page states.
+- [x] **E6 — `EpicSource`.** Library, installer and launch.
+- [x] **E7 — UI.** The device-code screen, the Stores row, first run and the game-page states.
 - [ ] **E8 — Acceptance.** PRD 09 §6 on the TV.
+
+Progress, 29 September 2026: E1–E7 are built and committed on `epic`. Automated coverage: EpicKit 24
+tests (plus 2 live tests; the public EOS Overlay download from Epic's CDN passes), PlaydenKit 412 and
+app 252, all passing. E0 waits on a real sign-in with `scripts/epic-sign-in.sh`; E8 needs the TV.
 
 Gate: from the couch, sign in to Epic on the phone, install one non-EOS game and one EOS game, play
 both, and return to Playden with playtime recorded, while Steam and This Mac regression tests

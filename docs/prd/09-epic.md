@@ -182,7 +182,7 @@ These changes make a second account store work. Steam's behavior does not change
   Playden fetches it before launch, writes it inside the bottle, and passes its Windows path with
   `-epicovt=`. Offline, the launch stops with "Epic needs to be online to start this game."
   Whether Denuvo works under CrossOver is not guaranteed.
-- **FR-EPIC-25 (v3):** When a game's files include `EasyAntiCheat`, `BEClient`, or `equ8.dll`, the
+- **FR-EPIC-25 (later):** When a game's files include `EasyAntiCheat`, `BEClient`, or `equ8.dll`, the
   game page shows "Uses anti-cheat that may not work in CrossOver." Playden does not block these
   games.
 - **FR-EPIC-26 (later):** The EOS overlay, and running the manifest's prerequisites (VC++, DirectX)
