@@ -91,7 +91,8 @@ final class LibraryModel {
     @ObservationIgnored let sessions: (any SessionManaging)?
     @ObservationIgnored let cloudService: (any CloudSyncManaging)?
     @ObservationIgnored var cloudObserver: Task<Void, Never>?
-    @ObservationIgnored var cloudCommands: [GameID: Task<Void, Never>] = [:]
+    /// Observed: the game page shows "Cloud saves" as its main action while a command runs.
+    var cloudCommands: [GameID: Task<Void, Never>] = [:]
     var cloudStatuses: [GameID: CloudSyncStatus] = [:]
     var cloudAvailability: [GameID: Bool] = [:]
     @ObservationIgnored var cloudAvailabilityCache: [GameID: (plan: InstallPlan, available: Bool?)] = [:]
