@@ -155,8 +155,20 @@ skips it) and uses a private, non-persistent web session. App tests run the rela
 
 ## Step 9 — Acceptance and docs
 
-- [ ] Sign in with the phone relay and with the login window.
-- [ ] Install and play from the UI on this Mac: the step 0 games. Playtime recorded.
-- [ ] Resume after a crash; verify files after deleting one; start an installed game offline.
+- [x] Sign in with the phone relay: done from a desktop browser on the LAN address; a real phone
+  and the login window with a real account are still to try.
+- [x] Install and play from the UI on this Mac: VirtuaVerse, Flashback, Arena and Beneath a Steel
+  Sky play; Jazz Jackrabbit 2 starts without a visible window; Monkey Island 2 Special Edition
+  needs its redistributables. Playtime and exit results recorded. Results table in PRD 10 §6.
+- [x] Resume after a crash (Monkey Island 2 Special Edition, force-killed at 1.6 GB); verify files
+  after deleting one (restored `monkey2.exe`). Offline start: unit test only.
 - [ ] Controller-only pass on the TV, together with Epic's.
-- [ ] README "What you can do" and the current-focus line. Captures.
+- [x] README "What you can do" and the current-focus line. Captures: the `signin-web-login`
+  snapshot.
+
+Fixes found in acceptance and committed with it:
+- support files under `app/` go into the game folder (Arena's DOSBox configs);
+- the install script's file steps run after install and before each launch (Beneath a Steel
+  Sky's ScummVM path);
+- uninstall of a store without cloud saves needs one confirmation, and the platform picker and
+  uninstall review no longer mention Steam Cloud for those stores.

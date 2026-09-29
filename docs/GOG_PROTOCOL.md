@@ -50,6 +50,12 @@ Run with `gog-dev` (`Packages/GOGKit`) against a library of 27 products.
   `Contents/Resources`.
 - **Architectures:** VirtuaVerse is arm64; Flashback and Tyrian 2000 are x86_64 (Rosetta).
 - **Not seen in this library:** a gen 1 Mac build, and a non-owner's secure-link answer.
+- **Support files and install scripts** (found in acceptance, 2026-09-30): support files under
+  `app/` belong in the game folder (DOSBox configs). Windows builds carry `goggame-<id>.script`,
+  JSON `actions` with `install.action` of `supportData` (copy `{supportDir}/…` to `{app}`, or
+  create a folder), `setIni` (`filename`, `section`, `keyName`, `keyValue`, `utf8`) and
+  `setRegistry` (`root`, `subkey`, `valueName`, `valueData`, `valueType`). Variables:
+  `{app}`, `{supportDir}`, `{productID}`. ScummVM games need `setIni` to write the game `path`.
 
 ## Sources read (commit SHAs)
 

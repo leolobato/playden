@@ -522,17 +522,24 @@ and Epic working.
 
 - [x] **G0 — Spike.** Sign in with a real account and answer the open items in `GOG_PROTOCOL.md`.
 - [x] **G1 — Docs.** PRD 10, `GOG_PROTOCOL.md` and the gogdl notice.
-- [ ] **G2–G4 — `GOGKit`.** Builds, gen 1 and gen 2 manifests, the web API and auth, and the
+- [x] **G2–G4 — `GOGKit`.** Builds, gen 1 and gen 2 manifests, the web API and auth, and the
   download engine with resume, verify and repair.
-- [ ] **G5 — Shared plumbing.** Web-login sign-in and the phone relay.
-- [ ] **G6 — `GOGSource`.** Library, installer and launch for Windows builds.
-- [ ] **G7 — macOS builds.** Resolve, preparation, validation and launch.
-- [ ] **G8 — UI.** The web-login screen, the relay page, the login window, the Stores row and first run.
+- [x] **G5 — Shared plumbing.** Web-login sign-in and the phone relay.
+- [x] **G6 — `GOGSource`.** Library, installer and launch for Windows builds.
+- [x] **G7 — macOS builds.** Resolve, preparation, validation and launch.
+- [x] **G8 — UI.** The web-login screen, the relay page, the login window, the Stores row and first run.
 - [ ] **G9 — Acceptance.** PRD 10 §6 on the TV.
 
 Progress, 29 September 2026: G0 passed with a real account. GOG accepts only its own redirect
 address, so the phone relay keeps a paste step. Three Mac builds downloaded by `gog-dev` started
 without re-signing, though their signatures were missing or broken.
+
+Progress, 30 September 2026: G2–G8 are built and committed on `gog`. Automated coverage: GOGKit 41
+tests (plus 2 live tests against GOG's servers), PlaydenKit 439 and app 260, all passing. In the app
+on this Mac: sign-in through the relay page, the 23-game library, and installs of six games.
+VirtuaVerse and Flashback (Mac), Arena (DOSBox) and Beneath a Steel Sky (ScummVM) play; Monkey
+Island 2 Special Edition resumed after a force-kill and was repaired by Verify files, but needs its
+redistributables to start. Still open: a phone and a controller-only pass on the TV.
 
 Gate: from the couch, sign in to GOG with the phone, install and play a Windows game and a native
 Mac game, and return to Playden with playtime recorded, while Steam, This Mac and Epic regression

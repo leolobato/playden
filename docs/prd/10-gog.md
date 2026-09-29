@@ -207,12 +207,27 @@ These changes add a second kind of browser sign-in. Steam's and Epic's behavior 
   existing paths: delete the bottle for Windows, delete the owned folder for macOS.
 - **FR-GOG-20 (v3):** Paths change `\` to `/`, lose a leading `/`, and are matched
   case-insensitively. Paths that leave the install folder are refused. Files with the `support`
-  flag go to `.playden-gog/support/<product id>/`.
+  flag go to `.playden-gog/support/<product id>/`, except those under `app/`, which go into the
+  game folder as Galaxy's install script places them. DOSBox and ScummVM games keep their
+  configs there (found in acceptance: Arena's `dosbox_arena.conf`).
 - **FR-GOG-21 (v3):** Game-folder dependencies are installed with the game. These are entries of
   the build's `dependencies` whose executable path is empty, such as DOSBox and ScummVM. Without
   them, those games have no executable. They come from the public dependency store.
-- **FR-GOG-22 (later):** Redistributable installers (`__redist`: MSVC, DirectX, PhysX), the ISI
-  script interpreter (`scriptInterpreter`) and gen 1 `support_commands`. The plan keeps the
+- **FR-GOG-21a (v3):** After a Windows install, Playden runs the file steps of each product's
+  `goggame-<id>.script`, the steps Galaxy's script interpreter (ISI) would run:
+  - `supportData` copies a support folder into the game folder (never over an existing file unless
+    the script says to overwrite), or creates a folder;
+  - `setIni` sets a key in an INI file, such as ScummVM's game `path`. `{app}` in values is the
+    game folder as Wine sees it (`Z:\…`).
+
+  Before each launch, the INI keys and folders are set again, so paths follow a moved games drive.
+  Copies run only at install. Verify files accepts the INI files a script changed. Paths must stay
+  in the game or support folder. (Found in acceptance: Beneath a Steel Sky's `beneath.ini` has no
+  game path until the script sets it.)
+- **FR-GOG-22 (later):** Redistributable installers (`__redist`: MSVC, DirectX, PhysX), the
+  script's `setRegistry` steps, running the ISI itself (`scriptInterpreter`) and gen 1
+  `support_commands`. Acceptance showed that Monkey Island 2 Special Edition crashes at start
+  without its DirectX, .NET 3.5 and MSVC2008 redistributables, so this is the first follow-up. The plan keeps the
   `dependencies` list, so these can be added later through the existing `RuntimePrerequisite`
   path that Steam uses. CrossOver's built-in runtimes cover most modern games.
 - **FR-GOG-23 (later):** Game updates (chunk reuse and xdelta patches), private branches, and
@@ -295,6 +310,23 @@ These changes add a second kind of browser sign-in. Steam's and Epic's behavior 
   - with the network off, start an installed game;
   - a controller-only pass on the TV, together with Epic's.
 
+### Acceptance results (2026-09-30, this Mac, keyboard)
+
+| Check | Result |
+|---|---|
+| Phone relay sign-in | Passed with a desktop browser standing in for the phone: the page at the LAN address (`10.0.1.72`) took the pasted address and signed in. No macOS prompt appeared. A real phone is still to try. |
+| Login window sign-in | Not tried with a real account (app tests cover the redirect). |
+| Library | 23 GOG games with covers, heroes and platforms. |
+| Jazz Jackrabbit 2: The Secret Files (gen 2 Windows) | Installed (53 MB) and started; the process runs in its bottle, but its window never becomes visible. Its script also sets registry keys, which Playden skips (FR-GOG-22). Rated as a compatibility issue. |
+| Monkey Island 2 Special Edition (gen 1 Windows) | Installed (1.9 GB). Resumed after Playden was force-killed at 1.6 GB. Verify files found and restored a deleted `monkey2.exe`. The game crashes at start without its redistributables (FR-GOG-22). |
+| VirtuaVerse (Mac, arm64) | Installed and played natively to the main menu; the session ended cleanly. |
+| Flashback (Mac, x86_64) | Installed and played through Rosetta (Unity setup dialog, then the intro); ended cleanly with 206 s recorded. |
+| The Elder Scrolls: Arena (DOSBox) | Played to the intro once the `app/` support rule put its configs in the game folder. |
+| Beneath a Steel Sky (Windows, ScummVM) | Played to the intro once FR-GOG-21a set the game path in `beneath.ini`. |
+| Uninstall | Removes the bottle with one confirmation; no Cloud warning for a store without cloud saves. |
+| Offline start | Not tried on the network; GOG adds nothing to a launch, and a unit test covers the offline case. |
+| Controller-only TV pass | Open (the player's step, with Epic's). |
+
 ## 7. Delivery order
 
 Each step ships on its own and keeps Steam, This Mac and Epic working.
@@ -317,9 +349,10 @@ Each step ships on its own and keeps Steam, This Mac and Epic working.
 Step 0 answered the redirect, token, secure-link, launch-task and signature questions; see
 GOG_PROTOCOL.md, "Spike results". Still open:
 
-- Whether macOS shows a firewall or local network prompt when the relay serves its first page
-  (step 5).
-- Whether a Windows game that lists `__redist` dependencies runs without them in CrossOver
-  (Monkey Island 2 Special Edition, step 9).
+- Whether a phone on Wi-Fi reaches the relay page, and whether macOS then asks for local network
+  or firewall access. A desktop browser on the LAN address worked without a prompt.
+- Why Jazz Jackrabbit 2's window stays hidden, and whether its registry keys fix it.
+- The install offer defaults to the last games drive even when This Mac was chosen for the
+  previous game; the player picks This Mac each time (existing behavior, not GOG-specific).
 - The builds list returns 10 items. Playden needs only the first default-branch build, so paging
   matters only for choosing older builds (**later**).
