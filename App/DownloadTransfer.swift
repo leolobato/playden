@@ -15,6 +15,8 @@ extension LibraryModel {
                 default: break
                 }
             }
+            // Startup recovery pauses downloads like a running game does; say so when no game is running.
+            if job.state == .paused, job.pauseReasons == [.gameplay], !hasActiveSession { return "Paused · startup check" }
             return job.statusTitle
         }
         if job.stage == .stage { return "Checking files before setup" }

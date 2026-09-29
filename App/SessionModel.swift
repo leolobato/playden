@@ -70,7 +70,7 @@ extension LibraryModel {
         sessionStartup = Task { [weak self] in
             guard let self else { return }
             do { try await sessions.start(downloadWhilePlaying: self.downloadWhilePlaying); self.sessionReady = true }
-            catch { self.reportSessionIssue(self.sessionFailure(error, stage: "Recover session"), recovery: .recoverSession) }
+            catch { self.reportSessionIssue(self.recoveryFailure(error), recovery: .recoverSession) }
         }
     }
     func receiveSession(_ snapshot: SessionSnapshot, at now: Date = .now) {
@@ -258,6 +258,13 @@ extension LibraryModel {
             do { try await sessions.setDownloadWhilePlaying(self.downloadWhilePlaying) }
             catch { self.reportSessionIssue(self.sessionFailure(error, stage: "Pause downloads"), recovery: .downloadPolicy) }
         }
+    }
+    /// Startup recovery holds downloads until it knows no game was left running; the notice says so.
+    func recoveryFailure(_ error: Error) -> OperationFailure {
+        let detail = sessionFailure(error, stage: "Recover session")
+        return OperationFailure(stage: "Downloads paused",
+                                reason: "Playden couldn’t check whether a game was left running, so downloads are paused. Retry, or restart Playden. (\(detail.reason))",
+                                output: detail.output)
     }
     func sessionFailure(_ error: Error, stage: String) -> OperationFailure {
         error as? OperationFailure ?? .init(stage: stage, reason: error.localizedDescription, output: error.localizedDescription)

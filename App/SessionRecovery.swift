@@ -64,7 +64,7 @@ extension LibraryModel {
                         sessionReady = true
                     } else { try await sessions.setDownloadWhilePlaying(downloadWhilePlaying) }
                 } catch {
-                    reportSessionIssue(sessionFailure(error, stage: recovery == .recoverSession ? "Recover session" : "Pause downloads"), recovery: recovery)
+                    reportSessionIssue(recovery == .recoverSession ? recoveryFailure(error) : sessionFailure(error, stage: "Pause downloads"), recovery: recovery)
                 }
             }
         }

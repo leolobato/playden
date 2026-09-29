@@ -203,12 +203,14 @@ struct GameTile: View {
     var subtitle: String? = nil
     var paused = false
     var job: JobRecord? = nil
+    /// The model's wording for the job's status; falls back to the job's own.
+    var jobStatus: String? = nil
     var running = false
     var verification: InstallFileVerification? = nil
     /// Shown only once a second store has games.
     var storeSymbol: String? = nil
     var transferProgress: Double { verification?.fraction ?? job?.displayProgress ?? 0.43 }
-    var transferTitle: String { verification == nil ? (job?.statusTitle ?? (paused ? "Paused" : "Downloading")) : "Verifying file" }
+    var transferTitle: String { verification == nil ? (jobStatus ?? job?.statusTitle ?? (paused ? "Paused" : "Downloading")) : "Verifying file" }
     var width: CGFloat { home ? 213 : 210 }
     var height: CGFloat { home ? 320 : 315 }
     var installSizeLabel: String? {
@@ -221,7 +223,7 @@ struct GameTile: View {
     var showsDownloadMark: Bool { !running && game.status == .notInstalled && game.compatibility != .broken }
     var badge: (String, Color)? {
         if running { return ("Running", Design.green) }
-        if game.status == .queued { return (job?.statusTitle ?? "Queued", job?.state == .failed ? Design.amber : Design.secondary) }
+        if game.status == .queued { return (jobStatus ?? job?.statusTitle ?? "Queued", job?.state == .failed ? Design.amber : Design.secondary) }
         if game.status == .driveDisconnected { return ("Drive disconnected", Design.amber) }
         if game.status == .missing { return ("Missing", Design.amber) }
         if game.compatibility == .broken { return ("Broken", Design.red) }
