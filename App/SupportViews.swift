@@ -296,7 +296,7 @@ struct DownloadCard: View {
                             Text(model.transferSpeedLabel(for: job) ?? "").frame(width: 170, alignment: .leading)
                             Text(model.transferTimeLabel(for: job) ?? "").frame(maxWidth: .infinity, alignment: .leading)
                         }.font(Design.body(22)).monospacedDigit().foregroundStyle(Design.secondary).lineLimit(1)
-                        Text(job.kind == .uninstall ? "Steam Cloud saves and library history are kept." : model.downloadActivityDetail(for: job)).font(Design.body(18)).foregroundStyle(Design.muted).lineLimit(1).truncationMode(.middle)
+                        Text(job.kind == .uninstall ? (model.storeHasCloudSaves(job.gameID) ? "Steam Cloud saves and library history are kept." : "Library history is kept.") : model.downloadActivityDetail(for: job)).font(Design.body(18)).foregroundStyle(Design.muted).lineLimit(1).truncationMode(.middle)
                     }
                 } else if active {
                     Text(model.downloadPaused ? "Paused · 43%" : "Download · 43%").font(Design.body(24, weight: "Medium")).foregroundStyle(Design.accent)

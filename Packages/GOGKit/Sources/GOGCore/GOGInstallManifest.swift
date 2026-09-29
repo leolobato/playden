@@ -71,6 +71,13 @@ public enum GOGPaths {
     public static let workDirectory = ".playden-gog"
     public static func support(product: String) -> String { "\(workDirectory)/support/\(product)" }
 
+    /// Where a file flagged `support` goes. Galaxy's install script copies a product's `app/` support
+    /// files into the game folder (DOSBox and ScummVM configs live there); the rest stay in the
+    /// support folder.
+    public static func supportPath(_ path: String, product: String) -> String {
+        path.lowercased().hasPrefix("app/") && path.count > 4 ? String(path.dropFirst(4)) : support(product: product) + "/" + path
+    }
+
     /// `\` → `/`, no leading separator, and nothing that leaves the install folder.
     public static func normalize(_ raw: String) throws -> String {
         let components = raw.replacingOccurrences(of: "\\", with: "/").split(separator: "/", omittingEmptySubsequences: true).map(String.init)
@@ -149,7 +156,7 @@ public enum GOGDepotSelection {
         try manifest.items.map { item in
             let flags = Set(item.flags ?? [])
             var path = try GOGPaths.normalize(item.path)
-            if flags.contains("support") { path = GOGPaths.support(product: product) + "/" + path }
+            if flags.contains("support") { path = GOGPaths.supportPath(path, product: product) }
             switch item.type {
             case "DepotFile":
                 return GOGFile(path: path, size: item.chunks.reduce(0) { $0 + $1.size },
@@ -166,7 +173,7 @@ public enum GOGDepotSelection {
     public static func files(_ manifest: GOGDepotManifestV1, product: String) throws -> [GOGFile] {
         try manifest.files.map { file in
             var path = try GOGPaths.normalize(file.path)
-            if file.support == true { path = GOGPaths.support(product: product) + "/" + path }
+            if file.support == true { path = GOGPaths.supportPath(path, product: product) }
             if file.directory == true { return GOGFile(path: path, kind: .directory, product: product) }
             if let target = file.target, file.symlinkType != nil || file.size == nil {
                 return GOGFile(path: path, kind: .link, target: target, product: product)

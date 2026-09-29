@@ -71,7 +71,7 @@ struct PlatformPickerDialog: View {
                             Image(systemName: platform == .macOS ? "apple.logo" : "pc").font(.system(size: 34, weight: .medium)).frame(width: 48)
                             VStack(alignment: .leading, spacing: 6) {
                                 Text(platform.title).font(Design.condensed(32))
-                                Text(platform == .macOS ? "Runs natively · Steam Cloud saves" : "Runs with CrossOver · Steam Cloud saves")
+                                Text((platform == .macOS ? "Runs natively" : "Runs with CrossOver") + (model.storeHasCloudSaves(gameID) ? " · Steam Cloud saves" : ""))
                                     .font(Design.body(22)).foregroundStyle(Design.secondary)
                             }
                             Spacer(minLength: 0)

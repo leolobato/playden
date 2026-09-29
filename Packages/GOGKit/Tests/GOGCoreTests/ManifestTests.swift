@@ -58,6 +58,8 @@ final class ManifestTests: XCTestCase {
         XCTAssertEqual(files[0].size, 10)
         XCTAssertEqual(files[3].target, "Versions/A")
         XCTAssertThrowsError(try GOGPaths.normalize("a/../../b"))
+        XCTAssertEqual(GOGPaths.supportPath("app/dosbox_arena.conf", product: "7"), "dosbox_arena.conf", "app/ support files belong in the game folder")
+        XCTAssertEqual(GOGPaths.supportPath("save/NAMES.DAT", product: "7"), ".playden-gog/support/7/save/NAMES.DAT")
     }
 
     func testV1RepositoryAndDepot() throws {
