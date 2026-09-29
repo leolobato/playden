@@ -23,7 +23,8 @@ final class EpicLiveTests: XCTestCase {
         XCTAssertFalse(games.isEmpty)
         print("EPIC-LIVE library: \(games.count) games")
         var resolved = 0
-        for game in games.prefix(Int(ProcessInfo.processInfo.environment["EPIC_LIVE_RESOLVE"] ?? "40") ?? 40) {
+        let resolveCount = Int(ProcessInfo.processInfo.environment["EPIC_LIVE_RESOLVE"] ?? "40") ?? 40
+        for game in games.prefix(resolveCount) {
             do {
                 let plan = try await source.installer(for: game).resolve()
                 let payload = try JSONDecoder().decode(EpicPlanPayload.self, from: plan.sourcePayload)
@@ -31,6 +32,23 @@ final class EpicLiveTests: XCTestCase {
                 resolved += 1
             } catch { print("EPIC-LIVE \(game.id.value) | \(game.title) | FAILED \(error)") }
         }
-        XCTAssertGreaterThan(resolved, 0)
+        if resolveCount > 0 { XCTAssertGreaterThan(resolved, 0) }
+
+        // EPIC_LIVE_INSTALL=<app name>: download, verify and prepare a real launch, then delete the files.
+        guard let appName = ProcessInfo.processInfo.environment["EPIC_LIVE_INSTALL"], let game = games.first(where: { $0.id.value == appName }) else { return }
+        let installer = try source.installer(for: game)
+        let plan = try await installer.resolve()
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("epic-live-install-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let started = Date()
+        try await installer.download(plan, to: directory) { _ in }
+        print("EPIC-LIVE installed \(game.title) in \(Int(Date().timeIntervalSince(started))) s")
+        let verification = try await installer.verifyOriginals(plan, at: directory, staging: nil)
+        XCTAssertTrue(verification.isValid, "\(verification.invalidFiles)")
+        let spec = try await installer.validate(plan, at: directory, staging: InstallStaging())
+        let launch = try await installer.prepareLaunch(spec, plan: plan, at: directory, offline: false)
+        let code = launch.arguments.first { $0.hasPrefix("-AUTH_PASSWORD=") }?.dropFirst("-AUTH_PASSWORD=".count) ?? ""
+        XCTAssertEqual(code.count, 32)
+        print("EPIC-LIVE launch \(spec.executableRelativePath) with \(launch.arguments.count) arguments")
     }
 }
