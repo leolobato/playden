@@ -51,9 +51,9 @@ JSON manifest and chunk formats (`models/manifest.py`, `models/json_manifest.py`
 - **Project:** [heroic-gogdl](https://github.com/Heroic-Games-Launcher/heroic-gogdl) by the Heroic
   Games Launcher contributors.
 - **License:** GNU General Public License v3.0.
-- **Where:** `Packages/GOGKit/Sources/GOGCore` (planned; see [PRD 10](docs/prd/10-gog.md)).
+- **Where:** `Packages/GOGKit/Sources/GOGCore` (see [PRD 10](docs/prd/10-gog.md)).
 
-Parts of `GOGCore` will be Swift ports of Python code from gogdl at commit
+Parts of `GOGCore` are Swift ports of Python code from gogdl at commit
 `9c593fdba2a3e829a48e45e6475d8db937833dce`: the GOG auth and content-system calls (`auth.py`,
 `api.py`, `dl/dl_utils.py`), the gen 1 and gen 2 manifest formats (`dl/objects/v1.py`,
 `dl/objects/v2.py`), the download managers (`dl/managers/`) and the launch-task selection

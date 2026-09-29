@@ -1,6 +1,6 @@
 # GOG protocol
 
-The wire protocol that `Packages/GOGKit` will implement. Requirements are in [PRD 10](prd/10-gog.md).
+The wire protocol that `Packages/GOGKit` implements. Requirements are in [PRD 10](prd/10-gog.md).
 
 Research date: 2026-09-29. The sections after "Spike results" are the source research. Where they
 say **UNCONFIRMED**, check "Spike results" first: it records what a signed-in account showed.

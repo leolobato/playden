@@ -81,10 +81,11 @@ struct GOGInstaller: Installer {
         let invalid = try GOGDownloader(destination: directory).invalidFiles(in: manifest) { file, checked, total in
             progress(InstallFileVerification(file: file, bytesChecked: checked, bytesTotal: total, scope: .installation))
         }
-        // INI files the install script sets keys in are expected to differ from the download.
+        // INI files the install script sets keys in are expected to differ from the download. A
+        // missing one is still reported, so repair restores it.
         let changed = Set(Self.installScripts(payload, at: directory).flatMap { script, context in
             script.steps(context, skipCopies: true).compactMap { step -> String? in
-                guard case .setINI(let file, _, _, _, _) = step else { return nil }
+                guard case .setINI(let file, _, _, _, _) = step, FileManager.default.fileExists(atPath: file.path) else { return nil }
                 return String(file.standardizedFileURL.path.dropFirst(directory.standardizedFileURL.path.count + 1)).lowercased()
             }
         })

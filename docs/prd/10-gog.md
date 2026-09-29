@@ -221,13 +221,15 @@ These changes add a second kind of browser sign-in. Steam's and Epic's behavior 
     game folder as Wine sees it (`Z:\…`).
 
   Before each launch, the INI keys and folders are set again, so paths follow a moved games drive.
-  Copies run only at install. Verify files accepts the INI files a script changed. Paths must stay
+  Copies run only at install. Verify files accepts the INI files a script changed, and still reports
+  a missing one so repair restores it. Paths must stay
   in the game or support folder. (Found in acceptance: Beneath a Steel Sky's `beneath.ini` has no
   game path until the script sets it.)
 - **FR-GOG-22 (later):** Redistributable installers (`__redist`: MSVC, DirectX, PhysX), the
   script's `setRegistry` steps, running the ISI itself (`scriptInterpreter`) and gen 1
-  `support_commands`. Acceptance showed that Monkey Island 2 Special Edition crashes at start
-  without its DirectX, .NET 3.5 and MSVC2008 redistributables, so this is the first follow-up. The plan keeps the
+  `support_commands`. In acceptance, Monkey Island 2 Special Edition crashed at start. It lists
+  DirectX, .NET 3.5 and MSVC2008 installers that Playden doesn't run, the likely cause, so this is
+  the first follow-up. The plan keeps the
   `dependencies` list, so these can be added later through the existing `RuntimePrerequisite`
   path that Steam uses. CrossOver's built-in runtimes cover most modern games.
 - **FR-GOG-23 (later):** Game updates (chunk reuse and xdelta patches), private branches, and
@@ -318,12 +320,12 @@ These changes add a second kind of browser sign-in. Steam's and Epic's behavior 
 | Login window sign-in | Not tried with a real account (app tests cover the redirect). |
 | Library | 23 GOG games with covers, heroes and platforms. |
 | Jazz Jackrabbit 2: The Secret Files (gen 2 Windows) | Installed (53 MB) and started; the process runs in its bottle, but its window never becomes visible. Its script also sets registry keys, which Playden skips (FR-GOG-22). Rated as a compatibility issue. |
-| Monkey Island 2 Special Edition (gen 1 Windows) | Installed (1.9 GB). Resumed after Playden was force-killed at 1.6 GB. Verify files found and restored a deleted `monkey2.exe`. The game crashes at start without its redistributables (FR-GOG-22). |
+| Monkey Island 2 Special Edition (gen 1 Windows) | Installed (1.9 GB). Resumed after Playden was force-killed at 1.6 GB. Verify files found and restored a deleted `monkey2.exe`. The game crashes at start (Wine's debugger caught it); it lists DirectX, .NET 3.5 and MSVC2008 installers Playden doesn't run, the likely cause (FR-GOG-22). |
 | VirtuaVerse (Mac, arm64) | Installed and played natively to the main menu; the session ended cleanly. |
 | Flashback (Mac, x86_64) | Installed and played through Rosetta (Unity setup dialog, then the intro); ended cleanly with 206 s recorded. |
 | The Elder Scrolls: Arena (DOSBox) | Played to the intro once the `app/` support rule put its configs in the game folder. |
 | Beneath a Steel Sky (Windows, ScummVM) | Played to the intro once FR-GOG-21a set the game path in `beneath.ini`. |
-| Uninstall | Removes the bottle with one confirmation; no Cloud warning for a store without cloud saves. |
+| Uninstall | First try (Arena) showed a Cloud warning for a store without cloud saves; after the fix, Jazz Jackrabbit 2 uninstalled with one confirmation. |
 | Offline start | Not tried on the network; GOG adds nothing to a launch, and a unit test covers the offline case. |
 | Controller-only TV pass | Open (the player's step, with Epic's). |
 

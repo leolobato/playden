@@ -217,6 +217,11 @@ final class GOGSourceTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent("saves").path))
         let verification = try await installer.verifyOriginals(plan, at: root, staging: nil)
         XCTAssertTrue(verification.isValid, "\(verification.invalidFiles)")
+        try FileManager.default.removeItem(at: root.appendingPathComponent("game.ini"))
+        let missing = try await installer.verifyOriginals(plan, at: root, staging: nil)
+        XCTAssertEqual(missing.invalidFiles, ["game.ini"], "a missing INI is still reported")
+        try await installer.repair(plan, at: root, staging: nil) { _ in }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent("game.ini").path))
     }
 
     func testDownloadRefusesANewerBuild() async throws {
