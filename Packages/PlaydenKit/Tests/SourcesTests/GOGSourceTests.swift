@@ -203,6 +203,22 @@ final class GOGSourceTests: XCTestCase {
         XCTAssertEqual(prepared, spec, "GOG games need nothing per launch, even offline")
     }
 
+    func testInstallScriptSetsTheINIAndVerifyAcceptsIt() async throws {
+        let fake = FakeGOG(); windowsGame(fake)
+        fake.files["windows"]?["game.ini"] = Data("[game]\r\ngameid=sky\r\n".utf8)
+        fake.files["windows"]?["goggame-1.script"] = Data(#"{"actions":[{"install":{"action":"setIni","arguments":{"filename":"{app}\\game.ini","keyName":"path","keyValue":"{app}","section":"game"}},"languages":["*"]},{"install":{"action":"supportData","arguments":{"target":"{app}/saves","type":"folder"}},"languages":["*"]}]}"#.utf8)
+        let (source, _) = source(fake)
+        let installer = try source.installer(for: try await source.ownedGames()[0])
+        let plan = try await installer.resolve()
+        try await installer.download(plan, to: root) { _ in }
+        _ = try await installer.postInstall(plan, at: root)
+        let ini = try String(contentsOf: root.appendingPathComponent("game.ini"), encoding: .isoLatin1)
+        XCTAssertTrue(ini.contains("path=Z:" + root.standardizedFileURL.path.replacingOccurrences(of: "/", with: "\\")), ini)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent("saves").path))
+        let verification = try await installer.verifyOriginals(plan, at: root, staging: nil)
+        XCTAssertTrue(verification.isValid, "\(verification.invalidFiles)")
+    }
+
     func testDownloadRefusesANewerBuild() async throws {
         let fake = FakeGOG(); windowsGame(fake)
         let (source, _) = source(fake)

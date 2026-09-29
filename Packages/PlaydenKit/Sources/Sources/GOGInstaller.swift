@@ -81,7 +81,14 @@ struct GOGInstaller: Installer {
         let invalid = try GOGDownloader(destination: directory).invalidFiles(in: manifest) { file, checked, total in
             progress(InstallFileVerification(file: file, bytesChecked: checked, bytesTotal: total, scope: .installation))
         }
-        return VerificationResult(invalidFiles: invalid)
+        // INI files the install script sets keys in are expected to differ from the download.
+        let changed = Set(Self.installScripts(payload, at: directory).flatMap { script, context in
+            script.steps(context, skipCopies: true).compactMap { step -> String? in
+                guard case .setINI(let file, _, _, _, _) = step else { return nil }
+                return String(file.standardizedFileURL.path.dropFirst(directory.standardizedFileURL.path.count + 1)).lowercased()
+            }
+        })
+        return VerificationResult(invalidFiles: invalid.filter { !changed.contains($0.lowercased()) })
     }
 
     /// Downloads again only the files that are missing or changed.
@@ -96,7 +103,10 @@ struct GOGInstaller: Installer {
     /// Mac bundles need their programs runnable even where a depot omits the executable flag (FR-GOG-26).
     /// GOG breaks or omits bundle signatures, and the bundles still start, so nothing is re-signed (FR-GOG-28).
     func postInstall(_ plan: InstallPlan, at directory: URL) async throws -> InstallStaging {
-        guard plan.resolvedPlatform == .macOS else { return InstallStaging() }
+        guard plan.resolvedPlatform == .macOS else {
+            try Self.runInstallScripts(try Self.payload(plan), at: directory, skipCopies: false)
+            return InstallStaging()
+        }
         let bundle = directory.appendingPathComponent(plan.launchSpec.executableRelativePath)
         let files = FileManager.default.enumerator(at: bundle, includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey])?
             .allObjects.compactMap { $0 as? URL } ?? []
@@ -126,6 +136,36 @@ struct GOGInstaller: Installer {
     }
 
     func uninstall(_ plan: InstallPlan, at directory: URL) async throws {}
+
+    /// GOG games need nothing per launch; the install script's INI keys are set again so paths follow a moved drive.
+    func prepareLaunch(_ spec: LaunchSpec, plan: InstallPlan, at directory: URL, offline: Bool) async throws -> LaunchSpec {
+        if plan.resolvedPlatform == .windows, let payload = try? Self.payload(plan) {
+            try? Self.runInstallScripts(payload, at: directory, skipCopies: true)
+        }
+        return spec
+    }
+
+    /// Each installed product's `goggame-<id>.script` in the game folder, with its variables (PRD 10 FR-GOG-21a).
+    static func installScripts(_ payload: GOGPlanPayload, at directory: URL) -> [(GOGInstallScript, GOGInstallScript.Context)] {
+        guard payload.platform == "windows" else { return [] }
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
+        return payload.products.compactMap { product in
+            guard let name = names.first(where: { $0.lowercased() == "goggame-\(product).script" }),
+                  let data = try? Data(contentsOf: directory.appendingPathComponent(name)),
+                  let script = try? GOGInstallScript.parse(data) else { return nil }
+            let context = GOGInstallScript.Context(gameRoot: directory, supportRoot: directory.appendingPathComponent(GOGPaths.support(product: product)),
+                                                   productID: product, language: GOGLanguage.code(for: payload.language),
+                                                   windowsAppPath: "Z:" + directory.standardizedFileURL.path.replacingOccurrences(of: "/", with: "\\"))
+            return (script, context)
+        }
+    }
+
+    static func runInstallScripts(_ payload: GOGPlanPayload, at directory: URL, skipCopies: Bool) throws {
+        for (script, context) in installScripts(payload, at: directory) {
+            do { try script.run(context, skipCopies: skipCopies) }
+            catch { throw OperationFailure(stage: "Prepare", reason: "The game's setup step couldn't write its settings.", output: String(describing: error)) }
+        }
+    }
 
     /// The bundle must name a runnable program, and that program must have 64-bit code (FR-GOG-27).
     private func validateBundle(_ bundle: URL) throws {
