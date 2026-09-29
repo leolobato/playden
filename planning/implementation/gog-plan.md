@@ -42,21 +42,26 @@ Done 2026-09-29 with a real account.
 
 ## Step 2 — `GOGCore` parsers (`Packages/GOGKit`)
 
-- [ ] `Package.swift` with the `GOGCore` library, `GOGCoreTests` and `gog-dev`. Link `libz`.
-- [ ] `GOGCodec`: zlib inflate (header required), MD5, the `galaxy_path` helper (`ab/cd/abcd…`).
-- [ ] `GOGBuilds`: the builds list (both generations, `urls[]`, `branch`), and choosing the first
+- [x] `Package.swift` with the `GOGCore` library, `GOGCoreTests` and `gog-dev`. Link `libz`.
+- [x] `GOGCodec`: zlib inflate (header required), MD5, the `galaxy_path` helper (`ab/cd/abcd…`).
+- [x] `GOGBuilds`: the builds list (both generations, `urls[]`, `branch`), and choosing the first
   default-branch build.
-- [ ] `GOGManifestV2`: the build manifest (depots, `products`, `dependencies`, `installDirectory`,
+- [x] `GOGManifestV2`: the build manifest (depots, `products`, `dependencies`, `installDirectory`,
   `osBitness`) and depot manifests (`DepotFile`, `DepotDirectory`, `DepotLink`, flags). Paths
   normalized. `sfcRef` parsed and ignored.
-- [ ] `GOGManifestV1`: the repository (string sizes, `redist` depots skipped) and depot manifests
+- [x] `GOGManifestV1`: the repository (string sizes, `redist` depots skipped) and depot manifests
   (files, directories, `symlinkType` records without a size).
-- [ ] Depot selection: base plus owned DLC, language (`*`, `Neutral`, code, English name), bitness.
-- [ ] `GOGInfoFile`: `playTasks`, the primary task, launch options, and the three locations.
-- [ ] `GOGDependencies`: the repository manifest, and game-folder entries (empty executable path).
-- [ ] Fixtures: a public product's build and depot manifests, and one small chunk from the public
+- [x] Depot selection: base plus owned DLC, language (`*`, `Neutral`, code, English name), bitness.
+- [x] `GOGInfoFile`: `playTasks`, the primary task, launch options, and the three locations.
+- [x] `GOGDependencies`: the repository manifest, and game-folder entries (empty executable path).
+- [x] Fixtures: a public product's build and depot manifests, and one small chunk from the public
   dependency store. Synthetic gen 1 and gen 2 manifests built in the tests.
-- [ ] `scripts/test.sh` runs `swift test --package-path Packages/GOGKit`.
+- [x] `scripts/test.sh` runs `swift test --package-path Packages/GOGKit`.
+
+Done 2026-09-29. Both generations flatten into one `GOGInstallManifest` (a list of `GOGFile`), so
+download, verify and repair share one path. Fixtures are public: Prison Architect's build and DLC
+depot manifests, Monkey Island 2 Special Edition's gen 1 repository, the dependency repository,
+and one DOSBox documentation chunk.
 
 ## Step 3 — `GOGCore` API
 

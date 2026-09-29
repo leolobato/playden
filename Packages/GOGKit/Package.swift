@@ -8,6 +8,6 @@ let package = Package(
     targets: [
         .target(name: "GOGCore", swiftSettings: [.swiftLanguageMode(.v5)]),
         .executableTarget(name: "gog-dev", dependencies: ["GOGCore"], swiftSettings: [.swiftLanguageMode(.v5)]),
-        .testTarget(name: "GOGCoreTests", dependencies: ["GOGCore"], swiftSettings: [.swiftLanguageMode(.v5)]),
+        .testTarget(name: "GOGCoreTests", dependencies: ["GOGCore"], resources: [.copy("Fixtures")], swiftSettings: [.swiftLanguageMode(.v5)]),
     ]
 )

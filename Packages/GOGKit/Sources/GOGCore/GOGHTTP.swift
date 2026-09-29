@@ -8,6 +8,8 @@ public enum GOGError: Error, Equatable, Sendable, LocalizedError {
     case http(status: Int, code: String?, message: String?)
     case invalidCredentials(String?)
     case noCode
+    case noBuild(String)
+    case unauthorized
     case network(String)
     case cancelled
 
@@ -18,6 +20,8 @@ public enum GOGError: Error, Equatable, Sendable, LocalizedError {
         case .http(let s, let c, let m): "GOG returned HTTP \(s)\(c.map { " \($0)" } ?? "")\(m.map { ": \($0)" } ?? "")"
         case .invalidCredentials(let d): "GOG rejected the sign-in\(d.map { " (\($0))" } ?? "")."
         case .noCode: "That address has no GOG sign-in code."
+        case .noBuild(let os): "GOG has no \(os == "osx" ? "Mac" : "Windows") build of this game."
+        case .unauthorized: "GOG refused the download link."
         case .network(let d): "GOG can’t be reached: \(d)"
         case .cancelled: "Cancelled."
         }

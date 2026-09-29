@@ -1,0 +1,167 @@
+{
+    "total_count": 13,
+    "count": 4,
+    "items": [
+        {
+            "build_id": "58076094395251196",
+            "product_id": "1207658924",
+            "os": "windows",
+            "branch": null,
+            "version_name": "1.5 (CS) GOG 0.2",
+            "tags": [
+                "receiver_v2",
+                "csb_10_6_7_w_3"
+            ],
+            "public": true,
+            "date_published": "2024-11-05T10:31:15+0000",
+            "generation": 2,
+            "urls": [
+                {
+                    "endpoint_name": "fastly",
+                    "url": "https:\/\/gog-cdn-fastly.gog.com\/content-system\/v2\/meta\/d8\/1a\/d81afdd5959201c063e52321cef2fbb6",
+                    "url_format": "https:\/\/gog-cdn-fastly.gog.com\/content-system\/v2\/meta\/d8\/1a\/d81afdd5959201c063e52321cef2fbb6",
+                    "parameters": {},
+                    "priority": 10,
+                    "max_fails": 100,
+                    "supports_generation": [
+                        1,
+                        2
+                    ],
+                    "fallback_only": false
+                },
+                {
+                    "endpoint_name": "gcore",
+                    "url": "https:\/\/gog-cdn.gcdn.co\/content-system\/v2\/meta\/d8\/1a\/d81afdd5959201c063e52321cef2fbb6",
+                    "url_format": "https:\/\/gog-cdn.gcdn.co\/content-system\/v2\/meta\/d8\/1a\/d81afdd5959201c063e52321cef2fbb6",
+                    "parameters": {},
+                    "priority": 1,
+                    "max_fails": 100,
+                    "supports_generation": [
+                        2
+                    ],
+                    "fallback_only": true
+                }
+            ]
+        },
+        {
+            "build_id": "50001904414408462",
+            "product_id": "1207658924",
+            "os": "windows",
+            "branch": null,
+            "version_name": "1.5 (A)",
+            "tags": [
+                "csb_1_0_9_w_118"
+            ],
+            "public": true,
+            "date_published": "2017-03-22T08:59:43+0000",
+            "generation": 2,
+            "urls": [
+                {
+                    "endpoint_name": "fastly",
+                    "url": "https:\/\/gog-cdn-fastly.gog.com\/content-system\/v2\/meta\/29\/0f\/290f995be908621d1f8614eb23593c5b",
+                    "url_format": "https:\/\/gog-cdn-fastly.gog.com\/content-system\/v2\/meta\/29\/0f\/290f995be908621d1f8614eb23593c5b",
+                    "parameters": {},
+                    "priority": 10,
+                    "max_fails": 100,
+                    "supports_generation": [
+                        1,
+                        2
+                    ],
+                    "fallback_only": false
+                },
+                {
+                    "endpoint_name": "gcore",
+                    "url": "https:\/\/gog-cdn.gcdn.co\/content-system\/v2\/meta\/29\/0f\/290f995be908621d1f8614eb23593c5b",
+                    "url_format": "https:\/\/gog-cdn.gcdn.co\/content-system\/v2\/meta\/29\/0f\/290f995be908621d1f8614eb23593c5b",
+                    "parameters": {},
+                    "priority": 1,
+                    "max_fails": 100,
+                    "supports_generation": [
+                        2
+                    ],
+                    "fallback_only": true
+                }
+            ]
+        },
+        {
+            "build_id": "49834317046827101",
+            "product_id": "1207658924",
+            "os": "windows",
+            "branch": null,
+            "version_name": "1.5",
+            "tags": [
+                "csb_1_0_9_w_113"
+            ],
+            "public": true,
+            "date_published": "2017-01-23T14:08:45+0000",
+            "generation": 2,
+            "urls": [
+                {
+                    "endpoint_name": "fastly",
+                    "url": "https:\/\/gog-cdn-fastly.gog.com\/content-system\/v2\/meta\/25\/b5\/25b5778d3ab4f52f02854621309ce822",
+                    "url_format": "https:\/\/gog-cdn-fastly.gog.com\/content-system\/v2\/meta\/25\/b5\/25b5778d3ab4f52f02854621309ce822",
+                    "parameters": {},
+                    "priority": 10,
+                    "max_fails": 100,
+                    "supports_generation": [
+                        1,
+                        2
+                    ],
+                    "fallback_only": false
+                },
+                {
+                    "endpoint_name": "gcore",
+                    "url": "https:\/\/gog-cdn.gcdn.co\/content-system\/v2\/meta\/25\/b5\/25b5778d3ab4f52f02854621309ce822",
+                    "url_format": "https:\/\/gog-cdn.gcdn.co\/content-system\/v2\/meta\/25\/b5\/25b5778d3ab4f52f02854621309ce822",
+                    "parameters": {},
+                    "priority": 1,
+                    "max_fails": 100,
+                    "supports_generation": [
+                        2
+                    ],
+                    "fallback_only": true
+                }
+            ]
+        },
+        {
+            "build_id": "3091",
+            "product_id": "1207658924",
+            "os": "windows",
+            "branch": null,
+            "version_name": "",
+            "tags": [],
+            "public": true,
+            "date_published": "2015-01-02T09:55:57+0000",
+            "generation": 1,
+            "urls": [
+                {
+                    "endpoint_name": "fastly",
+                    "url": "https:\/\/gog-cdn-fastly.gog.com\/content-system\/v1\/manifests\/1207658924\/windows\/26564157\/repository.json",
+                    "url_format": "https:\/\/gog-cdn-fastly.gog.com\/content-system\/v1\/manifests\/1207658924\/windows\/26564157\/repository.json",
+                    "parameters": {},
+                    "priority": 10,
+                    "max_fails": 100,
+                    "supports_generation": [
+                        1,
+                        2
+                    ],
+                    "fallback_only": false
+                },
+                {
+                    "endpoint_name": "gcore",
+                    "url": "https:\/\/gog-cdn.gcdn.co\/content-system\/v1\/manifests\/1207658924\/windows\/26564157\/repository.json",
+                    "url_format": "https:\/\/gog-cdn.gcdn.co\/content-system\/v1\/manifests\/1207658924\/windows\/26564157\/repository.json",
+                    "parameters": {},
+                    "priority": 1,
+                    "max_fails": 100,
+                    "supports_generation": [
+                        2
+                    ],
+                    "fallback_only": true
+                }
+            ],
+            "legacy_build_id": 26564157
+        }
+    ],
+    "has_private_branches": true
+}

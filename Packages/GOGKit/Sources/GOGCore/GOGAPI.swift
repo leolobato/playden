@@ -111,6 +111,17 @@ public struct GOGAPI: Sendable {
         try GOGCodec.maybeInflate(try await http.request(url).0)
     }
 
+    /// Tries each CDN in turn; the first that answers wins.
+    public func manifest(from urls: [URL]) async throws -> Data {
+        var last: Error = GOGError.malformed("no manifest URL")
+        for url in urls {
+            do { return try await manifest(at: url) }
+            catch GOGError.cancelled { throw GOGError.cancelled }
+            catch { last = error }
+        }
+        throw last
+    }
+
     /// Gen 2 manifests live at `<cdn>/content-system/v2/meta/ab/cd/<hash>`.
     public static func v2MetaURL(_ hash: String, cdn: String = "https://gog-cdn-fastly.gog.com") -> URL {
         URL(string: "\(cdn)/content-system/v2/meta/\(GOGCodec.galaxyPath(hash))")!
@@ -123,6 +134,23 @@ public struct GOGAPI: Sendable {
         query.append(generation == 2 ? .init(name: "generation", value: "2") : .init(name: "type", value: "depot"))
         let url = GOGHTTP.url("content-system.gog.com", "/products/\(productID)/secure_link", query)
         return try await http.json(Response.self, url, bearer: accessToken).urls
+    }
+
+    /// The dependency repository (public).
+    public func dependencyRepository() async throws -> GOGDependencyRepository {
+        struct Pointer: Decodable { var repository_manifest: String }
+        let pointer = try await http.json(Pointer.self, GOGHTTP.url("content-system.gog.com", "/dependencies/repository", [.init(name: "generation", value: "2")]))
+        guard let url = URL(string: pointer.repository_manifest) else { throw GOGError.malformed("dependency repository URL") }
+        return try GOGHTTP.decode(GOGDependencyRepository.self, try await manifest(at: url))
+    }
+
+    /// CDN endpoints for the public dependency store; its URLs are not signed.
+    public func dependencyStore() async throws -> [GOGBuild.Endpoint] {
+        struct Response: Decodable { var urls: [GOGBuild.Endpoint] }
+        let url = GOGHTTP.url("content-system.gog.com", "/open_link", [
+            .init(name: "generation", value: "2"), .init(name: "_version", value: "2"), .init(name: "path", value: "/dependencies/store/"),
+        ])
+        return try await http.json(Response.self, url).urls
     }
 
     /// Fetches a gen 2 chunk, checks both hashes and returns the inflated bytes.

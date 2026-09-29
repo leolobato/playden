@@ -1,0 +1,19 @@
+{
+    "depot": {
+        "items": [
+            {
+                "chunks": [
+                    {
+                        "compressedMd5": "6e2535c1b315f6365bdcbf4828afec19",
+                        "compressedSize": 97,
+                        "md5": "f25e9815eee7819a0208e7a22cfcbbc5",
+                        "size": 157
+                    }
+                ],
+                "path": "goggame-1619024184.hashdb",
+                "type": "DepotFile"
+            }
+        ]
+    },
+    "version": 2
+}

@@ -1,0 +1,427 @@
+{
+ "baseProductId": "1441974651",
+ "buildId": "56279155486691846",
+ "dependencies": [
+  "MSVC2010",
+  "MSVC2013",
+  "MSVC2017"
+ ],
+ "depots": [
+  {
+   "compressedSize": 518628411,
+   "languages": [
+    "en-US"
+   ],
+   "manifest": "b1b516678797013ca63b16803818cfc0",
+   "osBitness": [
+    "64"
+   ],
+   "productId": "1441974651",
+   "size": 546194345
+  },
+  {
+   "compressedSize": 993,
+   "isGogDepot": true,
+   "languages": [
+    "en-US"
+   ],
+   "manifest": "87a25f1f87451fa36c15d31cb4c0b38a",
+   "osBitness": [
+    "64"
+   ],
+   "productId": "1441974651",
+   "size": 1004
+  },
+  {
+   "compressedSize": 431,
+   "isGogDepot": true,
+   "languages": [
+    "en-US"
+   ],
+   "manifest": "1172b09cd0174a6026b7cf35d02ea379",
+   "osBitness": [
+    "64"
+   ],
+   "productId": "1441974651",
+   "size": 1698
+  },
+  {
+   "compressedSize": 97,
+   "isGogDepot": true,
+   "languages": [
+    "en-US"
+   ],
+   "manifest": "f7554359d552ad6a50320b249fafb088",
+   "osBitness": [
+    "64"
+   ],
+   "productId": "1619024184",
+   "size": 157
+  },
+  {
+   "compressedSize": 218,
+   "isGogDepot": true,
+   "languages": [
+    "en-US"
+   ],
+   "manifest": "8771e9cbafe3e33e24c5de31f8a3274a",
+   "osBitness": [
+    "64"
+   ],
+   "productId": "1619024184",
+   "size": 345
+  },
+  {
+   "compressedSize": 97,
+   "isGogDepot": true,
+   "languages": [
+    "en-US"
+   ],
+   "manifest": "561e52360f7e168cbde5b240125a5ebc",
+   "osBitness": [
+    "64"
+   ],
+   "productId": "1513895746",
+   "size": 157
+  },
+  {
+   "compressedSize": 211,
+   "isGogDepot": true,
+   "languages": [
+    "en-US"
+   ],
+   "manifest": "124b9e88c58350eee507b5a452d692b9",
+   "osBitness": [
+    "64"
+   ],
+   "productId": "1513895746",
+   "size": 337
+  },
+  {
+   "compressedSize": 97,
+   "isGogDepot": true,
+   "languages": [
+    "en-US"
+   ],
+   "manifest": "7a3712193d276ce54ea348b6a122d2ae",
+   "osBitness": [
+    "64"
+   ],
+   "productId": "1896980482",
+   "size": 157
+  },
+  {
+   "compressedSize": 204,
+   "isGogDepot": true,
+   "languages": [
+    "en-US"
+   ],
+   "manifest": "96ca8e3b1a28a0be5e65423d983028da",
+   "osBitness": [
+    "64"
+   ],
+   "productId": "1896980482",
+   "size": 329
+  },
+  {
+   "compressedSize": 97,
+   "isGogDepot": true,
+   "languages": [
+    "en-US"
+   ],
+   "manifest": "7b407fa28d82be7344e540f673ce7d53",
+   "osBitness": [
+    "64"
+   ],
+   "productId": "1386909466",
+   "size": 157
+  },
+  {
+   "compressedSize": 203,
+   "isGogDepot": true,
+   "languages": [
+    "en-US"
+   ],
+   "manifest": "26325f57ff59cd6752f5de43919460bb",
+   "osBitness": [
+    "64"
+   ],
+   "productId": "1386909466",
+   "size": 328
+  },
+  {
+   "compressedSize": 97,
+   "isGogDepot": true,
+   "languages": [
+    "en-US"
+   ],
+   "manifest": "5434ed1faf7211530e3a89c4200b941c",
+   "osBitness": [
+    "64"
+   ],
+   "productId": "1991603866",
+   "size": 157
+  },
+  {
+   "compressedSize": 203,
+   "isGogDepot": true,
+   "languages": [
+    "en-US"
+   ],
+   "manifest": "56b7e716fbc2ad81749b26fbf17ddeb0",
+   "osBitness": [
+    "64"
+   ],
+   "productId": "1991603866",
+   "size": 331
+  },
+  {
+   "compressedSize": 97,
+   "isGogDepot": true,
+   "languages": [
+    "en-US"
+   ],
+   "manifest": "a5b41892cf03d3f2ed04cc353e65c08e",
+   "osBitness": [
+    "64"
+   ],
+   "productId": "2063674355",
+   "size": 157
+  },
+  {
+   "compressedSize": 205,
+   "isGogDepot": true,
+   "languages": [
+    "en-US"
+   ],
+   "manifest": "7c246e577b610376b5783dc0909fe7a1",
+   "osBitness": [
+    "64"
+   ],
+   "productId": "2063674355",
+   "size": 330
+  },
+  {
+   "compressedSize": 97,
+   "isGogDepot": true,
+   "languages": [
+    "en-US"
+   ],
+   "manifest": "ac0731c083ba971562aca68028a048f9",
+   "osBitness": [
+    "64"
+   ],
+   "productId": "1814953452",
+   "size": 157
+  },
+  {
+   "compressedSize": 195,
+   "isGogDepot": true,
+   "languages": [
+    "en-US"
+   ],
+   "manifest": "68f45855d03e3ef7a79e21704490384b",
+   "osBitness": [
+    "64"
+   ],
+   "productId": "1814953452",
+   "size": 322
+  },
+  {
+   "compressedSize": 97,
+   "isGogDepot": true,
+   "languages": [
+    "en-US"
+   ],
+   "manifest": "117ca7a93b0b00befbf319a3420918f2",
+   "osBitness": [
+    "64"
+   ],
+   "productId": "1580943759",
+   "size": 157
+  },
+  {
+   "compressedSize": 207,
+   "isGogDepot": true,
+   "languages": [
+    "en-US"
+   ],
+   "manifest": "5880dddb30cb523ea8fd750923e55929",
+   "osBitness": [
+    "64"
+   ],
+   "productId": "1580943759",
+   "size": 330
+  },
+  {
+   "compressedSize": 97,
+   "isGogDepot": true,
+   "languages": [
+    "en-US"
+   ],
+   "manifest": "1e19109aa5b67869c193dc6e0c3813a2",
+   "osBitness": [
+    "64"
+   ],
+   "productId": "1618927321",
+   "size": 157
+  },
+  {
+   "compressedSize": 199,
+   "isGogDepot": true,
+   "languages": [
+    "en-US"
+   ],
+   "manifest": "c872d0469d948999fd53ed6d2ef55aea",
+   "osBitness": [
+    "64"
+   ],
+   "productId": "1618927321",
+   "size": 323
+  },
+  {
+   "compressedSize": 97,
+   "isGogDepot": true,
+   "languages": [
+    "en-US"
+   ],
+   "manifest": "cd2d4f7b619562e62d14b09c2fffb580",
+   "osBitness": [
+    "64"
+   ],
+   "productId": "1372581920",
+   "size": 157
+  },
+  {
+   "compressedSize": 209,
+   "isGogDepot": true,
+   "languages": [
+    "en-US"
+   ],
+   "manifest": "059c31d10937f07ccd0e7b020f411f79",
+   "osBitness": [
+    "64"
+   ],
+   "productId": "1372581920",
+   "size": 333
+  },
+  {
+   "compressedSize": 97,
+   "isGogDepot": true,
+   "languages": [
+    "en-US"
+   ],
+   "manifest": "c170e98668773b25c51d1a1d15c9dcb1",
+   "osBitness": [
+    "64"
+   ],
+   "productId": "1126027458",
+   "size": 157
+  },
+  {
+   "compressedSize": 204,
+   "isGogDepot": true,
+   "languages": [
+    "en-US"
+   ],
+   "manifest": "31d615f26de4965b3c19c9eb528de7ef",
+   "osBitness": [
+    "64"
+   ],
+   "productId": "1126027458",
+   "size": 328
+  }
+ ],
+ "installDirectory": "Prison Architect",
+ "offlineDepot": {
+  "compressedSize": 942,
+  "languages": [
+   "*"
+  ],
+  "manifest": "907d864b3c764f1cec4c5e8d2eba1cba",
+  "productId": "1441974651",
+  "size": 5403
+ },
+ "platform": "windows",
+ "products": [
+  {
+   "name": "Prison Architect",
+   "productId": "1441974651",
+   "temp_arguments": "",
+   "temp_executable": ""
+  },
+  {
+   "name": "Prison Architect - Psych Ward: Warden's Edition",
+   "productId": "1619024184",
+   "temp_arguments": "",
+   "temp_executable": ""
+  },
+  {
+   "name": "Prison Architect - Cleared For Transfer",
+   "productId": "1513895746",
+   "temp_arguments": "",
+   "temp_executable": ""
+  },
+  {
+   "name": "Prison Architect - Island Bound",
+   "productId": "1896980482",
+   "temp_arguments": "",
+   "temp_executable": ""
+  },
+  {
+   "name": "Prison Architect - Going Green",
+   "productId": "1386909466",
+   "temp_arguments": "",
+   "temp_executable": ""
+  },
+  {
+   "name": "Prison Architect - Second Chances",
+   "productId": "1991603866",
+   "temp_arguments": "",
+   "temp_executable": ""
+  },
+  {
+   "name": "Prison Architect - Perfect Storm",
+   "productId": "2063674355",
+   "temp_arguments": "",
+   "temp_executable": ""
+  },
+  {
+   "name": "Prison Architect - Gangs",
+   "productId": "1814953452",
+   "temp_arguments": "",
+   "temp_executable": ""
+  },
+  {
+   "name": "Prison Architect - Free For Life",
+   "productId": "1580943759",
+   "temp_arguments": "",
+   "temp_executable": ""
+  },
+  {
+   "name": "Prison Architect - Undead",
+   "productId": "1618927321",
+   "temp_arguments": "",
+   "temp_executable": ""
+  },
+  {
+   "name": "Prison Architect - Future Tech Pack",
+   "productId": "1372581920",
+   "temp_arguments": "",
+   "temp_executable": ""
+  },
+  {
+   "name": "Prison Architect - Jungle Pack",
+   "productId": "1126027458",
+   "temp_arguments": "",
+   "temp_executable": ""
+  }
+ ],
+ "scriptInterpreter": true,
+ "tags": [
+  "editor_v_1_5_0",
+  "csb_10_6_3_w_7",
+  "galaxy"
+ ],
+ "version": 2
+}
