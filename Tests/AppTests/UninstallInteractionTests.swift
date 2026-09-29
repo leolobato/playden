@@ -13,6 +13,8 @@ private struct RemovalAuth: SourceAuth {
 }
 private struct RemovalSource: GameSource {
     let id = "fixture", displayName = "Fixture", auth: any SourceAuth = RemovalAuth()
+    var cloudSaves = true
+    var capabilities: SourceCapabilities { SourceCapabilities(account: .steam, acquisition: .download, cloudSaves: cloudSaves) }
     func ownedGames() async throws -> [SourceGameRecord] { [] }
     func metadata(for game: SourceGameRecord) async throws -> SourceGameRecord { game }
     func installer(for game: SourceGameRecord) throws -> any Installer { RemovalInstaller(gameID: game.id) }
@@ -76,7 +78,7 @@ private actor RemovalCloud: CloudSyncManaging {
 
 @MainActor final class UninstallInteractionTests: XCTestCase {
     private let id = GameID(source: "fixture", value: "game")
-    private func fixture(pending: Bool = false, held: Bool = false) throws -> (LibraryModel, CatalogStore, RemovalQueue, RemovalCloud) {
+    private func fixture(pending: Bool = false, held: Bool = false, cloudSaves: Bool = true) throws -> (LibraryModel, CatalogStore, RemovalQueue, RemovalCloud) {
         let catalog = try CatalogStore(), game = SourceGameRecord(id: id, title: "A Short Hike")
         var installed = InstallationRecord(game: game,
             location: .init(volumeID: "fixture", lastKnownRoot: URL(fileURLWithPath: "/fixture"), relativePath: "playden-fixture-game/game"),
@@ -84,7 +86,7 @@ private actor RemovalCloud: CloudSyncManaging {
         installed.plan = .init(game: game, manifestIDs: [:], estimate: .init(downloadBytes: 100, installedBytes: 100, requiredBytes: 100), launchSpec: installed.launchSpec, sourcePayload: Data())
         try catalog.saveInstallation(installed)
         let queue = RemovalQueue(catalog), cloud = RemovalCloud(catalog, pending: pending, held: held)
-        let model = LibraryModel(catalog: catalog, preview: false, source: RemovalSource(), installQueue: queue, cloud: cloud)
+        let model = LibraryModel(catalog: catalog, preview: false, source: RemovalSource(cloudSaves: cloudSaves), installQueue: queue, cloud: cloud)
         model.openGame(try XCTUnwrap(model.games.first))
         return (model, catalog, queue, cloud)
     }
@@ -98,6 +100,16 @@ private actor RemovalCloud: CloudSyncManaging {
         let sent = await queue.authorizations
         XCTAssertEqual(sent.count, 1); XCTAssertEqual(sent.first?.discardUnsyncedProgress, false)
         XCTAssertEqual(model.tab, .downloads); XCTAssertNil(model.panel)
+    }
+    func testStoreWithoutCloudSavesRemovesAfterOneConfirmation() async throws {
+        let (model, _, queue, cloud) = try fixture(pending: true, cloudSaves: false)
+        model.beginUninstall(id); model.perform(.move(.right)); model.perform(.confirm)
+        await model.uninstallTask?.value
+        let entered = await cloud.entered
+        XCTAssertFalse(entered, "no Cloud check for a store that doesn't sync saves")
+        let sent = await queue.authorizations
+        XCTAssertEqual(sent.count, 1); XCTAssertEqual(sent.first?.discardUnsyncedProgress, true, "the confirmation said saves go with the game")
+        XCTAssertNil(model.panel)
     }
     func testUnsyncedProgressNeedsSeparateDirectionalDiscardChoice() async throws {
         let (model, catalog, queue, _) = try fixture(pending: true)

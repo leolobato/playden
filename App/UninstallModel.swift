@@ -60,8 +60,10 @@ extension LibraryModel {
                     if let command = cloudCommands[id] { await command.value }
                     try Task.checkCancellation()
                     guard panel == .uninstall(id), let installed = try catalog.snapshot().entries.first(where: { $0.id == id })?.installation else { return }
-                    var synchronized = false
-                    if let cloudService, let source = source(for: id), let plan = installed.plan {
+                    // Stores that don't sync saves have nothing to upload first; their saves go with the game.
+                    let syncsSaves = storeHasCloudSaves(id)
+                    var synchronized = !syncsSaves
+                    if syncsSaves, let cloudService, let source = source(for: id), let plan = installed.plan {
                         do {
                             let mapping = try source.installer(for: installed.game).saveMapping(plan)
                             let result = await cloudService.synchronize(installed, mapping: mapping, preparingSessionID: nil, authorization: nil)
@@ -74,12 +76,16 @@ extension LibraryModel {
                     guard panel == .uninstall(id) else { return }
                     let review = try catalog.reviewUninstall(id)
                     uninstallReview = review
-                    if !synchronized || review.requiresDiscardConfirmation {
+                    if !syncsSaves {
+                        // The confirmation said saves kept with the game are removed with it.
+                        authorization = .init(review: review, discardUnsyncedProgress: true)
+                    } else if !synchronized || review.requiresDiscardConfirmation {
                         uninstallPhase = .unsynced
                         uninstallError = cloudStatuses[id]?.message ?? "This game's local saves could not be synced to Steam Cloud."
                         panelIndex = 0; return
+                    } else {
+                        authorization = .init(review: review, discardUnsyncedProgress: false)
                     }
-                    authorization = .init(review: review, discardUnsyncedProgress: false)
                 }
                 try Task.checkCancellation()
                 guard panel == .uninstall(id) else { return }
