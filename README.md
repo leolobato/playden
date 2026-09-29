@@ -13,7 +13,7 @@ Mac games, both Steam macOS builds and games already installed on this Mac, run 
 **The current focus is Steam, CrossOver and native Mac games.** Epic Games Store support (sign in
 with a code on your phone, install and play Windows games) is built and awaiting acceptance on a
 real account; see [PRD 09](docs/prd/09-epic.md). GOG support (sign in from your phone, Windows and
-Mac builds) is built and awaiting a TV pass; see [PRD 10](docs/prd/10-gog.md). More stores (itch.io, Amazon) are planned; see
+Mac builds) is built and passed acceptance on the TV; see [PRD 10](docs/prd/10-gog.md). More stores (itch.io, Amazon) are planned; see
 [PRD 08](docs/prd/08-stores.md).
 
 ![Playden Library with sample games](docs/images/library.png)

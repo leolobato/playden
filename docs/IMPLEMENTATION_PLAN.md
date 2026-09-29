@@ -528,7 +528,7 @@ and Epic working.
 - [x] **G6 — `GOGSource`.** Library, installer and launch for Windows builds.
 - [x] **G7 — macOS builds.** Resolve, preparation, validation and launch.
 - [x] **G8 — UI.** The web-login screen, the relay page, the login window, the Stores row and first run.
-- [ ] **G9 — Acceptance.** PRD 10 §6 on the TV.
+- [x] **G9 — Acceptance.** PRD 10 §6 on the TV.
 
 Progress, 29 September 2026: G0 passed with a real account. GOG accepts only its own redirect
 address, so the phone relay keeps a paste step. Three Mac builds downloaded by `gog-dev` started
@@ -539,7 +539,8 @@ tests (plus 2 live tests against GOG's servers), PlaydenKit 439 and app 260, all
 on this Mac: sign-in through the relay page, the 23-game library, and installs of six games.
 VirtuaVerse and Flashback (Mac), Arena (DOSBox) and Beneath a Steel Sky (ScummVM) play; Monkey
 Island 2 Special Edition resumed after a force-kill and was repaired by Verify files, but needs its
-redistributables to start. Still open: a phone and a controller-only pass on the TV.
+redistributables to start. The player then signed in with a phone and with the login window and
+did the controller-only pass on the TV with the Release build.
 
 Gate: from the couch, sign in to GOG with the phone, install and play a Windows game and a native
 Mac game, and return to Playden with playtime recorded, while Steam, This Mac and Epic regression

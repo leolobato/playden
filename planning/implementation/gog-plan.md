@@ -155,14 +155,15 @@ skips it) and uses a private, non-persistent web session. App tests run the rela
 
 ## Step 9 — Acceptance and docs
 
-- [x] Sign in with the phone relay: done from a desktop browser on the LAN address; a real phone
-  and the login window with a real account are still to try.
+- [x] Sign in with the phone relay (a desktop browser on the LAN address, then the player's phone)
+  and with the login window (the player's account), 2026-09-30.
 - [x] Install and play from the UI on this Mac: VirtuaVerse, Flashback, Arena and Beneath a Steel
   Sky play; Jazz Jackrabbit 2 starts without a visible window; Monkey Island 2 Special Edition
   needs its redistributables. Playtime and exit results recorded. Results table in PRD 10 §6.
 - [x] Resume after a crash (Monkey Island 2 Special Edition, force-killed at 1.6 GB); verify files
   after deleting one (restored `monkey2.exe`). Offline start: unit test only.
-- [ ] Controller-only pass on the TV, together with Epic's.
+- [x] Controller-only pass on the TV, together with Epic's: done by the player on the Release build;
+  Flashback and VirtuaVerse sessions ended cleanly.
 - [x] README "What you can do" and the current-focus line. Captures: the `signin-web-login`
   snapshot.
 

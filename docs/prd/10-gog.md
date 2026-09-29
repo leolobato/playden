@@ -316,8 +316,8 @@ These changes add a second kind of browser sign-in. Steam's and Epic's behavior 
 
 | Check | Result |
 |---|---|
-| Phone relay sign-in | Passed with a desktop browser standing in for the phone: the page at the LAN address (`10.0.1.72`) took the pasted address and signed in. No macOS prompt appeared. A real phone is still to try. |
-| Login window sign-in | Not tried with a real account (app tests cover the redirect). |
+| Phone relay sign-in | Passed with a desktop browser on the LAN address (`10.0.1.72`), then with the player's phone (reported by the player, 2026-09-30). |
+| Login window sign-in | Passed with the player's GOG account (reported by the player, 2026-09-30). |
 | Library | 23 GOG games with covers, heroes and platforms. |
 | Jazz Jackrabbit 2: The Secret Files (gen 2 Windows) | Installed (53 MB) and started; the process runs in its bottle, but its window never becomes visible. Its script also sets registry keys, which Playden skips (FR-GOG-22). Rated as a compatibility issue. |
 | Monkey Island 2 Special Edition (gen 1 Windows) | Installed (1.9 GB). Resumed after Playden was force-killed at 1.6 GB. Verify files found and restored a deleted `monkey2.exe`. The game crashes at start (Wine's debugger caught it); it lists DirectX, .NET 3.5 and MSVC2008 installers Playden doesn't run, the likely cause (FR-GOG-22). |
@@ -327,7 +327,7 @@ These changes add a second kind of browser sign-in. Steam's and Epic's behavior 
 | Beneath a Steel Sky (Windows, ScummVM) | Played to the intro once FR-GOG-21a set the game path in `beneath.ini`. |
 | Uninstall | First try (Arena) showed a Cloud warning for a store without cloud saves; after the fix, Jazz Jackrabbit 2 uninstalled with one confirmation. |
 | Offline start | Not tried on the network; GOG adds nothing to a launch, and a unit test covers the offline case. |
-| Controller-only TV pass | Open (the player's step, with Epic's). |
+| Controller-only TV pass | Done by the player on the Release build in `/Applications` (2026-09-30): Flashback and VirtuaVerse sessions ended cleanly (42 s and 32 s recorded). |
 
 ## 7. Delivery order
 
@@ -351,8 +351,7 @@ Each step ships on its own and keeps Steam, This Mac and Epic working.
 Step 0 answered the redirect, token, secure-link, launch-task and signature questions; see
 GOG_PROTOCOL.md, "Spike results". Still open:
 
-- Whether a phone on Wi-Fi reaches the relay page, and whether macOS then asks for local network
-  or firewall access. A desktop browser on the LAN address worked without a prompt.
+- Which prompts, if any, macOS shows the first time a phone opens the relay page (not reported).
 - Why Jazz Jackrabbit 2's window stays hidden, and whether its registry keys fix it.
 - The install offer defaults to the last games drive even when This Mac was chosen for the
   previous game; the player picks This Mac each time (existing behavior, not GOG-specific).
