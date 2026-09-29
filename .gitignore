@@ -7,3 +7,4 @@ Config/Local.xcconfig
 xcuserdata/
 .env
 .epic-session.json
+.gog-session.json

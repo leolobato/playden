@@ -73,6 +73,7 @@ Every requirement carries one tag. A requirement without a tag is a bug in this 
 | [07-settings-diagnostics.md](07-settings-diagnostics.md) | **Fix something** | Settings, failure contract, logs, testing strategy |
 | [08-stores.md](08-stores.md) | **Play from more than one place** | Source registry, This Mac games, Steam macOS builds, native runner, store and platform filters, Windows import (v2), more stores (v3) |
 | [09-epic.md](09-epic.md) | **Play my Epic games** | Epic sign-in on the TV, library, manifest and chunk downloads, launch with Epic arguments (v3) |
+| [10-gog.md](10-gog.md) | **Play my GOG games** | GOG sign-in through the phone, library, Galaxy gen 1 and gen 2 downloads, Windows and macOS builds (v3) |
 
 ## MVP bar (v1 success criteria)
 

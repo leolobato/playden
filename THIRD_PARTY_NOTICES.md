@@ -46,6 +46,21 @@ JSON manifest and chunk formats (`models/manifest.py`, `models/json_manifest.py`
 `models/chunk.py`), the download analysis (`downloader/mp/manager.py`) and the launch parameters
 (`core.py`). Playden is a derivative work of that code and is distributed under the same license.
 
+## gogdl (GPL-3.0)
+
+- **Project:** [heroic-gogdl](https://github.com/Heroic-Games-Launcher/heroic-gogdl) by the Heroic
+  Games Launcher contributors.
+- **License:** GNU General Public License v3.0.
+- **Where:** `Packages/GOGKit/Sources/GOGCore` (planned; see [PRD 10](docs/prd/10-gog.md)).
+
+Parts of `GOGCore` will be Swift ports of Python code from gogdl at commit
+`9c593fdba2a3e829a48e45e6475d8db937833dce`: the GOG auth and content-system calls (`auth.py`,
+`api.py`, `dl/dl_utils.py`), the gen 1 and gen 2 manifest formats (`dl/objects/v1.py`,
+`dl/objects/v2.py`), the download managers (`dl/managers/`) and the launch-task selection
+(`launch.py`). Playden is a derivative work of that code and is distributed under the same license.
+lgogdownloader (WTFPL) and minigalaxy (GPL-3.0) were read to check protocol details; no code is
+taken from them.
+
 ## gbe_fork (LGPL-3.0)
 
 - **Project:** [gbe_fork](https://github.com/Detanup01/gbe_fork), a fork of the Goldberg Steam
@@ -110,5 +125,5 @@ command-line tools of the user's own installation. The Windows display helper in
 ## Trademarks
 
 Playden is an independent project and is not affiliated with Valve Corporation, CodeWeavers,
-Inc., or Epic Games, Inc. Steam is a trademark of Valve Corporation. Epic Games and the Epic
-Games Store are trademarks of Epic Games, Inc. CrossOver is a trademark of CodeWeavers, Inc.
+Inc., Epic Games, Inc., or CD PROJEKT S.A. Steam is a trademark of Valve Corporation. Epic Games and the Epic
+Games Store are trademarks of Epic Games, Inc. GOG and GOG GALAXY are trademarks of CD PROJEKT S.A. CrossOver is a trademark of CodeWeavers, Inc.
