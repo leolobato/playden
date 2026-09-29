@@ -112,16 +112,20 @@ gen 1, 1.9 GB) with the account, reading each launch task through its secure lin
 
 ## Step 6 — `GOGSource` (PlaydenKit `Sources`), Windows builds
 
-- [ ] `GOGAccount`: a `SourceAuth` actor with Keychain `<bundle>.gog`, the web-login sign-in,
+- [x] `GOGAccount`: a `SourceAuth` actor with Keychain `<bundle>.gog`, the web-login sign-in,
   refresh before each operation, and error mapping to `SourceFailure`.
-- [ ] `GOGSource`: `ownedGames` (owned IDs plus gamesdb, filtered), metadata, artwork, platforms,
+- [x] `GOGSource`: `ownedGames` (owned IDs plus gamesdb, filtered), metadata, artwork, platforms,
   and the gamesdb cache on disk.
-- [ ] `GOGInstaller` for Windows: `resolve` (builds → `InstallPlan` with the payload), download,
+- [x] `GOGInstaller` for Windows: `resolve` (builds → `InstallPlan` with the payload), download,
   verify, repair, the game-folder dependencies, validate (the info file, the exe exists, matched
   case-insensitively), launch options.
-- [ ] Register it in `PlaydenApp`. `StoreNames` gets "GOG" and a glyph.
-- [ ] Tests mirroring `EpicSourceTests` with a fixture backend. Live install test gated on
+- [x] Register it in `PlaydenApp`. `StoreNames` gets "GOG" and a glyph.
+- [x] Tests mirroring `EpicSourceTests` with a fixture backend. Live install test gated on
   `GOG_LIVE_INSTALL`.
+
+Done 2026-09-29. `GOG_LIVE=1 swift test --filter GOGLiveTests` lists 23 games and resolves all 37
+plans (23 Windows, 14 Mac) with their launch tasks; `GOG_LIVE_INSTALL=1351891846` downloads,
+verifies and validates Jazz Jackrabbit 2: The Secret Files.
 
 ## Step 7 — macOS builds
 

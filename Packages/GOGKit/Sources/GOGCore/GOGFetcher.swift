@@ -20,11 +20,12 @@ public actor GOGCDNFetcher: GOGContentFetching {
     public var attempts = 6
     private var links: [String: [GOGBuild.Endpoint]] = [:]
 
-    public init(manifest: GOGInstallManifest, api: GOGAPI = GOGAPI(), transport: any GOGTransport = URLSession.shared,
-                pause: @escaping @Sendable (Double) async throws -> Void = { try await Task.sleep(nanoseconds: UInt64($0 * 1e9)) },
+    /// CDN requests go through `transport`, which defaults to the API's, and retry with its pause.
+    public init(manifest: GOGInstallManifest, api: GOGAPI = GOGAPI(), transport: (any GOGTransport)? = nil,
+                pause: (@Sendable (Double) async throws -> Void)? = nil,
                 accessToken: @escaping @Sendable () async throws -> String) {
         self.api = api; generation = manifest.generation; v1LinkPath = manifest.v1LinkPath
-        self.accessToken = accessToken; self.transport = transport; self.pause = pause
+        self.accessToken = accessToken; self.transport = transport ?? api.http.transport; self.pause = pause ?? api.http.pause
     }
 
     private func endpoints(_ product: String, refresh: Bool) async throws -> [GOGBuild.Endpoint] {

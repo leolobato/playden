@@ -9,10 +9,10 @@ enum StoreSettingsRow: Equatable { case account(String), thisMac, addedGames, fo
 /// Names and glyphs for stores. Store IDs never appear in the UI.
 enum StoreNames {
     static func name(_ id: String) -> String {
-        switch id { case SourceID.steam: "Steam"; case SourceID.local: "This Mac"; case SourceID.epic: "Epic Games"; default: id.capitalized }
+        switch id { case SourceID.steam: "Steam"; case SourceID.local: "This Mac"; case SourceID.epic: "Epic Games"; case SourceID.gog: "GOG"; default: id.capitalized }
     }
     static func symbol(_ id: String) -> String {
-        switch id { case SourceID.local: "desktopcomputer"; case SourceID.epic: "shippingbox"; default: "bag" }
+        switch id { case SourceID.local: "desktopcomputer"; case SourceID.epic: "shippingbox"; case SourceID.gog: "g.circle"; default: "bag" }
     }
 }
 
