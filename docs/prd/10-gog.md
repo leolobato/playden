@@ -327,7 +327,7 @@ These changes add a second kind of browser sign-in. Steam's and Epic's behavior 
 | Beneath a Steel Sky (Windows, ScummVM) | Played to the intro once FR-GOG-21a set the game path in `beneath.ini`. |
 | Uninstall | First try (Arena) showed a Cloud warning for a store without cloud saves; after the fix, Jazz Jackrabbit 2 uninstalled with one confirmation. |
 | Offline start | Not tried on the network; GOG adds nothing to a launch, and a unit test covers the offline case. |
-| Controller-only TV pass | Done by the player on the Release build in `/Applications` (2026-09-30): Flashback and VirtuaVerse sessions ended cleanly (42 s and 32 s recorded). |
+| Controller-only TV pass | Reported done by the player on the Release build in `/Applications` (2026-09-30). |
 
 ## 7. Delivery order
 
@@ -352,6 +352,9 @@ Step 0 answered the redirect, token, secure-link, launch-task and signature ques
 GOG_PROTOCOL.md, "Spike results". Still open:
 
 - Which prompts, if any, macOS shows the first time a phone opens the relay page (not reported).
+- Games started without the player: Flashback and VirtuaVerse sessions began at 00:47, 00:49 and
+  00:53 on 2026-09-30 while the player wasn't playing. Stray input from the connected Pro Controller
+  is the likely cause; to investigate.
 - Why Jazz Jackrabbit 2's window stays hidden, and whether its registry keys fix it.
 - The install offer defaults to the last games drive even when This Mac was chosen for the
   previous game; the player picks This Mac each time (existing behavior, not GOG-specific).

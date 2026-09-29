@@ -162,8 +162,8 @@ skips it) and uses a private, non-persistent web session. App tests run the rela
   needs its redistributables. Playtime and exit results recorded. Results table in PRD 10 §6.
 - [x] Resume after a crash (Monkey Island 2 Special Edition, force-killed at 1.6 GB); verify files
   after deleting one (restored `monkey2.exe`). Offline start: unit test only.
-- [x] Controller-only pass on the TV, together with Epic's: done by the player on the Release build;
-  Flashback and VirtuaVerse sessions ended cleanly.
+- [x] Controller-only pass on the TV, together with Epic's: reported done by the player on the Release
+  build.
 - [x] README "What you can do" and the current-focus line. Captures: the `signin-web-login`
   snapshot.
 
