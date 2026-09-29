@@ -203,6 +203,7 @@ final class MultiAccountInteractionTests: XCTestCase {
         defer { model.stopServices() }
         XCTAssertNotNil(model.installQueue)
         XCTAssertNotNil(model.sessions)
+        XCTAssertFalse(model.storeHasCloudSaves(GameID(source: SourceID.epic, value: "Sugar")), "Epic games show no Cloud saves")
         XCTAssertFalse(model.signedInToDownloadStore)
         model.setIdentity(SourceIdentity(sourceID: SourceID.epic, displayName: "Couch Player"), for: SourceID.epic)
         XCTAssertTrue(model.signedInToDownloadStore)

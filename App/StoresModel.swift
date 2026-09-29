@@ -76,6 +76,10 @@ extension LibraryModel {
             : account.identity.map { "Signed in as \($0.displayName)" } ?? "Sign in to see your games")
         return (accountName(id), status, account.identity == nil ? "Sign in" : "Sign in again")
     }
+    /// Only stores that sync saves show Cloud saves. The design preview has no stores and shows Steam's.
+    func storeHasCloudSaves(_ id: GameID) -> Bool {
+        sources[id.source]?.capabilities.cloudSaves ?? (id.source == SourceID.steam)
+    }
     var thisMacSummary: String {
         let count = games.filter { $0.id.source == SourceID.local }.count
         if let error = scanErrors[SourceID.local] { return error }

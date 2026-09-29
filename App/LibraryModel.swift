@@ -513,7 +513,7 @@ final class LibraryModel {
             return ["Rename", "Remove from library"] + (steamVersion(of: game) != nil && game.usesSteamClient ? ["Show Steam version"] : [])
         }
         guard game.status == .installed else { return [] }
-        let cloud = ["Cloud saves"]
+        let cloud = storeHasCloudSaves(game.id) ? ["Cloud saves"] : []
         let switchVersion = otherPlatform(for: game.id).map { ["Switch to \($0 == .macOS ? "Mac" : "Windows") version"] } ?? []
         return (primary == "Verify files" ? [] : ["Verify files"]) + ["Uninstall"] + cloud + switchVersion
     }
