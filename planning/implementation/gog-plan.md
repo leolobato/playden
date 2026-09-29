@@ -11,26 +11,27 @@ Anything that refreshes the session must write the new refresh token back.
 
 ## Step 0 — Spike with a real account
 
-Run `! scripts/gog-sign-in.sh`, then `gog-dev check`. Record each answer in GOG_PROTOCOL.md and
-remove its UNCONFIRMED tag.
+Run `! scripts/gog-sign-in.sh` (prints the login URL), then `! scripts/gog-sign-in.sh '<address>'`.
+`scripts/gog-sign-in.sh check` refreshes the session and writes `.gog-library.tsv` (gitignored).
+`gog-dev info <session> <product> <windows|osx>` shows a build's CDNs, secure link and launch
+tasks; `gog-dev download <session> <product> <os> <dir>` is a plain gen 2 download for checks.
+Answers are in GOG_PROTOCOL.md, "Spike results".
 
-- [ ] `gog-dev` in `Packages/GOGKit`: `sign-in` (URL, paste, code exchange, save the session) and
-  `check` (refresh, library, builds, secure link, info file). `scripts/gog-sign-in.sh`.
-- [ ] Redirect address: does `/token` accept a code issued for another `redirect_uri`
-  (`http://127.0.0.1:<port>/`, a `playden://` scheme)? The answer decides whether the relay page
-  needs the paste step (PRD 10 decision 2).
-- [ ] Token lifetime (`expires_in`) and whether refresh rotates the refresh token.
-- [ ] Secure link: the `url_format` placeholders and `parameters`, how long a link lasts (fetch,
-  wait, retry), and the answer for a product the account does not own.
-- [ ] Library: `embed.gog.com/user/data/games` against the paged `galaxy-library` list. Count the
-  games, DLC and hidden items that gamesdb reports.
-- [ ] macOS: on one gen 2 and one gen 1 Mac game, what `playTasks[].path` points to, whether
-  `codesign --verify --strict` passes on the downloaded bundle, and whether it launches. For gen 1,
-  whether to run the wrapper bundle or the inner `.app`.
-- [ ] The relay: the macOS prompts (local network, firewall) the first time an `NWListener` serves
-  a phone on the LAN.
-- [ ] Pick the acceptance games from the account: a gen 2 Windows game with no dependencies, a
-  gen 1 Windows game, a native Mac game, a DOSBox or ScummVM game. Avoid Galaxy SDK multiplayer.
+- [x] `gog-dev` in `Packages/GOGKit` (`url`, `sign-in`, `listen`, `check`, `info`, `download`) and
+  `scripts/gog-sign-in.sh`.
+- [x] Redirect address: GOG refuses any other `redirect_uri` at login (`redirect_uri_mismatch`), so
+  the relay page keeps the paste step.
+- [x] Tokens last 3600 s. No refresh-token rotation seen.
+- [x] Secure links: `fastly` and `gcore` templates recorded; links last 24 hours. The answer for a
+  product the account does not own was not checked (the library has none to try).
+- [x] Library: the embed list (27) plus the gamesdb filter (23 games, 4 `spam`) is enough.
+- [x] macOS: the install root is the bundle; tasks are `Contents/MacOS/<exe>`. Signatures are
+  missing or broken (GOG adds files after signing), and all three test builds still start through
+  LaunchServices, so no re-signing. No gen 1 Mac build in the library.
+- [ ] The relay prompts (local network, firewall): moved to step 5, since they belong to the app.
+- [x] Acceptance games picked (PRD 10 §6).
+
+Done 2026-09-29 with a real account.
 
 ## Step 1 — Docs
 

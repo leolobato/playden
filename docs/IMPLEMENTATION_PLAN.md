@@ -520,7 +520,7 @@ Scope: [PRD 10](prd/10-gog.md). Added 29 September 2026, on the `gog` branch, wh
 `epic`. The commit plan is `planning/implementation/gog-plan.md`. Each step keeps Steam, This Mac
 and Epic working.
 
-- [ ] **G0 — Spike.** Sign in with a real account and answer the open items in `GOG_PROTOCOL.md`.
+- [x] **G0 — Spike.** Sign in with a real account and answer the open items in `GOG_PROTOCOL.md`.
 - [x] **G1 — Docs.** PRD 10, `GOG_PROTOCOL.md` and the gogdl notice.
 - [ ] **G2–G4 — `GOGKit`.** Builds, gen 1 and gen 2 manifests, the web API and auth, and the
   download engine with resume, verify and repair.
@@ -529,6 +529,10 @@ and Epic working.
 - [ ] **G7 — macOS builds.** Resolve, preparation, validation and launch.
 - [ ] **G8 — UI.** The web-login screen, the relay page, the login window, the Stores row and first run.
 - [ ] **G9 — Acceptance.** PRD 10 §6 on the TV.
+
+Progress, 29 September 2026: G0 passed with a real account. GOG accepts only its own redirect
+address, so the phone relay keeps a paste step. Three Mac builds downloaded by `gog-dev` started
+without re-signing, though their signatures were missing or broken.
 
 Gate: from the couch, sign in to GOG with the phone, install and play a Windows game and a native
 Mac game, and return to Playden with playtime recorded, while Steam, This Mac and Epic regression

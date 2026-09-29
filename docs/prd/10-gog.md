@@ -22,8 +22,8 @@ delivery, "the GOG MVP") or **later**.
      the page they land on and pastes it into the Playden page.
    - "Sign in on this Mac" opens GOG's login in a Playden window, which catches the redirect itself.
      This is what Heroic does. It needs a keyboard, so it is the fallback.
-   - The step 0 spike checks whether GOG accepts another redirect address. If it does, the paste
-     step goes away.
+   - GOG accepts no other redirect address (step 0: `redirect_uri_mismatch`), so the paste step
+     stays.
 3. **Windows and macOS builds.** Windows builds install into a CrossOver bottle, like Epic games.
    macOS builds use the platform choice, the owned install folder and `NativeRunner` from Steam
    macOS builds (08 §4). A game with both builds offers the same choice as a Steam game.
@@ -108,8 +108,9 @@ These changes add a second kind of browser sign-in. Steam's and Epic's behavior 
   is a `WKWebView` that watches navigation (`decidePolicyFor`) and cancels the navigation to the
   redirect page once `redirectMatches` is true.
 - **AR-MULTI-13 (v3):** Local network use is declared. The app's `Info.plist` gets
-  `NSLocalNetworkUsageDescription`. The step 0 spike records which prompts macOS shows (local
-  network, firewall) the first time the relay serves a page.
+  `NSLocalNetworkUsageDescription`. Step 5 records which prompts macOS shows (local network,
+  firewall) the first time the relay serves a phone. The prompts belong to the Playden app, so the
+  spike tool could not show them.
 - **AR-MULTI-14 (v3):** The diagnostic redactor also removes GOG codes (`code=` in any URL),
   `access_token`, `refresh_token`, `user_id`, and the signed query of secure-link URLs.
 - **AR-MULTI-15 (v3):** Credential storage for GOG uses the Keychain service `<bundle id>.gog`
@@ -145,8 +146,9 @@ These changes add a second kind of browser sign-in. Steam's and Epic's behavior 
 
 - **FR-GOG-7 (v3):** A library refresh lists the owned product IDs and reads each product from
   gamesdb (`gamesdb.gog.com/platforms/gog/external_releases/<id>`). Refresh runs on the Steam
-  schedule: on launch, every 6 hours and from Settings. The step 0 spike decides between
-  `embed.gog.com/user/data/games` and the paged `galaxy-library.gog.com` list.
+  schedule: on launch, every 6 hours and from Settings. The owned IDs come from
+  `embed.gog.com/user/data/games`, which step 0 found as complete as the paged `galaxy-library`
+  list.
 - **FR-GOG-8 (v3):** Playden keeps items with `type` `game` and `visible_in_library`. It skips DLC,
   `mod`, `spam`, and products without a gamesdb entry.
 - **FR-GOG-9 (v3):** Records carry the title, the summary, the genres and the release date.
@@ -231,19 +233,25 @@ These changes add a second kind of browser sign-in. Steam's and Epic's behavior 
 - **FR-GOG-25 (v3):** Windows builds run in a CrossOver bottle named `playden-gog-<product id>`.
   `prepareLaunch` keeps the default: GOG adds nothing to a launch and needs no network.
 - **FR-GOG-26 (v3):** macOS builds follow FR-SMAC-4, FR-SMAC-5, FR-SMAC-8 and FR-SMAC-10:
-  - the executable is normalized to its enclosing `.app`, which must have an `Info.plist`;
+  - the install root is the app bundle (step 0), so the install folder is `<name>.app`, and the
+    primary task's path (`Contents/MacOS/<exe>`) must be inside it with an `Info.plist`;
   - Mach-O files under `Contents/MacOS` and files with the `executable` flag become `0o755`;
   - an x86_64-only build needs Rosetta, and Play explains how to install it;
   - `NativeRunner` runs the bundle from the owned folder.
 
-  Gen 1 macOS installs are a wrapper bundle with the real game in `Contents/Resources/game/`. The
-  step 0 spike decides whether Playden runs the wrapper or the inner `.app`.
+  ScummVM and DOSBox Mac builds are GOG wrapper bundles (`GOGLauncher`, `Launcher`) that start the
+  bundled emulator. Playden runs the bundle as it is; the session follows the emulator process,
+  which runs from inside the bundle. Gen 1 Mac builds (a wrapper with the real game in
+  `Contents/Resources/game/`) were not in the test library. They are installed the same way, and
+  a gen 1 Mac game that fails is reported through its compatibility rating.
 - **FR-GOG-27 (v3):** Validate checks the Mach-O architectures of a macOS build. A build with only
   32-bit code can't run on current macOS. It fails with "This Mac version is 32-bit and can't run
   on this macOS. Switch to the Windows version." when the game has one.
-- **FR-GOG-28 (v3):** When a downloaded bundle's signature does not pass `codesign --verify`,
-  Playden signs it ad hoc, as FR-SMAC-7 does, and records the signed files as staged files, so
-  Verify files still checks the downloaded content. The step 0 spike checks whether this is needed.
+- **FR-GOG-28 (v3):** Playden does not re-sign GOG Mac builds. GOG adds files to bundles after
+  signing, so `codesign --verify` often fails, but unsigned, broken-seal x86_64 and broken-seal
+  arm64 bundles all started through LaunchServices in step 0. Validation does not check the
+  signature. If a build fails to start because of its signature, an ad-hoc re-sign (FR-SMAC-7)
+  is the fix, **later**.
 - **FR-GOG-29 (later):** A Galaxy communication service in the bottle (Heroic's `comet`), for
   achievements and online features; native DOSBox and ScummVM in place of the bundled Windows ones.
 
@@ -273,8 +281,13 @@ These changes add a second kind of browser sign-in. Steam's and Epic's behavior 
   - sign in from the couch with the phone relay;
   - sign in with the login window;
   - see the GOG library with artwork;
-  - install and play a gen 2 Windows game, a gen 1 Windows game, a native Mac game and a DOSBox or
-    ScummVM game (the step 0 spike picks them from the account);
+  - install and play these games from the account (picked in step 0):
+    - gen 2 Windows, no dependencies: Jazz Jackrabbit 2: The Secret Files (0.1 GB);
+    - gen 1 Windows: Monkey Island 2 Special Edition. It lists `__redist` dependencies (DirectX,
+      .NET 3.5, MSVC2008) that the MVP skips (FR-GOG-22), so it also tests that rule;
+    - native Mac: VirtuaVerse (arm64) and Flashback (x86_64, Rosetta);
+    - DOSBox and ScummVM: The Elder Scrolls: Arena (Windows, `DOSBox074_2CS`), and Beneath a Steel
+      Sky (Windows `ScummVM` dependency, Mac wrapper);
   - quit and record playtime;
   - pause and resume a download across a relaunch;
   - verify files after deleting one;
@@ -300,11 +313,12 @@ Each step ships on its own and keeps Steam, This Mac and Epic working.
 
 ## Open questions
 
-- Does GOG accept a redirect address other than `embed.gog.com/on_login_success`? If it does, the
-  relay page can receive the code without a paste (step 0).
-- How long a secure link lasts, and what the `url_format` parameters are (step 0).
-- Whether `playTasks[].path` in macOS builds points to the `.app` or to the binary in it, and whether
-  downloaded bundles keep a valid signature (step 0).
-- Whether macOS shows a firewall prompt when the relay serves its first page (step 0).
+Step 0 answered the redirect, token, secure-link, launch-task and signature questions; see
+GOG_PROTOCOL.md, "Spike results". Still open:
+
+- Whether macOS shows a firewall or local network prompt when the relay serves its first page
+  (step 5).
+- Whether a Windows game that lists `__redist` dependencies runs without them in CrossOver
+  (Monkey Island 2 Special Edition, step 9).
 - The builds list returns 10 items. Playden needs only the first default-branch build, so paging
   matters only for choosing older builds (**later**).

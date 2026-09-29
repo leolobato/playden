@@ -8,3 +8,4 @@ xcuserdata/
 .env
 .epic-session.json
 .gog-session.json
+.gog-library.tsv

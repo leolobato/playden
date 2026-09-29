@@ -2,8 +2,54 @@
 
 The wire protocol that `Packages/GOGKit` will implement. Requirements are in [PRD 10](prd/10-gog.md).
 
-Research date: 2026-09-29. Nothing below was checked with a signed-in account yet. Items tagged
-**UNCONFIRMED** are checked by the step 0 spike (PRD 10 §7), and this file is updated with the result.
+Research date: 2026-09-29. The sections after "Spike results" are the source research. Where they
+say **UNCONFIRMED**, check "Spike results" first: it records what a signed-in account showed.
+
+## Spike results (2026-09-29, real account)
+
+Run with `gog-dev` (`Packages/GOGKit`) against a library of 27 products.
+
+- **The redirect address is fixed.** A login URL with `redirect_uri=http://127.0.0.1:47831/gog`
+  stops on the login page with `{"error":"redirect_uri_mismatch","error_description":"The redirect
+  URI provided does not match registered URI(s)."}`. Only `embed.gog.com/on_login_success?origin=client`
+  works, so the phone relay needs the paste step.
+- **Tokens:** `expires_in` is 3600. Six refreshes in a row returned the same refresh token (no
+  rotation seen); Playden still stores whatever comes back.
+- **Library:** `embed.gog.com/user/data/games` listed 27 IDs, and `galaxy-library` listed 26 (all
+  `platform_id == gog`). gamesdb typed 23 as `game` (all `visible_in_library`) and 4 as `spam`
+  (packs, a duplicate Fallout ID, "Galaxy CDN traffic"). The embed list plus the gamesdb filter is
+  enough.
+- **Builds:** every game had a default-branch build (`branch == null`) first. 22 Windows games were
+  gen 2 and one (Monkey Island 2 Special Edition) was gen 1 only. All 14 Mac builds were gen 2.
+- **CDN order:** `fastly` has `priority 10` and `gcore` has `priority 1, fallback_only true`.
+  A higher priority wins.
+- **Secure links** (the same shape for gen 1 and gen 2):
+  - `fastly`: `url_format` `{base_url}/token=nva={expires_at}~dirs={dirs}~token={token}{path}`, with
+    `path` `/content-system/v2/store/<product>` (gen 2) or `/content-system/v1/depots/<product>/<os>/<timestamp>` (gen 1).
+  - `gcore`: `url_format` `{base_url}/{path}?wsSecret={token}&wsTime={time}&prefix={prefix}`, with
+    `path` without the leading `/`.
+  - `expires_at` is 24 hours after the request. A download still re-fetches on 401/403.
+  - Chunk URLs append `/ab/cd/<compressedMd5>` to `path`; gen 1 appends `/main.bin` and a `Range`
+    request returns 206 with the file's bytes (MD5 matched).
+- **Launch tasks:** paths are relative to the install root, with `/` separators in the info file.
+  - Windows gen 2: `VirtuaVerse.exe` (primary, `category launcher`) and a hidden
+    `VirtuaVerse/VirtuaVerse.exe` (`category game`).
+  - Windows gen 1: `monkey2.exe` with an empty `workingDir`, and a second task `language_setup.exe`.
+  - macOS gen 2: `Contents/MacOS/VirtuaVerse`, `Contents/MacOS/BnC_GOG`, and for ScummVM and DOSBox
+    games a wrapper, `Contents/MacOS/GOGLauncher` or `Contents/MacOS/Launcher`. A `URLTask` (a
+    support link) can follow.
+- **macOS layout:** the install root **is** the app bundle: `Contents/Info.plist`,
+  `Contents/MacOS/<exe>`, with `goggame-<id>.info` and `.hashdb` in `Contents/Resources`. Playden
+  must name the install folder `<name>.app`. (Prison Architect's layout in §7 is the exception seen
+  in the research.)
+- **Signatures:** of three Mac builds, one was unsigned (Flashback, x86_64), and two had ad-hoc
+  signatures whose seal no longer matches, because GOG adds files after signing (VirtuaVerse,
+  arm64: the `goggame` files, `libGalaxy.dylib`; Tyrian 2000, x86_64: "invalid Info.plist").
+  All three start, both by running the executable and through LaunchServices (`open`, as
+  `NativeRunner` does), with no re-signing. The DOSBox wrapper starts its own `dosbox` from
+  `Contents/Resources`.
+- **Architectures:** VirtuaVerse is arm64; Flashback and Tyrian 2000 are x86_64 (Rosetta).
+- **Not seen in this library:** a gen 1 Mac build, and a non-owner's secure-link answer.
 
 ## Sources read (commit SHAs)
 
@@ -458,10 +504,10 @@ Authorization: Bearer <galaxy token>
 - **Free-space check:** gogdl sums the uncompressed `size` values minus deletions, plus the chunk-cache temp space, and compares with `shutil.disk_usage` [task_executor.py:73-84,445; dl_utils.py:127-132].
 - **Private builds:** a `password` param on builds [manager.py:40]. You may also need it on secure_link (**UNCONFIRMED**).
 
-### Open items (need an authenticated session to confirm)
+### Open items from the research (all but 5 answered in "Spike results")
 1. The exact `secure_link` `url_format` and `parameters` keys, the token lifetime, and what a non-owner gets.
 2. Whether GOG rejects a custom `redirect_uri` at login or at token exchange.
 3. The osx `playTasks[].path` form (an `.app` path, or a binary inside it).
 4. Live `expires_in` (expected 3600) and whether the refresh token rotates.
-5. Whether `builds` has a paging param (only 10 of 393 items are returned).
+5. Whether `builds` has a paging param (only 10 of 393 items are returned). Still open; Playden needs only the first default-branch build.
 6. How to read `priority` in `urls[]`.
