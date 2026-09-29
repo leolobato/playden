@@ -20,7 +20,7 @@ public enum EpicError: Error, Equatable, Sendable, LocalizedError {
         case .hashMismatch(let d): "Epic data failed its integrity check: \(d)"
         case .missingKey(let d): "Epic did not provide the key for encrypted content (\(d))."
         case .http(let s, let c, let m): "Epic returned HTTP \(s)\(c.map { " \($0)" } ?? "")\(m.map { ": \($0)" } ?? "")"
-        case .correctiveAction: "Epic needs you to accept updated terms."
+        case .correctiveAction(let url): "Epic needs you to accept updated terms\(url.map { " at \($0.absoluteString)" } ?? " on epicgames.com"), then try again."
         case .authorizationPending: "Waiting for sign-in approval."
         case .deviceCodeExpired: "The sign-in code expired."
         case .invalidCredentials(let c): "Epic rejected the saved sign-in\(c.map { " (\($0))" } ?? "")."

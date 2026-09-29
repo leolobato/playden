@@ -8,7 +8,8 @@ private actor DeviceCodeAuth: SourceAuth {
     private var signedIn: SourceIdentity?
     private var approval: CheckedContinuation<Void, Error>?
     private(set) var signOuts = 0
-    init(signedIn: SourceIdentity? = nil) { self.signedIn = signedIn }
+    var termsURL: URL?
+    init(signedIn: SourceIdentity? = nil, termsURL: URL? = nil) { self.signedIn = signedIn; self.termsURL = termsURL }
     var waitingForApproval: Bool { approval != nil }
     func identity() async throws -> SourceIdentity? { signedIn }
     func signInWithQR(onEvent: @escaping @Sendable (AuthenticationEvent) -> Void) async throws -> SourceIdentity { throw SourceFailure.unavailable }
@@ -18,6 +19,7 @@ private actor DeviceCodeAuth: SourceAuth {
         onEvent(.deviceCode(userCode: "ABCD1234", verificationURL: URL(string: "https://example.invalid/activate")!,
                             completeURL: URL(string: "https://example.invalid/activate?userCode=ABCD1234")!, expiresAt: .now.addingTimeInterval(600)))
         try await withCheckedThrowingContinuation { approval = $0 }
+        if let termsURL { throw SourceFailure.actionRequired(termsURL) }
         let identity = SourceIdentity(sourceID: SourceID.epic, displayName: "Couch Player")
         signedIn = identity
         return identity
@@ -160,6 +162,25 @@ final class MultiAccountInteractionTests: XCTestCase {
         XCTAssertNotNil(model.identity)
         let signOuts = await auth.signOuts
         XCTAssertEqual(signOuts, 1)
+    }
+
+    @MainActor func testTermsToAcceptAreShownAsAQRCodeWithTryAgain() async throws {
+        let terms = URL(string: "https://epicgames.example/continue/abc")!
+        let auth = DeviceCodeAuth(termsURL: terms)
+        let model = LibraryModel(preview: false, source: PrimarySource(), otherSources: [DeviceCodeSource(auth: auth)])
+        defer { model.stopServices() }
+        model.beginSignIn(SourceID.epic)
+        try await waitUntil { await auth.waitingForApproval }
+        await auth.approve()
+        await model.authTask?.value
+        XCTAssertEqual(model.authScreen, .deviceCode)
+        XCTAssertEqual(model.authQR, terms)
+        XCTAssertNil(model.authDeviceCode)
+        XCTAssertEqual(model.authError, SourceFailure.actionRequired(terms).localizedDescription)
+        XCTAssertEqual(model.authenticationActions, ["Try again", "Cancel"])
+        model.authIndex = 0; model.activateAuthentication()
+        XCTAssertEqual(model.authScreen, .deviceCode, "Try again starts a new Epic sign-in, not Steam's")
+        XCTAssertEqual(model.authSourceID, SourceID.epic)
     }
 
     @MainActor func testFirstRunOffersEachStoreAndSignsInToTheChosenOne() async throws {

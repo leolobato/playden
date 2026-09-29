@@ -103,8 +103,10 @@ These changes make a second account store work. Steam's behavior does not change
 - **FR-EPIC-4 (v3):** Before each operation, Playden refreshes the access token when fewer than 10
   minutes remain. A rejected refresh token clears the credentials and shows "Sign in to Epic" with
   the source-scoped recovery (AR-MULTI-2). A network error keeps them.
-- **FR-EPIC-5 (v3):** When Epic returns `corrective_action_required`, the Stores row shows "Epic
-  needs you to accept updated terms." Showing the `continuationUrl` as a QR code is **later**.
+- **FR-EPIC-5 (v3):** When Epic returns `corrective_action_required` during sign-in, the sign-in
+  screen shows the `continuationUrl` as a QR code with "The store needs you to accept its updated
+  terms." and a Try again action. (Seen on a real account on 2026-09-29, right after approving the
+  device code.)
 - **FR-EPIC-6 (v3):** Sign out ends the launcher session on Epic, deletes the Keychain item and
   clears the Epic catalog only. Installed Epic games stay installed. Play asks the player to sign
   in again.

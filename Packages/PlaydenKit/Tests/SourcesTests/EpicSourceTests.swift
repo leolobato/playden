@@ -306,6 +306,11 @@ final class EpicSourceTests: XCTestCase {
         XCTAssertEqual(server.count("DELETE"), 1, "The console session is ended after the trade")
     }
 
+    func testTermsToAcceptCarryTheirPage() {
+        let url = URL(string: "https://epicgames.com/continue/abc")!
+        XCTAssertEqual(EpicAccount.failure(EpicError.correctiveAction(url)) as? SourceFailure, .actionRequired(url))
+    }
+
     func testCommandLinesSplitLikeTheLauncher() {
         XCTAssertEqual(EpicInstaller.splitCommandLine(#"  -a  "-b=c d" e"#), ["-a", "-b=c d", "e"])
         XCTAssertEqual(EpicInstaller.splitCommandLine(""), [])

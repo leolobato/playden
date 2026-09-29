@@ -38,6 +38,9 @@ do {
     let library = try await api.libraryItems(accessToken: session.accessToken)
     let code = try await auth.exchangeCode(accessToken: session.accessToken)
     print("Windows assets: \(assets.count). Library items: \(library.count). Launch code: \(code.isEmpty ? "missing" : "ok")")
+} catch EpicError.correctiveAction(let url) {
+    print("Epic needs you to accept updated terms. Open \(url?.absoluteString ?? "https://www.epicgames.com") in a browser where you're signed in, accept, then run this again.")
+    exit(1)
 } catch {
     print("Failed: \(error.localizedDescription) (\(error))"); exit(1)
 }

@@ -145,6 +145,8 @@ extension LibraryModel {
             } catch {
                 guard authAttempt == attempt, !Task.isCancelled else { return }
                 authQR = nil; authDeviceCode = nil; authError = error.localizedDescription; authMessage = "Couldn’t sign in"
+                // Terms to accept on the store's website: show the page as a QR code instead of a dead end.
+                if case SourceFailure.actionRequired(let url?) = error { authQR = url; authMessage = "Accept the terms on your phone" }
                 authIndex = 0
             }
         }

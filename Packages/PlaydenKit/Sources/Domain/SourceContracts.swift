@@ -16,6 +16,8 @@ public enum AuthenticationEvent: Equatable, Sendable {
 }
 public enum SourceFailure: Error, Equatable, Sendable, LocalizedError {
     case signedOut, expired, accessDenied, network, throttled, credentialsRejected, cancelled, unavailable, malformedResponse, storage(String)
+    /// The store needs the player to finish something on its website first, such as accepting new terms.
+    case actionRequired(URL?)
     public var errorDescription: String? {
         switch self {
         case .signedOut: "Sign in to refresh your library."
@@ -28,6 +30,7 @@ public enum SourceFailure: Error, Equatable, Sendable, LocalizedError {
         case .unavailable: "The store couldn’t complete the request. Try again shortly."
         case .malformedResponse: "The store returned an unexpected or incomplete response. Please retry."
         case .storage(let detail): "Playden couldn’t access your saved sign-in. Unlock your Mac and retry. (\(detail))"
+        case .actionRequired: "The store needs you to accept its updated terms. Scan the code, accept them on your phone, then try again."
         }
     }
 }

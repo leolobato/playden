@@ -124,6 +124,7 @@ public actor EpicAccount: SourceAuth {
             case .cancelled: return CancellationError()
             case .invalidCredentials, .deviceCodeExpired: return SourceFailure.expired
             case .malformed: return SourceFailure.malformedResponse
+            case .correctiveAction(let url): return SourceFailure.actionRequired(url)
             case .http(let status, _, _):
                 switch status {
                 case 401: return SourceFailure.expired
