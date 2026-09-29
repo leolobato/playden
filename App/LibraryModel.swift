@@ -29,6 +29,8 @@ enum Panel: Equatable {
     case uninstall(GameID)
     case textEditor(TextPurpose), collections(GameID), collectionOptions(UUID), confirmation(Confirmation), logs(GameID)
     case storePage(GameID)
+    /// Manage a signed-in store: sign in again or sign out.
+    case account(String)
     /// This Mac: suggestions and Browse; with a game, picking an app relocates that game.
     case localGames(GameID?)
     case localFolders
@@ -259,9 +261,11 @@ final class LibraryModel {
     var symbols = false
     var downloadWhilePlaying = false { didSet { persistPreferences(); updateSessionDownloadPolicy() } }
     var tabsFocused = false {
-        didSet { if !tabsFocused { powerFocused = false } }
+        didSet { if !tabsFocused { powerFocused = false; accountAlertFocused = false } }
     }
     var powerFocused = false
+    /// The header's store alert, between the Settings tab and the power button.
+    var accountAlertFocused = false
     var tab: AppTab = .home
     var detailID: GameID? { didSet { if detailID != oldValue { loadDetailDownloadSize() } } }
     @ObservationIgnored var detailSizeTask: Task<Void, Never>?
@@ -548,6 +552,7 @@ final class LibraryModel {
         case .information: ["Got it"]
         case .persistenceFailure: ["Retry saving", "Continue without saving"]
         case .signOut: ["Stay signed in", "Sign out"]
+        case .account: accountPanelActions
         case .localGames(let id): localGamesActions(relocating: id)
         case .localFolders: localFolderActions
         case .localAdded: addedGamesActions
@@ -598,7 +603,7 @@ final class LibraryModel {
         filter = !games.isEmpty && games.allSatisfy(\.isHidden) ? .hidden : .all
         updateQuery("")
     }
-    func selectTab(_ value: AppTab, focusTabs: Bool = false) { guard !resetBusy else { return }; tabsFocused = focusTabs; powerFocused = false; tab = value; detailID = nil; panel = nil; railFocused = false }
+    func selectTab(_ value: AppTab, focusTabs: Bool = false) { guard !resetBusy else { return }; tabsFocused = focusTabs; powerFocused = false; accountAlertFocused = false; tab = value; detailID = nil; panel = nil; railFocused = false }
     func show(_ value: Panel) {
         guard !resetBusy else { return }
         panel = value; panelIndex = 0
@@ -676,12 +681,18 @@ final class LibraryModel {
         if tabsFocused && detailID == nil {
             switch action {
             case .move(.left), .move(.right):
+                let hasAlert = accountAlertTitle != nil
+                if accountAlertFocused && !hasAlert { accountAlertFocused = false }
                 if powerFocused {
-                    if case .move(.left) = action { powerFocused = false }
+                    if case .move(.left) = action { powerFocused = false; accountAlertFocused = hasAlert }
+                    return
+                }
+                if accountAlertFocused {
+                    if case .move(.left) = action { accountAlertFocused = false } else { accountAlertFocused = false; powerFocused = true }
                     return
                 }
                 if tab == .settings, case .move(.right) = action {
-                    powerFocused = true
+                    if hasAlert { accountAlertFocused = true } else { powerFocused = true }
                     return
                 }
                 let tabs = AppTab.allCases, index = tabs.firstIndex(of: tab) ?? 0
@@ -692,6 +703,7 @@ final class LibraryModel {
                 return
             case .confirm:
                 if powerFocused { quitLauncherFromUI() }
+                else if accountAlertFocused && accountAlertTitle != nil { openAccountAlert() }
                 else { tabsFocused = false }
                 return
             case .move(.down), .back: tabsFocused = false; return
@@ -765,7 +777,7 @@ final class LibraryModel {
             if direction == .left { settingsRailFocused = true }
             else if direction == .right { settingsRailFocused = settingsSection == 6 }
             else if settingsRailFocused { settingsSection = min(max(0, settingsSection + (direction == .up ? -1 : 1)), 6); settingsIndex = 0 }
-            else { settingsIndex = min(max(0, settingsIndex + (direction == .up ? -1 : 1)), settingsSection == 0 ? max(0, storeSettingsRows.count - 1) : settingsSection == 1 || settingsSection == 2 ? 3 : settingsSection == 5 ? 2 : settingsSection == 4 ? 1 : 0) }
+            else { settingsIndex = min(max(0, settingsIndex + (direction == .up ? -1 : 1)), settingsSection == 0 ? max(0, storeSettingsRows.count - 1) : settingsSection == 1 ? 4 : settingsSection == 2 ? 3 : settingsSection == 5 ? 2 : settingsSection == 4 ? 1 : 0) }
         }
     }
     func activateDetail() {
@@ -830,6 +842,7 @@ final class LibraryModel {
             else { confirmInstall() }
         case .signOut:
             if panelIndex == 1 { signOut() } else { panel = nil }
+        case .account(let id): activateAccountPanel(id)
         case .persistenceFailure:
             if panelIndex == 0 { retryPersistence() } else { panel = nil }
         case .context:
@@ -876,7 +889,8 @@ final class LibraryModel {
         if settingsSection == 0 { activateStoreSetting() }
         else if settingsSection == 1 && settingsIndex == 0 && !isPreview { refreshLibrary() }
         else if settingsSection == 1 && settingsIndex == 1 { show(.volumePicker(nil)) }
-        else if settingsSection == 1 && settingsIndex == 3 { openRuntimeSetup() }
+        else if settingsSection == 1 && settingsIndex == 3 { togglePreferMacVersions() }
+        else if settingsSection == 1 && settingsIndex == 4 { openRuntimeSetup() }
         else if settingsSection == 2 && settingsIndex == 0 { onboarding = false; setupScreen = .display; setupIndex = displays.firstIndex(where: { $0.id == preferredDisplay?.id }) ?? 0 }
         else if settingsSection == 2 && settingsIndex == 1 { requestFullscreen() }
         else if settingsSection == 2 && settingsIndex == 2 { toggleImmersiveMode() }

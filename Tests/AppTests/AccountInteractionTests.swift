@@ -45,13 +45,54 @@ final class AccountInteractionTests: XCTestCase {
         defer { model.stopServices() }
         model.identity = SourceIdentity(sourceID: "fixture", displayName: "Fixture")
         model.settingsSection = 0; model.settingsIndex = 0; model.settingsRailFocused = false
-        XCTAssertEqual(SettingsScreen(model: model).settings.map { $0.2 }, ["Sign in again", "Sign out", "On"], "Steam rows, then Prefer macOS versions")
+        XCTAssertEqual(SettingsScreen(model: model).settings.map { $0.2 }, ["Manage ›"], "One row per store")
         model.activateSetting()
+        XCTAssertEqual(model.panel, .account("fixture"))
+        XCTAssertEqual(model.panelTitle, "Steam")
+        XCTAssertEqual(model.panelActions, ["Sign in again", "Sign out", "Cancel"])
+        model.panelIndex = 0; model.activatePanel()
         XCTAssertEqual(model.authScreen, .qr)
         XCTAssertNotNil(model.identity)
         model.cancelAuthentication()
-        model.settingsIndex = 1; model.activateSetting()
+        model.activateSetting()
+        model.panelIndex = 1; model.activatePanel()
         XCTAssertEqual(model.panel, .signOut)
+        XCTAssertEqual(model.panelTitle, "Sign out of Steam?")
+    }
+
+    @MainActor func testExpiredAccountSignsInAgainFromItsRowAndTheHeader() {
+        let model = LibraryModel(preview: false, source: AccountFixtureSource())
+        defer { model.stopServices() }
+        model.identity = SourceIdentity(sourceID: "fixture", displayName: "Fixture")
+        XCTAssertNil(model.accountAlertTitle)
+        model.recordSyncFailure(SourceFailure.expired)
+        XCTAssertEqual(model.accountRow("fixture").2, "Sign in again")
+        XCTAssertEqual(model.accountAlertTitle, "Sign in to Steam")
+
+        model.selectTab(.settings, focusTabs: true)
+        model.performController(.move(.right))
+        XCTAssertTrue(model.accountAlertFocused)
+        XCTAssertFalse(model.powerFocused)
+        model.performController(.move(.right))
+        XCTAssertTrue(model.powerFocused)
+        model.performController(.move(.left))
+        XCTAssertTrue(model.accountAlertFocused)
+        model.performController(.confirm)
+        XCTAssertFalse(model.tabsFocused)
+        XCTAssertEqual(model.settingsSection, 0)
+        XCTAssertEqual(model.settingsIndex, 0)
+        model.activateSetting()
+        XCTAssertEqual(model.authScreen, .qr, "An expired account signs in directly, without the Manage panel")
+        model.cancelAuthentication()
+    }
+
+    @MainActor func testFailedRefreshWithoutSignInIssueKeepsManage() {
+        let model = LibraryModel(preview: false, source: AccountFixtureSource())
+        defer { model.stopServices() }
+        model.identity = SourceIdentity(sourceID: "fixture", displayName: "Fixture")
+        model.recordSyncFailure(URLError(.notConnectedToInternet))
+        XCTAssertEqual(model.accountRow("fixture").2, "Manage ›")
+        XCTAssertEqual(model.accountAlertTitle, "Steam can’t refresh")
     }
 
     @MainActor func testSignInClearsExpiredNoticeEvenWithoutLibraryRefresh() async throws {

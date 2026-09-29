@@ -10,6 +10,8 @@ enum AuthenticationScreen { case qr, credentials, approval, guardCode, deviceCod
 struct AccountState: Equatable {
     var identity: SourceIdentity?
     var syncError: String?
+    /// The last refresh failed because the store wants the player to sign in again.
+    var needsSignIn = false
     var syncing = false
 }
 
@@ -135,7 +137,7 @@ extension LibraryModel {
                 try Task.checkCancellation()
                 guard authAttempt == attempt else { return }
                 let pendingInstall = installAfterAuthentication
-                setIdentity(result, for: sourceID); accounts[sourceID, default: .init()].syncError = nil
+                setIdentity(result, for: sourceID); accounts[sourceID, default: .init()].syncError = nil; accounts[sourceID, default: .init()].needsSignIn = false
                 clearSignInIssue(sourceID); cancelAuthentication(); refreshLibrary(sourceID)
                 if let pendingInstall { beginInstall(pendingInstall, volume: installDestination, platform: installPlatform) }
                 else {
@@ -239,7 +241,8 @@ extension LibraryModel {
         guard !resetBusy else { return }
         guard let source = sources[sourceID], let coordinator = libraryCoordinator(for: sourceID) else { return }
         accountSyncTasks[sourceID]?.cancel()
-        accounts[sourceID, default: .init()].syncError = nil; accounts[sourceID, default: .init()].syncing = true
+        accounts[sourceID, default: .init()].syncError = nil; accounts[sourceID, default: .init()].needsSignIn = false
+        accounts[sourceID, default: .init()].syncing = true
         accountSyncTasks[sourceID] = Task { [weak self] in
             guard let self else { return }
             do {
@@ -283,6 +286,7 @@ extension LibraryModel {
         accounts[id, default: .init()].syncError = error.localizedDescription
         guard let failure = error as? SourceFailure,
               [.signedOut, .expired, .credentialsRejected].contains(failure) else { return }
+        accounts[id, default: .init()].needsSignIn = true
         reportSessionIssue(.init(stage: failure == .expired ? "Sign-in expired" : "Sign in to \(accountName(id))",
                                  reason: error.localizedDescription, output: error.localizedDescription),
                            recovery: .signIn(id))

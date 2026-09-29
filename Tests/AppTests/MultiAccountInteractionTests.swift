@@ -88,10 +88,10 @@ final class MultiAccountInteractionTests: XCTestCase {
         let model = LibraryModel(catalog: catalog, preview: false, source: PrimarySource(), otherSources: [DeviceCodeSource(auth: auth)])
         defer { model.stopServices() }
         model.settingsSection = 0; model.settingsRailFocused = false
-        XCTAssertEqual(model.storeSettingsRows, [.account("fixture"), .preferMac, .account(SourceID.epic)])
-        XCTAssertEqual(SettingsScreen(model: model).settings.map(\.0), ["Steam", "Prefer macOS versions", "Epic Games"])
+        XCTAssertEqual(model.storeSettingsRows, [.account("fixture"), .account(SourceID.epic)])
+        XCTAssertEqual(SettingsScreen(model: model).settings.map(\.0), ["Steam", "Epic Games"])
 
-        model.settingsIndex = 2; model.activateSetting()
+        model.settingsIndex = 1; model.activateSetting()
         XCTAssertEqual(model.authScreen, .deviceCode)
         XCTAssertEqual(model.authSourceID, SourceID.epic)
         try await waitUntil { model.authDeviceCode != nil }
@@ -107,7 +107,7 @@ final class MultiAccountInteractionTests: XCTestCase {
         XCTAssertTrue(model.signedInToDownloadStore)
         await model.accountSyncTasks[SourceID.epic]?.value
         XCTAssertEqual(model.games.map(\.title), ["Epic Game"])
-        XCTAssertEqual(model.storeSettingsRows, [.account("fixture"), .preferMac, .account(SourceID.epic), .signOut(SourceID.epic)])
+        XCTAssertEqual(model.accountRow(SourceID.epic).2, "Manage ›")
     }
 
     @MainActor func testSignedOutStoreRecoveryOpensThatStoresSignIn() async throws {
@@ -152,8 +152,10 @@ final class MultiAccountInteractionTests: XCTestCase {
         try await waitUntil { model.identity != nil && model.account(SourceID.epic).identity != nil && model.games.count == 2 }
 
         model.settingsSection = 0; model.settingsRailFocused = false
-        model.settingsIndex = try XCTUnwrap(model.storeSettingsRows.firstIndex(of: .signOut(SourceID.epic)))
+        model.settingsIndex = try XCTUnwrap(model.storeSettingsRows.firstIndex(of: .account(SourceID.epic)))
         model.activateSetting()
+        XCTAssertEqual(model.panel, .account(SourceID.epic))
+        model.panelIndex = 1; model.activatePanel()
         XCTAssertEqual(model.panel, .signOut)
         XCTAssertEqual(model.panelTitle, "Sign out of Epic Games?")
         model.panelIndex = 1; model.activatePanel()

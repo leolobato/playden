@@ -215,6 +215,7 @@ extension LibraryModel {
         case .volumePicker(let id): id == nil ? "Default install volume" : "Install on volume"
         case .filters: "Sort & filter"
         case .persistenceFailure: "Changes weren’t saved"
+        case .account(let id): accountName(id)
         case .signOut: "Sign out of \(accountName(signOutSourceID ?? primaryAccountID))?"
         case .localGames(let id): id == nil ? "Add games on this Mac" : "Locate \(gameName(id!))"
         case .localFolders: "Watched folders"

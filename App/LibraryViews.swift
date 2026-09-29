@@ -115,7 +115,7 @@ struct TopBar: View {
                             .foregroundStyle(model.tab == tab ? Design.text : Design.secondary)
                             .background(model.tab == tab ? Design.text.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 8))
                             .overlay(RoundedRectangle(cornerRadius: 8).stroke(model.tab == tab ? Design.text.opacity(0.35) : .clear, lineWidth: 2))
-                            .focusRing(model.tabsFocused && !model.powerFocused && model.tab == tab, compact: true)
+                            .focusRing(model.tabsFocused && !model.powerFocused && !model.accountAlertFocused && model.tab == tab, compact: true)
                     }.buttonStyle(.plain)
                 }
             }
@@ -129,9 +129,15 @@ struct TopBar: View {
                 }.buttonStyle(.plain).padding(.trailing, 24)
             }
             HStack(spacing: 22) {
-                HStack(spacing: 12) {
-                    Circle().fill(LinearGradient(colors: [Design.accent, Color(hex: 0x8A3D15)], startPoint: .topLeading, endPoint: .bottomTrailing)).frame(width: 40, height: 40)
-                    Text(model.isPreview ? "Preview" : model.identity?.displayName ?? "Offline").font(Design.body(24, weight: "Medium")).lineLimit(1).frame(maxWidth: 260).fixedSize(horizontal: true, vertical: false)
+                if let alert = model.accountAlertTitle {
+                    Button { model.openAccountAlert() } label: {
+                        Label(alert, systemImage: "exclamationmark.triangle.fill")
+                            .font(Design.body(24, weight: "Medium")).foregroundStyle(Design.amber).lineLimit(1)
+                            .padding(.horizontal, 18).frame(height: 52)
+                            .background(Design.amber.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Design.amber.opacity(0.5), lineWidth: 2))
+                            .focusRing(model.tabsFocused && model.accountAlertFocused, compact: true)
+                    }.buttonStyle(.plain).help("Open Settings › Stores")
                 }
                 ClockLabel(fixed: model.fixedClock)
                 Button { model.quitLauncherFromUI() } label: {
@@ -165,7 +171,7 @@ struct BottomBar: View {
                 LegendItem(glyph: "← →", title: "Choose action")
             } else if model.tabsFocused && model.detailID == nil {
                 LegendItem(glyph: "← →", title: "Navigate")
-                LegendItem(glyph: keyboard ? "↵" : model.controllerConfirmGlyph, title: model.powerFocused ? "Quit Playden" : "Browse")
+                LegendItem(glyph: keyboard ? "↵" : model.controllerConfirmGlyph, title: model.powerFocused ? "Quit Playden" : model.accountAlertFocused ? "Open Stores" : "Browse")
                 LegendItem(glyph: keyboard ? "ESC" : model.controllerBackGlyph, title: "Back")
             } else {
             LegendItem(glyph: keyboard ? "↵" : model.controllerConfirmGlyph, title: model.detailID != nil || model.tab == .settings ? "Select" : model.tab == .downloads && !model.isPreview && model.focusedGame != nil ? "Manage" : model.tab == .downloads && model.focusedGame?.status == .downloading ? (model.downloadPaused ? "Resume" : "Pause") : "Open")

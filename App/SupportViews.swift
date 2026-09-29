@@ -20,8 +20,6 @@ struct SettingsScreen: View {
         case 0: model.storeSettingsRows.map { row in
             switch row {
             case .account(let id): model.accountRow(id)
-            case .signOut(let id): ("Sign out", "Disconnect your \(model.accountName(id)) account from Playden", "Sign out")
-            case .preferMac: ("Prefer macOS versions", "Offer a Steam game’s Mac version first when it has one", model.preferMacVersions ? "On" : "Off")
             case .thisMac: ("This Mac", model.thisMacSummary, "Add games ›")
             case .addedGames: ("Added games", model.addedGamesSummary, "Manage ›")
             case .folders: ("Watched folders", "Playden checks these folders for new games every time it scans", "Manage ›")
@@ -47,6 +45,7 @@ struct SettingsScreen: View {
         [("Refresh library", model.librarySyncError ?? (model.librarySyncing ? "Loading your library…" : "Refresh your games and artwork"), model.librarySyncing ? "Refreshing" : "Refresh"),
          ("Games volumes", model.gamesVolume.map { model.volumeLabel($0) + " · Default" } ?? "Choose where to install your games", "Manage ›"),
          ("Download while playing", "Downloads pause automatically when a game starts", model.downloadWhilePlaying ? "On" : "Off"),
+         ("Prefer macOS versions", "Offer a game’s Mac version first when a store has one", model.preferMacVersions ? "On" : "Off"),
          ("Runtime", model.runtimeInfo.map { "CrossOver \($0.version ?? "not found") · Template \($0.templateVersion)" } ?? "Checking game setup", model.runtimeInfo?.templateReady == true && model.runtimeInfo?.failure == nil ? "Ready ›" : "Review ›")]
     }
     var body: some View {
@@ -67,7 +66,7 @@ struct SettingsScreen: View {
             ScrollViewReader { scroll in
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
-                        SectionLabel(text: sections[model.settingsSection])
+                        if model.settingsSection != 0 || model.storeSettingsLabel(at: 0) == nil { SectionLabel(text: sections[model.settingsSection]) }
                         if model.settingsSection == 1, let error = model.installVolumeError {
                             Text(error).font(Design.body(22)).foregroundStyle(Design.amber)
                         }
@@ -76,6 +75,9 @@ struct SettingsScreen: View {
                                 .font(Design.body(26)).foregroundStyle(Design.secondary)
                         }
                         ForEach(Array(settings.enumerated()), id: \.offset) { index, setting in
+                            if model.settingsSection == 0, let label = model.storeSettingsLabel(at: index) {
+                                SectionLabel(text: label).padding(.top, index == 0 ? 0 : 24)
+                            }
                             HStack(spacing: 24) {
                                 VStack(alignment: .leading, spacing: 10) { Text(setting.0).font(Design.condensed(30)); Text(setting.1).font(Design.body(22)).foregroundStyle(Design.secondary) }
                                 Spacer()
@@ -162,6 +164,9 @@ struct ModalLayer: View {
                         .font(Design.condensed(48))
                     if model.panel == .persistenceFailure { Text(model.persistenceError ?? "The library database is unavailable.").font(Design.body(24)).foregroundStyle(Design.secondary) }
                     if model.panel == .compatibility { Text(model.isPreview ? "Your rating · preview library" : "Your rating").font(Design.body(22)).foregroundStyle(Design.secondary) }
+                    if case .account(let id) = model.panel, let name = model.account(id).identity?.displayName {
+                        Text("Signed in as \(name)").font(Design.body(24)).foregroundStyle(Design.secondary)
+                    }
                     if model.panel == .signOut { Text("Installed games, saves, collections and play history stay on this Mac.").font(Design.body(24)).foregroundStyle(Design.secondary) }
                     if case .localGames(let id) = model.panel {
                         Text(model.localBusy ? "Looking for games in your Applications and Games folders…" : model.localMessage ?? (id == nil ? "Choose any app, or pick one Playden found. Playden never changes its files." : "Pick the app’s new location."))

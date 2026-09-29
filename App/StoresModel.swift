@@ -4,7 +4,7 @@ import Installs
 import Focus
 import Sources
 
-enum StoreSettingsRow: Equatable { case account(String), signOut(String), preferMac, thisMac, addedGames, folders }
+enum StoreSettingsRow: Equatable { case account(String), thisMac, addedGames, folders }
 
 /// Names and glyphs for stores. Store IDs never appear in the UI.
 enum StoreNames {
@@ -60,21 +60,61 @@ extension LibraryModel {
     var addGamesMessage: String { localSource == nil ? "Sign in to Steam to see your library." : "Sign in to Steam, or add games that are already on this Mac." }
 
     var storeSettingsRows: [StoreSettingsRow] {
-        guard !isPreview else { return [.account(SourceID.steam), .preferMac, .thisMac, .addedGames, .folders] }
+        guard !isPreview else { return [.account(SourceID.steam), .thisMac, .addedGames, .folders] }
         var rows: [StoreSettingsRow] = []
-        if let source { rows += [.account(source.id)] + (identity == nil ? [] : [.signOut(source.id)]) + [.preferMac] }
-        for other in otherAccountSources {
-            rows += [.account(other.id)] + (account(other.id).identity == nil ? [] : [.signOut(other.id)])
-        }
+        if let source { rows.append(.account(source.id)) }
+        rows += otherAccountSources.map { .account($0.id) }
         if localSource != nil { rows += [.thisMac, .addedGames, .folders] }
         return rows
     }
-    /// Title, status and action for a store's account row in Settings.
+    /// Labels above the first account row and the first This Mac row, once both kinds are listed.
+    func storeSettingsLabel(at index: Int) -> String? {
+        let rows = storeSettingsRows
+        guard let firstLocal = rows.firstIndex(of: .thisMac), firstLocal > 0 else { return nil }
+        return index == 0 ? "Accounts" : index == firstLocal ? "Mac games" : nil
+    }
+    /// Title, status and action for a store's account row in Settings. A working account opens its Manage panel.
     func accountRow(_ id: String) -> (String, String, String) {
         let account = account(id)
         let status = account.syncError ?? (isPreview ? "Using designer preview data"
             : account.identity.map { "Signed in as \($0.displayName)" } ?? "Sign in to see your games")
-        return (accountName(id), status, account.identity == nil ? "Sign in" : "Sign in again")
+        let action = account.identity == nil ? "Sign in" : account.needsSignIn ? "Sign in again" : "Manage ›"
+        return (accountName(id), status, action)
+    }
+    var accountPanelActions: [String] { ["Sign in again", "Sign out", "Cancel"] }
+    func activateAccountPanel(_ id: String) {
+        switch panelIndex {
+        case 0: beginSignIn(id)
+        case 1: signOutSourceID = id; show(.signOut)
+        default: panel = nil
+        }
+    }
+
+    func togglePreferMacVersions() {
+        preferMacVersions.toggle()
+        try? updateSetupPreferences { $0.preferMacVersions = preferMacVersions }
+    }
+
+    // MARK: Header alert
+
+    /// Stores whose last refresh failed, in Settings order, for the header alert.
+    var storesNeedingAttention: [String] {
+        storeSettingsRows.compactMap { row in
+            guard case .account(let id) = row, account(id).syncError != nil else { return nil }
+            return id
+        }
+    }
+    var accountAlertTitle: String? {
+        let ids = storesNeedingAttention
+        guard let id = ids.first else { return nil }
+        if ids.count > 1 { return "\(ids.count) stores need attention" }
+        return account(id).needsSignIn ? "Sign in to \(accountName(id))" : "\(accountName(id)) can’t refresh"
+    }
+    /// Opens Settings › Stores on the first store that needs attention.
+    func openAccountAlert() {
+        guard let id = storesNeedingAttention.first else { return }
+        openStoreSettings()
+        settingsIndex = storeSettingsRows.firstIndex(of: .account(id)) ?? 0
     }
     /// Only stores that sync saves show Cloud saves. The design preview has no stores and shows Steam's.
     func storeHasCloudSaves(_ id: GameID) -> Bool {
@@ -88,11 +128,11 @@ extension LibraryModel {
     func activateStoreSetting() {
         guard let row = storeSettingsRows[safe: settingsIndex] else { return }
         switch row {
-        case .account(let id): if isPreview { show(.information("\(accountName(id)) sign-in is available in the live app.")) } else { beginSignIn(id) }
-        case .signOut(let id): signOutSourceID = id; show(.signOut)
-        case .preferMac:
-            preferMacVersions.toggle()
-            try? updateSetupPreferences { $0.preferMacVersions = preferMacVersions }
+        case .account(let id):
+            let account = account(id)
+            if isPreview { show(.information("\(accountName(id)) sign-in is available in the live app.")) }
+            else if account.identity == nil || account.needsSignIn { beginSignIn(id) }
+            else { show(.account(id)) }
         case .thisMac: if isPreview { show(.information("Adding Mac games is available in the live app.")) } else { showLocalGames() }
         case .addedGames: showAddedGames()
         case .folders: if isPreview { show(.information("Watched folders are available in the live app.")) } else { showLocalFolders() }
@@ -381,6 +421,12 @@ extension LibraryModel {
             selectTab(.library); if let game = games.first(where: { $0.title == "Photo Booth" }) { openGame(game) }
         case "settings-stores":
             selectTab(.settings); settingsSection = 0; settingsIndex = 2; settingsRailFocused = false
+        case "settings-stores-alert":
+            accounts[primaryAccountID, default: .init()].syncError = SourceFailure.expired.localizedDescription
+            accounts[primaryAccountID, default: .init()].needsSignIn = true
+            selectTab(.settings, focusTabs: true); settingsSection = 0; accountAlertFocused = true
+        case "settings-account":
+            selectTab(.settings); settingsSection = 0; settingsRailFocused = false; show(.account(primaryAccountID))
         case "local-picker":
             selectTab(.settings); settingsSection = 0
             panel = .localGames(nil); panelIndex = 0; localBusy = false

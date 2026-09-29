@@ -123,10 +123,25 @@ final class StoresInteractionTests: XCTestCase {
         XCTAssertEqual(model.storeSettingsRows, [.thisMac, .addedGames, .folders])
         model.settingsSection = 0
         XCTAssertEqual(SettingsScreen(model: model).settings.map(\.0), ["This Mac", "Added games", "Watched folders"])
+        XCTAssertNil(model.storeSettingsLabel(at: 0), "One kind of row keeps the Stores label")
         XCTAssertTrue(model.needsGames)
         XCTAssertEqual(model.addGamesTitle, "Add games")
         model.startAddingGames()
         XCTAssertEqual(model.tab, .settings); XCTAssertEqual(model.settingsSection, 0)
+    }
+
+    @MainActor func testStoresGroupAccountsApartFromMacGamesAndLibraryHoldsTheMacPreference() {
+        let model = LibraryModel()
+        defer { model.stopServices() }
+        XCTAssertEqual(model.storeSettingsRows, [.account(SourceID.steam), .thisMac, .addedGames, .folders])
+        XCTAssertEqual((0..<4).map { model.storeSettingsLabel(at: $0) }, ["Accounts", "Mac games", nil, nil])
+        model.selectTab(.settings); model.settingsSection = 1; model.settingsRailFocused = false
+        XCTAssertEqual(SettingsScreen(model: model).settings.map(\.0), ["Refresh library", "Games volumes", "Download while playing", "Prefer macOS versions", "Runtime"])
+        let before = model.preferMacVersions
+        model.settingsIndex = 3; model.activateSetting()
+        XCTAssertEqual(model.preferMacVersions, !before)
+        for _ in 0..<6 { model.perform(.move(.down)) }
+        XCTAssertEqual(model.settingsIndex, 4, "Runtime is the last Library row")
     }
 
     @MainActor func testChoosingAnyAppComesFirstEvenWhileSuggestionsLoad() {
