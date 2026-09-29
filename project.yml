@@ -61,8 +61,8 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: $(PLAYDEN_BUNDLE_IDENTIFIER)
         PRODUCT_NAME: Playden
         PRODUCT_MODULE_NAME: Playden
-        MARKETING_VERSION: '0.1'
-        CURRENT_PROJECT_VERSION: '1'
+        MARKETING_VERSION: '0.2'
+        CURRENT_PROJECT_VERSION: '2'
         HEADER_SEARCH_PATHS: ['$(inherited)', /opt/homebrew/include]
         LIBRARY_SEARCH_PATHS: ['$(inherited)', /opt/homebrew/lib]
         LD_RUNPATH_SEARCH_PATHS: ['$(inherited)', '@executable_path/../Frameworks', '@loader_path/../Frameworks']

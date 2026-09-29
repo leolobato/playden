@@ -19,7 +19,7 @@ real account; see [PRD 09](docs/prd/09-epic.md). More stores (itch.io, GOG, Amaz
 
 *Actual app capture using the sample library. Displayed games are not a compatibility list.*
 
-**Current version: 0.1**. Playden is in active development.
+**Current version: 0.2**. Playden is in active development.
 Installation, play sessions and Steam Cloud sync are
 implemented.
 

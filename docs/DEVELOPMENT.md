@@ -132,13 +132,13 @@ security find-identity -v -p codesigning
 
 Select the full Developer ID Application name (or SHA-1) from that list, then build with an
 explicit marketing version and positive integer build number. Source builds default to version
-`0.1`, build `1`, configured by `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` in
+`0.2`, build `2`, configured by `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` in
 `project.yml`:
 
 ```sh
 export PLAYDEN_DEVELOPER_ID="Developer ID Application: Your Name (TEAMID)"
 export PLAYDEN_NOTARY_PROFILE="playden-notary"
-./scripts/distribute.sh 0.1 1
+./scripts/distribute.sh 0.2 2
 ```
 
 Alternatively, use an App Store Connect API key, including in CI. Import the Developer ID
@@ -150,7 +150,7 @@ unset PLAYDEN_NOTARY_PROFILE
 export PLAYDEN_NOTARY_KEY_PATH="/path/to/AuthKey.p8"
 export PLAYDEN_NOTARY_KEY_ID="YOUR_KEY_ID"
 export PLAYDEN_NOTARY_ISSUER_ID="YOUR_ISSUER_UUID"
-./scripts/distribute.sh 0.1 1
+./scripts/distribute.sh 0.2 2
 ```
 
 The issuer UUID is required for team API keys; omit it for individual API keys. A configured
@@ -164,7 +164,7 @@ verifies signatures and tickets, and checks both the app and DMG with Gatekeeper
 Apple's [signing](https://developer.apple.com/documentation/xcode/creating-distribution-signed-code-for-the-mac)
 and [notarization workflow](https://developer.apple.com/documentation/security/customizing-the-notarization-workflow).
 
-Only after every check succeeds does it place `dist/Playden-0.1-1-arm64.dmg` at the final
+Only after every check succeeds does it place `dist/Playden-0.2-2-arm64.dmg` at the final
 output path. Upload that DMG to the GitHub release; the script does not publish it. Open the DMG
 to install by dragging Playden into Applications, after quitting any running copy.
 Notarization responses and Apple logs are retained under `.build/distribution/notarization.*`,
