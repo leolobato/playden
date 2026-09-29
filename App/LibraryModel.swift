@@ -155,10 +155,13 @@ final class LibraryModel {
     @ObservationIgnored let gamesStorageReader: (any GamesStorageReading)?
     var gamesStorage: GamesStorageSnapshot?
     var gamesStorageError: String?
-    var installJobs: [JobRecord] = []
+    var installJobs: [JobRecord] = [] { didSet { latestInstallJobsCache = nil } }
+    /// `latestInstallJobs`, kept until the jobs or the active job change. Each progress update
+    /// asks for it once per download row, so sorting every job history each time stalled the UI.
+    @ObservationIgnored var latestInstallJobsCache: [JobRecord]?
     var downloadDismissals: [UUID: JobHistoryDismissal] = [:]
     var downloadHistoryReview: JobRecord?
-    var activeInstallID: UUID?
+    var activeInstallID: UUID? { didSet { latestInstallJobsCache = nil } }
     var installTransfer: InstallTransferMetrics?
     var installPreparation: InstallPreparationProgress?
     var installPersistenceError: String?

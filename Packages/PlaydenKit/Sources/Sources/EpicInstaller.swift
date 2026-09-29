@@ -164,6 +164,8 @@ struct EpicInstaller: Installer {
         let sequence = ProgressSequence()
         var downloader = EpicDownloader(destination: directory)
         downloader.onProgress = { update in
+            // The downloader reports every chunk part; ten reports a second is plenty for the queue.
+            guard sequence.due(final: update.bytesDone == update.bytesTotal) else { return }
             progress(InstallProgress(bytesCompleted: Int64(update.bytesDone), bytesTotal: Int64(update.bytesTotal), currentFile: update.file,
                                      downloadedBytes: Int64(update.bytesDownloaded), freshlyWrittenBytes: Int64(update.bytesWritten),
                                      sequence: sequence.next()))
@@ -237,5 +239,14 @@ struct EpicInstaller: Installer {
 
 private final class ProgressSequence: @unchecked Sendable {
     private let lock = NSLock(); private var value: UInt64 = 0
+    private var last: TimeInterval = 0
     func next() -> UInt64 { lock.withLock { value += 1; return value } }
+    /// True at most every 0.1 s, and always for the final report.
+    func due(final: Bool) -> Bool {
+        lock.withLock {
+            let now = ProcessInfo.processInfo.systemUptime
+            guard final || now - last >= 0.1 else { return false }
+            last = now; return true
+        }
+    }
 }

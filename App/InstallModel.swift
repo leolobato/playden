@@ -86,18 +86,21 @@ extension LibraryModel {
         installOfferRequiresSignIn = failure == .signedOut || failure == .expired || failure == .credentialsRejected
     }
     var latestInstallJobs: [JobRecord] {
+        if let latestInstallJobsCache { return latestInstallJobsCache }
         var latest: [GameID: JobRecord] = [:]
         for job in installJobs.sorted(by: { $0.createdAt == $1.createdAt ? $0.id.uuidString < $1.id.uuidString : $0.createdAt < $1.createdAt }) { latest[job.gameID] = job }
         func rank(_ job: JobRecord) -> Int {
             if job.id == activeInstallID { return 0 }
             switch job.state { case .running, .stopping: return 0; case .queued, .paused: return 1; case .failed: return 2; default: return 3 }
         }
-        return latest.values.sorted {
+        let sorted = latest.values.sorted {
             if rank($0) != rank($1) { return rank($0) < rank($1) }
             if rank($0) >= 2 && $0.updatedAt != $1.updatedAt { return $0.updatedAt > $1.updatedAt }
             if $0.queuePosition != $1.queuePosition { return $0.queuePosition < $1.queuePosition }
             return $0.id.uuidString < $1.id.uuidString
         }
+        latestInstallJobsCache = sorted
+        return sorted
     }
     var visibleInstallJobs: [JobRecord] {
         latestInstallJobs.filter { downloadDismissals[$0.id]?.hides($0) != true }
