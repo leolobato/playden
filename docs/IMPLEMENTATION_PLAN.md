@@ -491,7 +491,7 @@ and return to Playden with playtime recorded, while Steam Windows regression tes
 Scope: [PRD 09](prd/09-epic.md). Added 29 September 2026. The commit plan is
 `planning/implementation/epic-plan.md`. Each step keeps Steam and This Mac working.
 
-- [ ] **E0 — Auth spike.** Device-code sign-in reaches a launcher session with a real account.
+- [x] **E0 — Auth spike.** Device-code sign-in reaches a launcher session with a real account.
 - [x] **E1 — Docs.** PRD 09, `EPIC_PROTOCOL.md` and the legendary notice.
 - [x] **E2–E4 — `EpicKit`.** Manifest and chunk parsers, the web API and auth, and the download
   engine with resume, verify and repair.
@@ -503,7 +503,8 @@ Scope: [PRD 09](prd/09-epic.md). Added 29 September 2026. The commit plan is
 
 Progress, 29 September 2026: E1–E7 are built and committed on `epic`. Automated coverage: EpicKit 24
 tests (plus 2 live tests; the public EOS Overlay download from Epic's CDN passes), PlaydenKit 412 and
-app 252, all passing. E0 waits on a real sign-in with `scripts/epic-sign-in.sh`; E8 needs the TV.
+app 252, all passing. E0 passed with a real account: the live tests list 32 games, resolve every
+install plan, and download and verify Delores and Loop Hero. E8 needs a CrossOver play test on the TV.
 
 Gate: from the couch, sign in to Epic on the phone, install one non-EOS game and one EOS game, play
 both, and return to Playden with playtime recorded, while Steam and This Mac regression tests

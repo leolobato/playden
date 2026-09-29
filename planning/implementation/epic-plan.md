@@ -13,9 +13,12 @@ Run `scripts/epic-sign-in.sh` and approve the code on a phone; it completes both
 saves the session. Then `EPIC_LIVE=1 swift test --package-path Packages/EpicKit --filter LiveTests`
 checks the library calls with the real token.
 
-- [ ] Switch device code → exchange code → launcher `exchange_code` grant, with a real account.
-- [ ] The launcher token lists the assets and the library, creates a launch exchange code, and
+- [x] Switch device code → exchange code → launcher `exchange_code` grant, with a real account.
+- [x] The launcher token lists the assets and the library, creates a launch exchange code, and
   refreshes.
+
+Done 2026-09-29 with a real account, after accepting Epic's updated terms. The live tests list 32
+games, resolve install plans for all of them, and download and verify Delores and Loop Hero.
 
 ## Step 1 — Docs
 
