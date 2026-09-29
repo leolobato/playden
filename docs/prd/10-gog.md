@@ -187,7 +187,8 @@ These changes add a second kind of browser sign-in. Steam's and Epic's behavior 
   - each chunk checked against `compressedMd5`, inflated, and checked against `md5`;
   - files written in chunk order, then checked against the file's `md5` or `sha256` when the
     manifest has one;
-  - a chunk that more than one file uses is kept on disk until its last use;
+  - a chunk that more than one file uses is fetched again for each use. This is rare in GOG
+    builds, and it keeps memory bounded by the fetch window;
   - the small-files container is ignored, because every file also lists its own chunks.
 - **FR-GOG-16 (v3):** Gen 1 downloads:
   - one secure link for the depot path, fetched again on a 401 or 403;

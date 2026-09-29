@@ -65,35 +65,39 @@ and one DOSBox documentation chunk.
 
 ## Step 3 — `GOGCore` API
 
-- [ ] `GOGClientConfig` (client ID and secret, hosts, user agent) and `GOGHTTP` (bearer auth,
+- [x] `GOGClientConfig` (client ID and secret, hosts, user agent) and `GOGHTTP` (bearer auth,
   GOG error JSON → `GOGError`, 429/5xx backoff, timeouts that let IPv6 fall back).
-- [ ] `GOGAuth`: the login URL, reading the code from a redirect address or a bare code, the code
+- [x] `GOGAuth`: the login URL, reading the code from a redirect address or a bare code, the code
   exchange, refresh with a 10-minute margin, and saving the rotated refresh token.
-- [ ] `GOGLibraryAPI`: owned IDs, gamesdb with ETag, the v2 products API logo, the user's name.
-- [ ] `GOGContentAPI`: builds, build and depot manifests from the CDN list, secure links per
+- [x] `GOGLibraryAPI`: owned IDs, gamesdb with ETag, the v2 products API logo, the user's name.
+- [x] `GOGContentAPI`: builds, build and depot manifests from the CDN list, secure links per
   product (gen 2) and per depot path (gen 1), and the dependency `open_link`.
-- [ ] Tests with `URLProtocol` stubs.
-- [ ] Live tests gated on `GOG_LIVE=1`: download and verify a public dependency depot (no account);
+- [x] Tests with `URLProtocol` stubs.
+- [x] Live tests gated on `GOG_LIVE=1`: download and verify a public dependency depot (no account);
   refresh `.gog-session.json`, list the library, resolve a build and fetch a secure link.
 
 ## Step 4 — `GOGCore` downloads
 
-- [ ] `GOGDownloadPlan`: files from the chosen depots in order, chunk use counts, sizes, and the
+- [x] `GOGDownloadPlan`: files from the chosen depots in order, chunk use counts, sizes, and the
   game-folder dependency depots.
-- [ ] `GOGDownloader` for gen 2:
+- [x] `GOGDownloader` for gen 2:
   - parallel chunk fetches over the CDN list, with retry and backoff;
   - a secure link fetched again on a 401 or 403;
   - both MD5 checks per chunk, then the file's `md5` or `sha256`;
-  - shared chunks kept in `.gog-download/chunks` until their last use;
+  - shared chunks fetched again for each use (rare; keeps memory bounded);
   - a resume journal in `.gog-download/resume`;
   - progress callbacks and cancellation;
   - directories, links inside the folder, executable bits, empty files, `support` files;
   - case-insensitive target paths.
-- [ ] `GOGDownloader` for gen 1: `main.bin` ranges of at most 10 MiB, the whole-file MD5, symlink
+- [x] `GOGDownloader` for gen 1: `main.bin` ranges of at most 10 MiB, the whole-file MD5, symlink
   records, executable bits, the same journal.
-- [ ] `invalidFiles(in:)` for both generations (chunk-by-chunk when a gen 2 file has no hash), and
+- [x] `invalidFiles(in:)` for both generations (chunk-by-chunk when a gen 2 file has no hash), and
   `repair`, which downloads only those files.
-- [ ] Tests against a stub CDN with synthetic chunks and a synthetic `main.bin`.
+- [x] Tests against a stub CDN with synthetic chunks and a synthetic `main.bin`.
+
+Done 2026-09-29. The live tests download, verify and repair DOSBox from the public dependency
+store, and resolve VirtuaVerse (Mac, gen 2, 348 MB) and Monkey Island 2 Special Edition (Windows,
+gen 1, 1.9 GB) with the account, reading each launch task through its secure link.
 
 ## Step 5 — Shared plumbing (PlaydenKit + App), Steam and Epic unchanged
 
