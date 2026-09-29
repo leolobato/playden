@@ -2,19 +2,25 @@
 
 **Windows games on your Mac, from the couch.**
 
-Playden is a controller-first launcher for your Steam library on Apple Silicon. It installs
-each Windows game into its own [CrossOver](https://www.codeweavers.com/crossover) environment
-and gets you from the sofa to the game without bottles, shortcuts or the desktop.
+Playden is a controller-first launcher for your Steam, Epic Games Store and GOG libraries on
+Apple Silicon. It installs each Windows game into its own
+[CrossOver](https://www.codeweavers.com/crossover) environment, runs Mac versions natively, and
+gets you from the sofa to the game without bottles, shortcuts or the desktop.
 
 **Windows games require CrossOver.** It is a separate, paid product from CodeWeavers with a free
 trial; Playden does not include it, and Windows games cannot be prepared or played without it.
-Mac games, both Steam macOS builds and games already installed on this Mac, run without it.
+Mac games, whether Steam or GOG Mac builds or games already installed on this Mac, run without it.
 
-**The current focus is Steam, CrossOver and native Mac games.** Epic Games Store support (sign in
-with a code on your phone, install and play Windows games) is built and awaiting acceptance on a
-real account; see [PRD 09](docs/prd/09-epic.md). GOG support (sign in from your phone, Windows and
-Mac builds) is built and passed acceptance on the TV; see [PRD 10](docs/prd/10-gog.md). More stores (itch.io, Amazon) are planned; see
-[PRD 08](docs/prd/08-stores.md).
+**Stores:** Steam, the Epic Games Store and GOG, plus Mac games already on this Mac. All of them
+appear together in one library, and every store can be signed in to from your phone:
+
+| Store | Sign-in | Builds | Details |
+|---|---|---|---|
+| Steam | QR code in the Steam app, or password and Steam Guard | Windows and Mac | Steam Cloud saves |
+| Epic Games Store | A code approved on your phone | Windows | [PRD 09](docs/prd/09-epic.md) |
+| GOG | A QR code for a sign-in page on your phone, or a login window on the Mac | Windows and Mac | [PRD 10](docs/prd/10-gog.md) |
+
+More stores (itch.io, Amazon) are planned; see [PRD 08](docs/prd/08-stores.md).
 
 ![Playden Library with sample games](docs/images/library.png)
 
@@ -44,6 +50,9 @@ implemented.
   files; removing one keeps its playtime if you add it again. Steam games with a Mac version can
   install it instead of the Windows build, using a bundled macOS Steam API emulator. Mac builds and
   This Mac games are new in this branch and not yet verified with real games.
+- **Play your Epic games.** Sign in with a code on your phone, then install Windows games into
+  CrossOver. Games that use Epic Online Services sign in with your account at launch. Games
+  that need the EA app or Ubisoft Connect are not listed. See [PRD 09](docs/prd/09-epic.md).
 - **Play your GOG games.** Sign in from your phone with a QR code (or in a login window on the
   Mac), then install Windows builds into CrossOver or native Mac builds. DOSBox and ScummVM games
   get their emulator and settings. Games that need DirectX or Visual C++ installers from GOG don't
@@ -136,8 +145,11 @@ Maintainers can build a signed, notarized DMG with `scripts/distribute.sh`; see
 1. Install and open CrossOver once to finish its setup and license/trial activation.
 2. Connect your controller. For a DualShock 4, hold **Share + PS** until the light flashes,
    then pair it in macOS Bluetooth settings. The app includes pairing guidance.
-3. Follow Playden's setup to choose your display, sign into Steam and select a games volume.
-   Scan the QR code with the Steam mobile app, or use the password and Steam Guard option.
+3. Follow Playden's setup to choose your display, sign in to your stores and select a games
+   volume. For Steam, scan the QR code with the Steam mobile app or use the password and Steam
+   Guard option. For Epic, approve the code on your phone. For GOG, scan the QR code with your
+   phone, sign in, and paste the address you land on into the Playden page; or choose
+   **Sign in on this Mac**. You can add stores later under **Settings → Stores**.
 4. Let Playden prepare its game runtime. You can browse while setup is incomplete and return
    to **Settings → Library → Runtime** to check or retry it.
 5. Open a game, select **Install**, then **Play** when installation finishes. A Short Hike is the
@@ -150,8 +162,8 @@ If a game has multiple launch options, **Play** starts the game's default entry.
 one under **Game settings → Launch option**; the choice is kept for that game. Only options for
 the installed public branch and included DLC are offered.
 
-macOS may ask for access to the Steam sign-in item in Keychain. Playden stores sign-in tokens
-there; it does not store your Mac password. See [signing and permissions](docs/DEVELOPMENT.md#signing-and-permissions)
+macOS may ask for access to a store's sign-in item in Keychain. Playden stores sign-in tokens
+there; it does not store your Mac password or your store passwords. See [signing and permissions](docs/DEVELOPMENT.md#signing-and-permissions)
 if rebuilding repeatedly causes permission prompts.
 
 Under **Settings → Display**, choose your preferred monitor. **Fullscreen** remembers your
@@ -238,8 +250,10 @@ Cloud restore, missing-runtime recovery and independently verified Cloud upload/
 Those journeys were exercised with keyboard input. The complete physical DS4/TV journey is
 still awaiting acceptance.
 
-Seeing a game in your Steam library does not guarantee it will work through CrossOver or support
-save sync. BioShock Infinite prerequisite setup has been checked, but a complete fresh gameplay
+Seeing a game in your library does not guarantee it will work through CrossOver or support
+save sync. Cloud saves are Steam-only for now. GOG games that need DirectX, .NET or Visual C++
+installers from GOG, or registry settings from GOG's install script, may not start yet; Epic
+games with anti-cheat or Denuvo are untested. BioShock Infinite prerequisite setup has been checked, but a complete fresh gameplay
 run remains open. Multiplayer, anti-cheat, achievements UI and DLC management are outside v1.
 
 Metal Gear Rising's Documents-based and API Cloud saves have both passed read-only download,
@@ -249,7 +263,7 @@ do not establish complete gameplay or save-sync compatibility for either title.
 
 | Problem | Where to go |
 |---|---|
-| Library is empty or stale | Settings → Account to check sign-in; Settings → Library → Refresh library |
+| Library is empty or stale | Settings → Stores to check each store's sign-in; Settings → Library → Refresh library |
 | CrossOver setup failed | Settings → Library → Runtime, then Check again or Retry setup |
 | Download or installation failed | Downloads → More → Retry or View logs |
 | Installation asks you to sign in again | Select Sign in in the install dialog; after signing in, review and confirm the installation |
@@ -270,8 +284,8 @@ Automatic game focus and return from the overlay have passed A Short Hike keyboa
 but a later interrupted run showed the focus warning again. Focus reliability, physical
 controller reconnect and other games' handoff behavior still need final testing. Keep Playden
 open while downloading or playing: background operation after quitting the launcher is planned
-for v2. Game updates, moving existing installations between drives, native macOS builds and
-importing official Steam macOS installations are also not available in v1.
+for v2. Game updates, moving existing installations between drives and importing official Steam macOS
+installations are also not available in v1.
 
 ## Roadmap
 
@@ -288,11 +302,11 @@ importing official Steam macOS installations are also not available in v1.
 - **Quick Access:** in-game audio controls, performance information, screenshots and controller battery.
 - **Library improvements:** dynamic collections, alternative artwork, shared compatibility notes,
   richer game details and exportable diagnostics.
-- **Another store:** GOG or itch.io is the preferred next integration.
+- **More stores:** itch.io and Amazon; Epic and GOG cloud saves; GOG redistributable installers.
 
 ### Further ahead
 
-Other compatibility engines and runtimes, more stores such as Epic, manually added games,
+Other compatibility engines and runtimes, manually added games,
 optional local save retention, controller remapping and kiosk conveniences. These are plans,
 not features of the current build.
 
