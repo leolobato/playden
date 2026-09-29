@@ -191,9 +191,11 @@ public struct EpicSource: GameSource {
         return EpicInstaller(game: game, account: account)
     }
 
-    /// DLC, mods and titles that need the EA app or Ubisoft Connect are not offered (PRD 09 FR-EPIC-8, FR-EPIC-9).
+    /// DLC, mods, digital extras (artbooks, soundtracks) and titles that need the EA app or Ubisoft
+    /// Connect are not offered (PRD 09 FR-EPIC-8, FR-EPIC-9).
     static func isInstallableGame(_ item: EpicCatalogItem) -> Bool {
-        !item.isDLC && !item.categoryPaths.contains("mods") && item.thirdPartyStore == nil
+        let categories = item.categoryPaths
+        return !item.isDLC && !categories.contains("mods") && !categories.contains("digitalextras") && item.thirdPartyStore == nil
     }
 
     static func record(for asset: EpicAsset, item: EpicCatalogItem) -> SourceGameRecord {

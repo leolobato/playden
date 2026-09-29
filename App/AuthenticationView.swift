@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import CoreImage.CIFilterBuiltins
 
 struct AuthenticationView: View {
@@ -13,10 +14,24 @@ struct AuthenticationView: View {
                 Text(message).font(Design.body(30)).foregroundStyle(Design.secondary).lineSpacing(8)
                 if model.authScreen == .deviceCode, let prompt = model.authDeviceCode {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text(prompt.verificationURL.host.map { $0.replacingOccurrences(of: "www.", with: "") + prompt.verificationURL.path } ?? prompt.verificationURL.absoluteString)
-                            .font(Design.body(28, weight: "Medium")).foregroundStyle(Design.secondary)
-                        Text(prompt.userCode).font(.system(size: 96, weight: .semibold, design: .monospaced)).kerning(12)
-                            .accessibilityLabel("Code \(prompt.userCode.map(String.init).joined(separator: " "))")
+                        // At a desk, the page opens in the browser with the code filled in.
+                        Button { NSWorkspace.shared.open(prompt.completeURL) } label: {
+                            Label(prompt.verificationURL.host.map { $0.replacingOccurrences(of: "www.", with: "") + prompt.verificationURL.path } ?? prompt.verificationURL.absoluteString,
+                                  systemImage: "arrow.up.right.square")
+                                .font(Design.body(28, weight: "Medium")).foregroundStyle(Design.accent)
+                        }.buttonStyle(.plain).onHover { inside in if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() } }
+                            .help("Open the sign-in page in your browser")
+                        HStack(alignment: .center, spacing: 24) {
+                            Text(prompt.userCode).font(.system(size: 96, weight: .semibold, design: .monospaced)).kerning(12)
+                                .textSelection(.enabled)
+                                .accessibilityLabel("Code \(prompt.userCode.map(String.init).joined(separator: " "))")
+                            Button {
+                                NSPasteboard.general.clearContents(); NSPasteboard.general.setString(prompt.userCode, forType: .string)
+                                model.authMessage = "Code copied"
+                            } label: {
+                                Image(systemName: "doc.on.doc").font(.system(size: 34)).foregroundStyle(Design.secondary)
+                            }.buttonStyle(.plain).help("Copy the code")
+                        }
                     }
                 }
                 if let error = model.authError {

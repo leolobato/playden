@@ -146,6 +146,7 @@ final class EpicSourceTests: XCTestCase {
             .init(appName: "Mod", item: "c4", title: "A Mod", categories: ["mods"]),
             .init(appName: "EAGame", item: "c5", title: "EA Game", attributes: ["ThirdPartyManagedApp": "The EA App"]),
             .init(appName: "Apple", item: "c6", title: "Apple Tale"),
+            .init(appName: "Artbook", item: "c7", title: "Sugar Rush Artbook", categories: ["digitalextras", "applications"]),
         ]
         let epic = source(server, store: MemoryEpicCredentials(session()))
         let games = try await epic.ownedGames()
@@ -157,12 +158,12 @@ final class EpicSourceTests: XCTestCase {
         XCTAssertEqual(sugar.platforms, [.windows])
         XCTAssertEqual(sugar.summary, "About Sugar Rush")
         XCTAssertNotNil(sugar.sourceAcquiredAt)
-        XCTAssertEqual(server.count("GET catalog"), 5, "The ue namespace is never looked up")
+        XCTAssertEqual(server.count("GET catalog"), 6, "The ue namespace is never looked up")
 
         _ = try await epic.ownedGames()
-        XCTAssertEqual(server.count("GET catalog"), 5, "Unchanged builds reuse the cached catalog")
+        XCTAssertEqual(server.count("GET catalog"), 6, "Unchanged builds reuse the cached catalog")
         _ = try await source(server, store: MemoryEpicCredentials(session())).ownedGames()
-        XCTAssertEqual(server.count("GET catalog"), 5, "The catalog cache survives relaunch")
+        XCTAssertEqual(server.count("GET catalog"), 6, "The catalog cache survives relaunch")
     }
 
     func testExpiringSessionIsRefreshedAndSavedAndARejectedOneSignsOut() async throws {

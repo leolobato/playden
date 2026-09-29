@@ -119,6 +119,7 @@ These changes make a second account store work. Steam's behavior does not change
 - **FR-EPIC-8 (v3):** Playden skips these items:
   - the `ue` namespace (Unreal Marketplace);
   - items in the `mods` category;
+  - items in the `digitalextras` category (artbooks, soundtracks, content folders);
   - DLC (`mainGameItem` is set);
   - library records that have no asset.
 - **FR-EPIC-9 (v3):** Games that another launcher must install are not listed. These are games
