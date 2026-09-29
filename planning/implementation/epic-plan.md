@@ -115,5 +115,7 @@ games, resolve install plans for all of them, and download and verify Delores an
 
 ## Step 8 — Acceptance and docs
 
-- [ ] Run the PRD 09 §6 manual acceptance on the TV.
+- [x] Install and play from the UI on this Mac (keyboard): Delores, Loop Hero, Horizon Chase Turbo (EOS
+  sign-in confirmed in its log); playtime recorded.
+- [ ] Controller-only pass on the TV; pause and resume across a relaunch with a larger game.
 - [ ] README "What you can do" and the current-focus line. Captures.

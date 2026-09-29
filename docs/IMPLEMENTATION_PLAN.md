@@ -504,7 +504,11 @@ Scope: [PRD 09](prd/09-epic.md). Added 29 September 2026. The commit plan is
 Progress, 29 September 2026: E1–E7 are built and committed on `epic`. Automated coverage: EpicKit 24
 tests (plus 2 live tests; the public EOS Overlay download from Epic's CDN passes), PlaydenKit 412 and
 app 252, all passing. E0 passed with a real account: the live tests list 32 games, resolve every
-install plan, and download and verify Delores and Loop Hero. E8 needs a CrossOver play test on the TV.
+install plan, and download and verify Delores and Loop Hero. E8 in the app, 29 September: Delores, Loop Hero and Horizon Chase Turbo
+installed through the UI on the local disk and ran in CrossOver. Horizon Chase's EOS SDK signed in
+with Playden's exchange code, confirmed ownership and loaded friends. Playtime was recorded for each
+session. Still open: a controller-only pass on the TV, and pause/resume across a relaunch (downloads
+finished too fast to interrupt).
 
 Gate: from the couch, sign in to Epic on the phone, install one non-EOS game and one EOS game, play
 both, and return to Playden with playtime recorded, while Steam and This Mac regression tests
