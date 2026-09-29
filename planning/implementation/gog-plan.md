@@ -129,14 +129,17 @@ verifies and validates Jazz Jackrabbit 2: The Secret Files.
 
 ## Step 7 — macOS builds
 
-- [ ] `resolve(platform: .macOS)` with the `osx` builds; the offer falls back to Windows when there
+- [x] `resolve(platform: .macOS)` with the `osx` builds; the offer falls back to Windows when there
   is no Mac build.
-- [ ] Preparation: file modes, the `.app` normalization, and the ad-hoc signature when step 0 shows
-  it is needed.
-- [ ] Validation: the Mach-O architectures (32-bit only fails with a reason; x86_64 only needs
-  Rosetta), and the gen 1 wrapper rule from step 0.
-- [ ] Launch through `NativeRunner`. Uninstall deletes the owned folder.
-- [ ] Tests with synthetic Mac manifests and a small Mach-O fixture.
+- [x] Preparation: file modes, the `.app` normalization, and no re-signing (step 0: the bundles start as
+  GOG ships them).
+- [x] Validation: the Mach-O architectures (32-bit only fails with a reason; x86_64 only needs
+  Rosetta). Gen 1 wrappers run as they are.
+- [x] Launch through `NativeRunner`. Uninstall deletes the owned folder.
+- [x] Tests with synthetic Mac manifests and a small Mach-O fixture.
+
+Done 2026-09-29. `GOG_LIVE_INSTALL=1207658901:osx` (Tyrian 2000) and `2116968103:osx` (VirtuaVerse)
+download, verify and validate as `<name>.app` bundles.
 
 ## Step 8 — UI
 

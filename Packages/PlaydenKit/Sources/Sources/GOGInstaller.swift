@@ -93,7 +93,20 @@ struct GOGInstaller: Installer {
         try await write(plan, to: directory, only: only, progress: progress)
     }
 
-    func postInstall(_ plan: InstallPlan, at directory: URL) async throws -> InstallStaging { InstallStaging() }
+    /// Mac bundles need their programs runnable even where a depot omits the executable flag (FR-GOG-26).
+    /// GOG breaks or omits bundle signatures, and the bundles still start, so nothing is re-signed (FR-GOG-28).
+    func postInstall(_ plan: InstallPlan, at directory: URL) async throws -> InstallStaging {
+        guard plan.resolvedPlatform == .macOS else { return InstallStaging() }
+        let bundle = directory.appendingPathComponent(plan.launchSpec.executableRelativePath)
+        let files = FileManager.default.enumerator(at: bundle, includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey])?
+            .allObjects.compactMap { $0 as? URL } ?? []
+        for url in files where url.deletingLastPathComponent().lastPathComponent == "MacOS" {
+            let values = try url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
+            guard values.isRegularFile == true, values.isSymbolicLink != true else { continue }
+            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+        }
+        return InstallStaging()
+    }
 
     /// The launch target must exist. Manifest paths ignore case, so the saved path uses the spelling on disk.
     func validate(_ plan: InstallPlan, at directory: URL, staging: InstallStaging) async throws -> LaunchSpec {
@@ -102,6 +115,10 @@ struct GOGInstaller: Installer {
             throw OperationFailure(stage: "Validate", reason: "The game's program \(spec.executableRelativePath) is missing. Verify files or reinstall.", output: "")
         }
         spec.executableRelativePath = target
+        if plan.resolvedPlatform == .macOS {
+            try validateBundle(directory.appendingPathComponent(target))
+            return spec
+        }
         if plan.resolvedPlatform == .windows, let working = Self.resolveCaseInsensitive(spec.workingDirectoryRelativePath, in: directory, directory: true) {
             spec.workingDirectoryRelativePath = working
         }
@@ -109,6 +126,47 @@ struct GOGInstaller: Installer {
     }
 
     func uninstall(_ plan: InstallPlan, at directory: URL) async throws {}
+
+    /// The bundle must name a runnable program, and that program must have 64-bit code (FR-GOG-27).
+    private func validateBundle(_ bundle: URL) throws {
+        guard let info = NSDictionary(contentsOf: bundle.appendingPathComponent("Contents/Info.plist")),
+              let name = info["CFBundleExecutable"] as? String,
+              FileManager.default.isExecutableFile(atPath: bundle.appendingPathComponent("Contents/MacOS/" + name).path) else {
+            throw OperationFailure(stage: "Validate", reason: "The Mac app is missing or can’t be opened. Verify files to repair it.", output: "")
+        }
+        let executable = bundle.appendingPathComponent("Contents/MacOS/" + name)
+        if Self.machOBitness(executable) == .only32 {
+            let reason = game.availablePlatforms.contains(.windows)
+                ? "This Mac version is 32-bit and can't run on this macOS. Switch to the Windows version."
+                : "This Mac version is 32-bit and can't run on this macOS."
+            throw OperationFailure(stage: "Validate", reason: reason, output: "")
+        }
+    }
+
+    enum Bitness { case has64, only32, notMachO }
+
+    /// Reads a Mach-O or universal header. Scripts and other files are `notMachO`.
+    static func machOBitness(_ url: URL) -> Bitness {
+        guard let handle = try? FileHandle(forReadingFrom: url), let head = try? handle.read(upToCount: 4096) else { return .notMachO }
+        try? handle.close()
+        guard head.count >= 8 else { return .notMachO }
+        func u32(_ offset: Int, bigEndian: Bool) -> UInt32 {
+            guard offset + 4 <= head.count else { return 0 }
+            let bytes = head[head.startIndex + offset..<head.startIndex + offset + 4].reduce(UInt32(0)) { $0 << 8 | UInt32($1) }
+            return bigEndian ? bytes : bytes.byteSwapped
+        }
+        switch u32(0, bigEndian: true) {
+        case 0xCFFA_EDFE, 0xFEED_FACF: return .has64
+        case 0xCEFA_EDFE, 0xFEED_FACE: return .only32
+        case 0xCAFE_BABE, 0xCAFE_BABF:
+            // Universal: big-endian slice count, then 20-byte (or 32-byte for the 64-bit form) slice headers.
+            let count = Int(u32(4, bigEndian: true)), stride = u32(0, bigEndian: true) == 0xCAFE_BABF ? 32 : 20
+            guard count > 0, count < 32 else { return .notMachO }
+            let has64 = (0..<count).contains { u32(8 + $0 * stride, bigEndian: true) & 0x0100_0000 != 0 }
+            return has64 ? .has64 : .only32
+        default: return .notMachO
+        }
+    }
 
     // MARK: Helpers
 

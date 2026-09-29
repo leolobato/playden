@@ -91,7 +91,7 @@ private final class FakeGOG: GOGTransport, @unchecked Sendable {
             lock.withLock { chunks[md5(compressed)] = compressed }
             var item: [String: Any] = ["type": "DepotFile", "path": path.replacingOccurrences(of: "/", with: "\\"),
                                        "chunks": [["md5": md5(content), "compressedMd5": md5(compressed), "size": content.count, "compressedSize": compressed.count]]]
-            if path.contains("MacOS/") { item["flags"] = ["executable"] }
+            if path.contains("MacOS/"), !path.hasSuffix("helper") { item["flags"] = ["executable"] }
             items.append(item)
         }
         return try! JSONSerialization.data(withJSONObject: ["version": 2, "depot": ["items": items]])
@@ -231,7 +231,7 @@ final class GOGSourceTests: XCTestCase {
     func testMacBuildInstallsAsTheAppBundle() async throws {
         let fake = FakeGOG(); windowsGame(fake)
         fake.games = [.init(id: "1", title: "Couch Game", systems: ["windows", "osx"])]
-        fake.files["osx"] = ["Contents/Info.plist": Data("<plist/>".utf8), "Contents/MacOS/Couch": Data("#!/bin/sh".utf8)]
+        fake.files["osx"] = macBundle(Self.arm64)
         fake.tasks["osx"] = #"{"playTasks":[{"category":"game","isPrimary":true,"path":"Contents/MacOS/Couch","type":"FileTask"}]}"#
         let (source, _) = source(fake)
         let installer = try source.installer(for: try await source.ownedGames()[0])
@@ -240,9 +240,49 @@ final class GOGSourceTests: XCTestCase {
         XCTAssertEqual(plan.launchSpec.executableRelativePath, "Couch Game.app")
         try await installer.download(plan, to: root) { _ in }
         XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent("Couch Game.app/Contents/Resources/goggame-1.info").path))
+        _ = try await installer.postInstall(plan, at: root)
+        let helper = try FileManager.default.attributesOfItem(atPath: root.appendingPathComponent("Couch Game.app/Contents/MacOS/helper").path)[.posixPermissions] as? Int
+        XCTAssertEqual(helper, 0o755, "programs in Contents/MacOS run even without the flag")
+        let spec = try await installer.validate(plan, at: root, staging: InstallStaging())
+        XCTAssertEqual(spec.executableRelativePath, "Couch Game.app")
         let mode = try FileManager.default.attributesOfItem(atPath: root.appendingPathComponent("Couch Game.app/Contents/MacOS/Couch").path)[.posixPermissions] as? Int
         XCTAssertEqual(mode, 0o755)
         let valid3 = try await installer.verifyOriginals(plan, at: root, staging: nil).isValid; XCTAssertTrue(valid3)
+    }
+
+    static let arm64 = Data([0xCF, 0xFA, 0xED, 0xFE, 0x0C, 0x00, 0x00, 0x01] + [UInt8](repeating: 0, count: 24))
+    static let i386 = Data([0xCE, 0xFA, 0xED, 0xFE, 0x07, 0x00, 0x00, 0x00] + [UInt8](repeating: 0, count: 24))
+    /// Universal with i386 and ppc slices only.
+    static let fat32 = Data([0xCA, 0xFE, 0xBA, 0xBE, 0, 0, 0, 2, 0, 0, 0, 7] + [UInt8](repeating: 0, count: 16) + [0, 0, 0, 18] + [UInt8](repeating: 0, count: 16))
+
+    private func macBundle(_ executable: Data) -> [String: Data] {
+        let plist = try! PropertyListSerialization.data(fromPropertyList: ["CFBundleExecutable": "Couch"], format: .xml, options: 0)
+        return ["Contents/Info.plist": plist, "Contents/MacOS/Couch": executable, "Contents/MacOS/helper": Data("#!/bin/sh".utf8)]
+    }
+
+    func testThirtyTwoBitMacBuildSaysToUseWindows() async throws {
+        let fake = FakeGOG(); windowsGame(fake)
+        fake.games = [.init(id: "1", title: "Couch Game", systems: ["windows", "osx"])]
+        fake.files["osx"] = macBundle(Self.i386)
+        fake.tasks["osx"] = #"{"playTasks":[{"isPrimary":true,"path":"Contents/MacOS/Couch","type":"FileTask"}]}"#
+        let (source, _) = source(fake)
+        let installer = try source.installer(for: try await source.ownedGames()[0])
+        let plan = try await installer.resolve(platform: .macOS)
+        try await installer.download(plan, to: root) { _ in }
+        _ = try await installer.postInstall(plan, at: root)
+        do { _ = try await installer.validate(plan, at: root, staging: InstallStaging()); XCTFail() }
+        catch let failure as OperationFailure { XCTAssertEqual(failure.reason, "This Mac version is 32-bit and can't run on this macOS. Switch to the Windows version.") }
+    }
+
+    func testMachOBitness() throws {
+        let folder = root.appendingPathComponent("macho")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        for (name, data, expected) in [("a", Self.arm64, GOGInstaller.Bitness.has64), ("b", Self.i386, .only32), ("c", Self.fat32, .only32),
+                                       ("d", Data("#!/bin/sh\n".utf8), .notMachO)] {
+            let url = folder.appendingPathComponent(name)
+            try data.write(to: url)
+            XCTAssertEqual(GOGInstaller.machOBitness(url), expected, name)
+        }
     }
 
     func testNoMacBuildSaysSo() async throws {

@@ -50,7 +50,8 @@ final class GOGLiveTests: XCTestCase {
         print("GOG-LIVE installed \(game.title) in \(Int(Date().timeIntervalSince(started))) s")
         let verification = try await installer.verifyOriginals(plan, at: directory, staging: nil)
         XCTAssertTrue(verification.isValid, "\(verification.invalidFiles)")
-        let spec = try await installer.validate(plan, at: directory, staging: InstallStaging())
+        let staging = try await installer.postInstall(plan, at: directory)
+        let spec = try await installer.validate(plan, at: directory, staging: staging)
         print("GOG-LIVE launch \(spec.executableRelativePath) in \(spec.workingDirectoryRelativePath)")
     }
 }
