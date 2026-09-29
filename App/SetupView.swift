@@ -94,11 +94,20 @@ struct SetupView: View {
         VStack(alignment: .leading, spacing: 32) {
             permissionCard("Steam", symbol: StoreNames.symbol(SourceID.steam), text: model.identity.map { "Signed in as \($0.displayName). Windows games install with CrossOver; games with a Mac version can install natively." } ?? "Scan a QR code with the Steam app. Playden installs your games; CrossOver runs the Windows ones.")
             ForEach(model.otherAccountSources.map(\.id), id: \.self) { id in
-                permissionCard(model.accountName(id), symbol: StoreNames.symbol(id), text: model.account(id).identity.map { "Signed in as \($0.displayName). Windows games install with CrossOver." }
-                    ?? "Enter a code on your phone to sign in. Playden installs your games; CrossOver runs them.")
+                permissionCard(model.accountName(id), symbol: StoreNames.symbol(id), text: storeCardText(id))
             }
             permissionCard("This Mac", symbol: StoreNames.symbol(SourceID.local), text: model.games.contains { $0.id.source == SourceID.local } ? "\(model.games.filter { $0.id.source == SourceID.local }.count) games added. Playden launches them and never changes their files." : "Mac games already in your Applications or Games folders. Playden launches them and never changes their files.")
         }
+    }
+    /// Stores with a web login (GOG) also have Mac versions; device-code stores (Epic) are Windows only.
+    private func storeCardText(_ id: String) -> String {
+        let webLogin = model.sources[id]?.capabilities.account == .webLogin
+        if let identity = model.account(id).identity {
+            return "Signed in as \(identity.displayName). Windows games install with CrossOver" + (webLogin ? "; games with a Mac version can install natively." : ".")
+        }
+        return webLogin
+            ? "Sign in on your phone from a QR code. Playden installs your games; CrossOver runs the Windows ones."
+            : "Enter a code on your phone to sign in. Playden installs your games; CrossOver runs them."
     }
     private func permissionCard(_ title: String, symbol: String, text: String) -> some View {
         VStack(alignment: .leading, spacing: 14) {

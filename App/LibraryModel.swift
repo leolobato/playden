@@ -224,6 +224,11 @@ final class LibraryModel {
     /// The store the sign-in screen is for.
     var authSourceID: String?
     var authDeviceCode: DeviceCodePrompt?
+    var authWebLogin: WebLoginPrompt?
+    @ObservationIgnored var signInRelay: SignInRelay?
+    /// Tests pin the phone sign-in page to the loopback address; the app uses the LAN address.
+    @ObservationIgnored var signInRelayHost: String?
+    @ObservationIgnored var webLoginWindow: WebLoginWindow?
     /// The store the sign-out prompt is for; nil is Steam.
     var signOutSourceID: String?
     var authScreen: AuthenticationScreen?

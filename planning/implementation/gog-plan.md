@@ -105,7 +105,7 @@ gen 1, 1.9 GB) with the account, reading each launch task through its secure lin
   `signIn(withRedirect:)`.
 - [x] `SignInRelay` (`NWListener`, one-time token, one page and one POST, 10-minute limit).
   `NSLocalNetworkUsageDescription`.
-- [ ] `AuthenticationScreen.webLogin`: with the UI in step 8.
+- [x] `AuthenticationScreen.webLogin`: with the UI in step 8.
 - [x] Redactor: GOG codes, access and refresh tokens, `user_id`, signed secure-link queries.
 - [x] Existing tests pass (PlaydenKit 425). New tests: the relay on loopback, the redactor. Three
   account stores are covered by the app tests in step 8.
@@ -143,12 +143,15 @@ download, verify and validate as `<name>.app` bundles.
 
 ## Step 8 — UI
 
-- [ ] The web-login screen: the QR code and relay address (clickable, copyable), the three steps,
+- [x] The web-login screen: the QR code and relay address (clickable, copyable), the three steps,
   "Sign in on this Mac", the paste field.
-- [ ] The relay page (HTML served by `SignInRelay`), readable on a phone.
-- [ ] The login window (`WKWebView`, catches the redirect).
-- [ ] The Stores row for GOG (Sign in/out, Refresh, last sync or error). The first-run GOG card.
-- [ ] App tests. A `signin-web-login` snapshot.
+- [x] The relay page (HTML served by `SignInRelay`), readable on a phone.
+- [x] The login window (`WKWebView`, catches the redirect).
+- [x] The Stores row for GOG (Sign in/out, Refresh, last sync or error). The first-run GOG card.
+- [x] App tests. A `signin-web-login` snapshot.
+
+Done 2026-09-29. The login window passes its keys to the page (the launcher's keyboard monitor
+skips it) and uses a private, non-persistent web session. App tests run the relay on loopback.
 
 ## Step 9 — Acceptance and docs
 

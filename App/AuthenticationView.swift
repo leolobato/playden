@@ -34,6 +34,22 @@ struct AuthenticationView: View {
                         }
                     }
                 }
+                if model.authScreen == .webLogin, let relay = model.authWebLogin?.relayURL {
+                    // Away from the TV, the phone page also opens here, or its address can be sent to a phone.
+                    HStack(alignment: .center, spacing: 20) {
+                        Button { NSWorkspace.shared.open(relay) } label: {
+                            Label(relay.absoluteString.replacingOccurrences(of: "http://", with: ""), systemImage: "arrow.up.right.square")
+                                .font(Design.body(26, weight: "Medium")).foregroundStyle(Design.accent).lineLimit(1)
+                        }.buttonStyle(.plain).onHover { inside in if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() } }
+                            .help("Open the sign-in page in your browser")
+                        Button {
+                            NSPasteboard.general.clearContents(); NSPasteboard.general.setString(relay.absoluteString, forType: .string)
+                            model.authMessage = "Address copied"
+                        } label: {
+                            Image(systemName: "doc.on.doc").font(.system(size: 30)).foregroundStyle(Design.secondary)
+                        }.buttonStyle(.plain).help("Copy the address")
+                    }
+                }
                 if let error = model.authError {
                     Label(error, systemImage: "exclamationmark.circle").font(Design.body(24)).foregroundStyle(Design.amber).fixedSize(horizontal: false, vertical: true)
                 }
@@ -47,17 +63,17 @@ struct AuthenticationView: View {
                     }.padding(.top, 18)
                 }
             }.frame(width: 760, alignment: .leading).offset(x: 96, y: 240)
-            if model.authScreen == .qr || model.authScreen == .deviceCode {
+            if model.authScreen == .qr || model.authScreen == .deviceCode || model.authScreen == .webLogin {
                 VStack(spacing: 30) {
                     QRCodeView(url: model.authQR).frame(width: 560, height: 560)
                     HStack(spacing: 14) {
                         if model.authError == nil { ProgressView().controlSize(.small).tint(Design.accent) }
                         Text(model.authMessage).font(Design.body(24, weight: "Medium"))
                     }
-                    if model.authScreen == .deviceCode, let expiry = model.authExpiresAt, model.authError == nil {
+                    if model.authScreen == .deviceCode || model.authScreen == .webLogin, let expiry = model.authExpiresAt, model.authError == nil {
                         TimelineView(.periodic(from: .now, by: 1)) { context in
                             let seconds = max(0, Int(expiry.timeIntervalSince(context.date)))
-                            Text("Code expires in \(seconds / 60):\(String(format: "%02d", seconds % 60))")
+                            Text("\(model.authScreen == .webLogin ? "Page closes" : "Code expires") in \(seconds / 60):\(String(format: "%02d", seconds % 60))")
                                 .font(Design.body(22)).foregroundStyle(Design.secondary).monospacedDigit()
                         }
                     }
@@ -101,7 +117,7 @@ struct AuthenticationView: View {
         switch model.authScreen {
         case .qr: "Your games.\nReady to play."
         case .credentials: "Sign in to Steam"
-        case .deviceCode: "Sign in to \(storeName)"
+        case .deviceCode, .webLogin: "Sign in to \(storeName)"
         default: "One more step"
         }
     }
@@ -111,6 +127,9 @@ struct AuthenticationView: View {
         case .credentials: "Use your Steam account name and password. You may also need a Steam Guard code."
         case .deviceCode where model.authError == nil && model.authDeviceCode != nil:
             "Scan the code with your phone, or open this page and enter the code. Sign in and approve Playden. The page shows Fortnite branding; that’s expected."
+        case .webLogin where model.authWebLogin?.relayURL != nil:
+            "1. Scan the code with your phone.\n2. Sign in to \(storeName).\n3. Copy the address you land on and paste it into the Playden page."
+        case .webLogin: "Sign in to \(storeName) in a window on this Mac, or copy the address you land on after signing in and paste it here."
         default: model.authMessage
         }
     }

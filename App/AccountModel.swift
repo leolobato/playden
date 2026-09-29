@@ -1,10 +1,12 @@
 import Foundation
+import AppKit
 import Domain
+import Sources
 import Input
 import Focus
 import Catalog
 
-enum AuthenticationScreen { case qr, credentials, approval, guardCode, deviceCode }
+enum AuthenticationScreen { case qr, credentials, approval, guardCode, deviceCode, webLogin }
 
 /// Sign-in state for one store. Steam's is also reachable as `identity`, `syncError` and `syncing`.
 struct AccountState: Equatable {
@@ -20,6 +22,12 @@ struct DeviceCodePrompt: Equatable {
     let userCode: String
     let verificationURL: URL
     let completeURL: URL
+}
+
+/// A web login finished on the phone: the relay page's address (a QR code on the TV) and the store's login page.
+struct WebLoginPrompt: Equatable {
+    let relayURL: URL?
+    let loginURL: URL
 }
 
 extension LibraryModel {
@@ -96,8 +104,75 @@ extension LibraryModel {
         authSourceID = id
         panel = nil; authIndex = 0
         authMessage = "Connecting to \(accountName(id))…"
-        if target.capabilities.account == .deviceCode { authScreen = .deviceCode; runAuthentication(mode: .deviceCode) }
-        else { authScreen = .qr; runAuthentication(mode: .qr) }
+        switch target.capabilities.account {
+        case .deviceCode: authScreen = .deviceCode; runAuthentication(mode: .deviceCode)
+        case .webLogin: authScreen = .webLogin; startWebLogin(target)
+        default: authScreen = .qr; runAuthentication(mode: .qr)
+        }
+    }
+    /// Serves the phone page and waits for the address the store's login ends on (PRD 10 FR-GOG-1…3).
+    private func startWebLogin(_ target: any GameSource) {
+        let sourceID = target.id
+        guard let loginURL = target.auth.webLoginURL() else { return }
+        let attempt = UUID(); authAttempt = attempt; authError = nil
+        authWebLogin = WebLoginPrompt(relayURL: nil, loginURL: loginURL)
+        authMessage = "Starting the sign-in page…"
+        let relay = SignInRelay(storeName: accountName(sourceID), loginURL: loginURL, host: signInRelayHost) { [weak self] pasted in
+            guard let self else { return .failed("Playden closed this sign-in.") }
+            return await self.finishWebLogin(pasted, sourceID: sourceID, attempt: attempt)
+        }
+        signInRelay = relay
+        authTask = Task { [weak self] in
+            do {
+                let url = try await relay.start()
+                guard let self, self.authAttempt == attempt else { relay.stop(); return }
+                self.authWebLogin = WebLoginPrompt(relayURL: url, loginURL: loginURL)
+                self.authQR = url; self.authExpiresAt = .now.addingTimeInterval(600)
+                self.authMessage = "Waiting for your phone"
+            } catch {
+                guard let self, self.authAttempt == attempt else { return }
+                self.authMessage = "Sign in on this Mac instead"
+                self.authError = error.localizedDescription
+            }
+        }
+    }
+    /// Finishes a web login with a pasted address or the one the login window caught.
+    func finishWebLogin(_ pasted: String, sourceID: String, attempt: UUID) async -> SignInRelay.Outcome {
+        let cancelled = SignInRelay.Outcome.failed("This sign-in was cancelled. Start again on the TV.")
+        guard authAttempt == attempt, let auth = sources[sourceID]?.auth else { return cancelled }
+        authMessage = "Signing in…"; authError = nil
+        do {
+            let result = try await auth.signIn(withRedirect: pasted)
+            guard authAttempt == attempt else { return cancelled }
+            completeSignIn(result, sourceID: sourceID)
+            return .signedIn
+        } catch {
+            guard authAttempt == attempt else { return cancelled }
+            let reason = (error as? SourceFailure) == .credentialsRejected
+                ? "That address didn’t work. Sign in again and paste the new one." : error.localizedDescription
+            authError = reason; authMessage = "Waiting for your phone"
+            return .failed(reason)
+        }
+    }
+    private func openWebLoginWindow() {
+        guard let sourceID = authSourceID, let auth = sources[sourceID]?.auth, let loginURL = authWebLogin?.loginURL ?? auth.webLoginURL() else { return }
+        let attempt = authAttempt
+        webLoginWindow?.onClose = nil; webLoginWindow?.close()
+        let window = WebLoginWindow(loginURL: loginURL, title: "Sign in to \(accountName(sourceID))", matches: { auth.redirectMatches($0) }) { [weak self] address in
+            Task { @MainActor [weak self] in _ = await self?.finishWebLogin(address, sourceID: sourceID, attempt: attempt) }
+        }
+        window.onClose = { [weak self] in self?.webLoginWindow = nil }
+        webLoginWindow = window
+        window.show()
+    }
+    /// For a player who signed in in a browser on this Mac and copied the address.
+    private func pasteWebLoginAddress() {
+        guard let sourceID = authSourceID,
+              let text = NSPasteboard.general.string(forType: .string)?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else {
+            authError = "Copy the address you land on after signing in, then choose Paste address."; return
+        }
+        let attempt = authAttempt
+        Task { [weak self] in _ = await self?.finishWebLogin(text, sourceID: sourceID, attempt: attempt) }
     }
     private enum SignInMode { case qr, password, deviceCode }
     private func runAuthentication(password: Bool) { runAuthentication(mode: password ? .password : .qr) }
@@ -136,14 +211,7 @@ extension LibraryModel {
                 else { result = try await auth.signInWithQR(onEvent: events) }
                 try Task.checkCancellation()
                 guard authAttempt == attempt else { return }
-                let pendingInstall = installAfterAuthentication
-                setIdentity(result, for: sourceID); accounts[sourceID, default: .init()].syncError = nil; accounts[sourceID, default: .init()].needsSignIn = false
-                clearSignInIssue(sourceID); cancelAuthentication(); refreshLibrary(sourceID)
-                if let pendingInstall { beginInstall(pendingInstall, volume: installDestination, platform: installPlatform) }
-                else {
-                    selectTab(.home)
-                    if setupScreen == .account { openVolumeSetup(firstRun: true) }
-                }
+                completeSignIn(result, sourceID: sourceID)
             } catch {
                 guard authAttempt == attempt, !Task.isCancelled else { return }
                 authQR = nil; authDeviceCode = nil; authError = error.localizedDescription; authMessage = "Couldn’t sign in"
@@ -153,8 +221,20 @@ extension LibraryModel {
             }
         }
     }
+    private func completeSignIn(_ result: SourceIdentity, sourceID: String) {
+        let pendingInstall = installAfterAuthentication
+        setIdentity(result, for: sourceID); accounts[sourceID, default: .init()].syncError = nil; accounts[sourceID, default: .init()].needsSignIn = false
+        clearSignInIssue(sourceID); cancelAuthentication(); refreshLibrary(sourceID)
+        if let pendingInstall { beginInstall(pendingInstall, volume: installDestination, platform: installPlatform) }
+        else {
+            selectTab(.home)
+            if setupScreen == .account { openVolumeSetup(firstRun: true) }
+        }
+    }
     func cancelAuthentication() {
         authAttempt = UUID(); authTask?.cancel(); authTask = nil
+        signInRelay?.stop(); signInRelay = nil; authWebLogin = nil
+        webLoginWindow?.onClose = nil; webLoginWindow?.close(); webLoginWindow = nil
         guardContinuation?.resume(throwing: CancellationError()); guardContinuation = nil
         authScreen = nil; authQR = nil; authExpiresAt = nil; authError = nil; authDeviceCode = nil; authSourceID = nil
         installAfterAuthentication = nil
@@ -192,6 +272,7 @@ extension LibraryModel {
         case .credentials: ["Account name", "Password", "Sign in", "Back"]
         case .guardCode: ["Enter code", "Cancel"]
         case .deviceCode: authError == nil ? ["Get a new code", "Cancel"] : ["Try again", "Cancel"]
+        case .webLogin: ["Sign in on this Mac", "Paste address", "Cancel"]
         default: authError == nil ? ["Cancel"] : ["Try again", "Cancel"]
         }
     }
@@ -209,6 +290,8 @@ extension LibraryModel {
         case "Retry": beginSignIn(authSourceID, resumingInstall: installAfterAuthentication)
         case "Get a new code": beginSignIn(authSourceID, resumingInstall: installAfterAuthentication)
         case "Try again" where authScreen == .deviceCode: beginSignIn(authSourceID, resumingInstall: installAfterAuthentication)
+        case "Sign in on this Mac": openWebLoginWindow()
+        case "Paste address": pasteWebLoginAddress()
         case "Use password instead", "Try again":
             let pendingInstall = installAfterAuthentication
             cancelAuthentication(); authScreen = .credentials; authIndex = 0

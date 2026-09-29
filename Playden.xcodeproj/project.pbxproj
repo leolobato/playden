@@ -22,6 +22,7 @@
 		1DE958E3B313DE1A01F739EE /* SessionRecovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE694640CAB1FCAEA1669D39 /* SessionRecovery.swift */; };
 		23DE61E6DEEEFF0284517338 /* Catalog in Frameworks */ = {isa = PBXBuildFile; productRef = F8CD3DD4C20BB4555C08D6B1 /* Catalog */; };
 		2868BC6B6FA17FE360CFF708 /* Domain in Frameworks */ = {isa = PBXBuildFile; productRef = A40B7AAC967B79B363BAA0BA /* Domain */; };
+		2916A53418488C98A5F440F5 /* WebLoginInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A05E8109768FB92952FC77A3 /* WebLoginInteractionTests.swift */; };
 		2C13C5EABA5B52FBE75E1FD4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = DFB5C8D29C9334B6EC203BC2 /* Assets.xcassets */; };
 		2C36214C2D2781BC9F6CE640 /* CloudModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A58957A338530DCE3314A1B9 /* CloudModel.swift */; };
 		2D22A0581EEA1F5119CB3995 /* DisplayInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9687BB9AC16273EF6E471287 /* DisplayInteractionTests.swift */; };
@@ -59,6 +60,7 @@
 		718FE5FF9175645C4DCE906E /* LibraryFilterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 910367651E023A9A9708A464 /* LibraryFilterTests.swift */; };
 		71ADB580FB6C028240909FD6 /* Input in Frameworks */ = {isa = PBXBuildFile; productRef = 9C7594469A6FEA17F2DB9E43 /* Input */; };
 		72FAC9F13CC34D8C62A87C41 /* SessionInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E7FF4A4C7A6584A35A51B90 /* SessionInteractionTests.swift */; };
+		73215D034B4245561FD7692F /* WebLoginWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE7614CA880A0268F9F473B8 /* WebLoginWindow.swift */; };
 		76F94BD13E1B93DD72F62624 /* StoresInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53232B8F8608E6B3799A5140 /* StoresInteractionTests.swift */; };
 		77621C4F69C43E8D36BE7F13 /* InstallationDriveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D6130A8CDF52CA80FD82B3E /* InstallationDriveTests.swift */; };
 		77C666A070D907379CFC252E /* ImmersiveDisplayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F664BA77DDC5D7269DFF336 /* ImmersiveDisplayTests.swift */; };
@@ -212,6 +214,7 @@
 		98764E8CE28A91A510DDD529 /* InstallVolumesPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallVolumesPicker.swift; sourceTree = "<group>"; };
 		9884C17220155FC1C8ABC7D9 /* SessionSnapshots.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionSnapshots.swift; sourceTree = "<group>"; };
 		9A6109C062067C6AE4FFFA4A /* CloudInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudInteractionTests.swift; sourceTree = "<group>"; };
+		A05E8109768FB92952FC77A3 /* WebLoginInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebLoginInteractionTests.swift; sourceTree = "<group>"; };
 		A191D659437E18E29D33A4A8 /* StartupRecoveryInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartupRecoveryInteractionTests.swift; sourceTree = "<group>"; };
 		A229A81E1C7CFCF01987AAF7 /* AudioDevices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioDevices.swift; sourceTree = "<group>"; };
 		A58957A338530DCE3314A1B9 /* CloudModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudModel.swift; sourceTree = "<group>"; };
@@ -253,6 +256,7 @@
 		FBFB1A3CEECAED44C3259ADB /* LogInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogInteractionTests.swift; sourceTree = "<group>"; };
 		FD2AC6DC0F5407AE5CEE0BC3 /* GameActivationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameActivationTests.swift; sourceTree = "<group>"; };
 		FE694640CAB1FCAEA1669D39 /* SessionRecovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionRecovery.swift; sourceTree = "<group>"; };
+		FE7614CA880A0268F9F473B8 /* WebLoginWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebLoginWindow.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -314,6 +318,7 @@
 				CFC0116D9FF090149D461814 /* StorePageTests.swift */,
 				53232B8F8608E6B3799A5140 /* StoresInteractionTests.swift */,
 				2E79718CB4BDC9092602F17F /* UninstallInteractionTests.swift */,
+				A05E8109768FB92952FC77A3 /* WebLoginInteractionTests.swift */,
 			);
 			name = AppTests;
 			path = Tests/AppTests;
@@ -439,6 +444,7 @@
 				1FE2794BC88B622A76CF530B /* UninstallModel.swift */,
 				C22265F386F81763FCDD1858 /* UninstallSnapshots.swift */,
 				82AB59CC70AA74E201A4D34A /* UninstallViews.swift */,
+				FE7614CA880A0268F9F473B8 /* WebLoginWindow.swift */,
 				336A06DDDD016AFA83423C8A /* Resources */,
 			);
 			path = App;
@@ -700,6 +706,7 @@
 				4F9B336414B24B27F394FE7C /* UninstallModel.swift in Sources */,
 				641E03621562AD438D42948E /* UninstallSnapshots.swift in Sources */,
 				5B979A40D9807DFED9861A7D /* UninstallViews.swift in Sources */,
+				73215D034B4245561FD7692F /* WebLoginWindow.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -743,6 +750,7 @@
 				F1E404F548D44D23D13D920E /* StorePageTests.swift in Sources */,
 				76F94BD13E1B93DD72F62624 /* StoresInteractionTests.swift in Sources */,
 				54F4DEE69DAF5BDB60169222 /* UninstallInteractionTests.swift in Sources */,
+				2916A53418488C98A5F440F5 /* WebLoginInteractionTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -792,6 +800,7 @@
 				);
 				INFOPLIST_KEY_CFBundleDisplayName = Playden;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.games";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Playden shows a sign-in page on your network so you can sign in to a store from your phone.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Games launched by Playden may use your microphone for voice chat or other audio input.";
 				INFOPLIST_KEY_NSRemovableVolumesUsageDescription = "Playden installs and plays games on the drive you choose.";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -846,6 +855,7 @@
 				);
 				INFOPLIST_KEY_CFBundleDisplayName = Playden;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.games";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Playden shows a sign-in page on your network so you can sign in to a store from your phone.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Games launched by Playden may use your microphone for voice chat or other audio input.";
 				INFOPLIST_KEY_NSRemovableVolumesUsageDescription = "Playden installs and plays games on the drive you choose.";
 				LD_RUNPATH_SEARCH_PATHS = (
