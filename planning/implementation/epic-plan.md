@@ -117,5 +117,6 @@ games, resolve install plans for all of them, and download and verify Delores an
 
 - [x] Install and play from the UI on this Mac (keyboard): Delores, Loop Hero, Horizon Chase Turbo (EOS
   sign-in confirmed in its log); playtime recorded.
-- [ ] Controller-only pass on the TV; pause and resume across a relaunch with a larger game.
+- [x] Resume after a crash: Darkwood resumed after Playden was force-killed mid-download; all 528 files verified.
+- [ ] Controller-only pass on the TV.
 - [ ] README "What you can do" and the current-focus line. Captures.

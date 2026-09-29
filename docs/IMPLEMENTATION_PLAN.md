@@ -507,8 +507,8 @@ app 252, all passing. E0 passed with a real account: the live tests list 32 game
 install plan, and download and verify Delores and Loop Hero. E8 in the app, 29 September: Delores, Loop Hero and Horizon Chase Turbo
 installed through the UI on the local disk and ran in CrossOver. Horizon Chase's EOS SDK signed in
 with Playden's exchange code, confirmed ownership and loaded friends. Playtime was recorded for each
-session. Still open: a controller-only pass on the TV, and pause/resume across a relaunch (downloads
-finished too fast to interrupt).
+session. Darkwood (2.4 GB) resumed after Playden was force-killed at 1.1 GB, and
+all 528 files matched the manifest. Still open: a controller-only pass on the TV.
 
 Gate: from the couch, sign in to Epic on the phone, install one non-EOS game and one EOS game, play
 both, and return to Playden with playtime recorded, while Steam and This Mac regression tests
