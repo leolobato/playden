@@ -5,6 +5,7 @@ public enum SourceID {
     public static let steam = "steam"
     public static let local = "local"
     public static let epic = "epic"
+    public static let gog = "gog"
 }
 
 /// What a game runs as, independent of the store it comes from.
@@ -15,7 +16,8 @@ public enum GamePlatform: String, Codable, CaseIterable, Hashable, Sendable {
 
 public struct SourceCapabilities: Equatable, Sendable {
     /// `steam`: QR or password with Steam Guard. `deviceCode`: a code on the TV, approved on the phone.
-    public enum Account: Equatable, Sendable { case none, steam, deviceCode }
+    /// `webLogin`: the store's own login page, whose final address carries a code (PRD 10 AR-MULTI-10).
+    public enum Account: Equatable, Sendable { case none, steam, deviceCode, webLogin }
     /// `download`: Playden installs owned files. `external`: games are already on disk and never owned.
     public enum Acquisition: Equatable, Sendable { case download, external }
     public var account: Account

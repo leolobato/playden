@@ -42,6 +42,11 @@ public protocol SourceAuth: Sendable {
                 onEvent: @escaping @Sendable (AuthenticationEvent) -> Void) async throws -> SourceIdentity
     /// Device-code sign-in: reports `.deviceCode` events until the player approves on another device.
     func signInWithDeviceCode(onEvent: @escaping @Sendable (AuthenticationEvent) -> Void) async throws -> SourceIdentity
+    /// Web login: the store's login page. The login ends on an address that `redirectMatches`,
+    /// and `signIn(withRedirect:)` finishes with that address or the bare code it carries.
+    func webLoginURL() -> URL?
+    func redirectMatches(_ url: URL) -> Bool
+    func signIn(withRedirect pasted: String) async throws -> SourceIdentity
     func cancelSignIn() async
     func signOut() async throws
 }
@@ -49,6 +54,9 @@ public extension SourceAuth {
     func signInWithDeviceCode(onEvent: @escaping @Sendable (AuthenticationEvent) -> Void) async throws -> SourceIdentity {
         throw SourceFailure.unavailable
     }
+    func webLoginURL() -> URL? { nil }
+    func redirectMatches(_ url: URL) -> Bool { false }
+    func signIn(withRedirect pasted: String) async throws -> SourceIdentity { throw SourceFailure.unavailable }
 }
 /// For stores without an account: no identity, and sign-in is unavailable.
 public struct NoSourceAuth: SourceAuth {

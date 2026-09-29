@@ -101,13 +101,14 @@ gen 1, 1.9 GB) with the account, reading each launch task through its secure lin
 
 ## Step 5 — Shared plumbing (PlaydenKit + App), Steam and Epic unchanged
 
-- [ ] `SourceID.gog`. `Account.webLogin`. `SourceAuth.webLoginURL`, `redirectMatches` and
+- [x] `SourceID.gog`. `Account.webLogin`. `SourceAuth.webLoginURL`, `redirectMatches` and
   `signIn(withRedirect:)`.
-- [ ] `SignInRelay` (`NWListener`, one-time token, one page and one POST, 10-minute limit).
+- [x] `SignInRelay` (`NWListener`, one-time token, one page and one POST, 10-minute limit).
   `NSLocalNetworkUsageDescription`.
-- [ ] `AuthenticationScreen.webLogin`.
-- [ ] Redactor: GOG codes, access and refresh tokens, `user_id`, signed secure-link queries.
-- [ ] Existing tests pass. New tests: the relay on loopback, three account stores, the redactor.
+- [ ] `AuthenticationScreen.webLogin`: with the UI in step 8.
+- [x] Redactor: GOG codes, access and refresh tokens, `user_id`, signed secure-link queries.
+- [x] Existing tests pass (PlaydenKit 425). New tests: the relay on loopback, the redactor. Three
+  account stores are covered by the app tests in step 8.
 
 ## Step 6 — `GOGSource` (PlaydenKit `Sources`), Windows builds
 
