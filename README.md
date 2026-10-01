@@ -2,327 +2,79 @@
 
 **Windows games on your Mac, from the couch.**
 
-Playden is a controller-first launcher for your Steam, Epic Games Store and GOG libraries on
-Apple Silicon. It installs each Windows game into its own
-[CrossOver](https://www.codeweavers.com/crossover) environment, runs Mac versions natively, and
-gets you from the sofa to the game without bottles, shortcuts or the desktop.
+| Store | Builds | Sign-in |
+|---|---|---|
+| Steam | Windows and Mac | QR code in the Steam app, or password and Steam Guard |
+| Epic Games Store | Windows | A code approved on your phone |
+| GOG | Windows and Mac | QR code on your phone, or a login window on the Mac |
+| This Mac | Mac | Games you already have installed |
 
-**Windows games require CrossOver.** It is a separate, paid product from CodeWeavers with a free
-trial; Playden does not include it, and Windows games cannot be prepared or played without it.
-Mac games, whether Steam or GOG Mac builds or games already installed on this Mac, run without it.
-
-**Stores:** Steam, the Epic Games Store and GOG, plus Mac games already on this Mac. All of them
-appear together in one library, and every store can be signed in to from your phone:
-
-| Store | Sign-in | Builds | Details |
-|---|---|---|---|
-| Steam | QR code in the Steam app, or password and Steam Guard | Windows and Mac | Steam Cloud saves |
-| Epic Games Store | A code approved on your phone | Windows | [PRD 09](docs/prd/09-epic.md) |
-| GOG | A QR code for a sign-in page on your phone, or a login window on the Mac | Windows and Mac | [PRD 10](docs/prd/10-gog.md) |
-
-More stores (itch.io, Amazon) are planned; see [PRD 08](docs/prd/08-stores.md).
+Playden is a controller-first launcher for Apple Silicon. It puts all your stores in one library,
+installs each Windows game into its own [CrossOver](https://www.codeweavers.com/crossover)
+environment, runs Mac builds natively, and gets you from the sofa to the game without bottles,
+shortcuts or the desktop.
 
 ![Playden Library with sample games](docs/images/library.png)
 
 *Actual app capture using the sample library. Displayed games are not a compatibility list.*
 
-**Current version: 0.2**. Playden is in active development.
-Installation, play sessions and Steam Cloud sync are
-implemented.
+**Version 0.2, in active development.**
 
-## What you can do
+## Features
 
-- **Browse from the couch.** Cover art, game details, search, sorting and filters, with keyboard
-  and mouse support alongside the controller. Recently added follows Steam acquisition dates.
-  Games without Steam portrait covers use cached landscape artwork, with titles on highlight.
-- **Pick up where you left off.** Home shows up to 15 Continue Playing games and a Library card,
-  plus downloads, recent installs, favorites and pinned collections.
-- **Make the library yours.** Create collections, favorite or hide games, and keep your own
-  compatibility ratings and notes.
-- **Install and manage games.** Choose a games drive, queue downloads, pause/resume, reorder,
-  retry failures, verify files and uninstall. Download checkpoints survive restarting the app.
-  Disconnected games stay in the library; Play waits for their recorded drive to return.
-  Game details fetch and cache estimated download sizes when Steam provides them. Download
-  progress uses fixed stat columns and a smoothed time estimate to keep the row steady.
-  Checks between downloads show file-verification progress instead of a stalled transfer.
-- **Play Mac games too.** Add Mac games you already have from a list of suggestions or by
-  browsing, or let Playden watch folders for them. Playden launches them without changing their
-  files; removing one keeps its playtime if you add it again. Steam games with a Mac version can
-  install it instead of the Windows build, using a bundled macOS Steam API emulator. Mac builds and
-  This Mac games are new in this branch and not yet verified with real games.
-- **Play your Epic games.** Sign in with a code on your phone, then install Windows games into
-  CrossOver. Games that use Epic Online Services sign in with your account at launch. Games
-  that need the EA app or Ubisoft Connect are not listed. See [PRD 09](docs/prd/09-epic.md).
-- **Play your GOG games.** Sign in from your phone with a QR code (or in a login window on the
-  Mac), then install Windows builds into CrossOver or native Mac builds. DOSBox and ScummVM games
-  get their emulator and settings. Games that need DirectX or Visual C++ installers from GOG don't
-  start yet. See [PRD 10](docs/prd/10-gog.md).
-- **Browse by store and platform.** Once a second store has games, the Library lists each store,
-  and filters narrow by store and by platform (Windows or macOS).
-- **Play through CrossOver.** Per-game runtime preparation, game controls for returning or
-  quitting, session playtime and recorded exit results. Downloads can pause while you play.
-- **Sync supported Steam Cloud saves.** Download before playing, upload after exit, review
-  conflicts and retry pending transfers. Supports Steam Auto-Cloud paths and Steam API save
-  storage, including games that use both. Unknown save locations remain unsupported.
-- **Tune each game.** Game settings holds a per-game runtime profile: pick a curated profile
-  such as Older 3D game or Modern DX12, then change single settings. Graphics translator
-  (D3DMetal, DXVK, DXMT), synchronization, controller mode, Windows version, launch entry, high
-  resolution mode, virtual desktop, Steam overlay, performance overlay, frame limit, large
-  address aware, plus typed launch arguments, environment variables and library overrides.
-  Every change applies on the next launch. The More menu holds game management actions, and
-  Cloud saves shows the latest save timestamp when available.
-- **Set up your display.** Choose the preferred monitor for Playden and game placement,
-  remember fullscreen, disconnect other monitors with Immersive mode, and reduce animation.
-- **Troubleshoot on the TV.** Visible failure stages, Retry controls, scrollable logs, a runtime
-  status screen and a controller button test.
+- **One couch-friendly library** with cover art, search, filters, collections, favorites and your
+  own compatibility notes. Works with a controller, keyboard or mouse.
+- **Downloads you can manage**: a queue with pause, resume, reorder, retry, verify and uninstall,
+  on any drive you choose.
+- **Per-game settings**: curated runtime profiles plus graphics translator (D3DMetal, DXVK, DXMT),
+  Windows version, launch options, overlays and more.
+- **Steam Cloud saves** sync before and after you play, with conflict resolution and offline play.
+- **Built for the TV**: preferred-monitor placement, an immersive mode that hides other displays,
+  and on-screen logs and retry when something fails.
 
-## Set it up
+## Requirements
 
-You need an **Apple Silicon Mac**, **CrossOver 26.x with a valid license or trial**, a Steam
-account with games, and enough space for game files and their CrossOver environments. The app
-targets **macOS 15 or newer**; current live testing uses macOS 26.6.2 and CrossOver 26.2.
-DualShock 4 is the target controller. A keyboard and mouse can also be used throughout setup.
+- An Apple Silicon Mac with macOS 15 or newer
+- [CrossOver](https://www.codeweavers.com/crossover) 26.x with a license or trial, for Windows
+  games. It is a separate, paid product and is not included. Mac games do not need it.
+- A DualShock 4 is the target controller; keyboard and mouse also work
 
-Onboarding explains macOS permissions before sign-in and game setup. Allow access to your
-chosen games drive when prompted. CrossOver may also trigger an **App Management** request
-under Playden’s name; the permissions step links to System Settings for review. This grants
-access to modify other app bundles and is not a controller permission. It is optional during
-onboarding; Playden does not claim to verify its status.
+## Install
 
-### Build from source and install
-
-The Steam library is included in `Packages/SteamKit`; no other source checkout is needed.
-Install Xcode 26.3 with its command-line tools selected, then run from this repository:
+Install Xcode 26.3 with its command-line tools, then from this repository:
 
 ```sh
 brew install xcodegen xz zstd llvm lld
 ./scripts/build-release.sh
 ```
 
-This creates an optimized **Release** build and reveals it in Finder. Quit any running copy
-of Playden, then drag **Playden.app** into **Applications** (replace the existing app
-when updating). Launch `/Applications/Playden.app` from Finder or Spotlight.
+Drag the revealed **Playden.app** into **Applications**. To update, pull, rebuild and replace the
+app; your library and settings are kept. No Apple Developer membership is needed. Debug builds,
+preview mode and signing options are in [Development](docs/DEVELOPMENT.md).
 
-The app includes its compression libraries and Windows display helper; the source checkout
-and build tools are only needed to build or update it. CrossOver is still required to play games.
-No Apple Developer membership is required: the build reuses an available Apple Development
-certificate or falls back to ad-hoc signing. This is a local source build, not a notarized
-distribution. Build and signing options are in [Development](docs/DEVELOPMENT.md).
+On first launch, open CrossOver once to activate it, then follow Playden's setup to pick a
+display, sign in to your stores and choose a games drive.
 
-To update, update your source checkout, rerun the release build, quit
-Playden and replace the app in Applications. Your library, settings and credentials are
-stored separately from the app bundle. The build output is
-`DerivedData/Build/Products/Release/Playden.app`.
+## Limitations
 
-### Development builds
+- A game in your library is not guaranteed to run under CrossOver.
+- Cloud saves are Steam-only for now.
+- GOG games that need DirectX, .NET or Visual C++ installers from GOG may not start yet.
+- Epic games that need the EA app or Ubisoft Connect are not listed; anti-cheat and Denuvo are untested.
+- Keep Playden open while downloading or playing. Game updates and moving installs between
+  drives are not available yet.
 
-Without `--release`, the build script creates a **Debug** build. The run script uses that Debug
-build and builds it if missing:
-
-```sh
-./scripts/build.sh
-./scripts/run.sh
-```
-
-The run script places the app in `~/Library/Application Support/Playden/Run/Playden.app`.
-You can open that copy from Finder for subsequent launches. It also keeps the running app
-separate from Xcode's build output.
-
-To look around with sample games and without signing in:
-
-```sh
-./scripts/run.sh --preview
-```
-
-Preview uses separate sample data; it does not install or launch games. With Playden closed,
-preview the installed release build using `open "/Applications/Playden.app" --args --preview`.
-
-Maintainers can build a signed, notarized DMG with `scripts/distribute.sh`; see
-[distribution builds](docs/DEVELOPMENT.md#distribution-builds).
-
-### First launch
-
-1. Install and open CrossOver once to finish its setup and license/trial activation.
-2. Connect your controller. For a DualShock 4, hold **Share + PS** until the light flashes,
-   then pair it in macOS Bluetooth settings. The app includes pairing guidance.
-3. Follow Playden's setup to choose your display, sign in to your stores and select a games
-   volume. For Steam, scan the QR code with the Steam mobile app or use the password and Steam
-   Guard option. For Epic, approve the code on your phone. For GOG, scan the QR code with your
-   phone, sign in, and paste the address you land on into the Playden page; or choose
-   **Sign in on this Mac**. You can add stores later under **Settings → Stores**.
-4. Let Playden prepare its game runtime. You can browse while setup is incomplete and return
-   to **Settings → Library → Runtime** to check or retry it.
-5. Open a game, select **Install**, then **Play** when installation finishes. A Short Hike is the
-   most thoroughly exercised title so far.
-
-Confirming an installation returns you to browsing, keeping your collection, search and
-position so you can queue more games. Open **Downloads** whenever you want to manage the queue.
-
-If a game has multiple launch options, **Play** starts the game's default entry. Choose another
-one under **Game settings → Launch option**; the choice is kept for that game. Only options for
-the installed public branch and included DLC are offered.
-
-macOS may ask for access to a store's sign-in item in Keychain. Playden stores sign-in tokens
-there; it does not store your Mac password or your store passwords. See [signing and permissions](docs/DEVELOPMENT.md#signing-and-permissions)
-if rebuilding repeatedly causes permission prompts.
-
-Under **Settings → Display**, choose your preferred monitor. **Fullscreen** remembers your
-window mode for the next launch, including changes with Control-Command-F or the window button.
-**Immersive mode** keeps Playden fullscreen, temporarily makes your preferred monitor the
-only connected display by soft-disconnecting the other monitors while Playden is open. The Fullscreen switch
-stays on and disabled until Immersive mode is turned off, which restores your previous window
-mode. Quitting reconnects the monitors and restores their arrangement. The setting is
-remembered; it is off by default. If the selected monitor is unplugged, Playden reconnects the
-other monitors and turns Immersive mode off.
-Game placement moves fullscreen windows without forcing a new size; the game controls its
-render resolution. Windowed games are fitted and centered on the selected monitor.
-With Playden closed, `open "/Applications/Playden.app" --args --windowed` overrides fullscreen
-for that launch without changing the saved preference, unless Immersive mode is enabled.
-
-## Controls
-
-Under **Settings → Controller**, **Use Nintendo Button Layout** swaps A/B and X/Y
-for Playden navigation and updates its button prompts. The setting is saved across launches;
-in-game controls remain configured by the game.
-
-The footer shows the actions available on the current screen and changes with your input device.
-
-| Action | DualShock 4 | Keyboard |
-|---|---|---|
-| Move focus | D-pad / left stick | Arrow keys |
-| Select / back | Cross / Circle | Return / Escape |
-| Change tabs | L1 / R1 | Tab / Shift-Tab, or Command-1…4 |
-| More actions | Triangle | T |
-| Favorite | Square | F |
-| Sort and filter | Options | O |
-| Search | Touchpad click | `/` |
-| Page through the library | L2 / R2 | Page Up / Page Down |
-| Home | PS | Home |
-| Game controls | Hold PS for one second | Shift-Home |
-| Toggle fullscreen | Settings → Display | Option-Enter or Control-Command-F |
-
-From the top Home row, press Up to highlight the tabs, then Left/Right to choose one. Continue
-Playing ends with a Library card instead of scrolling indefinitely.
-Changing tabs with L1/R1, Tab/Shift-Tab or Command-1…4 also focuses the header. From the
-**Settings** tab, press Right to reach **Power**, then Select to quit Playden. Left returns to
-Settings; Down enters the selected tab's contents.
-
-Search, collection names and notes accept ordinary typing or the on-screen keyboard. While
-editing with a controller, L1/R1 moves the text cursor, Square deletes, Triangle inserts a space,
-and Options switches symbols. Choose Done to finish. Command-Return finishes keyboard entry.
-
-When a persistent game failure notification appears, **Triangle / T** focuses its actions. Use Left/Right and
-Select for Retry, View logs or Dismiss. In logs, Up/Down scrolls and Left/Right chooses an action.
-Download and controller toasts are informational. For an installation failure, open Downloads
-for Retry or View logs. Controller disconnect warnings remain until reconnection.
-
-## Saves and offline play
-
-The game page shows Cloud status. For supported games, Playden checks saves before launch
-and syncs after the game closes. **Up to date** means the sync completed. **Pending upload** or
-**Failed** needs attention; open Cloud saves for details and Retry. If both local and remote
-progress changed, choose which copy to use in the conflict screen.
-
-Like GameNative, Playden handles both Auto-Cloud saves in locations such as Documents or
-AppData and Steam API saves with bare filenames. API saves use the game's own remote-storage
-directory inside its CrossOver environment. These remain separate even when their filenames
-match. Games that advertise Steam Cloud storage without Auto-Cloud path rules can sync API saves.
-
-Sync keeps verified backup copies and checks transferred files before applying changes.
-An older attempt blocked by an unsupported filename can retry with the expanded mapping if
-it had not begun writing saves. Pending writes retain their original recovery requirements.
-For most games, uploading after a crash or forced exit requires playing and quitting normally
-first; the existing Cloud copy is preserved in the meantime.
-
-Cached library browsing and prepared games can work offline. When a Cloud check cannot finish,
-**Play offline** is offered when it is safe to proceed; progress can be synchronized later.
-Games with unsupported save locations show **Unavailable** and keep their saves locally.
-
-**Uninstall removes the game's local files, runtime and local saves.** It checks for unsynced
-progress before removal and leaves remote Cloud saves intact. Reinstalling a supported game
-restores available Cloud saves before launch. Optional local save retention is planned for a
-future version; v1 does not offer a Keep saves option.
-
-## Current limits and troubleshooting
-
-**A Short Hike** has completed real installation, gameplay, save/reload, uninstall/reinstall,
-Cloud restore, missing-runtime recovery and independently verified Cloud upload/download checks.
-Those journeys were exercised with keyboard input. The complete physical DS4/TV journey is
-still awaiting acceptance.
-
-Seeing a game in your library does not guarantee it will work through CrossOver or support
-save sync. Cloud saves are Steam-only for now. GOG games that need DirectX, .NET or Visual C++
-installers from GOG, or registry settings from GOG's install script, may not start yet; Epic
-games with anti-cheat or Denuvo are untested. BioShock Infinite prerequisite setup has been checked, but a complete fresh gameplay
-run remains open. Multiplayer, anti-cheat, achievements UI and DLC management are outside v1.
-
-Metal Gear Rising's Documents-based and API Cloud saves have both passed read-only download,
-mapping and checksum checks. Geometry Wars 3's intermittent startup crash is still awaiting
-confirmation after removing forced fullscreen resizing during monitor placement. These checks
-do not establish complete gameplay or save-sync compatibility for either title.
-
-| Problem | Where to go |
-|---|---|
-| Library is empty or stale | Settings → Stores to check each store's sign-in; Settings → Library → Refresh library |
-| CrossOver setup failed | Settings → Library → Runtime, then Check again or Retry setup |
-| Download or installation failed | Downloads → More → Retry or View logs |
-| Installation asks you to sign in again | Select Sign in in the install dialog; after signing in, review and confirm the installation |
-| Game shows Drive disconnected | Reconnect its drive and allow access; Playden checks it automatically |
-| Game fails to launch | Retry on the failure notification; game page → View logs or Verify files |
-| Cloud sync needs attention | Game page → Cloud saves |
-| Controller input seems wrong | Settings → Controller → Button test |
-| Game did not take focus | Return to game; if macOS declines, select the game in the Dock |
-
-Steam connection diagnostics are recorded in
-`~/Library/Application Support/Playden/logs/steam-connections.log`, including failures while
-checking an install before it enters the queue. The log records operation IDs, app IDs,
-connection stages and Steam result codes, without credentials or response bodies. It rotates
-at 1 MiB and retains one previous file (`steam-connections.previous.log`). These diagnostics
-are enabled in release builds.
-
-Automatic game focus and return from the overlay have passed A Short Hike keyboard checks,
-but a later interrupted run showed the focus warning again. Focus reliability, physical
-controller reconnect and other games' handoff behavior still need final testing. Keep Playden
-open while downloading or playing: background operation after quitting the launcher is planned
-for v2. Game updates, moving existing installations between drives and importing official Steam macOS
-installations are also not available in v1.
-
-## Roadmap
-
-### v2
-
-- **Optional native macOS games:** choose a Mac build when available, while retaining the option
-  to use the Windows build through CrossOver.
-- **Official Steam macOS integration:** show games already installed by Steam, clearly distinguish
-  them from Playden-managed installations, and offer the available launch choices.
-- **Per-game properties:** executable, arguments, graphics settings, language and other runtime options.
-- **More controllers support:** Xbox, DualSense
-- **Background helper and game updates:** keep downloads and supervision independent of the UI;
-  offer explicit updates and moves between game volumes.
-- **Quick Access:** in-game audio controls, performance information, screenshots and controller battery.
-- **Library improvements:** dynamic collections, alternative artwork, shared compatibility notes,
-  richer game details and exportable diagnostics.
-- **More stores:** itch.io and Amazon; Epic and GOG cloud saves; GOG redistributable installers.
-
-### Further ahead
-
-Other compatibility engines and runtimes, manually added games,
-optional local save retention, controller remapping and kiosk conveniences. These are plans,
-not features of the current build.
-
-[Product requirements](docs/prd/README.md) · [Implementation and acceptance plan](docs/IMPLEMENTATION_PLAN.md) ·
-[Developer setup](docs/DEVELOPMENT.md)
+Plans and requirements are in the [PRDs](docs/prd/README.md).
 
 ## License
 
 Playden is free software, licensed under the [GNU General Public License v3.0](LICENSE) or
 any later version. Parts of the Steam library descend from
 [GameNative](https://github.com/utkarshdalal/GameNative) and
-[Pluvia](https://github.com/oxters168/Pluvia), which are also GPL-3.0. Bundled and linked
-third-party components and their licenses are listed in
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). The bundled Steamless release is
+[Pluvia](https://github.com/oxters168/Pluvia), which are also GPL-3.0. Third-party components are
+listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). The bundled Steamless release is
 CC BY-NC-ND 4.0, so redistributing Playden with it is limited to noncommercial use.
 
-Playden is an independent project and is not affiliated with Valve Corporation or
-CodeWeavers, Inc. Steam is a trademark of Valve Corporation. CrossOver is a trademark of
-CodeWeavers, Inc.
+Playden is an independent project and is not affiliated with Valve Corporation, Epic Games,
+GOG or CodeWeavers, Inc. Steam, Epic Games Store, GOG and CrossOver are trademarks of their
+respective owners.
