@@ -2,12 +2,12 @@
 
 **Windows games on your Mac, from the couch.**
 
-| Store | Builds | Sign-in |
-|---|---|---|
-| Steam | Windows and Mac | QR code in the Steam app, or password and Steam Guard |
-| Epic Games Store | Windows | A code approved on your phone |
-| GOG | Windows and Mac | QR code on your phone, or a login window on the Mac |
-| This Mac | Mac | Games you already have installed |
+| Store | Builds |
+|---|---|
+| Steam | Windows and Mac |
+| Epic Games Store | Windows |
+| GOG | Windows and Mac |
+| This Mac | Mac games you already have installed |
 
 Playden is a controller-first launcher for Apple Silicon. It puts all your stores in one library,
 installs each Windows game into its own [CrossOver](https://www.codeweavers.com/crossover)
@@ -37,9 +37,9 @@ shortcuts or the desktop.
 - An Apple Silicon Mac with macOS 15 or newer
 - [CrossOver](https://www.codeweavers.com/crossover) 26.x with a license or trial, for Windows
   games. It is a separate, paid product and is not included. Mac games do not need it.
-- A DualShock 4 is the target controller; keyboard and mouse also work
+- Any game controller, or a keyboard and mouse
 
-## Install
+## Build
 
 Install Xcode 26.3 with its command-line tools, then from this repository:
 
@@ -60,9 +60,8 @@ display, sign in to your stores and choose a games drive.
 - A game in your library is not guaranteed to run under CrossOver.
 - Cloud saves are Steam-only for now.
 - GOG games that need DirectX, .NET or Visual C++ installers from GOG may not start yet.
-- Epic games that need the EA app or Ubisoft Connect are not listed; anti-cheat and Denuvo are untested.
-- Keep Playden open while downloading or playing. Game updates and moving installs between
-  drives are not available yet.
+- Games with anti-cheat do not work. Epic games that need the EA app or Ubisoft Connect are not listed.
+- Keep Playden open while downloading or playing. Game updates are not available yet.
 
 Plans and requirements are in the [PRDs](docs/prd/README.md).
 
