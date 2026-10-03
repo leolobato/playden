@@ -24,6 +24,24 @@ final class LibraryInteractionTests: XCTestCase {
         XCTAssertEqual(model.panel, .confirmation(.install(available.id)))
         XCTAssertEqual(model.games.first { $0.id == available.id }?.status, .notInstalled)
     }
+    @MainActor func testGameDetailsShowsWhereAnInstalledGameLives() throws {
+        let model = LibraryModel()
+        let installed = try XCTUnwrap(model.games.first { $0.status == .installed })
+        let available = try XCTUnwrap(model.games.first { $0.status == .notInstalled })
+        let root = URL(fileURLWithPath: "/Volumes/Games/Playden", isDirectory: true)
+        model.installLocations[installed.id] = GameLocation(volumeID: "games", lastKnownRoot: root, relativePath: "bottle/game")
+        model.openGame(available); model.show(.context)
+        XCTAssertFalse(model.contextActions.contains("Game details"), "Games that aren't installed have no folder")
+        model.openGame(installed); model.show(.context)
+        model.panelIndex = try XCTUnwrap(model.contextActions.firstIndex(of: "Game details"))
+        model.perform(.confirm)
+        XCTAssertEqual(model.panel, .gameDetails(installed.id))
+        XCTAssertEqual(model.installFolder(installed)?.path, "/Volumes/Games/Playden/bottle/game")
+        XCTAssertEqual(model.panelActions, ["Show in Finder", "Close"])
+        model.perform(.back)
+        XCTAssertEqual(model.panel, .context, "Back returns to the More menu")
+        XCTAssertEqual(model.contextActions[safe: model.panelIndex], "Game details")
+    }
     @MainActor func testModalTrapsNavigationAndRestoresGridFocus() {
         let model = LibraryModel()
         model.selectTab(.library)

@@ -34,6 +34,9 @@ extension LibraryModel {
                 entry.edits.runtime.map { (entry.id, $0) }
             })
             updateInstallationDriveTargets(snapshot.entries.compactMap(\.installation))
+            installLocations = Dictionary(uniqueKeysWithValues: snapshot.entries.compactMap { entry in
+                entry.installation.flatMap { $0.isExternal ? nil : (entry.id, $0.location) }
+            })
             gamesNeedingRepair = Set(snapshot.entries.filter { $0.installation?.needsRepair == true }.map(\.id))
             let fixtures = Dictionary(uniqueKeysWithValues: PreviewCatalog.games.map { ($0.id, $0) })
             games = snapshot.entries.map { entry in

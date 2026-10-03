@@ -222,6 +222,7 @@ extension LibraryModel {
         case .localAdded: "Added games"
         case .localFolderOptions(let id): localFolderOptionsTitle(id)
         case .compatibility: "Compatibility"
+        case .gameDetails: "Game details"
         case .collections: "Add to collection"
         case .collectionOptions(let id): collections.first { $0.id == id }?.name ?? "Collection"
         default: focusedGame?.title ?? "Game"

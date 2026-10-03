@@ -29,6 +29,8 @@ enum Panel: Equatable {
     case uninstall(GameID)
     case textEditor(TextPurpose), collections(GameID), collectionOptions(UUID), confirmation(Confirmation), logs(GameID)
     case storePage(GameID)
+    /// Where an installed game lives on disk.
+    case gameDetails(GameID)
     /// Manage a signed-in store: sign in again or sign out.
     case account(String)
     /// This Mac: suggestions and Browse; with a game, picking an app relocates that game.
@@ -122,6 +124,7 @@ final class LibraryModel {
     var session = SessionSnapshot()
     var sessionReady = false
     var gameLaunchOptions: [GameID: [LaunchOption]] = [:]
+    var installLocations: [GameID: GameLocation] = [:]
     var firstRunFeedbackShown: Set<GameID> = []
     var pendingFirstRunFeedback: GameID?
     var firstRunRating: Compatibility?
@@ -537,6 +540,7 @@ final class LibraryModel {
         if actions.contains("Quit game") { result.append("Quit game") }
         result += [focusedGame?.isFavorite == true ? "Unfavorite" : "Favorite", "Set compatibility",
                    focusedGame?.isHidden == true ? "Unhide" : "Hide", "View logs", "Add to collection"]
+        if let game = focusedGame, installFolder(game) != nil { result.append("Game details") }
         for action in ["Verify files", "Cloud saves", "Uninstall", "Rename", "Remove from library", "Show Steam version", "Switch to Mac version", "Switch to Windows version"] where actions.contains(action) && actions.first != action {
             result.append(action)
         }
@@ -558,6 +562,7 @@ final class LibraryModel {
         case .collectionOptions(let id): ["Rename", collections.first { $0.id == id }?.isPinned == true ? "Unpin from Home" : "Pin to Home", "Delete collection…"]
         case .confirmation(let intent): ["Cancel", confirmationAction(intent)]
         case .information: ["Got it"]
+        case .gameDetails(let id): (games.first { $0.id == id }.flatMap(installFolder) != nil ? ["Show in Finder"] : []) + ["Close"]
         case .persistenceFailure: ["Retry saving", "Continue without saving"]
         case .signOut: ["Stay signed in", "Sign out"]
         case .account: accountPanelActions
@@ -679,6 +684,7 @@ final class LibraryModel {
             case .back:
                 if case .volumePicker(let id) = panel, let id { beginInstall(id, volume: installDestination, platform: installPlatform) }
                 else if case .installOffer(let id) = panel, offersPlatformChoice(id) { showPlatformPicker(id, focusing: installPlatform) }
+                else if case .gameDetails = panel { show(.context); panelIndex = contextActions.firstIndex(of: "Game details") ?? 0 }
                 else { panel = nil }
             case .move(let direction): panelIndex = min(max(0, panelIndex + (direction == .up || direction == .left ? -1 : 1)), max(0, panelActions.count - 1))
             case .confirm: activatePanel()
@@ -807,6 +813,7 @@ final class LibraryModel {
         case "Add to collection": if let id = focusedGame?.id { show(.collections(id)) }
         case "View logs": if let id = focusedGame?.id { show(.logs(id)) }
         case "Store page": if let id = focusedGame?.id, storePageURL(id) != nil { show(.storePage(id)) }
+        case "Game details": if let id = focusedGame?.id { show(.gameDetails(id)) }
         case "Verify files":
             if !isPreview, let id = focusedGame?.id { beginVerification(id) }
             else { show(.information("Verification checks the installed game and repairs damaged files when connected.")) }
@@ -856,7 +863,7 @@ final class LibraryModel {
         case .context:
             if !panelActionEnabled(at: panelIndex) { return }
             if panelIndex == 0, let game = focusedGame { openGame(game); activateDetail() }
-            else if ["Game settings", "Verify files", "Cloud saves", "Quit game", "Rename", "Remove from library", "Show Steam version", "Switch to Mac version", "Switch to Windows version"].contains(label) { activateGameAction(label) }
+            else if ["Game settings", "Game details", "Verify files", "Cloud saves", "Quit game", "Rename", "Remove from library", "Show Steam version", "Switch to Mac version", "Switch to Windows version"].contains(label) { activateGameAction(label) }
             else if label == "Favorite" || label == "Unfavorite" { toggleFavorite(); panel = nil }
             else if label == "Set compatibility" { show(.compatibility) }
             else if label == "Hide" || label == "Unhide" { hideFocused(); panel = nil }
@@ -877,6 +884,8 @@ final class LibraryModel {
             else if label == "Delete collection…" { show(.confirmation(.deleteCollection(id))) }
             else { collections[index].isPinned.toggle(); reconcileFocus(); panel = nil }
         case .downloadActions(let id): activateDownloadAction(label, id: id)
+        case .gameDetails(let id):
+            if label == "Show in Finder" { revealInstallFolder(id) } else { panel = nil }
         case .localGames(let id): activateLocalGames(panelIndex, relocating: id)
         case .localFolders: activateLocalFolders(panelIndex)
         case .localAdded: activateAddedGames(panelIndex)

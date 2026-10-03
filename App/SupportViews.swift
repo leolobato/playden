@@ -182,6 +182,9 @@ struct ModalLayer: View {
                     if case .localFolderOptions = model.panel {
                         Text("Keep its games in your library, or remove them too. The apps stay on your Mac either way.").font(Design.body(22)).foregroundStyle(Design.secondary)
                     }
+                    if case .gameDetails(let id) = model.panel, let game = model.games.first(where: { $0.id == id }) {
+                        GameDetailsSummary(model: model, game: game)
+                    }
                     PanelActionList(model: model)
                     if let note = model.downloadHistoryNote { Text(note).font(Design.body(22)).foregroundStyle(Design.secondary).lineSpacing(4) }
                     if model.panel == .compatibility, let id = model.focusedGame?.id {
@@ -190,7 +193,7 @@ struct ModalLayer: View {
                     }
                     Spacer()
                     if model.panel == .filters { Text("\(model.filteredGames.count) games match").font(Design.body(24)).foregroundStyle(Design.secondary) }
-                    LegendItem(glyph: model.controllerName == nil || model.keyboardNavigation ? "ESC" : model.controllerBackGlyph, title: "Close")
+                    LegendItem(glyph: model.controllerName == nil || model.keyboardNavigation ? "ESC" : model.controllerBackGlyph, title: { if case .gameDetails = model.panel { "Back" } else { "Close" } }())
                 }.padding(.horizontal, 60).padding(.top, 150).padding(.bottom, 70).frame(width: 640, height: 1080).background(Design.panel).shadow(color: .black.opacity(0.5), radius: 40, x: -20)
             }
         }.frame(width: 1920, height: 1080)
