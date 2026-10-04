@@ -2,7 +2,9 @@
 set -eu
 cd "$(dirname "$0")/.."
 built_app='DerivedData/Build/Products/Debug/Playden.app'
-if [[ ! -d "$built_app" ]]; then
+# Builds made outside the scripts (Xcode, plain xcodebuild) are ad-hoc signed. Each one is a new
+# Keychain identity, so rebuild with the stable development identity instead of staging it.
+if [[ ! -d "$built_app" ]] || { [[ "${PLAYDEN_CODE_SIGN_IDENTITY:-}" != - ]] && codesign -dv "$built_app" 2>&1 | grep -q '^Signature=adhoc'; }; then
   ./scripts/build.sh
 fi
 # Never run from DerivedData: Xcode replaces/signs that bundle during builds and tests,

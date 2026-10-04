@@ -106,6 +106,12 @@ set `PLAYDEN_CODE_SIGN_IDENTITY=-` to opt into a local ad-hoc build. Rebuilds ca
 then require Keychain approval again. Moving an existing sign-in to development signing can
 also require an initial approval. The app never asks for or stores the Mac login password.
 
+Keychain trust follows the code signature. A build signed with the same Apple Development
+certificate keeps access after a rebuild or reinstall, but only for store sign-ins that were
+approved with **Always Allow** from that identity; **Allow** grants one launch. Ad-hoc builds
+(Xcode or plain `xcodebuild` without the scripts) are a new identity every time and ask again.
+`run.sh` rebuilds instead of staging an ad-hoc build.
+
 The app runs **without App Sandbox**. macOS privacy and Keychain permissions still apply.
 Games that initialize microphone input can trigger a permission prompt under Playden's name.
 Keep `NSMicrophoneUsageDescription` in the generated Info.plist and the audio-input entitlement
