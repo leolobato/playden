@@ -83,7 +83,8 @@ struct CanvasView: View {
                 }.padding(24).frame(width: 1100).background(Design.panel, in: RoundedRectangle(cornerRadius: 12)).offset(x: 96, y: 750).zIndex(6)
             }
             if model.isLaunchingGame && model.panel == nil { LaunchingGameView(model: model).transition(.opacity).zIndex(7) }
-            if model.exitOverlay && model.fixedClock { GameExitOverlay(model: model).zIndex(8) }
+            // Without a game, the quit prompt belongs to the launcher window, windowed or not.
+            if model.exitOverlay && (model.fixedClock || !model.hasActiveSession) { GameExitOverlay(model: model).zIndex(8) }
         }.frame(width: 1920, height: 1080).clipped().foregroundStyle(Design.text)
             .environment(\.colorScheme, .dark)
             .animation(model.reducedMotion ? nil : .easeInOut(duration: 0.28), value: model.detailID)

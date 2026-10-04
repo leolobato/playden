@@ -555,6 +555,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     }
     private func presentExitOverlay(_ visible: Bool) {
         guard visible else { exitPanel?.orderOut(nil); return }
+        // The panel covers a running game's screen; the launcher draws its own quit prompt,
+        // so bring the launcher forward when Quit comes from the Dock or another Space.
+        guard model.hasActiveSession else {
+            exitPanel?.orderOut(nil)
+            if window.isMiniaturized { window.deminiaturize(nil) }
+            NSApp.activate(ignoringOtherApps: true); window.makeKeyAndOrderFront(nil)
+            return
+        }
         // A late activation result must not lower the launcher or replace an opened exit panel.
         gameActivationTask?.cancel(); gameActivationTask = nil
         var screen = window.screen ?? NSScreen.main
