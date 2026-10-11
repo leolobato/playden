@@ -28,6 +28,7 @@ final class CMDeviceIdentityTests: XCTestCase {
         XCTAssertEqual(logon.obfuscatedPrivateIp.v4, device.loginID)
         XCTAssertEqual(logon.machineName, "Playden")
         XCTAssertEqual(logon.machineID, device.machineID)
+        XCTAssertTrue(logon.shouldRememberPassword)
         let anonymous = CMClient.logonMessage(accountName: "fixture", refreshToken: "not-a-token", cellID: 7, device: nil)
         XCTAssertFalse(anonymous.hasObfuscatedPrivateIp)
         XCTAssertFalse(anonymous.hasMachineID)

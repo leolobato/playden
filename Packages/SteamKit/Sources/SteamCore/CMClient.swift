@@ -97,6 +97,7 @@ public actor CMClient {
         logon.clientLanguage = "english"
         logon.clientOsType = 0  // EOSType.WinUnknown — pose as Windows (doc 04 §4)
         logon.supportsRateLimitResponse = true
+        logon.shouldRememberPassword = true  // without it Steam signs the device out when the session ends
         logon.accountName = accountName
         logon.accessToken = refreshToken  // CM logon takes the *refresh* token here
         logon.cellID = cellID
