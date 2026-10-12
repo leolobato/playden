@@ -1,7 +1,8 @@
 import XCTest
 import Foundation
 import Domain
-import Catalog
+@testable import Catalog
+import GRDB
 import Runner
 @testable import Installs
 
@@ -25,6 +26,9 @@ private actor OfflineContent {
     var held = Set<String>()
     var failures = Set<String>()
     var verificationFixture = false
+    var downloadReports: [String: @Sendable (InstallProgress) -> Void] = [:]
+    func saveDownloadReport(_ id: String, report: @escaping @Sendable (InstallProgress) -> Void) { downloadReports[id] = report }
+    func sendDownloadReport(_ id: String, value: InstallProgress) { downloadReports[id]?(value) }
     var stageVerificationFixture = false
     var verificationReports: [String: @Sendable (InstallFileVerification) -> Void] = [:]
     func enableStageVerificationFixture() { stageVerificationFixture = true }
@@ -76,6 +80,7 @@ private struct OfflineInstaller: Installer {
     }
     func download(_ plan: InstallPlan, to directory: URL, progress: @escaping @Sendable (InstallProgress) -> Void) async throws {
         try await content.record("download:" + gameID.value)
+        await content.saveDownloadReport(gameID.value, report: progress)
         try Data("part".utf8).write(to: directory.appendingPathComponent("partial"))
         if await content.verificationFixture {
             progress(.init(bytesCompleted: 4, bytesTotal: 8, currentFile: "game.exe", downloadedBytes: 4,
@@ -165,6 +170,187 @@ private actor FixtureBottles: GameBottleManaging {
     }
 }
 final class InstallQueueTests: XCTestCase {
+    private func rejectJobWrites(_ catalog: CatalogStore, when condition: String) throws {
+        try catalog.database.write { db in
+            try db.execute(sql: """
+                CREATE TRIGGER reject_job_save BEFORE UPDATE ON jobs
+                WHEN \(condition)
+                BEGIN SELECT RAISE(ABORT, 'Injected checkpoint failure'); END
+                """)
+        }
+    }
+    private func waitForSnapshot(_ queue: InstallQueue, matching predicate: (InstallQueueSnapshot) -> Bool) async throws -> InstallQueueSnapshot {
+        let deadline = ContinuousClock.now + .seconds(5)
+        while ContinuousClock.now < deadline {
+            let snapshot = await queue.snapshot()
+            if predicate(snapshot) { return snapshot }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTFail("Expected queue snapshot was not published")
+        throw SourceFailure.unavailable
+    }
+    func testDownloadProgressSaveFailureIsAdvisoryAndRetries() async throws {
+        try await advisoryProgressSaveFailure(verification: nil)
+    }
+    func testDownloadVerificationProgressSaveFailureIsAdvisoryAndRetries() async throws {
+        try await advisoryProgressSaveFailure(verification: .init(file: "game.exe", bytesChecked: 2, bytesTotal: 8))
+    }
+    private func advisoryProgressSaveFailure(verification: InstallFileVerification?) async throws {
+        let root = try root(), catalog = try CatalogStore(), content = OfflineContent(), volumes = FixtureVolumes(root: root)
+        await content.hold("advisory")
+        let queue = try InstallQueue(catalog: catalog, sources: [OfflineSource(content: content)], storage: InstallStorage(volumes: volumes), bottles: FixtureBottles())
+        addTeardownBlock { await queue.shutdown() }
+        let id = try await queue.enqueue(queue.offer(for: game("advisory"), volume: volumes.selection))
+        let next = try await queue.enqueue(queue.offer(for: game("next"), volume: volumes.selection))
+        try rejectJobWrites(catalog, when: "json_extract(CAST(NEW.payload AS TEXT), '$.bytesCompleted') = 4")
+        try await queue.start()
+        // The first callback tries to save four bytes, which the database rejects.
+        let snapshot = try await waitForSnapshot(queue) { $0.persistenceFailure != nil || $0.jobs.first(where: { $0.id == id })?.bytesCompleted == 4 }
+        XCTAssertNil(snapshot.persistenceFailure)
+        XCTAssertEqual(snapshot.activeJobID, id)
+        XCTAssertEqual(snapshot.jobs.first(where: { $0.id == id })?.state, .running)
+        XCTAssertEqual(snapshot.jobs.first(where: { $0.id == id })?.bytesCompleted, 4)
+        XCTAssertEqual(try catalog.jobs().first(where: { $0.id == id })?.bytesCompleted, 0)
+        try await catalog.database.write { try $0.execute(sql: "DROP TRIGGER reject_job_save") }
+        await content.sendDownloadReport("advisory", value: .init(bytesCompleted: 6, bytesTotal: 8, currentFile: "next.exe", verification: verification, sequence: 10))
+        if verification == nil { // Let the ordinary UI cadence elapse before sending a subsequent update.
+            try await Task.sleep(for: .milliseconds(300))
+            await content.sendDownloadReport("advisory", value: .init(bytesCompleted: 6, bytesTotal: 8, currentFile: "next.exe", sequence: 11))
+        }
+        _ = try await waitForSnapshot(queue) { $0.jobs.first(where: { $0.id == id })?.bytesCompleted == 6 }
+        XCTAssertEqual(try catalog.jobs().first(where: { $0.id == id })?.bytesCompleted, 6)
+        await content.release("advisory")
+        _ = try await waitFor(queue, jobID: id, state: .completed)
+        _ = try await waitFor(queue, jobID: next, state: .completed)
+        await queue.shutdown()
+    }
+    func testStageCheckpointSaveFailureHaltsQueueWhenTerminalSaveSucceeds() async throws {
+        let root = try root(), catalog = try CatalogStore(), content = OfflineContent(), volumes = FixtureVolumes(root: root)
+        let queue = try InstallQueue(catalog: catalog, sources: [OfflineSource(content: content)], storage: InstallStorage(volumes: volumes), bottles: FixtureBottles())
+        addTeardownBlock { await queue.shutdown() }
+        let id = try await queue.enqueue(queue.offer(for: game("checkpoint"), volume: volumes.selection))
+        let next = try await queue.enqueue(queue.offer(for: game("next"), volume: volumes.selection))
+        try rejectJobWrites(catalog, when: "json_extract(CAST(NEW.payload AS TEXT), '$.bytesCompleted') = 8 AND json_extract(CAST(NEW.payload AS TEXT), '$.state') = 'running'")
+        try await queue.start()
+        _ = try await waitFor(queue, jobID: id, state: .failed)
+        let snapshot = await queue.snapshot()
+        XCTAssertNotNil(snapshot.persistenceFailure)
+        XCTAssertEqual(snapshot.jobs.first(where: { $0.id == next })?.state, .queued)
+        XCTAssertEqual(try catalog.jobs().first(where: { $0.id == id })?.state, .failed, "The terminal save succeeds but must not clear the checkpoint failure")
+        XCTAssertNil(try catalog.snapshot().entries.first?.installation)
+        await queue.shutdown()
+    }
+    func testCommitSaveFailureHaltsQueueAndDoesNotPublishInstallation() async throws {
+        let root = try root(), catalog = try CatalogStore(), content = OfflineContent(), volumes = FixtureVolumes(root: root)
+        let queue = try InstallQueue(catalog: catalog, sources: [OfflineSource(content: content)], storage: InstallStorage(volumes: volumes), bottles: FixtureBottles())
+        addTeardownBlock { await queue.shutdown() }
+        let id = try await queue.enqueue(queue.offer(for: game("commit"), volume: volumes.selection))
+        let next = try await queue.enqueue(queue.offer(for: game("next"), volume: volumes.selection))
+        try await catalog.database.write { try $0.execute(sql: "CREATE TRIGGER reject_commit BEFORE INSERT ON installations BEGIN SELECT RAISE(ABORT, 'Injected commit failure'); END") }
+        try await queue.start()
+        _ = try await waitFor(queue, jobID: id, state: .failed)
+        let snapshot = await queue.snapshot()
+        XCTAssertNotNil(snapshot.persistenceFailure)
+        XCTAssertEqual(snapshot.jobs.first(where: { $0.id == next })?.state, .queued)
+        XCTAssertTrue(try catalog.snapshot().entries.isEmpty)
+        await queue.shutdown()
+    }
+    func testTerminalErrorSaveFailureHaltsQueueAtLastDurableCheckpoint() async throws {
+        let root = try root(), catalog = try CatalogStore(), content = OfflineContent(), volumes = FixtureVolumes(root: root)
+        let queue = try InstallQueue(catalog: catalog, sources: [OfflineSource(content: content)], storage: InstallStorage(volumes: volumes), bottles: FixtureBottles())
+        addTeardownBlock { await queue.shutdown() }
+        let id = try await queue.enqueue(queue.offer(for: game("terminal"), volume: volumes.selection))
+        let next = try await queue.enqueue(queue.offer(for: game("next"), volume: volumes.selection))
+        await content.failOnce("verify:terminal")
+        try rejectJobWrites(catalog, when: "json_extract(CAST(NEW.payload AS TEXT), '$.state') = 'failed'")
+        try await queue.start()
+        let snapshot = try await waitForSnapshot(queue) { $0.persistenceFailure != nil && $0.activeJobID == nil }
+        XCTAssertEqual(snapshot.jobs.first(where: { $0.id == next })?.state, .queued)
+        let durable = try XCTUnwrap(catalog.jobs().first(where: { $0.id == id }))
+        XCTAssertEqual(durable.stage, .verifyOriginals)
+        XCTAssertEqual(durable.state, .running)
+        XCTAssertTrue(durable.completedStages.contains(.download))
+        await queue.shutdown()
+    }
+
+    func testTerminalPauseSaveFailureHaltsQueueAtStoppingCheckpoint() async throws {
+        let root = try root(), catalog = try CatalogStore(), content = OfflineContent(), volumes = FixtureVolumes(root: root)
+        await content.hold("pause")
+        let queue = try InstallQueue(catalog: catalog, sources: [OfflineSource(content: content)], storage: InstallStorage(volumes: volumes), bottles: FixtureBottles())
+        addTeardownBlock { await queue.shutdown() }
+        let id = try await queue.enqueue(queue.offer(for: game("pause"), volume: volumes.selection))
+        let next = try await queue.enqueue(queue.offer(for: game("next"), volume: volumes.selection))
+        try await queue.start()
+        _ = try await waitForSnapshot(queue) { $0.jobs.first(where: { $0.id == id })?.bytesCompleted == 4 }
+        try rejectJobWrites(catalog, when: "json_extract(CAST(NEW.payload AS TEXT), '$.state') = 'paused'")
+        try await queue.setPaused(true, jobID: id)
+        let snapshot = try await waitForSnapshot(queue) { $0.persistenceFailure != nil && $0.activeJobID == nil }
+        XCTAssertEqual(snapshot.jobs.first(where: { $0.id == next })?.state, .queued)
+        let durable = try XCTUnwrap(catalog.jobs().first(where: { $0.id == id }))
+        XCTAssertEqual(durable.state, .stopping)
+        XCTAssertEqual(durable.pauseReasons, [.user])
+        await queue.shutdown()
+    }
+    func testTerminalCancelSaveFailureHaltsQueueAfterCleanup() async throws {
+        let root = try root(), catalog = try CatalogStore(), content = OfflineContent(), volumes = FixtureVolumes(root: root)
+        await content.hold("cancel-save")
+        let queue = try InstallQueue(catalog: catalog, sources: [OfflineSource(content: content)], storage: InstallStorage(volumes: volumes), bottles: FixtureBottles())
+        addTeardownBlock { await queue.shutdown() }
+        let id = try await queue.enqueue(queue.offer(for: game("cancel-save"), volume: volumes.selection))
+        let next = try await queue.enqueue(queue.offer(for: game("next"), volume: volumes.selection))
+        try await queue.start()
+        _ = try await waitForSnapshot(queue) { $0.jobs.first(where: { $0.id == id })?.bytesCompleted == 4 }
+        try rejectJobWrites(catalog, when: "json_extract(CAST(NEW.payload AS TEXT), '$.state') = 'cancelled'")
+        try await queue.cancel(id)
+        let snapshot = try await waitForSnapshot(queue) { $0.persistenceFailure != nil && $0.activeJobID == nil }
+        XCTAssertEqual(snapshot.jobs.first(where: { $0.id == next })?.state, .queued)
+        let durable = try XCTUnwrap(catalog.jobs().first(where: { $0.id == id }))
+        XCTAssertEqual(durable.cancellationRequested, true)
+        XCTAssertNotEqual(durable.state, .cancelled, "Cleanup must not be acknowledged until the terminal save succeeds")
+        await queue.shutdown()
+    }
+    func testStageVerificationContinuesWhenCatalogWritesAreUnavailable() async throws {
+        let root = try root(), catalog = try CatalogStore(), content = OfflineContent(), volumes = FixtureVolumes(root: root)
+        await content.enableStageVerificationFixture(); await content.hold("verify:ephemeral")
+        let queue = try InstallQueue(catalog: catalog, sources: [OfflineSource(content: content)], storage: InstallStorage(volumes: volumes), bottles: FixtureBottles())
+        addTeardownBlock { await queue.shutdown() }
+        let id = try await queue.enqueue(queue.offer(for: game("ephemeral"), volume: volumes.selection))
+        try await queue.start()
+        _ = try await waitForSnapshot(queue) { $0.transfer?.verification?.bytesChecked == 2 && $0.jobs.first?.stage == .verifyOriginals }
+        try rejectJobWrites(catalog, when: "1")
+        await content.sendLateReport("verify")
+        let snapshot = try await waitForSnapshot(queue) { $0.transfer?.verification?.bytesChecked == 7 }
+        XCTAssertNil(snapshot.persistenceFailure)
+        XCTAssertEqual(snapshot.activeJobID, id)
+        XCTAssertEqual(snapshot.jobs.first?.state, .running)
+        XCTAssertEqual(snapshot.jobs.first?.bytesCompleted, 8)
+        try await catalog.database.write { try $0.execute(sql: "DROP TRIGGER reject_job_save") }
+        await content.release("verify:ephemeral")
+        _ = try await waitFor(queue, jobID: id, state: .completed)
+        await queue.shutdown()
+    }
+
+    func testUninstallCommitSaveFailureHaltsQueueAndKeepsReservation() async throws {
+        let (queue, catalog, _, bottles, volumes, game) = try await installedFixture()
+        addTeardownBlock { await queue.shutdown() }
+        await bottles.setRemoval(held: true)
+        try await catalog.database.write { try $0.execute(sql: "CREATE TRIGGER reject_removal_commit BEFORE DELETE ON installations BEGIN SELECT RAISE(ABORT, 'Injected removal commit failure'); END") }
+        let id = try await queue.uninstall(.init(review: catalog.reviewUninstall(game.id), discardUnsyncedProgress: true))
+        _ = try await waitForSnapshot(queue) { $0.jobs.first(where: { $0.id == id })?.stage == .removeBottle }
+        let next = try await queue.enqueue(queue.offer(for: self.game("next"), volume: volumes.selection))
+        await bottles.setRemoval()
+        _ = try await waitFor(queue, jobID: id, state: .failed)
+        let snapshot = await queue.snapshot()
+        XCTAssertNotNil(snapshot.persistenceFailure)
+        XCTAssertEqual(snapshot.jobs.first(where: { $0.id == next })?.state, .queued)
+        XCTAssertNotNil(try catalog.snapshot().entries.first(where: { $0.id == game.id })?.installation)
+        let durable = try XCTUnwrap(catalog.jobs().first(where: { $0.id == id }))
+        XCTAssertEqual(durable.state, .failed)
+        XCTAssertEqual(durable.completedStages, [.removeFiles, .removeBottle])
+        XCTAssertThrowsError(try catalog.saveSession(.init(gameID: game.id, bottleID: CrossOverGameBottles.name(for: game.id))))
+        await queue.shutdown()
+    }
+
     private func installedFixture() async throws -> (InstallQueue, CatalogStore, InstallStorage, FixtureBottles, FixtureVolumes, SourceGameRecord) {
         let root = try root(), catalog = try CatalogStore(), volumes = FixtureVolumes(root: root)
         let storage = InstallStorage(volumes: volumes), bottles = FixtureBottles(), content = OfflineContent(), game = game("remove")

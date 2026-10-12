@@ -77,6 +77,16 @@ it does, cherry-pick or merge it rather than writing it twice.
    commit, and the terminal error, pause and cancel saves. Review the `:368` path too. Add regression tests in the existing
    `InstallQueue` test style.
 3. **WAL mode: do not implement.** It changes the persistent file format. Record the tradeoffs in this plan only.
+   WAL would let readers coexist with the writer, reducing this kind of contention. It also introduces persistent WAL/SHM
+   sidecars, checkpoint management, and extra care when copying, backing up, or inspecting a live catalog; long readers can
+   retain WAL pages and grow the journal. Keep the existing delete journal and full synchronous durability. Use the five-second
+   busy timeout for short locks and advisory progress saves for longer contention instead.
+
+**Step 0 checkpoint decision:** Verification-stage callbacks already keep their state only in memory and remain ephemeral.
+Download callbacks may save advisory progress, but failed saves keep the in-memory record and retry on the next eligible update.
+Durable checkpoint and installation-commit failures halt scheduling even if the subsequent terminal-error save succeeds;
+terminal error, pause, and cancel saves retain their halt behavior. Logging on failure uses OSLog to avoid writing again to
+an already busy catalog.
 
 **Verify:** `swift test --package-path Packages/PlaydenKit`, then the full `./scripts/test.sh`.
 

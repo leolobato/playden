@@ -2,6 +2,7 @@ import Foundation
 import Domain
 import Catalog
 import Runner
+import OSLog
 
 public struct InstallQueueSnapshot: Sendable {
     public let jobs: [JobRecord]
@@ -50,6 +51,7 @@ public extension InstallQueuing {
 
 /// The sole writer of install-job state. UI tasks may subscribe or disconnect without owning work.
 public actor InstallQueue: InstallQueuing {
+    private static let logger = Logger(subsystem: "Playden", category: "InstallQueue")
     private let catalog: CatalogStore
     private let sources: [String: any GameSource]
     private let storage: any InstallStorageManaging
@@ -336,7 +338,10 @@ public actor InstallQueue: InstallQueuing {
                     }
                     job.state = .completed; job.stage = .finished; job.failure = nil
                     job.completedStages.formUnion([.commit, .finished]); job.updatedAt = .now
-                    try catalog.commitInstallation(installation, completing: job)
+                    do { try catalog.commitInstallation(installation, completing: job) } catch {
+                        haltForPersistenceFailure(error)
+                        throw error
+                    }
                     records[id] = job; publish(); return
                 default: break
                 }
@@ -364,9 +369,9 @@ public actor InstallQueue: InstallQueuing {
                     job.completedStages.subtract([.download, .verifyOriginals, .stage, .validate])
                 }
             }
-            do { try save(job) } catch {
-                persistenceFailure = Self.failure("Save queue", "Install progress could not be saved. Free up space and restart Playden to recover the last checkpoint.")
-            }
+            // Terminal error, pause and cancel state is a durable checkpoint. A failed
+            // save halts scheduling even when an earlier checkpoint failure was recorded.
+            do { try save(job) } catch { /* save already reported the durable failure */ }
         }
     }
     private func invalidateRuntimeStages(_ id: UUID) throws {
@@ -436,8 +441,17 @@ public actor InstallQueue: InstallQueuing {
         let phaseChanged = (previousVerification == nil) != (value.verification == nil)
             || previousVerification?.file != value.verification?.file
         guard phaseChanged || now - progressTime >= 0.25 else { return }; progressTime = now
-        do { try update(id) { $0.bytesCompleted = value.bytesCompleted; $0.bytesTotal = value.bytesTotal; $0.currentFile = value.currentFile } }
-        catch { persistenceFailure = Self.failure("Save queue", "Install progress could not be saved."); activeTask?.cancel(); publish() }
+        // Progress is advisory: keep showing current transfer state even when the catalog
+        // is temporarily busy. The next update retries; stage boundaries still use save.
+        var updated = job
+        updated.bytesCompleted = value.bytesCompleted; updated.bytesTotal = value.bytesTotal
+        updated.currentFile = value.currentFile; updated.updatedAt = .now
+        records[id] = updated
+        do { try catalog.saveJob(updated) } catch {
+            // Logging to the catalog here would attempt another write to the same busy DB.
+            Self.logger.warning("Could not save install progress; retrying on next update; code=\((error as NSError).code, privacy: .public)")
+        }
+        publish()
     }
     private func checkpoint(_ id: UUID) throws {
         try Task.checkCancellation()
@@ -448,12 +462,21 @@ public actor InstallQueue: InstallQueuing {
     }
     private func save(_ value: JobRecord) throws {
         var job = value; job.updatedAt = .now
-        if job.kind == .uninstall, let expected = records[job.id] {
-            job = try catalog.checkpointUninstall(expected, stage: job.stage, state: job.state,
-                completedStages: job.completedStages, failure: job.failure)
-            records[job.id] = job; publish(); return
+        do {
+            if job.kind == .uninstall, let expected = records[job.id] {
+                job = try catalog.checkpointUninstall(expected, stage: job.stage, state: job.state,
+                    completedStages: job.completedStages, failure: job.failure)
+            } else { try catalog.saveJob(job) }
+        } catch {
+            haltForPersistenceFailure(error)
+            throw error
         }
-        try catalog.saveJob(job); records[job.id] = job; publish()
+        records[job.id] = job; publish()
+    }
+    private func haltForPersistenceFailure(_ error: Error) {
+        persistenceFailure = Self.failure("Save queue", "Install progress could not be saved. Free up space and restart Playden to recover the last checkpoint.")
+        Self.logger.error("Could not save install checkpoint; queue halted; code=\((error as NSError).code, privacy: .public)")
+        publish()
     }
     @discardableResult public func uninstall(_ authorization: UninstallAuthorization) async throws -> UUID {
         let installed = authorization.review.installation
@@ -489,7 +512,11 @@ public actor InstallQueue: InstallQueuing {
                 if !native { try await bottles.verifyRemoved(bottle) }
                 try checkpoint(id)
                 guard let expected = records[id] else { return }
-                let completed = try catalog.completeUninstall(expected)
+                let completed: JobRecord
+                do { completed = try catalog.completeUninstall(expected) } catch {
+                    haltForPersistenceFailure(error)
+                    throw error
+                }
                 records[id] = completed; publish(); return
             default: break
             }

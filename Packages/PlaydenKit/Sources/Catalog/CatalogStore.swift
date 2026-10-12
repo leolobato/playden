@@ -17,6 +17,7 @@ public final class CatalogStore: Sendable {
             try FileManager.default.createDirectory(at: URL(fileURLWithPath: path).deletingLastPathComponent(), withIntermediateDirectories: true)
         }
         var configuration = Configuration()
+        configuration.busyMode = .timeout(5)
         configuration.prepareDatabase { db in
             try db.execute(sql: "PRAGMA synchronous = FULL")
         }

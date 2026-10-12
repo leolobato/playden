@@ -1,8 +1,38 @@
 import XCTest
 import Domain
+import GRDB
 @testable import Catalog
 
 final class CatalogStoreTests: XCTestCase {
+    func testWriteWaitsForExternalReadTransaction() async throws {
+        let path = try temporaryPath()
+        let store = try CatalogStore(path: path)
+        let reader = try DatabaseQueue(path: path)
+        let acquired = DispatchSemaphore(value: 0), release = DispatchSemaphore(value: 0)
+        let read = Task.detached {
+            try reader.read { db in
+                _ = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM preferences")
+                acquired.signal()
+                guard release.wait(timeout: .now() + 5) == .success else { throw CancellationError() }
+            }
+        }
+        XCTAssertEqual(acquired.wait(timeout: .now() + 2), .success)
+        defer { release.signal() }
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.25) { release.signal() }
+        var preferences = LibraryPreferences(); preferences.reducedMotion = true
+        let started = ContinuousClock.now
+        do { try store.savePreferences(preferences) } catch {
+            release.signal()
+            try await read.value
+            throw error
+        }
+        XCTAssertGreaterThanOrEqual(ContinuousClock.now - started, .milliseconds(150), "The write must wait for the reader")
+        try await read.value
+        XCTAssertEqual(try store.preferences(), preferences)
+        let journalMode = try await store.database.read { try String.fetchOne($0, sql: "PRAGMA journal_mode") }
+        XCTAssertEqual(journalMode, "delete")
+    }
+
     func testAcquisitionDateBackfillsOldCacheSurvivesRefreshAndDoesNotCrossSignOut() throws {
         let path = try temporaryPath(), store = try CatalogStore(path: path)
         var original = game(steam)
