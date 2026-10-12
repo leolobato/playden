@@ -126,8 +126,11 @@ public struct SteamPreparer {
         self.assets = assets; self.diagnostics = diagnostics
     }
 
+    /// Explicit lists come from a pinned manifest; nil retains standalone directory discovery.
+    /// An empty explicit executable list intentionally skips executable discovery.
     public func prepare(appID: UInt32, gameDirectory: URL, account: PrepareAccount,
-                        metadata: PrepareMetadata, offline: Bool = false) throws -> PrepareResult {
+                        metadata: PrepareMetadata, offline: Bool = false,
+                        apiFiles: [URL]? = nil, executableFiles: [URL]? = nil) throws -> PrepareResult {
         let started = diagnostics?.start()
         defer { diagnostics?.finish(.emulatorPreparation, since: started) }
         let fm = FileManager.default
@@ -135,7 +138,8 @@ public struct SteamPreparer {
         guard fm.fileExists(atPath: gameDirectory.path, isDirectory: &isDirectory), isDirectory.boolValue else {
             throw SteamError.prepare("game directory does not exist: \(gameDirectory.path)")
         }
-        let dllURLs = try files(in: gameDirectory) { name in
+        let paths = try SteamPreparationPaths(root: gameDirectory)
+        let dllURLs = try apiFiles ?? files(in: gameDirectory) { name in
             name.caseInsensitiveCompare("steam_api.dll") == .orderedSame
                 || name.caseInsensitiveCompare("steam_api64.dll") == .orderedSame
         }
@@ -150,6 +154,7 @@ public struct SteamPreparer {
         }
         let bundledHashes = try Set([sha256(assets.steamAPI32, diagnostics: diagnostics), sha256(assets.steamAPI64, diagnostics: diagnostics)])
 
+        try paths.check(gameDirectory.appendingPathComponent(".steam_dll_restored"))
         try? fm.removeItem(at: gameDirectory.appendingPathComponent(".steam_dll_restored"))
         var prepared: [PreparedDLL] = []
         var backupPaths: [String] = []
@@ -157,6 +162,7 @@ public struct SteamPreparer {
 
         for dll in dllURLs {
             let backup = URL(fileURLWithPath: dll.path + ".orig")
+            try paths.check(dll); try paths.check(backup)
             let hasBackup = fm.fileExists(atPath: backup.path)
             let original = hasBackup ? backup : dll
             let currentHash = try sha256(dll, diagnostics: diagnostics)
@@ -170,12 +176,16 @@ public struct SteamPreparer {
                 throw SteamError.prepare("\(dll.lastPathComponent) is \(inspection.architecture.rawValue), expected \(expected.rawValue)")
             }
 
-            let interfaceCount = try prepareInterfaces(from: original, beside: dll)
+            let interfaceCount = try prepareInterfaces(from: original, beside: dll, paths: paths)
             if !hasBackup { try fm.copyItem(at: dll, to: backup) }
             try diagnostics.readContent { try Data(contentsOf: assets.url(for: inspection.architecture)) }.write(to: dll, options: .atomic)
             try writeSettings(appID: appID, beside: dll, gameDirectory: gameDirectory,
-                              account: account, metadata: metadata, offline: offline)
+                              account: account, metadata: metadata, offline: offline, paths: paths)
             if let schema = metadata.achievementSchema ?? metadata.userStats?.schema, !schema.isEmpty {
+                let settings = dll.deletingLastPathComponent().appendingPathComponent("steam_settings")
+                for name in ["achievements.json", "stats.json", "achievement_name_to_block.json"] {
+                    try paths.check(settings.appendingPathComponent(name))
+                }
                 let result = try StatsAchievementsGenerator.generate(
                     schema: schema, userStats: metadata.userStats,
                     configDirectory: dll.deletingLastPathComponent().appendingPathComponent("steam_settings"))
@@ -187,20 +197,24 @@ public struct SteamPreparer {
         }
 
         let uniqueBackups = Array(Set(backupPaths)).sorted()
+        try paths.check(gameDirectory.appendingPathComponent("orig_dll_path.txt"))
+        try paths.check(gameDirectory.appendingPathComponent(".steam_dll_replaced"))
         try write(uniqueBackups.joined(separator: "\n") + "\n",
                   to: gameDirectory.appendingPathComponent("orig_dll_path.txt"))
         fm.createFile(atPath: gameDirectory.appendingPathComponent(".steam_dll_replaced").path,
                       contents: Data())
 
         return PrepareResult(dlls: prepared,
-                             steamStubRequirements: classifySteamStubExecutables(in: gameDirectory),
+                             steamStubRequirements: try classifySteamStubExecutables(in: gameDirectory, explicitFiles: executableFiles, paths: paths),
                              ticketIncluded: metadata.encryptedAppTicket != nil,
                              achievementCount: achievementCount)
     }
 
     public func restore(gameDirectory: URL) throws -> RestoreResult {
         let fm = FileManager.default
+        let paths = try SteamPreparationPaths(root: gameDirectory)
         let pathsFile = gameDirectory.appendingPathComponent("orig_dll_path.txt")
+        try paths.check(pathsFile)
         var backups: [URL] = []
         if let contents = try? String(contentsOf: pathsFile, encoding: .utf8) {
             backups = contents.split(whereSeparator: \.isNewline).map {
@@ -220,12 +234,15 @@ public struct SteamPreparer {
             guard standardized.path.hasPrefix(root), standardized.lastPathComponent.lowercased().hasSuffix(".dll.orig"),
                   fm.fileExists(atPath: standardized.path) else { continue }
             let destination = URL(fileURLWithPath: String(standardized.path.dropLast(5)))
+            try paths.check(standardized); try paths.check(destination)
             try Data(contentsOf: standardized).write(to: destination, options: .atomic)
             restored.append(destination)
         }
         guard !restored.isEmpty else {
             throw SteamError.prepare("no original Steam API DLL backups found")
         }
+        try paths.check(gameDirectory.appendingPathComponent(".steam_dll_replaced"))
+        try paths.check(gameDirectory.appendingPathComponent(".steam_dll_restored"))
         try? fm.removeItem(at: gameDirectory.appendingPathComponent(".steam_dll_replaced"))
         fm.createFile(atPath: gameDirectory.appendingPathComponent(".steam_dll_restored").path,
                       contents: Data())
@@ -234,9 +251,13 @@ public struct SteamPreparer {
 
     func writeSettings(appID: UInt32, beside dll: URL, gameDirectory: URL,
                        account: PrepareAccount, metadata: PrepareMetadata,
-                       offline: Bool, localSavePath: String? = nil) throws {
+                       offline: Bool, localSavePath: String? = nil, paths: SteamPreparationPaths) throws {
         let parent = dll.deletingLastPathComponent()
         let settings = parent.appendingPathComponent("steam_settings")
+        for url in [parent.appendingPathComponent("steam_appid.txt")] +
+            ["steam_appid.txt", "depots.txt", "configs.user.ini", "configs.app.ini", "configs.main.ini", "supported_languages.txt"].map({ settings.appendingPathComponent($0) }) {
+            try paths.check(url)
+        }
         try FileManager.default.createDirectory(at: settings, withIntermediateDirectories: true)
         let appIDText = String(appID)
         let adjacentAppID = parent.appendingPathComponent("steam_appid.txt")
@@ -310,11 +331,17 @@ public struct SteamPreparer {
         return lines
     }
 
-    private func classifySteamStubExecutables(in root: URL) -> [SteamStubRequirement] {
-        guard let executables = try? files(in: root, matching: {
-            $0.lowercased().hasSuffix(".exe") && !$0.lowercased().hasSuffix(".original.exe")
-        }) else { return [] }
-        return executables.compactMap { url in
+    private func classifySteamStubExecutables(in root: URL, explicitFiles: [URL]?, paths: SteamPreparationPaths) throws -> [SteamStubRequirement] {
+        let executables: [URL]
+        if let explicitFiles { executables = explicitFiles }
+        else {
+            guard let discovered = try? files(in: root, matching: {
+                $0.lowercased().hasSuffix(".exe") && !$0.lowercased().hasSuffix(".original.exe")
+            }) else { return [] }
+            executables = discovered
+        }
+        return try executables.compactMap { url in
+            try paths.check(url)
             guard let inspection = try? PEInspector.inspect(url, diagnostics: diagnostics), inspection.requiresSteamStubRuntime else { return nil }
             return SteamStubRequirement(executable: url, entryPointRVA: inspection.entryPointRVA)
         }
@@ -343,11 +370,12 @@ public struct SteamPreparer {
         return result.sorted { $0.path < $1.path }
     }
 
-    func prepareInterfaces(from original: URL, beside dll: URL) throws -> Int {
+    func prepareInterfaces(from original: URL, beside dll: URL, paths: SteamPreparationPaths) throws -> Int {
         let directory = dll.deletingLastPathComponent()
         let settings = directory.appendingPathComponent("steam_settings")
         let canonical = settings.appendingPathComponent("steam_interfaces.txt")
         let legacy = directory.appendingPathComponent("steam_interfaces.txt")
+        try paths.check(original); try paths.check(canonical); try paths.check(legacy)
         let generated = try extractInterfaces(from: original)
         guard !generated.isEmpty else {
             // Some DLLs have no discoverable versions. Retain manually supplied configuration.

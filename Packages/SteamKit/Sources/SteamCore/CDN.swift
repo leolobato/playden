@@ -23,9 +23,9 @@ public struct DepotManifest: Codable, Equatable, Sendable {
         public func validate(_ data: Data, diagnostics: SteamPerformanceDiagnostics? = nil) throws {
             guard data.count == Int(uncompressedSize) else { throw SteamError.download("chunk length mismatch") }
             if let checksum {
-                guard diagnostics.measure(.adler32, bytes: UInt64(data.count)) { Self.adler(data) } == checksum else { throw SteamError.download("chunk checksum mismatch") }
+                guard diagnostics.measure(.adler32, bytes: UInt64(data.count), { Self.adler(data) }) == checksum else { throw SteamError.download("chunk checksum mismatch") }
             } else {
-                guard diagnostics.measure(.sha1, bytes: UInt64(data.count)) { SteamCrypto.sha1(data) } == sha else { throw SteamError.download("chunk SHA-1 mismatch") }
+                guard diagnostics.measure(.sha1, bytes: UInt64(data.count), { SteamCrypto.sha1(data) }) == sha else { throw SteamError.download("chunk SHA-1 mismatch") }
             }
         }
         // Steam's manifest checksum is Adler-32 with a zero initial seed.

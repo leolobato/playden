@@ -5,6 +5,29 @@ import SteamProto
 @testable import SteamCore
 
 final class PrepareTests: XCTestCase {
+    func testExplicitPreparationFilesAvoidDiscoveryAndUnrelatedAssets() throws {
+        let root = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let game = root.appendingPathComponent("Game"), unrelated = game.appendingPathComponent("mods")
+        try FileManager.default.createDirectory(at: unrelated, withIntermediateDirectories: true)
+        let asset32 = root.appendingPathComponent("api32.dll"), asset64 = root.appendingPathComponent("api64.dll")
+        try makePE(architecture: .x86, section: ".text", strings: []).write(to: asset32)
+        try makePE(architecture: .x86_64, section: ".text", strings: []).write(to: asset64)
+        let dll = game.appendingPathComponent("steam_api.dll")
+        try makePE(architecture: .x86, section: ".text", strings: ["SteamClient017"]).write(to: dll)
+        try Data("unrelated".utf8).write(to: unrelated.appendingPathComponent("steam_api.dll"))
+        let stub = unrelated.appendingPathComponent("unrelated.exe")
+        try makePE(architecture: .x86, section: ".bind", strings: []).write(to: stub)
+        let diagnostics = SteamPerformanceDiagnostics()
+        let preparer = SteamPreparer(assets: .init(steamAPI32: asset32, steamAPI64: asset64), diagnostics: diagnostics)
+        let result = try preparer.prepare(appID: 100, gameDirectory: game, account: .init(accountName: "test", steamID: 0),
+            metadata: .init(), apiFiles: [dll], executableFiles: [])
+        XCTAssertEqual(result.dlls.map(\.dll), [dll])
+        XCTAssertTrue(result.steamStubRequirements.isEmpty)
+        XCTAssertEqual(diagnostics.snapshot()[.directoryWalk].count, 0)
+        XCTAssertEqual(try Data(contentsOf: unrelated.appendingPathComponent("steam_api.dll")), Data("unrelated".utf8))
+    }
+
     func testRepeatedPreparationPreservesCustomSettingsOriginalAndSave() throws {
         let root = temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }

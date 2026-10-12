@@ -7,11 +7,14 @@ import SteamCore
 /// Signing rewrites the bundle's executable and seal, as `codesign --force --sign -` does.
 private actor FixtureSigner: CodeSigning {
     var signed: [String] = [], verified: [String] = []
+    let afterSign: @Sendable () throws -> Void
+    init(afterSign: @escaping @Sendable () throws -> Void = {}) { self.afterSign = afterSign }
     nonisolated func sign(_ bundle: URL) async throws {
         let executable = bundle.appendingPathComponent("Contents/MacOS/Game")
         var data = try Data(contentsOf: executable); data.append(Data("adhoc".utf8)); try data.write(to: executable)
         try Data("sealed".utf8).write(to: bundle.appendingPathComponent("Contents/_CodeSignature/CodeResources"))
         await record(sign: bundle.lastPathComponent)
+        try afterSign()
     }
     nonisolated func verify(_ bundle: URL) async throws { await record(verify: bundle.lastPathComponent) }
     func record(sign: String? = nil, verify: String? = nil) { if let sign { signed.append(sign) }; if let verify { verified.append(verify) } }
@@ -68,6 +71,74 @@ final class SteamMacInstallTests: XCTestCase {
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         addTeardownBlock { try? FileManager.default.removeItem(at: url) }
         return url
+    }
+
+    func testMacSigningRechecksInstallationAfterAwait() async throws {
+        let directory = try temporaryDirectory(), moved = directory.appendingPathExtension("moved")
+        addTeardownBlock { try? FileManager.default.removeItem(at: moved) }
+        let signer = FixtureSigner(afterSign: {
+            try FileManager.default.moveItem(at: directory, to: moved)
+            try FileManager.default.copyItem(at: moved, to: directory)
+        })
+        let content = ResolvedSteamContent(app: app(), manifests: [manifest(macFiles, depot: 102)], entitlements: .init(appIDs: [100], depotIDs: [102]))
+        let installer = SteamInstaller(game: game, backend: MacBackend(content: content, chunks: chunks), emulatorSaves: try temporaryDirectory(), codeSigner: signer)
+        let plan = try await installer.resolve(platform: .macOS)
+        try await installer.download(plan, to: directory) { _ in }
+        do { _ = try await installer.postInstall(plan, at: directory); XCTFail("Replaced installation accepted after signing") } catch {}
+    }
+
+    func testMacPreparationRejectsLinkedSigningSettingsAndSaveDestinations() async throws {
+        let content = ResolvedSteamContent(app: app(), manifests: [manifest(macFiles, depot: 102)], entitlements: .init(appIDs: [100], depotIDs: [102]))
+        let backend = MacBackend(content: content, chunks: chunks)
+        for leaf in ["Game.app/Contents/MacOS/Game", "Game.app/Contents/_CodeSignature", ".playden-originals/Game.app/Contents/MacOS", ".playden-steam/steam_settings"] {
+            let saves = try temporaryDirectory(), directory = try temporaryDirectory(), outside = try temporaryDirectory()
+            let installer = SteamInstaller(game: game, backend: backend, emulatorSaves: saves, codeSigner: FixtureSigner())
+            let plan = try await installer.resolve(platform: .macOS)
+            try await installer.download(plan, to: directory) { _ in }
+            _ = try await installer.postInstall(plan, at: directory)
+            let target = directory.appendingPathComponent(leaf), moved = outside.appendingPathComponent("keep")
+            try FileManager.default.moveItem(at: target, to: moved)
+            try FileManager.default.createSymbolicLink(at: target, withDestinationURL: moved)
+            let signer = FixtureSigner()
+            let restarted = SteamInstaller(game: game, backend: backend, emulatorSaves: saves, codeSigner: signer)
+            do { _ = try await restarted.postInstall(plan, at: directory); XCTFail("Linked Mac destination accepted: " + leaf) } catch {}
+            let signed = await signer.signed; XCTAssertTrue(signed.isEmpty)
+        }
+        let directory = try temporaryDirectory(), saves = try temporaryDirectory(), outside = try temporaryDirectory()
+        try FileManager.default.createSymbolicLink(at: saves.appendingPathComponent("100"), withDestinationURL: outside)
+        let installer = SteamInstaller(game: game, backend: backend, emulatorSaves: saves, codeSigner: FixtureSigner())
+        let plan = try await installer.resolve(platform: .macOS)
+        try await installer.download(plan, to: directory) { _ in }
+        do { _ = try await installer.postInstall(plan, at: directory); XCTFail("Linked emulator save directory accepted") } catch {}
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: outside.path), [])
+    }
+
+    func testMacSigningRejectsInfoPlistExecutableEscape() async throws {
+        let escaping = Data(String(decoding: info, as: UTF8.self).replacingOccurrences(of: "<string>Game</string>", with: "<string>../Game</string>").utf8)
+        let files = macFiles.map { $0.path.hasSuffix("Info.plist") ? file($0.path, escaping) : $0 }
+        var chunks = self.chunks; chunks[escaping.sha1] = escaping
+        let content = ResolvedSteamContent(app: app(), manifests: [manifest(files, depot: 102)], entitlements: .init(appIDs: [100], depotIDs: [102]))
+        let signer = FixtureSigner(), directory = try temporaryDirectory()
+        let installer = SteamInstaller(game: game, backend: MacBackend(content: content, chunks: chunks), emulatorSaves: try temporaryDirectory(), codeSigner: signer)
+        let plan = try await installer.resolve(platform: .macOS)
+        try await installer.download(plan, to: directory) { _ in }
+        do { _ = try await installer.postInstall(plan, at: directory); XCTFail("Escaping signing executable accepted") } catch {}
+        let signed = await signer.signed; XCTAssertTrue(signed.isEmpty)
+    }
+
+    func testMacManifestDiscoveryPreservesUnrelatedLibraryAndFrameworkLinks() async throws {
+        let content = ResolvedSteamContent(app: app(), manifests: [manifest(macFiles, depot: 102)], entitlements: .init(appIDs: [100], depotIDs: [102]))
+        let installer = SteamInstaller(game: game, backend: MacBackend(content: content, chunks: chunks), emulatorSaves: try temporaryDirectory(), codeSigner: FixtureSigner())
+        let plan = try await installer.resolve(platform: .macOS), directory = try temporaryDirectory()
+        try await installer.download(plan, to: directory) { _ in }
+        let framework = directory.appendingPathComponent("Game.app/Contents/Frameworks/Extra.framework")
+        try FileManager.default.createDirectory(at: framework.appendingPathComponent("Versions/A"), withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(atPath: framework.appendingPathComponent("Versions/Current").path, withDestinationPath: "A")
+        let extra = framework.appendingPathComponent("Versions/A/libsteam_api.dylib")
+        try Data("unrelated library".utf8).write(to: extra)
+        let staging = try await installer.postInstall(plan, at: directory)
+        _ = try await installer.validate(plan, at: directory, staging: staging)
+        XCTAssertEqual(try Data(contentsOf: extra), Data("unrelated library".utf8))
     }
 
     func testUnsignedMacStagesKeepExecutableReceiptsAcrossPreparationRetry() async throws {
@@ -250,18 +321,18 @@ final class SteamMacInstallTests: XCTestCase {
         XCTAssertEqual(signed, []); XCTAssertEqual(verified, [])
     }
 
-    func testMacPreparationRejectsLinksThatLeaveTheGameFolder() async throws {
+    func testMacPreparationRejectsWriteLinksThatLeaveTheGameFolder() async throws {
         let files = macFiles
         let chunks = self.chunks
         let content = ResolvedSteamContent(app: app(), manifests: [manifest(files, depot: 102)], entitlements: .init(appIDs: [100], depotIDs: [102]))
         let installer = SteamInstaller(game: game, backend: MacBackend(content: content, chunks: chunks), emulatorSaves: try temporaryDirectory(), codeSigner: FixtureSigner())
         let plan = try await installer.resolve(platform: .macOS), directory = try temporaryDirectory()
         try await installer.download(plan, to: directory) { _ in }
-        try FileManager.default.createSymbolicLink(atPath: directory.appendingPathComponent("Game.app/Contents/Resources").path, withDestinationPath: "/tmp")
+        try FileManager.default.createSymbolicLink(atPath: directory.appendingPathComponent(".playden-steam").path, withDestinationPath: "/tmp")
         let bottle = GameBottle(gameID: game.id, name: "playden-steam-100", ownershipToken: UUID())
         do { _ = try await installer.postInstall(plan, at: directory, in: bottle); XCTFail("An escaping link was accepted") }
-        catch let failure as OperationFailure { XCTAssertEqual(failure.stage, "Prepare") }
-        try FileManager.default.removeItem(at: directory.appendingPathComponent("Game.app/Contents/Resources"))
+        catch {}
+        try FileManager.default.removeItem(at: directory.appendingPathComponent(".playden-steam"))
         try FileManager.default.createSymbolicLink(atPath: directory.appendingPathComponent("Game.app/Contents/Current").path, withDestinationPath: "MacOS")
         _ = try await installer.postInstall(plan, at: directory, in: bottle)
     }

@@ -76,8 +76,7 @@ public struct SteamInstaller: Installer {
         try await prepare(plan, at: directory, bottle: nil)
     }
     public func preparePrerequisites(_ plan: InstallPlan, at directory: URL, in bottle: GameBottle) async throws {
-        try await SteamPrerequisites.prepare(plan, gameID: gameID, at: directory, in: bottle, tools: runtimeTools,
-            validateDirectory: { try rejectLinks(in: directory) })
+        try await SteamPrerequisites.prepare(plan, gameID: gameID, at: directory, in: bottle, tools: runtimeTools)
     }
     public func postInstall(_ plan: InstallPlan, at directory: URL, in bottle: GameBottle) async throws -> InstallStaging {
         guard bottle.gameID == gameID else { throw SteamPlanBuilder.failure("Prepare", "The game runtime belongs to another installation.") }
@@ -96,7 +95,7 @@ public struct SteamInstaller: Installer {
         let payload = try SteamPlanBuilder.payload(plan, for: gameID)
         try Task.checkCancellation()
         if payload.platform == .macOS { return try await prepareMac(plan, payload: payload, at: directory, reporter: reporter) }
-        try rejectLinks(in: directory)
+        let paths = try SteamPreparationPaths(root: directory)
         let apis = try apiPaths(payload)
         // Existing .orig files are usable only if they still verify against the pinned manifest.
         // This recovers an interrupted staging pass even before its receipt reached Catalog.
@@ -104,12 +103,14 @@ public struct SteamInstaller: Installer {
         let recovered = InstallStaging(mutations: (apis + executables).filter { FileManager.default.fileExists(atPath: directory.appendingPathComponent($0 + ".orig").path) }.map {
             FileMutation(relativePath: $0, originalRelativePath: $0 + ".orig", stagedSHA256: Data(repeating: 0, count: 32))
         }, version: 2)
-        try await verifyForPreparation(plan, payload: payload, at: directory, recovered: recovered, reporter: reporter)
+        try await verifyForPreparation(plan, payload: payload, at: directory, recovered: recovered, reporter: reporter, paths: paths)
+        try paths.checkRoot()
         var mutations: [FileMutation] = []
         let manifestPaths = Set(try payload.manifests.flatMap(\.files).map { try SteamPlanBuilder.relativePath($0.path).lowercased() })
         for path in executables {
             reporter.report(.preparingExecutable(path))
             let executable = directory.appendingPathComponent(path), backup = directory.appendingPathComponent(path + ".orig")
+            try paths.check(executable); try paths.check(backup)
             let original = FileManager.default.fileExists(atPath: backup.path) ? backup : executable
             guard try PEInspector.inspect(original, diagnostics: diagnostics).requiresSteamStubRuntime else { continue }
             guard let bottle, let runtimeTools else {
@@ -122,18 +123,20 @@ public struct SteamInstaller: Installer {
             if original == executable { try FileManager.default.copyItem(at: executable, to: backup) }
             let unpacked = try await SteamUnpacking.unpack(backup, in: bottle, tools: runtimeTools, diagnostics: diagnostics)
             try Task.checkCancellation()
-            try rejectLinks(in: directory)
+            try paths.check(executable); try paths.check(backup)
             guard try digest(backup) == originalHash else { throw SteamPlanBuilder.failure("Prepare", "The original executable changed during preparation. Verify files before retrying.") }
             try unpacked.write(to: executable, options: .atomic)
             mutations.append(.init(relativePath: path, originalRelativePath: path + ".orig", stagedSHA256: diagnostics.measure(.sha256, bytes: UInt64(unpacked.count)) { Data(SHA256.hash(data: unpacked)) }))
         }
         guard !apis.isEmpty else { return InstallStaging(mutations: mutations, version: mutations.isEmpty ? 1 : 2) }
         reporter.report(.applyingSettings)
+        try paths.checkRoot()
         let preparer = try SteamPreparer(assets: GBEAssets.bundled(diagnostics: diagnostics), diagnostics: diagnostics)
         let metadata = PrepareMetadata(installDir: payload.app.installDir, installedDepotIDs: payload.manifests.map(\.depotID),
             dlcAppIDs: payload.ownedDLC, forceDLC: false, ufs: payload.app.ufs)
         let result = try preparer.prepare(appID: payload.app.appID, gameDirectory: directory,
-            account: PrepareAccount(accountName: "Playden", steamID: 0), metadata: metadata, offline: true)
+            account: PrepareAccount(accountName: "Playden", steamID: 0), metadata: metadata, offline: true,
+            apiFiles: apis.map { directory.appendingPathComponent($0) }, executableFiles: executables.map { directory.appendingPathComponent($0) })
         guard result.steamStubRequirements.isEmpty else {
             throw SteamPlanBuilder.failure("Prepare", "This game requires SteamStub unpacking before it can launch. Its original files are preserved.")
         }
@@ -148,6 +151,7 @@ public struct SteamInstaller: Installer {
             // Steam's offline status alone still starts GBE's LAN discovery. Playden v1
             // uses offline play, so do not request local-network access just by launching it.
             let connectivity = dll.dll.deletingLastPathComponent().appendingPathComponent("steam_settings/configs.main.ini")
+            try paths.check(connectivity)
             try SteamSettingsINI.write("[main::connectivity]\ndisable_lan_only=0\noffline=1\ndisable_networking=1\n", to: connectivity)
             let relative = String(stagedPath.dropFirst(canonicalRoot.count))
             let backup = String(backupPath.dropFirst(canonicalRoot.count))
@@ -158,7 +162,7 @@ public struct SteamInstaller: Installer {
     /// An interrupted copy can leave an incomplete backup before any staging receipt is saved.
     /// Discard it only after fully checking the still-live original against the pinned manifest.
     private func verifyForPreparation(_ plan: InstallPlan, payload: SteamInstallPayload, at directory: URL,
-        recovered: InstallStaging, reporter: PreparationReporter) async throws {
+        recovered: InstallStaging, reporter: PreparationReporter, paths: SteamPreparationPaths) async throws {
         let invalid = Set(try await verifyOriginals(plan, at: directory, staging: recovered,
             progress: { reporter.report(.verifying($0)) }).invalidFiles)
         guard !invalid.isEmpty else { return }
@@ -179,6 +183,7 @@ public struct SteamInstaller: Installer {
         }
         for (path, backup) in mappings where invalid.contains(path) {
             let url = directory.appendingPathComponent(backup)
+            try paths.check(url)
             let values = try url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
             guard values.isRegularFile == true, values.isSymbolicLink != true else {
                 throw SteamPlanBuilder.failure("Prepare", "An original backup is not a regular file. Its contents have been kept.")
@@ -190,8 +195,9 @@ public struct SteamInstaller: Installer {
                        progress: @escaping @Sendable (InstallProgress) -> Void) async throws {
         let payload = try SteamPlanBuilder.payload(plan, for: gameID)
         let mappings = try replacements(staging ?? InstallStaging(), payload: payload)
-        try checkLinks(in: directory, payload: payload)
+        let paths = try SteamPreparationPaths(root: directory)
         let invalid = Set(try await verifyOriginals(plan, at: directory, staging: staging, mode: .fullRefreshingReceipts).invalidFiles)
+        try paths.checkRoot()
         guard !invalid.isEmpty else { return }
         // Download originals to their verified backup paths. Leave the staged DLLs and save
         // directories in place; postInstall will reapply preparation after all originals verify.
@@ -209,6 +215,7 @@ public struct SteamInstaller: Installer {
         try await backend.repair(SteamInstallPayload(app: payload.app, manifests: manifests, ownedDLC: payload.ownedDLC,
             authorizedDepotIDs: payload.authorizedDepotIDs, platform: payload.platform),
             using: repair, to: directory, progress: progress)
+        try paths.checkRoot()
         // The full pass established all other originals. Check only the repaired targets before
         // declaring the authoritative depot complete and removing obsolete checkpoints.
         for manifest in manifests {
@@ -236,7 +243,7 @@ public struct SteamInstaller: Installer {
         defer { diagnostics?.finish(.finalValidation, since: started) }
         let payload = try SteamPlanBuilder.payload(plan, for: gameID)
         if payload.platform == .macOS { return try await validateMac(plan, payload: payload, at: directory, staging: staging, progress: progress) }
-        try rejectLinks(in: directory)
+        let paths = try SteamPreparationPaths(root: directory)
         let apis = Set(try apiPaths(payload)), executables = Set(try executablePaths(payload)), changed = Set(staging.mutations.map(\.relativePath))
         guard apis.isSubset(of: changed), changed.isSubset(of: apis.union(executables)) else {
             throw SteamPlanBuilder.failure("Verify", "Game preparation is incomplete.")
@@ -244,6 +251,7 @@ public struct SteamInstaller: Installer {
         let originalBytes = try verificationBytes(payload)
         let mutationSizes = try staging.mutations.map { mutation in
             let path = try SteamPlanBuilder.relativePath(mutation.relativePath)
+            try paths.check(directory.appendingPathComponent(path))
             return Int64(try directory.appendingPathComponent(path).resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0)
         }
         let total = try mutationSizes.reduce(originalBytes) { sum, size in
@@ -254,10 +262,13 @@ public struct SteamInstaller: Installer {
         let verification = try await verifyOriginals(plan, at: directory, staging: staging) { check in
             diagnostics.measure(.progressCallback) { progress(.init(file: check.file, bytesChecked: check.bytesChecked, bytesTotal: total, scope: .installation)) }
         }
+        try paths.checkRoot()
         guard verification.isValid else { throw SteamPlanBuilder.failure("Verify", "Some game files are missing or damaged. Verify files to repair them.") }
         var completed = originalBytes
         for (index, mutation) in staging.mutations.enumerated() {
             let path = try SteamPlanBuilder.relativePath(mutation.relativePath)
+            try paths.check(directory.appendingPathComponent(path))
+            try paths.check(directory.appendingPathComponent(mutation.originalRelativePath))
             guard try digest(directory.appendingPathComponent(path), progress: { checked in
                 diagnostics.measure(.progressCallback) { progress(.init(file: path, bytesChecked: completed + min(checked, mutationSizes[index]), bytesTotal: total, scope: .installation)) }
             }) == mutation.stagedSHA256 else { throw SteamPlanBuilder.failure("Verify", "A prepared game file changed unexpectedly.") }
@@ -272,11 +283,13 @@ public struct SteamInstaller: Installer {
             }
         }
         for path in executables {
+            try paths.check(directory.appendingPathComponent(path))
             guard try !PEInspector.inspect(directory.appendingPathComponent(path), diagnostics: diagnostics).requiresSteamStubRuntime else {
                 throw SteamPlanBuilder.failure("Verify", "A game executable still requires preparation. Retry installation.")
             }
         }
         let executable = directory.appendingPathComponent(try SteamPlanBuilder.relativePath(plan.launchSpec.executableRelativePath))
+        try paths.check(executable)
         guard try !PEInspector.inspect(executable, diagnostics: diagnostics).requiresSteamStubRuntime else {
             throw SteamPlanBuilder.failure("Verify", "The game executable still requires SteamStub unpacking.")
         }
@@ -287,12 +300,13 @@ public struct SteamInstaller: Installer {
         let payload = try SteamPlanBuilder.payload(plan, for: gameID)
         let apis = try apiPaths(payload)
         guard !apis.isEmpty else { return }
+        let paths = try SteamPreparationPaths(root: directory)
         let overlayOn = options["steam.overlay"] == "1"
         if payload.platform == .macOS {
             let root = directory.appendingPathComponent(Self.macSettingsRoot), settings = root.appendingPathComponent("steam_settings")
             guard FileManager.default.fileExists(atPath: settings.path) else { return }
             let ini = settings.appendingPathComponent("configs.overlay.ini")
-            try rejectAPILinks(apiParent: root, settings: settings, ini: ini)
+            try paths.check(ini)
             if overlayValue(at: ini) != String(overlayOn ? 1 : 0) {
                 try SteamSettingsINI.write("[overlay::general]\nenable_experimental_overlay=\(overlayOn ? 1 : 0)\n", to: ini)
             }
@@ -304,7 +318,7 @@ public struct SteamInstaller: Installer {
             let apiParent = directory.appendingPathComponent(path).deletingLastPathComponent()
             let settings = apiParent.appendingPathComponent("steam_settings")
             let ini = settings.appendingPathComponent("configs.overlay.ini")
-            try rejectAPILinks(apiParent: apiParent, settings: settings, ini: ini)
+            try paths.check(backup); try paths.check(ini)
             guard overlayValue(at: ini) != String(overlayOn ? 1 : 0) else { continue }
             try SteamSettingsINI.write("[overlay::general]\nenable_experimental_overlay=\(overlayOn ? 1 : 0)\n", to: ini)
         }
@@ -370,19 +384,6 @@ public struct SteamInstaller: Installer {
         try payload.manifests.flatMap(\.files).filter { !$0.isDirectory && !$0.isSymlink && $0.path.lowercased().hasSuffix(".exe") }
             .map { try SteamPlanBuilder.relativePath($0.path) }.sorted()
     }
-    /// Unlike `rejectLinks`, avoids a full recursive scan of the installation: it only checks the
-    /// handful of paths `applyRuntimeOptions` is about to write through or below.
-    private func rejectAPILinks(apiParent: URL, settings: URL, ini: URL) throws {
-        for url in [apiParent, settings] {
-            if try url.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink == true {
-                throw SteamPlanBuilder.failure("Prepare", "This game uses linked files that need a preparation recipe.")
-            }
-        }
-        guard FileManager.default.fileExists(atPath: ini.path) else { return }
-        if try ini.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink == true {
-            throw SteamPlanBuilder.failure("Prepare", "This game uses linked files that need a preparation recipe.")
-        }
-    }
     /// The current `enable_experimental_overlay` value under `[overlay::general]`, if the ini
     /// exists and already has one, so `applyRuntimeOptions` can skip an unnecessary rewrite.
     private func overlayValue(at ini: URL) -> String? {
@@ -398,23 +399,6 @@ public struct SteamInstaller: Installer {
             return trimmed[trimmed.index(after: equals)...].trimmingCharacters(in: .whitespaces)
         }
         return nil
-    }
-    private func rejectLinks(in directory: URL) throws {
-        let started = diagnostics?.start()
-        defer { diagnostics?.finish(.directoryWalk, since: started) }
-        let keys: [URLResourceKey] = [.isSymbolicLinkKey]
-        var enumerationError: Error?
-        guard try directory.resourceValues(forKeys: Set(keys)).isSymbolicLink != true,
-              let files = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: keys, errorHandler: { _, error in enumerationError = error; return false }) else {
-            throw SteamPlanBuilder.failure("Prepare", "The game directory is unavailable.")
-        }
-        for case let file as URL in files {
-            try Task.checkCancellation()
-            if try file.resourceValues(forKeys: Set(keys)).isSymbolicLink == true {
-                throw SteamPlanBuilder.failure("Prepare", "This game uses linked files that need a preparation recipe.")
-            }
-        }
-        if let enumerationError { throw enumerationError }
     }
 }
 
@@ -505,23 +489,27 @@ extension SteamInstaller {
     }
     fileprivate func prepareMac(_ plan: InstallPlan, payload: SteamInstallPayload, at directory: URL,
                                 reporter: PreparationReporter) async throws -> InstallStaging {
-        try rejectEscapingLinks(in: directory)
+        let paths = try SteamPreparationPaths(root: directory)
         let apis = try apiPaths(payload), signed = try macSignedFiles(payload)
         let originals = directory.appendingPathComponent(Self.macOriginals)
         // Originals from an interrupted pass are usable only if they still verify.
         let recovered = InstallStaging(mutations: (apis + signed).filter { FileManager.default.fileExists(atPath: originals.appendingPathComponent($0).path) }.map {
             FileMutation(relativePath: $0, originalRelativePath: Self.macOriginals + "/" + $0, stagedSHA256: Data(repeating: 0, count: 32))
         }, version: 3)
-        try await verifyForPreparation(plan, payload: payload, at: directory, recovered: recovered, reporter: reporter)
-        try applyExecutableModes(payload, at: directory)
+        try await verifyForPreparation(plan, payload: payload, at: directory, recovered: recovered, reporter: reporter, paths: paths)
+        try paths.checkRoot()
+        try applyExecutableModes(payload, at: directory, paths: paths)
         guard !apis.isEmpty else { return InstallStaging(version: 1) }
         reporter.report(.applyingSettings)
+        try paths.checkRoot()
         let settingsRoot = directory.appendingPathComponent(Self.macSettingsRoot)
         let metadata = PrepareMetadata(installDir: payload.app.installDir, installedDepotIDs: payload.manifests.map(\.depotID),
             dlcAppIDs: payload.ownedDLC, forceDLC: false, ufs: payload.app.ufs)
         let prepared = try SteamPreparer(assets: GBEAssets.bundled(diagnostics: diagnostics), diagnostics: diagnostics).prepareMac(appID: payload.app.appID, gameDirectory: directory, originals: originals,
             settingsRoot: settingsRoot, account: PrepareAccount(accountName: "Playden", steamID: 0), metadata: metadata,
-            asset: MacGBEAsset.bundled(diagnostics: diagnostics), savePath: emulatorSaves.appendingPathComponent(String(payload.app.appID)), offline: true)
+            asset: MacGBEAsset.bundled(diagnostics: diagnostics), savePath: emulatorSaves.appendingPathComponent(String(payload.app.appID)), offline: true,
+            apiFiles: apis.map { directory.appendingPathComponent($0) })
+        try paths.check(settingsRoot.appendingPathComponent("steam_settings/configs.main.ini"))
         // Offline play: GBE's LAN discovery would otherwise ask for local network access.
         try SteamSettingsINI.write("[main::connectivity]\ndisable_lan_only=0\noffline=1\ndisable_networking=1\n",
                                    to: settingsRoot.appendingPathComponent("steam_settings/configs.main.ini"))
@@ -534,13 +522,17 @@ extension SteamInstaller {
             mutations.append(FileMutation(relativePath: relative, originalRelativePath: Self.macOriginals + "/" + relative, stagedSHA256: try digest(library.library)))
         }
         for bundle in try signedMacBundles(payload) {
+            try authorizeSigning(bundle, signed: signed, at: directory, paths: paths)
             let files = signed.filter { $0.hasPrefix(bundle + "/") }
             for file in files where !FileManager.default.fileExists(atPath: originals.appendingPathComponent(file).path) {
                 let backup = originals.appendingPathComponent(file)
+                try paths.check(directory.appendingPathComponent(file)); try paths.check(backup)
                 try FileManager.default.createDirectory(at: backup.deletingLastPathComponent(), withIntermediateDirectories: true)
                 try FileManager.default.copyItem(at: directory.appendingPathComponent(file), to: backup)
             }
             try await codeSigner.sign(directory.appendingPathComponent(bundle))
+            try Task.checkCancellation()
+            try authorizeSigning(bundle, signed: signed, at: directory, paths: paths)
             for file in files {
                 mutations.append(FileMutation(relativePath: file, originalRelativePath: Self.macOriginals + "/" + file, stagedSHA256: try digest(directory.appendingPathComponent(file))))
             }
@@ -549,7 +541,7 @@ extension SteamInstaller {
     }
     fileprivate func validateMac(_ plan: InstallPlan, payload: SteamInstallPayload, at directory: URL, staging: InstallStaging,
                                  progress: @escaping @Sendable (InstallFileVerification) -> Void) async throws -> LaunchSpec {
-        try rejectEscapingLinks(in: directory)
+        let paths = try SteamPreparationPaths(root: directory)
         let apis = Set(try apiPaths(payload)), changed = Set(staging.mutations.map(\.relativePath))
         guard apis.isSubset(of: changed), changed.isSubset(of: apis.union(try macSignedFiles(payload))) else {
             throw SteamPlanBuilder.failure("Verify", "Game preparation is incomplete.")
@@ -558,53 +550,54 @@ extension SteamInstaller {
             throw SteamPlanBuilder.failure("Verify", "Some game files are missing or damaged. Verify files to repair them.")
         }
         for mutation in staging.mutations {
+            try paths.check(directory.appendingPathComponent(mutation.relativePath))
             guard try digest(directory.appendingPathComponent(mutation.relativePath)) == mutation.stagedSHA256 else {
                 throw SteamPlanBuilder.failure("Verify", "A prepared game file changed unexpectedly.")
             }
         }
         let bundle = directory.appendingPathComponent(try SteamPlanBuilder.relativePath(plan.launchSpec.executableRelativePath))
+        try paths.check(bundle.appendingPathComponent("Contents/Info.plist"))
         guard let info = NSDictionary(contentsOf: bundle.appendingPathComponent("Contents/Info.plist")),
               let executable = info["CFBundleExecutable"] as? String,
+              !executable.isEmpty, !executable.contains("/"), !executable.contains("\\"), executable != ".", executable != "..",
               FileManager.default.isExecutableFile(atPath: bundle.appendingPathComponent("Contents/MacOS/" + executable).path) else {
             throw SteamPlanBuilder.failure("Verify", "The Mac app is missing or can’t be opened. Verify files to repair it.")
         }
-        for signed in try signedMacBundles(payload) { try await codeSigner.verify(directory.appendingPathComponent(signed)) }
+        try paths.check(bundle.appendingPathComponent("Contents/MacOS/" + executable))
+        for bundle in try signedMacBundles(payload) {
+            try authorizeSigning(bundle, signed: macSignedFiles(payload), at: directory, paths: paths)
+            try await codeSigner.verify(directory.appendingPathComponent(bundle))
+            try authorizeSigning(bundle, signed: macSignedFiles(payload), at: directory, paths: paths)
+        }
         var spec = plan.launchSpec
         if !apis.isEmpty { spec.environment["GseAppPath"] = LaunchSpec.gameDirectoryToken + Self.macSettingsRoot }
         return spec
     }
     /// Depot downloads are written owner-read/write only; apps need their executables runnable.
-    private func applyExecutableModes(_ payload: SteamInstallPayload, at directory: URL) throws {
+    private func applyExecutableModes(_ payload: SteamInstallPayload, at directory: URL, paths: SteamPreparationPaths) throws {
         for file in payload.manifests.flatMap(\.files) where !file.isDirectory && !file.isSymlink {
             let path = try SteamPlanBuilder.relativePath(file.path)
             guard file.isExecutable || path.contains("/Contents/MacOS/") else { continue }
             let url = directory.appendingPathComponent(path)
+            try paths.check(url)
             guard FileManager.default.fileExists(atPath: url.path) else { continue }
             let mode = try FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions] as? Int
             if mode != 0o755 { try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path) }
         }
     }
-    private func checkLinks(in directory: URL, payload: SteamInstallPayload) throws {
-        if payload.platform == .macOS { try rejectEscapingLinks(in: directory) } else { try rejectLinks(in: directory) }
-    }
-    /// Mac bundles rely on framework symlinks. Links are allowed only when they stay in the folder.
-    private func rejectEscapingLinks(in directory: URL) throws {
-        let started = diagnostics?.start()
-        defer { diagnostics?.finish(.directoryWalk, since: started) }
-        let root = directory.resolvingSymlinksInPath().path
-        guard try directory.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink != true,
-              let files = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: [.isSymbolicLinkKey]) else {
-            throw SteamPlanBuilder.failure("Prepare", "The game directory is unavailable.")
+    /// Non-deep codesign rewrites the Info.plist-selected executable and resource seal only.
+    /// Nested framework links are unrelated to these writes and keep their original signatures.
+    private func authorizeSigning(_ bundle: String, signed: [String], at directory: URL, paths: SteamPreparationPaths) throws {
+        let infoURL = directory.appendingPathComponent(bundle + "/Contents/Info.plist")
+        try paths.check(infoURL)
+        guard let info = NSDictionary(contentsOf: infoURL), let executable = info["CFBundleExecutable"] as? String,
+              !executable.isEmpty, !executable.contains("/"), !executable.contains("\\"), executable != ".", executable != "..",
+              signed.contains(bundle + "/Contents/MacOS/" + executable) else {
+            throw SteamPlanBuilder.failure("Prepare", "The signed app executable is not in the pinned manifest.")
         }
-        for case let file as URL in files {
-            try Task.checkCancellation()
-            guard try file.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink == true else { continue }
-            let target = try FileManager.default.destinationOfSymbolicLink(atPath: file.path)
-            let resolved = target.hasPrefix("/") ? URL(fileURLWithPath: target) : file.deletingLastPathComponent().appendingPathComponent(target)
-            let path = resolved.standardizedFileURL.resolvingSymlinksInPath().path
-            guard path == root || path.hasPrefix(root + "/") else {
-                throw SteamPlanBuilder.failure("Prepare", "This game links to files outside its folder.")
-            }
+        for file in signed where file.hasPrefix(bundle + "/") {
+            try paths.check(directory.appendingPathComponent(file))
+            try paths.check(directory.appendingPathComponent(Self.macOriginals + "/" + file))
         }
     }
 }

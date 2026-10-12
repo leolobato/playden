@@ -21,8 +21,10 @@ enum SteamUnpacking {
         guard before.requiresSteamStubRuntime else { throw failure("The executable does not require this preparation step.") }
         let bundledTool = try executable(diagnostics: diagnostics)
         let work = FileManager.default.temporaryDirectory.appendingPathComponent("Playden-unpack-" + UUID().uuidString)
+        try SteamPreparationPaths.checkStorageDirectory(work)
         try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-        defer { try? FileManager.default.removeItem(at: work) }
+        let workspace = try SteamPreparationPaths(root: work)
+        defer { if (try? workspace.checkRoot()) != nil { try? FileManager.default.removeItem(at: work) } }
         let toolRoot = work.appendingPathComponent("Steamless")
         try FileManager.default.copyItem(at: bundledTool.deletingLastPathComponent(), to: toolRoot)
         // Wine Mono resolves the CLI's API field types before Main installs its Plugins
@@ -36,6 +38,7 @@ enum SteamUnpacking {
         try FileManager.default.copyItem(at: original, to: input)
         try await tools.runTool(executable: tool, arguments: ["--quiet", "Z:" + input.path.replacingOccurrences(of: "/", with: "\\")], in: bottle)
         try Task.checkCancellation()
+        try workspace.check(output)
         let properties = try output.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
         guard properties.isRegularFile == true, properties.isSymbolicLink != true else { throw failure("Game preparation did not produce a valid executable.") }
         let after = try PEInspector.inspect(output, diagnostics: diagnostics)

@@ -155,6 +155,93 @@ final class SteamInstallerTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: sentinel.path))
     }
 
+    func testUnpackingRejectsReplacedTemporaryWorkspaceAfterAwait() async throws {
+        let original = pe(section: ".bind"), unpacked = pe()
+        let tools = ReplacingUnpackWorkspace(output: unpacked)
+        let content = ResolvedSteamContent(app: app(), manifests: [manifest([file("Game.exe", original)])], entitlements: .init(appIDs: [100], depotIDs: [101]))
+        let installer = SteamInstaller(game: game, backend: FixtureContentBackend(content: content, chunks: [Data(Insecure.SHA1.hash(data: original)): original]), runtimeTools: tools)
+        let plan = try await installer.resolve(), directory = try temporaryDirectory()
+        let bottle = GameBottle(gameID: game.id, name: "fixture", ownershipToken: UUID())
+        try await installer.download(plan, to: directory) { _ in }
+        do { _ = try await installer.postInstall(plan, at: directory, in: bottle); XCTFail("Replaced temporary workspace accepted") } catch {}
+        XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent("Game.exe")), original)
+        await tools.cleanup()
+    }
+
+    func testPreparationRejectsLinkedWriteLeavesAcrossRestart() async throws {
+        let bytes = pe()
+        let content = ResolvedSteamContent(app: app(), manifests: [manifest([file("Game.exe", bytes), file("steam_api64.dll", bytes)])], entitlements: .init(appIDs: [100], depotIDs: [101]))
+        let backend = FixtureContentBackend(content: content, chunks: [Data(Insecure.SHA1.hash(data: bytes)): bytes])
+        let installer = SteamInstaller(game: game, backend: backend), plan = try await installer.resolve()
+        let leaves = ["steam_api64.dll", "steam_api64.dll.orig", ".steam_dll_restored", "orig_dll_path.txt", ".steam_dll_replaced",
+                      "steam_interfaces.txt", "steam_appid.txt", "steam_settings/steam_interfaces.txt", "steam_settings/steam_appid.txt",
+                      "steam_settings/depots.txt", "steam_settings/configs.user.ini", "steam_settings/configs.app.ini",
+                      "steam_settings/configs.main.ini", "steam_settings/supported_languages.txt"]
+        for leaf in leaves {
+            let directory = try temporaryDirectory(), outside = try temporaryDirectory().appendingPathComponent("keep")
+            try bytes.write(to: outside)
+            try await installer.download(plan, to: directory) { _ in }
+            _ = try await installer.postInstall(plan, at: directory)
+            let target = directory.appendingPathComponent(leaf)
+            try? FileManager.default.removeItem(at: target)
+            try FileManager.default.createSymbolicLink(at: target, withDestinationURL: outside)
+            let restarted = SteamInstaller(game: game, backend: backend)
+            do { _ = try await restarted.postInstall(plan, at: directory); XCTFail("Linked write accepted: " + leaf) } catch {}
+            XCTAssertEqual(try Data(contentsOf: outside), bytes, leaf)
+        }
+        let directory = try temporaryDirectory()
+        try await installer.download(plan, to: directory) { _ in }
+        let foreign = GameBottle(gameID: .init(source: "steam", value: "other"), name: "foreign", ownershipToken: UUID())
+        do { _ = try await installer.postInstall(plan, at: directory, in: foreign); XCTFail("Foreign bottle accepted") } catch {}
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent("steam_api64.dll.orig").path))
+    }
+
+    func testPreparationUsesOnlyManifestFilesAndIgnoresUnrelatedLinks() async throws {
+        let bytes = pe()
+        let content = ResolvedSteamContent(app: app(), manifests: [manifest([file("Game.exe", bytes), file("steam_api64.dll", bytes)])], entitlements: .init(appIDs: [100], depotIDs: [101]))
+        let installer = SteamInstaller(game: game, backend: FixtureContentBackend(content: content, chunks: [Data(Insecure.SHA1.hash(data: bytes)): bytes]))
+        let plan = try await installer.resolve(), directory = try temporaryDirectory()
+        try await installer.download(plan, to: directory) { _ in }
+        let unrelated = directory.appendingPathComponent("user-assets")
+        try FileManager.default.createDirectory(at: unrelated, withIntermediateDirectories: true)
+        try Data("not a DLL".utf8).write(to: unrelated.appendingPathComponent("steam_api64.dll"))
+        try FileManager.default.createSymbolicLink(atPath: unrelated.appendingPathComponent("link").path, withDestinationPath: "missing")
+        let staging = try await installer.postInstall(plan, at: directory)
+        XCTAssertEqual(staging.mutations.map(\.relativePath), ["steam_api64.dll"])
+        _ = try await installer.validate(plan, at: directory, staging: staging)
+        XCTAssertEqual(try Data(contentsOf: unrelated.appendingPathComponent("steam_api64.dll")), Data("not a DLL".utf8))
+    }
+
+    func testRuntimeOptionsRejectLinkedAncestorAboveAPIParent() async throws {
+        let bytes = pe()
+        let content = ResolvedSteamContent(app: app(), manifests: [manifest([file("Game.exe", bytes), file("engine/bin/steam_api64.dll", bytes)])], entitlements: .init(appIDs: [100], depotIDs: [101]))
+        let installer = SteamInstaller(game: game, backend: FixtureContentBackend(content: content, chunks: [Data(Insecure.SHA1.hash(data: bytes)): bytes]))
+        let plan = try await installer.resolve(), directory = try temporaryDirectory(), outside = try temporaryDirectory()
+        try await installer.download(plan, to: directory) { _ in }
+        _ = try await installer.postInstall(plan, at: directory)
+        let engine = directory.appendingPathComponent("engine"), moved = outside.appendingPathComponent("engine")
+        try FileManager.default.moveItem(at: engine, to: moved)
+        try FileManager.default.createSymbolicLink(at: engine, withDestinationURL: moved)
+        do { try await installer.applyRuntimeOptions(["steam.overlay": "1"], plan: plan, at: directory); XCTFail("Linked ancestor accepted") } catch {}
+        XCTAssertFalse(FileManager.default.fileExists(atPath: moved.appendingPathComponent("bin/steam_settings/configs.overlay.ini").path))
+    }
+
+    func testUnpackingRejectsReplacedInstallationAfterAwait() async throws {
+        let original = pe(section: ".bind"), unpacked = pe(), directory = try temporaryDirectory()
+        let moved = directory.appendingPathExtension("moved")
+        addTeardownBlock { try? FileManager.default.removeItem(at: moved) }
+        let tools = FixtureUnpackingTools(output: unpacked, duringRun: {
+            try FileManager.default.moveItem(at: directory, to: moved)
+            try FileManager.default.copyItem(at: moved, to: directory)
+        })
+        let content = ResolvedSteamContent(app: app(), manifests: [manifest([file("Game.exe", original)])], entitlements: .init(appIDs: [100], depotIDs: [101]))
+        let installer = SteamInstaller(game: game, backend: FixtureContentBackend(content: content, chunks: [Data(Insecure.SHA1.hash(data: original)): original]), runtimeTools: tools)
+        let plan = try await installer.resolve(), bottle = GameBottle(gameID: game.id, name: "fixture", ownershipToken: UUID())
+        try await installer.download(plan, to: directory) { _ in }
+        do { _ = try await installer.postInstall(plan, at: directory, in: bottle); XCTFail("A different directory accepted after unpacking") } catch {}
+        XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent("Game.exe")), original)
+    }
+
     func testDiagnosticsIncludePreparationScansHashesAndFinalValidation() async throws {
         let bytes = pe()
         let content = ResolvedSteamContent(app: app(), manifests: [manifest([file("Game.exe", bytes), file("steam_api64.dll", bytes)])],
@@ -489,6 +576,19 @@ final class SteamInstallerTests: XCTestCase {
         try await installer.download(plan, to: root) { _ in }
         return (installer, plan, root, .init(gameID: game.id, name: "playden-steam-8870", ownershipToken: UUID()))
     }
+    func testPrerequisitesIgnoreUnrelatedLinksAndRecheckAfterRuntimeAwait() async throws {
+        let tools = RecipeTools(), (installer, plan, root, bottle) = try await prerequisiteFixture(tools: tools)
+        try FileManager.default.createSymbolicLink(atPath: root.appendingPathComponent("unrelated").path, withDestinationPath: "missing")
+        try await installer.preparePrerequisites(plan, at: root, in: bottle)
+        let replacement = root.appendingPathExtension("previous")
+        addTeardownBlock { try? FileManager.default.removeItem(at: replacement) }
+        await tools.setDuringReady {
+            try FileManager.default.moveItem(at: root, to: replacement)
+            try FileManager.default.copyItem(at: replacement, to: root)
+        }
+        do { try await installer.preparePrerequisites(plan, at: root, in: bottle); XCTFail("Replaced directory accepted after readiness await") } catch {}
+    }
+
     func testPinnedRecipeRetriesFromFailedPrerequisiteWithoutTouchingGameFiles() async throws {
         let tools = RecipeTools(), (installer, plan, root, bottle) = try await prerequisiteFixture(tools: tools)
         XCTAssertEqual(plan.recipeVersion, 2)
@@ -725,9 +825,11 @@ private actor RecipeTools: RuntimeToolRunning {
     var calls: [String] = []
     var completed: [String: Data] = [:]
     var fail: String?
+    var duringReady: (@Sendable () throws -> Void)?
+    func setDuringReady(_ action: @escaping @Sendable () throws -> Void) { duringReady = action }
     func failOnce(_ id: String) { fail = id }
     func runTool(executable: URL, arguments: [String], in bottle: GameBottle) async throws { XCTFail("Prerequisite context was lost") }
-    func prerequisiteReady(_ prerequisite: RuntimePrerequisite, in bottle: GameBottle) async throws -> Bool { completed[prerequisite.id] == prerequisite.fingerprint }
+    func prerequisiteReady(_ prerequisite: RuntimePrerequisite, in bottle: GameBottle) async throws -> Bool { try duringReady?(); return completed[prerequisite.id] == prerequisite.fingerprint }
     func preparePrerequisite(_ prerequisite: RuntimePrerequisite, executable: URL, in bottle: GameBottle) async throws {
         calls.append(prerequisite.id)
         XCTAssertTrue(executable.path.contains("Playden-prerequisites-"))
@@ -738,9 +840,11 @@ private actor RecipeTools: RuntimeToolRunning {
 }
 private actor FixtureUnpackingTools: RuntimeToolRunning {
     var output: Data
-    init(output: Data) { self.output = output }
+    let duringRun: @Sendable () throws -> Void
+    init(output: Data, duringRun: @escaping @Sendable () throws -> Void = {}) { self.output = output; self.duringRun = duringRun }
     func setOutput(_ value: Data) { output = value }
     func runTool(executable: URL, arguments: [String], in bottle: GameBottle) async throws {
+        try duringRun()
         XCTAssertEqual(executable.lastPathComponent, "Steamless.CLI.exe")
         let input = String(arguments.last!.dropFirst(2)).replacingOccurrences(of: "\\", with: "/")
         try output.write(to: URL(fileURLWithPath: input + ".unpacked.exe"))
@@ -786,4 +890,22 @@ private final class PreparationSamples: @unchecked Sendable {
     private var storage: [InstallPreparationProgress] = []
     func append(_ value: InstallPreparationProgress) { lock.withLock { storage.append(value) } }
     var values: [InstallPreparationProgress] { lock.withLock { storage } }
+}
+
+private actor ReplacingUnpackWorkspace: RuntimeToolRunning {
+    let output: Data
+    var work: URL?
+    var moved: URL?
+    init(output: Data) { self.output = output }
+    func runTool(executable: URL, arguments: [String], in bottle: GameBottle) async throws {
+        let input = URL(fileURLWithPath: String(arguments.last!.dropFirst(2)).replacingOccurrences(of: "\\", with: "/"))
+        let root = input.deletingLastPathComponent(), old = root.appendingPathExtension("moved")
+        work = root; moved = old
+        try FileManager.default.moveItem(at: root, to: old)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try output.write(to: URL(fileURLWithPath: input.path + ".unpacked.exe"))
+    }
+    func cleanup() {
+        for url in [work, moved].compactMap({ $0 }) { try? FileManager.default.removeItem(at: url) }
+    }
 }

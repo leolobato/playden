@@ -30,13 +30,15 @@ extension SteamPreparer {
     /// `settingsRoot/steam_settings`, which the game must reach through `GseAppPath`, so writing
     /// settings never changes a signed app bundle. Originals move to `originals`, also outside
     /// the bundle. Emulator saves go to `savePath`, outside the game folder, so uninstalling
-    /// never removes them.
+    /// never removes them. A manifest-provided `apiFiles` list avoids directory discovery; nil
+    /// preserves standalone discovery through app bundles.
     public func prepareMac(appID: UInt32, gameDirectory: URL, originals: URL, settingsRoot: URL, account: PrepareAccount,
-                           metadata: PrepareMetadata, asset: MacGBEAsset, savePath: URL, offline: Bool = true) throws -> [PreparedMacLibrary] {
+                           metadata: PrepareMetadata, asset: MacGBEAsset, savePath: URL, offline: Bool = true, apiFiles: [URL]? = nil) throws -> [PreparedMacLibrary] {
         let started = diagnostics?.start()
         defer { diagnostics?.finish(.emulatorPreparation, since: started) }
         let fm = FileManager.default
-        let libraries = try files(in: gameDirectory, includingPackages: true) { $0 == "libsteam_api.dylib" }
+        let paths = try SteamPreparationPaths(root: gameDirectory)
+        let libraries = try apiFiles ?? files(in: gameDirectory, includingPackages: true) { $0 == "libsteam_api.dylib" }
             .filter { !$0.path.hasPrefix(originals.standardizedFileURL.path + "/") }
         let root = gameDirectory.standardizedFileURL.path + "/"
         let bundled = try MacGBEAsset.digest(asset.library, diagnostics: diagnostics)
@@ -46,6 +48,7 @@ extension SteamPreparer {
             guard path.hasPrefix(root) else { throw SteamError.prepare("\(library.path) leaves the game folder") }
             let relative = String(path.dropFirst(root.count))
             let original = originals.appendingPathComponent(relative)
+            try paths.check(library); try paths.check(original)
             let hasOriginal = fm.fileExists(atPath: original.path)
             if try !hasOriginal && MacGBEAsset.digest(library, diagnostics: diagnostics) == bundled {
                 throw SteamError.prepare("\(relative) is already gbe_fork but its original is missing")
@@ -63,18 +66,20 @@ extension SteamPreparer {
         guard let first = prepared.first else { return [] }
         // gbe_fork resolves steam_settings next to the directory GseAppPath names.
         let settingsLibrary = settingsRoot.appendingPathComponent("libsteam_api.dylib")
+        try paths.check(settingsRoot, directory: true)
+        try SteamPreparationPaths.checkStorageDirectory(savePath)
         try fm.createDirectory(at: settingsRoot, withIntermediateDirectories: true)
         try fm.createDirectory(at: savePath, withIntermediateDirectories: true)
-        _ = try prepareInterfaces(from: first.original, beside: settingsLibrary)
+        _ = try prepareInterfaces(from: first.original, beside: settingsLibrary, paths: paths)
         try writeSettings(appID: appID, beside: settingsLibrary, gameDirectory: gameDirectory, account: account,
-                          metadata: metadata, offline: offline, localSavePath: savePath.path)
+                          metadata: metadata, offline: offline, localSavePath: savePath.path, paths: paths)
         return prepared
     }
 
     static func isMachO(_ url: URL, diagnostics: SteamPerformanceDiagnostics? = nil) -> Bool {
         guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
         defer { try? handle.close() }
-        guard let magic = try? diagnostics.readContent { try handle.read(upToCount: 4) ?? Data() }, magic.count == 4 else { return false }
+        guard let magic = try? diagnostics.readContent({ try handle.read(upToCount: 4) ?? Data() }), magic.count == 4 else { return false }
         // Thin 32/64-bit Mach-O in either byte order, and universal (fat) files.
         let known: Set<[UInt8]> = [[0xCF, 0xFA, 0xED, 0xFE], [0xFE, 0xED, 0xFA, 0xCF], [0xCE, 0xFA, 0xED, 0xFE],
                                    [0xFE, 0xED, 0xFA, 0xCE], [0xCA, 0xFE, 0xBA, 0xBE], [0xBE, 0xBA, 0xFE, 0xCA]]
