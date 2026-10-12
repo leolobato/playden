@@ -217,9 +217,9 @@ final class CDNTransportTests: XCTestCase {
         XCTAssertEqual(server.snapshot.requests, 4)
         XCTAssertEqual(diagnostics.snapshot()[.sessionCreation].count, 1)
         XCTAssertEqual(diagnostics.snapshot()[.networkTransfer].bytes, 576)
-        // Four fresh fetch validations plus four assembled-file fallback checks (step 4 removes those).
-        XCTAssertEqual(diagnostics.snapshot()[.adler32].count, 8)
-        XCTAssertEqual(diagnostics.snapshot()[.adler32].bytes, 56)
+        // Four fresh fetch validations; finish checks coverage and size without rereading.
+        XCTAssertEqual(diagnostics.snapshot()[.adler32].count, 4)
+        XCTAssertEqual(diagnostics.snapshot()[.adler32].bytes, 28)
         let encoder = JSONEncoder(); encoder.outputFormatting = .sortedKeys
         let metadataBytes = try manifests.reduce(UInt64(0)) { total, manifest in
             total + UInt64(Data(manifest.files[0].path.utf8).count + (try encoder.encode(manifest.files[0])).count)

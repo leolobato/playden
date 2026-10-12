@@ -4,12 +4,22 @@ import Darwin
 /// Every manifest operation is relative to an open destination directory. Parent walks refuse
 /// symlinks, and file replacement uses renameat, so a manifest cannot redirect writes outside it.
 final class DownloadWorkspace: @unchecked Sendable {
+    // Internal fault-injection seam for persistence ordering tests; production uses a no-op.
+    enum PersistenceBoundary: Equatable {
+        case write(String)
+        case fileSync
+        case rename(String, String)
+        case directorySync
+    }
     let diagnostics: SteamPerformanceDiagnostics?
+    private let beforePersistence: @Sendable (PersistenceBoundary) throws -> Void
     private let rootHandle: FileHandle
     private var root: Int32 { rootHandle.fileDescriptor }
     private var lease: FileHandle?
-    init(destination: URL, lock: Bool = true, diagnostics: SteamPerformanceDiagnostics? = nil) throws {
+    init(destination: URL, lock: Bool = true, diagnostics: SteamPerformanceDiagnostics? = nil,
+         beforePersistence: @escaping @Sendable (PersistenceBoundary) throws -> Void = { _ in }) throws {
         self.diagnostics = diagnostics
+        self.beforePersistence = beforePersistence
         let files = FileManager.default
         try files.createDirectory(at: destination, withIntermediateDirectories: true)
         let fd = Darwin.open(destination.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
@@ -78,6 +88,7 @@ final class DownloadWorkspace: @unchecked Sendable {
         defer { Darwin.close(from) }
         let (to, destinationLeaf) = try parent(destination, create: true)
         defer { Darwin.close(to) }
+        try beforePersistence(.rename(source, destination))
         guard renameat(from, sourceLeaf, to, destinationLeaf) == 0 else { throw Self.systemError() }
         try syncDirectory(to)
         try syncDirectory(from)
@@ -86,8 +97,8 @@ final class DownloadWorkspace: @unchecked Sendable {
         let temporary = path + ".new-" + UUID().uuidString
         let handle = try openFile(temporary, flags: O_WRONLY | O_CREAT | O_EXCL, createParents: true)
         defer { try? handle.close(); try? remove(temporary) }
-        try diagnostics.measure(.fileWrite, bytes: UInt64(data.count)) { try handle.write(contentsOf: data) }
-        try Self.sync(handle, diagnostics: diagnostics)
+        try write(data, to: handle, path: path)
+        try syncFile(handle)
         try replace(temporary, withDestination: path)
     }
     func read(_ path: String, limit: Int = 16 * 1024 * 1024) throws -> Data {
@@ -114,6 +125,14 @@ final class DownloadWorkspace: @unchecked Sendable {
         guard count >= 0, count < buffer.count else { throw Self.systemError() }
         return String(decoding: buffer.prefix(count), as: UTF8.self)
     }
+    func write(_ data: Data, to handle: FileHandle, path: String) throws {
+        try beforePersistence(.write(path))
+        try diagnostics.measure(.fileWrite, bytes: UInt64(data.count)) { try handle.write(contentsOf: data) }
+    }
+    func syncFile(_ handle: FileHandle) throws {
+        try beforePersistence(.fileSync)
+        try Self.sync(handle, diagnostics: diagnostics)
+    }
     static func sync(_ handle: FileHandle, diagnostics: SteamPerformanceDiagnostics? = nil) throws {
         // Download bytes are revalidated against their chunk hashes on resume. fsync
         // orders data before its journal without forcing a drive-wide cache flush
@@ -123,6 +142,7 @@ final class DownloadWorkspace: @unchecked Sendable {
     private func syncDirectory(_ fd: Int32) throws {
         let started = diagnostics?.start()
         defer { diagnostics?.finish(.directorySync, since: started) }
+        try beforePersistence(.directorySync)
         if fsync(fd) == -1 && errno != EINVAL && errno != ENOTSUP { throw Self.systemError() }
     }
     private static func systemError() -> POSIXError { POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }

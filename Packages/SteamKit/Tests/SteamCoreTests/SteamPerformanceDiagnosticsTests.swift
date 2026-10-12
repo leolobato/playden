@@ -39,17 +39,17 @@ final class SteamPerformanceDiagnosticsTests: XCTestCase {
             XCTAssertTrue(try download.invalidFiles(in: manifest).isEmpty)
         }
         let result = diagnostics.snapshot()
-        // Fetch validates once; assembled-file verification and explicit disk verification remain.
+        // Fetch validates once; only explicit disk verification rereads content.
         XCTAssertEqual(result[.adler32].bytes, UInt64(bytes.count * 2))
-        XCTAssertEqual(result[.sha1].bytes, UInt64(bytes.count * 4))
-        XCTAssertEqual(result[.contentRead].bytes, UInt64(bytes.count * 4))
+        XCTAssertEqual(result[.sha1].bytes, UInt64(bytes.count * 2))
+        XCTAssertEqual(result[.contentRead].bytes, UInt64(bytes.count * 2))
         XCTAssertEqual(result[.checkpoint].count, 2)
         XCTAssertEqual(result[.fileSync].count, 6)
         XCTAssertEqual(result[.directorySync].count, 8)
         XCTAssertEqual(result[.sha256].count, 4, "Two path hashes and two pinned manifest fingerprints; no chunk hashes")
         XCTAssertGreaterThan(result[.directoryWalk].count, 0)
         XCTAssertGreaterThan(result[.progressCallback].count, 0)
-        XCTAssertEqual(result[.fileValidation].count, 6)
+        XCTAssertEqual(result[.fileValidation].count, 4)
         XCTAssertEqual(result[.networkTransfer].count, 0, "Injected plaintext fixture fetch is not a real CDN transfer")
         XCTAssertEqual(result[.sessionCreation].count, 0)
     }
@@ -66,9 +66,9 @@ final class SteamPerformanceDiagnosticsTests: XCTestCase {
             return bytes
         }
         XCTAssertTrue(try download.invalidFiles(in: manifest).isEmpty)
-        XCTAssertEqual(diagnostics.snapshot()[.sha1].bytes, UInt64(bytes.count * 3))
+        XCTAssertEqual(diagnostics.snapshot()[.sha1].bytes, UInt64(bytes.count * 2))
         XCTAssertEqual(diagnostics.snapshot()[.adler32].bytes, 0)
-        XCTAssertEqual(diagnostics.snapshot()[.contentRead].bytes, UInt64(bytes.count * 2))
+        XCTAssertEqual(diagnostics.snapshot()[.contentRead].bytes, UInt64(bytes.count))
     }
 
     func testResumeMeasuresRetainedChunkRereadAndValidation() async throws {
@@ -100,8 +100,8 @@ final class SteamPerformanceDiagnosticsTests: XCTestCase {
             return pieces[1]
         }
         let result = diagnostics.snapshot()
-        XCTAssertEqual(result[.contentRead].bytes, UInt64(pieces[0].count) + offset)
-        XCTAssertEqual(result[.sha1].bytes, offset)
+        XCTAssertEqual(result[.contentRead].bytes, UInt64(pieces[0].count))
+        XCTAssertEqual(result[.sha1].bytes, 0)
         XCTAssertEqual(result[.adler32].bytes, UInt64(pieces[0].count + pieces[1].count))
         XCTAssertEqual(result[.checkpoint].count, 1)
         XCTAssertEqual(result[.sha256].count, 2, "Path and manifest only; retained and fresh content receive no SHA-256")

@@ -1,6 +1,7 @@
 import XCTest
 import CryptoKit
 import zlib
+import Darwin
 @testable import SteamCore
 
 final class DownloadResumeTests: XCTestCase {
@@ -76,7 +77,7 @@ final class DownloadResumeTests: XCTestCase {
         do { try await download(root).download(manifest: fixture(), fetchChunk: Feed(pieces, failAt: 5).fetch) }
         catch is CancellationError {}
         let resumed = Feed(pieces)
-        do { try await download(root).download(manifest: fixture(badHash: true), fetchChunk: resumed.fetch); XCTFail() } catch {}
+        try await download(root).download(manifest: fixture(badHash: true), fetchChunk: resumed.fetch)
         let requested = await resumed.requested; XCTAssertEqual(requested, [0, 5, 11])
     }
     func testInvalidChunkRangesRejectedBeforeFetching() async throws {
@@ -178,11 +179,8 @@ final class DownloadResumeTests: XCTestCase {
         var value = download(root); value.onProgress = samples.append
         try await value.download(manifest: manifest, fetchChunk: Feed(pieces).fetch)
         let checks = samples.values.filter { $0.verification != nil }
-        XCTAssertEqual(checks.first?.verification?.bytesChecked, 0)
-        XCTAssertEqual(checks.last?.verification?.bytesChecked, manifest.totalSize)
-        XCTAssertTrue(checks.allSatisfy { $0.verification?.bytesTotal == manifest.totalSize && $0.file == "Game/data.bin" })
-        XCTAssertTrue(checks.allSatisfy { $0.bytesDone == manifest.totalSize && $0.bytesWritten == manifest.totalSize })
-        XCTAssertNil(samples.values.last?.verification, "Resume normal progress after checking the file")
+        XCTAssertTrue(checks.isEmpty, "Fresh completion must not reread file content")
+        XCTAssertNil(samples.values.last?.verification)
         // A complete file reused on a later invocation also reports the disk read, without a transfer.
         let reused = ProgressSamples(); value.onProgress = reused.append
         try await value.download(manifest: manifest, fetchChunk: Feed(pieces).fetch)
@@ -238,14 +236,133 @@ final class DownloadResumeTests: XCTestCase {
         let requested = await resumed.requested
         XCTAssertEqual(requested, [0, 5, 11])
     }
-    func testWholeFileHashFailureDoesNotTrapRetry() async throws {
+    func testFreshCompletionTrustsChunksAndExplicitVerificationRejectsBadFileDigest() async throws {
         let root = try root(), manifest = fixture(badHash: true)
-        do { try await download(root).download(manifest: manifest, fetchChunk: Feed(pieces).fetch); XCTFail() } catch {}
-        let retry = Feed(pieces)
-        do { try await download(root).download(manifest: manifest, fetchChunk: retry.fetch); XCTFail() } catch {}
-        let requested = await retry.requested
-        XCTAssertEqual(requested, [0, 5, 11])
+        let diagnostics = SteamPerformanceDiagnostics()
+        let value = ResumableDepotDownload(destination: root, diagnostics: diagnostics)
+        try await value.download(manifest: manifest, fetchChunk: Feed(pieces).fetch)
+        XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("Game/data.bin")), Data("firstsecondthird".utf8))
+        XCTAssertEqual(diagnostics.snapshot()[.contentRead].bytes, 0)
+        XCTAssertEqual(diagnostics.snapshot()[.sha1].bytes, 0)
+        XCTAssertEqual(try value.invalidFiles(in: manifest), ["Game/data.bin"])
+        XCTAssertEqual(diagnostics.snapshot()[.contentRead].bytes, 16)
+        XCTAssertEqual(diagnostics.snapshot()[.sha1].bytes, 16)
+    }
+    private func writer(_ workspace: DownloadWorkspace) throws -> ChunkCheckpointWriter {
+        try ChunkCheckpointWriter(workspace: workspace, file: fixture().files[0], base: ".gn-download/test/file")
+    }
+    private func commitAll(_ writer: ChunkCheckpointWriter) async throws {
+        for (index, data) in pieces.enumerated() { try await writer.commit(data, index: index) }
+    }
+    private func completed(_ workspace: DownloadWorkspace) throws -> [Int] {
+        let saved = try XCTUnwrap(JSONSerialization.jsonObject(with: workspace.read(".gn-download/test/file.json")) as? [String: Any])
+        return try XCTUnwrap(saved["completed"] as? [Int])
+    }
+    func testFreshExecutablePublishesWithExecutablePermissions() async throws {
+        let root = try root(), source = fixture(), file = source.files[0]
+        let manifest = DepotManifest(depotID: 7, gid: 9, files: [.init(path: file.path, size: file.size,
+            flags: 32, chunks: file.chunks, contentSHA1: file.contentSHA1)], totalSize: 16)
+        try await download(root).download(manifest: manifest, fetchChunk: Feed(pieces).fetch)
+        let mode = try FileManager.default.attributesOfItem(atPath: root.appendingPathComponent(file.path).path)[.posixPermissions] as? NSNumber
+        XCTAssertEqual(mode?.intValue, 0o755)
+    }
+    func testCancelledFinishDoesNotPublishAndCheckpointRemainsUsable() async throws {
+        let root = try root(), workspace = try DownloadWorkspace(destination: root), value = try writer(workspace)
+        try await commitAll(value)
+        let task = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            try await value.finish(to: "Game/data.bin")
+        }
+        do { try await task.value; XCTFail("Already cancelled finish must stop") } catch is CancellationError {}
+        try await value.checkpoint()
+        XCTAssertEqual(try completed(workspace), [0, 1, 2])
         XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("Game/data.bin").path))
+    }
+    func testFinishRejectsMissingChunkEvenWhenPartialHasExpectedSize() async throws {
+        let root = try root(), workspace = try DownloadWorkspace(destination: root), value = try writer(workspace)
+        try await value.commit(pieces[2], index: 2)
+        do { try await value.finish(to: "Game/data.bin"); XCTFail("Missing chunks must not publish") } catch {}
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("Game/data.bin").path))
+        XCTAssertEqual(try completed(workspace), [])
+    }
+    func testFinishRejectsTruncatedFileWithEveryChunkCompleted() async throws {
+        let root = try root(), workspace = try DownloadWorkspace(destination: root), value = try writer(workspace)
+        try await commitAll(value)
+        let handle = try workspace.openFile(".gn-download/test/file.partial", flags: O_WRONLY)
+        try handle.truncate(atOffset: 15); try handle.close()
+        do { try await value.finish(to: "Game/data.bin"); XCTFail("Short files must not publish") } catch {}
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("Game/data.bin").path))
+        XCTAssertEqual(try completed(workspace), [])
+    }
+    func testENOSPCWriteDoesNotMarkFailedChunkCompleted() async throws {
+        let root = try root()
+        let workspace = try DownloadWorkspace(destination: root, beforePersistence: { boundary in
+            if boundary == .write(".gn-download/test/file.partial"),
+               (try? root.appendingPathComponent(".gn-download/test/file.partial").resourceValues(forKeys: [.fileSizeKey]).fileSize) == 5 {
+                throw POSIXError(.ENOSPC)
+            }
+        })
+        let value = try writer(workspace)
+        try await value.commit(pieces[0], index: 0)
+        do { try await value.commit(pieces[1], index: 1); XCTFail("Expected ENOSPC") }
+        catch let error as POSIXError { XCTAssertEqual(error.code, .ENOSPC) }
+        try await value.checkpoint()
+        XCTAssertEqual(try completed(workspace), [0], "Failed chunk must not enter the durable journal")
+        let retained = try await value.restore { _, _, _ in }
+        XCTAssertEqual(retained.indices, [0])
+        XCTAssertEqual(retained.bytes, 5)
+        do { try await value.finish(to: "Game/data.bin"); XCTFail("Failed write must not publish") } catch {}
+        XCTAssertEqual(try completed(workspace), [])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("Game/data.bin").path))
+    }
+    func testFailedRenamePreservesOldTargetAndCheckpointForRetry() async throws {
+        let root = try root(), target = root.appendingPathComponent("Game/data.bin")
+        try FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("old target".utf8).write(to: target)
+        let workspace = try DownloadWorkspace(destination: root, beforePersistence: { boundary in
+            if boundary == .rename(".gn-download/test/file.partial", "Game/data.bin") { throw POSIXError(.EIO) }
+        })
+        let value = try writer(workspace)
+        try await commitAll(value)
+        do { try await value.finish(to: "Game/data.bin"); XCTFail("Expected failed publication") }
+        catch let error as POSIXError { XCTAssertEqual(error.code, .EIO) }
+        XCTAssertEqual(try Data(contentsOf: target), Data("old target".utf8))
+        XCTAssertEqual(try completed(workspace), [0, 1, 2])
+        let retryWorkspace = try DownloadWorkspace(destination: root, lock: false)
+        let retry = try writer(retryWorkspace)
+        let retained = try await retry.restore { _, _, _ in }
+        XCTAssertEqual(retained.bytes, 16)
+        try await retry.finish(to: "Game/data.bin")
+        XCTAssertEqual(try Data(contentsOf: target), Data("firstsecondthird".utf8))
+        XCTAssertThrowsError(try retryWorkspace.read(".gn-download/test/file.json"))
+    }
+    func testCancellationDuringFinalSyncKeepsCheckpointAndOldTarget() async throws {
+        let root = try root(), target = root.appendingPathComponent("Game/data.bin")
+        try FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("old target".utf8).write(to: target)
+        let workspace = try DownloadWorkspace(destination: root, beforePersistence: { boundary in
+            if boundary == .fileSync { withUnsafeCurrentTask { $0?.cancel() } }
+        })
+        let value = try writer(workspace)
+        try await commitAll(value)
+        try await Task { try await value.checkpoint() }.value
+        let task = Task { try await value.finish(to: "Game/data.bin") }
+        do { try await task.value; XCTFail("Cancellation before publication must stop finish") } catch is CancellationError {}
+        XCTAssertEqual(try Data(contentsOf: target), Data("old target".utf8))
+        XCTAssertEqual(try completed(workspace), [0, 1, 2])
+    }
+    func testCancellationAfterRenameCompletesPublicationAndJournalCleanup() async throws {
+        let root = try root()
+        let workspace = try DownloadWorkspace(destination: root, beforePersistence: { boundary in
+            if boundary == .directorySync { withUnsafeCurrentTask { $0?.cancel() } }
+        })
+        let value = try writer(workspace)
+        try await commitAll(value)
+        // Flush first so cancellation is injected in publication's directory sync.
+        try await Task { try await value.checkpoint() }.value
+        try await Task { try await value.finish(to: "Game/data.bin") }.value
+        XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("Game/data.bin")), Data("firstsecondthird".utf8))
+        XCTAssertThrowsError(try workspace.read(".gn-download/test/file.json"))
     }
     func testInvalidManifestPathsRejectedBeforeAnyFetch() async throws {
         let root = try root(), feed = Feed(pieces)

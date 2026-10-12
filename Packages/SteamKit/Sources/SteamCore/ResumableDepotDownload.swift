@@ -76,11 +76,7 @@ public struct ResumableDepotDownload: Sendable {
                 }
                 try Task.checkCancellation()
                 let assembled = done + completed, fresh = written
-                try await writer.finish(to: entry.path) { checked in
-                    report(DownloadProgress(depotID: manifest.depotID, file: entry.path, bytesDone: assembled,
-                        bytesTotal: total, bytesWritten: fresh,
-                        verification: .init(bytesChecked: checked, bytesTotal: entry.file.size)))
-                }
+                try await writer.finish(to: entry.path)
                 report(DownloadProgress(depotID: manifest.depotID, file: entry.path,
                     bytesDone: assembled, bytesTotal: total, bytesWritten: fresh))
             } catch {
@@ -250,13 +246,13 @@ private struct ChunkJournal: Codable {
         try values.encode(completed.sorted(), forKey: .completed)
     }
 }
-private actor ChunkCheckpointWriter {
+actor ChunkCheckpointWriter {
     let workspace: DownloadWorkspace
     let file: DepotManifest.File
     let partial: String
     let journalPath: String
     let handle: FileHandle
-    var journal: ChunkJournal
+    private var journal: ChunkJournal
     private var uncheckpointedBytes: UInt64 = 0
     private var lastCheckpoint = ContinuousClock.now
     init(workspace: DownloadWorkspace, file: DepotManifest.File, base: String) throws {
@@ -312,7 +308,7 @@ private actor ChunkCheckpointWriter {
             throw SteamError.download("chunk range outside file")
         }
         try handle.seek(toOffset: chunk.offset)
-        try workspace.diagnostics.measure(.fileWrite, bytes: UInt64(data.count)) { try handle.write(contentsOf: data) }
+        try workspace.write(data, to: handle, path: partial)
         journal.completed.insert(index)
         uncheckpointedBytes += UInt64(data.count)
         if uncheckpointedBytes >= 16 * 1024 * 1024 || lastCheckpoint.duration(to: .now) >= .seconds(1) {
@@ -323,21 +319,26 @@ private actor ChunkCheckpointWriter {
         guard uncheckpointedBytes > 0 else { return }
         let started = workspace.diagnostics?.start()
         defer { workspace.diagnostics?.finish(.checkpoint, since: started) }
-        try DownloadWorkspace.sync(handle, diagnostics: workspace.diagnostics)
+        try workspace.syncFile(handle)
         try workspace.writeAtomic(try JSONEncoder().encode(journal), path: journalPath)
         uncheckpointedBytes = 0; lastCheckpoint = .now
     }
-    func finish(to target: String, onVerification: @Sendable (UInt64) -> Void) throws {
+    func finish(to target: String) throws {
+        try Task.checkCancellation()
         try checkpoint()
-        guard journal.completed.count == file.chunks.count,
-              try ResumableDepotDownload.isValid(file, path: partial, workspace: workspace, onVerification: onVerification) else {
-            // A failed whole-file digest must not trap retries into reusing the same bad chunks.
+        // Fetch validated new bytes; restore validated retained bytes. Check coverage and
+        // length here without rereading content. Explicit repair still hashes whole files.
+        guard journal.completed == Set(file.chunks.indices),
+              try handle.seekToEnd() == file.size else {
             journal.completed = []
             try workspace.writeAtomic(try JSONEncoder().encode(journal), path: journalPath)
-            throw SteamError.download("assembled file failed verification: \(file.path)")
+            throw SteamError.download("assembled file has incomplete chunks or wrong size: \(file.path)")
         }
         if file.isExecutable { guard fchmod(handle.fileDescriptor, 0o755) == 0 else { throw POSIXError(.EIO) } }
-        try DownloadWorkspace.sync(handle, diagnostics: workspace.diagnostics)
+        try workspace.syncFile(handle)
+        try Task.checkCancellation()
+        // Publication is the commit point. Once rename begins, finish durability and
+        // journal cleanup even if cancellation arrives during a directory sync.
         try workspace.replace(partial, withDestination: target)
         try workspace.remove(journalPath)
     }
