@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		0084433F681E4BEE7BA36D3B /* ControllerLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = E128C9FB2658F5A04324C918 /* ControllerLayout.swift */; };
+		010A1AF33EB7BBC3EDDE15EC /* StorageCleanup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35FB9073B89E61A5AEE1681A /* StorageCleanup.swift */; };
 		02D50C3EA16BE7D854C91B6F /* GameActivationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD2AC6DC0F5407AE5CEE0BC3 /* GameActivationTests.swift */; };
 		0305905A1AAC26C8B0BEFFED /* DownloadTransferTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF7C9BEE76958CB42F6BE5D7 /* DownloadTransferTests.swift */; };
 		04FC154590632EAFA861E798 /* BarlowCondensed-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 61619F47BBBA3B5FFB6F1C71 /* BarlowCondensed-Bold.ttf */; };
@@ -37,6 +38,7 @@
 		38E6780FCD812E95B53C4BF9 /* BarlowCondensed-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = C3B99E24E757AB0EAA9AD82C /* BarlowCondensed-Medium.ttf */; };
 		3993F5C7C7D008A447D0A021 /* Artwork in Frameworks */ = {isa = PBXBuildFile; productRef = 3EF23D450B49F48D2E9EB33F /* Artwork */; };
 		3D85E6E821ED00792BD25D8C /* ResetInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CC5B1A3F59E922E2B6AFDDE /* ResetInteractionTests.swift */; };
+		3F137B35BEB0731344C7E72C /* StorageCleanupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E402E871E33844BB4E14D687 /* StorageCleanupTests.swift */; };
 		3F963FB2F6D4818A9263E6AF /* LauncherDisplayPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F56102BE8D863AEDCC31332 /* LauncherDisplayPresentationTests.swift */; };
 		45A14BF6ED853D533057C505 /* InstallInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEE961063B0260AD590FA052 /* InstallInteractionTests.swift */; };
 		48B1D6D02EC67BD0D691F3A3 /* LibraryEditingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7C09FF192C0F23FDCE9D0A5 /* LibraryEditingTests.swift */; };
@@ -169,6 +171,7 @@
 		313FD7312C5F0796666EBA68 /* InstallSnapshots.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallSnapshots.swift; sourceTree = "<group>"; };
 		32D95108207E25698A55DFEC /* LibraryEditing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryEditing.swift; sourceTree = "<group>"; };
 		35C18E26F0B322B511C7DF13 /* barlow-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "barlow-OFL.txt"; sourceTree = "<group>"; };
+		35FB9073B89E61A5AEE1681A /* StorageCleanup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageCleanup.swift; sourceTree = "<group>"; };
 		3CFCAEB37DE821F8D07D2E5E /* Barlow-SemiBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Barlow-SemiBold.ttf"; sourceTree = "<group>"; };
 		3D6130A8CDF52CA80FD82B3E /* InstallationDriveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallationDriveTests.swift; sourceTree = "<group>"; };
 		42BD3A5D84A9CB072E3078B1 /* SetupLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupLifecycleTests.swift; sourceTree = "<group>"; };
@@ -245,6 +248,7 @@
 		DFB5C8D29C9334B6EC203BC2 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		E0A098157649B997A832EBC5 /* AccountInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountInteractionTests.swift; sourceTree = "<group>"; };
 		E128C9FB2658F5A04324C918 /* ControllerLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControllerLayout.swift; sourceTree = "<group>"; };
+		E402E871E33844BB4E14D687 /* StorageCleanupTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageCleanupTests.swift; sourceTree = "<group>"; };
 		E7817305A0EE8FCC3F88CD6D /* SetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupView.swift; sourceTree = "<group>"; };
 		EC04162A9293F2D2402CF51A /* LibraryPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryPersistenceTests.swift; sourceTree = "<group>"; };
 		EC218DAB2EF1AF065C0DA57C /* barlowcondensed-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "barlowcondensed-OFL.txt"; sourceTree = "<group>"; };
@@ -317,6 +321,7 @@
 				DB3AAA8DAFBFE1E1F465DD6D /* SetupInteractionTests.swift */,
 				42BD3A5D84A9CB072E3078B1 /* SetupLifecycleTests.swift */,
 				A191D659437E18E29D33A4A8 /* StartupRecoveryInteractionTests.swift */,
+				E402E871E33844BB4E14D687 /* StorageCleanupTests.swift */,
 				CFC0116D9FF090149D461814 /* StorePageTests.swift */,
 				53232B8F8608E6B3799A5140 /* StoresInteractionTests.swift */,
 				2E79718CB4BDC9092602F17F /* UninstallInteractionTests.swift */,
@@ -441,6 +446,7 @@
 				46E359EB8A3ED68F9D9B7336 /* SessionViews.swift */,
 				1378F022883744BB700E37F5 /* SetupModel.swift */,
 				E7817305A0EE8FCC3F88CD6D /* SetupView.swift */,
+				35FB9073B89E61A5AEE1681A /* StorageCleanup.swift */,
 				08D1EBD9C06D503D05610BB1 /* StorePage.swift */,
 				4EAC88265073C6C8B2CA0AFA /* StoresModel.swift */,
 				CD9862F05AC94A932790AC65 /* SupportViews.swift */,
@@ -704,6 +710,7 @@
 				93EFBA518A88D540A12141AF /* SessionViews.swift in Sources */,
 				650E2B81E5ED730E43B42FFC /* SetupModel.swift in Sources */,
 				A4D10BC76B48DADFB4FD11E5 /* SetupView.swift in Sources */,
+				010A1AF33EB7BBC3EDDE15EC /* StorageCleanup.swift in Sources */,
 				FDC63CF5D3A99E9564D21626 /* StorePage.swift in Sources */,
 				C74D292CC9405BE2A6DFCB48 /* StoresModel.swift in Sources */,
 				37C53CC0C79441C898AE598C /* SupportViews.swift in Sources */,
@@ -751,6 +758,7 @@
 				BF834C955FE27D51A1E04931 /* SetupInteractionTests.swift in Sources */,
 				BF13F2404DEA6C10DC485C82 /* SetupLifecycleTests.swift in Sources */,
 				3774AAAB7E01731590AC14A0 /* StartupRecoveryInteractionTests.swift in Sources */,
+				3F137B35BEB0731344C7E72C /* StorageCleanupTests.swift in Sources */,
 				F1E404F548D44D23D13D920E /* StorePageTests.swift in Sources */,
 				76F94BD13E1B93DD72F62624 /* StoresInteractionTests.swift in Sources */,
 				54F4DEE69DAF5BDB60169222 /* UninstallInteractionTests.swift in Sources */,

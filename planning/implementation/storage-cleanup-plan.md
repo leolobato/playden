@@ -29,10 +29,10 @@ once it builds and its tests pass. Mark steps done here and commit this file wit
 
 ## Step 2 — Model
 
-- [ ] `App/StorageCleanup.swift`: `Panel.storage`, volume and game rows, sort, selection,
+- [x] `App/StorageCleanup.swift`: `Panel.storage`, volume and game rows, sort, selection,
   focus/input, batch delete and the follow-up queue of games that need a decision.
-- [ ] Settings row at Library index 2; update `activateSetting`, `move`, snapshots and tests.
-- [ ] `Tests/AppTests/StorageCleanupTests.swift`: sorting, eligibility, batch queues clean games and
+- [x] Settings row at Library index 2; update `activateSetting`, `move`, snapshots and tests.
+- [x] `Tests/AppTests/StorageCleanupTests.swift`: sorting, eligibility, batch queues clean games and
   hands unsynced ones to the uninstall dialog.
 
 ## Step 3 — View and snapshots

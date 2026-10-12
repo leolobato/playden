@@ -44,6 +44,7 @@ struct SettingsScreen: View {
     private var librarySettings: [(String, String, String)] {
         [("Refresh library", model.librarySyncError ?? (model.librarySyncing ? "Loading your library…" : "Refresh your games and artwork"), model.librarySyncing ? "Refreshing" : "Refresh"),
          ("Games volumes", model.gamesVolume.map { model.volumeLabel($0) + " · Default" } ?? "Choose where to install your games", "Manage ›"),
+         ("Storage", model.storageSettingSummary, "Manage ›"),
          ("Download while playing", "Downloads pause automatically when a game starts", model.downloadWhilePlaying ? "On" : "Off"),
          ("Prefer macOS versions", "Offer a game’s Mac version first when a store has one", model.preferMacVersions ? "On" : "Off"),
          ("Runtime", model.runtimeInfo.map { "CrossOver \($0.version ?? "not found") · Template \($0.templateVersion)" } ?? "Checking game setup", model.runtimeInfo?.templateReady == true && model.runtimeInfo?.failure == nil ? "Ready ›" : "Review ›")]

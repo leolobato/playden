@@ -110,7 +110,7 @@ extension SetupInteractionTests {
         var preferences = LibraryPreferences(); preferences.setupCompleted = true
         try catalog.savePreferences(preferences)
         let model = LibraryModel(catalog: catalog, preview: false, runtime: runtime)
-        model.selectTab(.settings); model.settingsSection = 1; model.settingsIndex = 4; model.settingsRailFocused = false
+        model.selectTab(.settings); model.settingsSection = 1; model.settingsIndex = 5; model.settingsRailFocused = false
         model.runtimeInfo = RuntimeInfo(version: nil, templateVersion: "1", templateReady: false)
         model.templateStage = .creating
         model.activateSetting()
@@ -132,7 +132,7 @@ extension SetupInteractionTests {
         model.perform(.move(.down)); model.perform(.move(.down)); model.perform(.confirm)
         XCTAssertNil(model.setupScreen)
         XCTAssertEqual(model.tab, .settings)
-        XCTAssertEqual(model.settingsIndex, 4)
+        XCTAssertEqual(model.settingsIndex, 5)
         XCTAssertTrue(try catalog.preferences().setupCompleted)
     }
 }

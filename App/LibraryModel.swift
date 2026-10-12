@@ -39,6 +39,8 @@ enum Panel: Equatable {
     case localFolderOptions(UUID)
     /// This Mac games in the library, to pick ones to remove.
     case localAdded
+    /// Installed games per volume, to pick ones to uninstall and free space.
+    case storage
 }
 
 struct HomeRow: Identifiable {
@@ -111,6 +113,8 @@ final class LibraryModel {
     var uninstallInstallation: InstallationRecord?
     var uninstallPhase: UninstallPhase = .confirm
     var uninstallError: String?
+    var storageCleanup = StorageCleanupState()
+    @ObservationIgnored var storageCleanupTask: Task<Void, Never>?
     @ObservationIgnored var sessionObserver: Task<Void, Never>?
     @ObservationIgnored var sessionStartup: Task<Void, Never>?
     @ObservationIgnored var sessionCommand: Task<Void, Never>?
@@ -289,6 +293,9 @@ final class LibraryModel {
             else { downloadHistoryReview = nil }
             if case .logs(let id) = panel, panel != oldValue { prepareLogView(id) }
             if case .storePage = panel, panel != oldValue { prepareStorePage() }
+            if panel == nil, !storageCleanup.decisions.isEmpty {
+                Task { [weak self] in self?.presentNextStorageDecision() }
+            }
             if panel == nil, pendingFirstRunFeedback != nil {
                 Task { [weak self] in self?.presentFirstRunFeedbackIfReady() }
             }
@@ -640,6 +647,7 @@ final class LibraryModel {
         if performLauncherQuitInput(action) { return }
         if performResetInput(action) { return }
         if performUninstallInput(action) { return }
+        if performStorageInput(action) { return }
         if performCloudInput(action) { return }
         if performSessionInput(action) { return }
         if panel == .controllerTest {
@@ -791,7 +799,7 @@ final class LibraryModel {
             if direction == .left { settingsRailFocused = true }
             else if direction == .right { settingsRailFocused = settingsSection == 6 }
             else if settingsRailFocused { settingsSection = min(max(0, settingsSection + (direction == .up ? -1 : 1)), 6); settingsIndex = 0 }
-            else { settingsIndex = min(max(0, settingsIndex + (direction == .up ? -1 : 1)), settingsSection == 0 ? max(0, storeSettingsRows.count - 1) : settingsSection == 1 ? 4 : settingsSection == 2 ? 3 : settingsSection == 5 ? 2 : settingsSection == 4 ? 1 : 0) }
+            else { settingsIndex = min(max(0, settingsIndex + (direction == .up ? -1 : 1)), settingsSection == 0 ? max(0, storeSettingsRows.count - 1) : settingsSection == 1 ? 5 : settingsSection == 2 ? 3 : settingsSection == 5 ? 2 : settingsSection == 4 ? 1 : 0) }
         }
     }
     func activateDetail() {
@@ -906,13 +914,14 @@ final class LibraryModel {
         if settingsSection == 0 { activateStoreSetting() }
         else if settingsSection == 1 && settingsIndex == 0 && !isPreview { refreshLibrary() }
         else if settingsSection == 1 && settingsIndex == 1 { show(.volumePicker(nil)) }
-        else if settingsSection == 1 && settingsIndex == 3 { togglePreferMacVersions() }
-        else if settingsSection == 1 && settingsIndex == 4 { openRuntimeSetup() }
+        else if settingsSection == 1 && settingsIndex == 2 { showStorageCleanup() }
+        else if settingsSection == 1 && settingsIndex == 4 { togglePreferMacVersions() }
+        else if settingsSection == 1 && settingsIndex == 5 { openRuntimeSetup() }
         else if settingsSection == 2 && settingsIndex == 0 { onboarding = false; setupScreen = .display; setupIndex = displays.firstIndex(where: { $0.id == preferredDisplay?.id }) ?? 0 }
         else if settingsSection == 2 && settingsIndex == 1 { requestFullscreen() }
         else if settingsSection == 2 && settingsIndex == 2 { toggleImmersiveMode() }
         else if settingsSection == 2 && settingsIndex == 3 { reducedMotion.toggle() }
-        else if settingsSection == 1 && settingsIndex == 2 { downloadWhilePlaying.toggle() }
+        else if settingsSection == 1 && settingsIndex == 3 { downloadWhilePlaying.toggle() }
         else if settingsSection == 3 { openAudioSettings() }
         else if settingsSection == 4 && settingsIndex == 0 { openControllerTest() }
         else if settingsSection == 4 { toggleNintendoButtonLayout() }

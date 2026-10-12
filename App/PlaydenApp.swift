@@ -700,7 +700,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
                     model.installVolumes = [model.gamesVolume!]
                     model.show(.volumePicker(nil))
                 case "settings-runtime", "settings-runtime-missing", "settings-runtime-busy":
-                    model.selectTab(.settings); model.settingsSection = 1; model.settingsIndex = 4
+                    model.selectTab(.settings); model.settingsSection = 1; model.settingsIndex = 5
                     model.setupScreen = .runtime
                     model.runtimeInfo = RuntimeInfo(version: screen == "settings-runtime-missing" ? nil : "26.2", templateVersion: "1", templateReady: screen == "settings-runtime")
                     model.setupBusy = screen == "settings-runtime-busy"
