@@ -297,9 +297,23 @@ public actor InstallQueue: InstallQueuing {
                             self.publish()
                         }
                     }
-                    let report: @Sendable (InstallProgress) -> Void = { progress in Task { await self.progress(progress, id: id, run: run) } }
-                    if job.kind == .repair { try await installer.repair(plan, at: path, staging: job.staging, progress: report) }
-                    else { try await installer.download(plan, to: path, progress: report) }
+                    // Steam can complete hundreds of small files while a catalog save
+                    // blocks this actor. Keep bounded snapshots and await the actual consumer.
+                    let relay = job.gameID.source == SourceID.steam ? InstallProgressRelay {
+                        await self.progress($0, id: id, run: run)
+                    } : nil
+                    let report: @Sendable (InstallProgress) -> Void = { progress in
+                        if let relay { relay.submit(progress) }
+                        else { Task { await self.progress(progress, id: id, run: run) } }
+                    }
+                    do {
+                        if job.kind == .repair { try await installer.repair(plan, at: path, staging: job.staging, progress: report) }
+                        else { try await installer.download(plan, to: path, progress: report) }
+                    } catch {
+                        await relay?.finish()
+                        throw error
+                    }
+                    await relay?.finish()
                     try update(id) { $0.bytesCompleted = plan.estimate.installedBytes; $0.currentFile = nil }
                 case .verifyOriginals:
                     let result = try await installer.verifyOriginals(plan, at: directory(job), staging: job.staging) { value in
@@ -532,5 +546,76 @@ public actor InstallQueue: InstallQueuing {
     /// Apps found on disk belong to the user; Playden never installs, repairs or removes them.
     private static func externalFailure(_ stage: String) -> OperationFailure {
         failure(stage, "This game is already on your Mac. Playden doesn't install or remove its files.")
+    }
+}
+
+/// At most one consumer invocation, one pending phase boundary and one latest snapshot.
+/// finish() drains even on cancellation before the queue advances its durable stage.
+final class InstallProgressRelay: @unchecked Sendable {
+    private enum DrainStep {
+        case value(InstallProgress)
+        case finished([CheckedContinuation<Void, Never>])
+    }
+    private let lock = NSLock()
+    private let consume: @Sendable (InstallProgress) async -> Void
+    private var pendingBoundary: InstallProgress?
+    private var pendingLatest: InstallProgress?
+    private var activeVerification: Bool?
+    private var running = false
+    private var finishing = false
+    private var highestSequence: UInt64?
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+    init(consume: @escaping @Sendable (InstallProgress) async -> Void) { self.consume = consume }
+    func submit(_ value: InstallProgress) {
+        lock.lock()
+        guard !finishing else { lock.unlock(); return }
+        if let sequence = value.sequence {
+            if let highestSequence, sequence <= highestSequence { lock.unlock(); return }
+            highestSequence = sequence
+        }
+        let phase = value.verification != nil
+        let preceding = pendingLatest.map { $0.verification != nil } ?? activeVerification
+        if pendingBoundary == nil, let preceding, preceding != phase {
+            pendingBoundary = pendingLatest ?? value
+        }
+        pendingLatest = value
+        let start = !running
+        if start { running = true }
+        lock.unlock()
+        if start { Task { await self.drain() } }
+    }
+    func finish() async {
+        await withCheckedContinuation { continuation in
+            lock.lock(); finishing = true
+            if !running && pendingBoundary == nil && pendingLatest == nil { lock.unlock(); continuation.resume(); return }
+            waiters.append(continuation); lock.unlock()
+        }
+    }
+    private func drain() async {
+        while true {
+            switch nextDrainStep() {
+            case .value(let value): await consume(value)
+            case .finished(let completed):
+                completed.forEach { $0.resume() }
+                return
+            }
+        }
+    }
+    private func nextDrainStep() -> DrainStep {
+        lock.lock(); defer { lock.unlock() }
+        if let value = pendingBoundary {
+            pendingBoundary = nil
+            if pendingLatest == value { pendingLatest = nil }
+            activeVerification = value.verification != nil
+            return .value(value)
+        }
+        if let value = pendingLatest {
+            pendingLatest = nil; activeVerification = value.verification != nil
+            return .value(value)
+        }
+        running = false
+        let completed = finishing ? waiters : []
+        if finishing { waiters.removeAll() }
+        return .finished(completed)
     }
 }

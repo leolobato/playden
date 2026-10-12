@@ -7,6 +7,7 @@ import Darwin
 /// every retained range; abrupt termination may redownload the last uncheckpointed batch.
 public struct ResumableDepotDownload: Sendable {
     public let destination: URL
+    /// Global chunk and open-writer budget, clamped to 1...8 across all files.
     public var chunkConcurrency = 8
     /// Force known-invalid targets without scanning unrelated files again.
     public var forceDownloadPaths: Set<String> = []
@@ -46,78 +47,116 @@ public struct ResumableDepotDownload: Sendable {
         for path in receiptExcludedPaths { receipts.invalidate(path) }
         let total = entries.filter { !$0.file.isDirectory && !$0.file.isSymlink }.reduce(UInt64(0)) { $0 + $1.file.size }
         var done: UInt64 = 0, written: UInt64 = 0
+        // A lazy ordered chunk queue spans files. Both completed-but-unconsumed tasks
+        // and fetching tasks own a slot, so neither payloads nor open writers can grow
+        // with manifest size when one early chunk is slow.
+        let limit = max(1, min(8, chunkConcurrency))
+        var active: [Int: ScheduledFile] = [:]
+        var cursor = 0
+        var schedulingFile: Int?
         do {
-            for entry in entries where !entry.file.isSymlink {
-                try Task.checkCancellation()
-                if entry.file.isDirectory { try workspace.makeDirectory(entry.path); continue }
-                let before = done, freshBefore = written
-                let checkingExisting: @Sendable (UInt64) -> Void = { checked in
-                    report(DownloadProgress(depotID: manifest.depotID, file: entry.path, bytesDone: before,
-                        bytesTotal: total, bytesWritten: freshBefore,
-                        verification: .init(bytesChecked: checked, bytesTotal: entry.file.size)))
-                }
-                let eligible = !receiptExcludedPaths.contains(entry.path)
-                let valid: Bool
-                if forceDownloadPaths.contains(entry.path) {
-                    receipts.invalidate(entry.path); valid = false
-                } else {
-                    valid = try Self.check(entry.file, path: entry.path, workspace: workspace, receipts: receipts,
-                        useReceipt: eligible, recordReceipt: eligible, onVerification: checkingExisting)
-                }
-                if valid {
-                    try receipts.checkpoint()
-                    done += entry.file.size
-                    report(DownloadProgress(depotID: manifest.depotID, file: entry.path, bytesDone: done, bytesTotal: total, bytesWritten: written))
-                    continue
-                }
-                let pathBytes = Data(entry.path.utf8)
-                let key = diagnostics.measure(.sha256, bytes: UInt64(pathBytes.count)) { SHA256.hash(data: pathBytes) }.map { String(format: "%02x", $0) }.joined()
-                let base = ".gn-download/\(manifest.depotID)/\(manifest.gid)/\(key)"
-                let writer = try ChunkCheckpointWriter(workspace: workspace, file: entry.file, base: base)
-                let resumed = try await writer.restore { checked, checkTotal, retained in
-                    report(DownloadProgress(depotID: manifest.depotID, file: entry.path,
-                        bytesDone: before + retained, bytesTotal: total, bytesWritten: freshBefore,
-                        verification: .init(bytesChecked: checked, bytesTotal: checkTotal)))
-                }
-                var completed = resumed.bytes
-                report(DownloadProgress(depotID: manifest.depotID, file: entry.path, bytesDone: done + completed, bytesTotal: total, bytesWritten: written))
-                let pending = entry.file.chunks.enumerated().filter { !resumed.indices.contains($0.offset) }
-                    .sorted { $0.element.offset < $1.element.offset }
-                var iterator = pending.makeIterator()
-                do {
-                    try await withThrowingTaskGroup(of: UInt64.self) { group in
-                        func next() {
-                            guard let (index, chunk) = iterator.next() else { return }
+            do {
+                try await withThrowingTaskGroup(of: (Int, UInt64).self) { group in
+                    var inFlight = 0
+                    while true {
+                        while inFlight < limit {
+                            try Task.checkCancellation()
+                            if schedulingFile == nil {
+                                guard cursor < entries.count, active.count < limit else { break }
+                                let id = cursor, entry = entries[cursor]
+                                cursor += 1
+                                if entry.file.isSymlink { continue }
+                                if entry.file.isDirectory { try workspace.makeDirectory(entry.path); continue }
+                                let before = done, freshBefore = written
+                                let checkingExisting: @Sendable (UInt64) -> Void = { checked in
+                                    report(DownloadProgress(depotID: manifest.depotID, file: entry.path, bytesDone: before,
+                                        bytesTotal: total, bytesWritten: freshBefore,
+                                        verification: .init(bytesChecked: checked, bytesTotal: entry.file.size)))
+                                }
+                                let eligible = !receiptExcludedPaths.contains(entry.path)
+                                let valid: Bool
+                                if forceDownloadPaths.contains(entry.path) {
+                                    receipts.invalidate(entry.path); valid = false
+                                } else {
+                                    valid = try Self.check(entry.file, path: entry.path, workspace: workspace, receipts: receipts,
+                                        useReceipt: eligible, recordReceipt: eligible, onVerification: checkingExisting)
+                                }
+                                if valid {
+                                    try receipts.checkpoint()
+                                    done += entry.file.size
+                                    report(DownloadProgress(depotID: manifest.depotID, file: entry.path,
+                                        bytesDone: done, bytesTotal: total, bytesWritten: written))
+                                    continue
+                                }
+                                let pathBytes = Data(entry.path.utf8)
+                                let key = diagnostics.measure(.sha256, bytes: UInt64(pathBytes.count)) { SHA256.hash(data: pathBytes) }
+                                    .map { String(format: "%02x", $0) }.joined()
+                                let base = ".gn-download/\(manifest.depotID)/\(manifest.gid)/\(key)"
+                                let writer = try ChunkCheckpointWriter(workspace: workspace, file: entry.file, base: base)
+                                // Retain the writer before restore so every error path drains/checkpoints it.
+                                active[id] = ScheduledFile(entry: entry, writer: writer, eligible: eligible)
+                                let resumed = try await writer.restore { checked, checkTotal, retained in
+                                    report(DownloadProgress(depotID: manifest.depotID, file: entry.path,
+                                        bytesDone: before + retained, bytesTotal: total, bytesWritten: freshBefore,
+                                        verification: .init(bytesChecked: checked, bytesTotal: checkTotal)))
+                                }
+                                done += resumed.bytes
+                                report(DownloadProgress(depotID: manifest.depotID, file: entry.path,
+                                    bytesDone: done, bytesTotal: total, bytesWritten: written))
+                                let pending = entry.file.chunks.indices.filter { !resumed.indices.contains($0) }
+                                    .sorted { entry.file.chunks[$0].offset < entry.file.chunks[$1].offset }
+                                active[id]!.pending = pending
+                                active[id]!.remaining = pending.count
+                                if pending.isEmpty {
+                                    let metadata = try await writer.finish(to: entry.path)
+                                    if eligible { try receipts.record(entry.file, path: entry.path, metadata: metadata, countVerifiedBytes: false) }
+                                    active.removeValue(forKey: id)
+                                    continue
+                                }
+                                schedulingFile = id
+                            }
+                            guard let id = schedulingFile, let scheduled = active[id] else { break }
+                            let index = scheduled.pending[scheduled.next]
+                            let chunk = scheduled.entry.file.chunks[index], writer = scheduled.writer
+                            active[id]!.next += 1
+                            if active[id]!.next == scheduled.pending.count { schedulingFile = nil }
                             group.addTask {
                                 try Task.checkCancellation()
                                 let data = try await fetchChunk(chunk)
                                 try Task.checkCancellation()
                                 try await writer.commit(data, index: index)
-                                return UInt64(data.count)
+                                return (id, UInt64(data.count))
                             }
+                            inFlight += 1
                         }
-                        for _ in 0..<max(1, min(16, chunkConcurrency)) { next() }
-                        while let count = try await group.next() {
-                            try Task.checkCancellation()
-                            try receipts.checkpoint(processedBytes: count)
-                            completed += count; written += count
-                            report(DownloadProgress(depotID: manifest.depotID, file: entry.path, bytesDone: done + completed, bytesTotal: total, bytesWritten: written))
-                            next()
+                        guard let (id, count) = try await group.next() else { break }
+                        inFlight -= 1
+                        try Task.checkCancellation()
+                        try receipts.checkpoint(processedBytes: count)
+                        done += count; written += count
+                        active[id]!.remaining -= 1
+                        let scheduled = active[id]!
+                        if scheduled.remaining == 0 {
+                            let metadata = try await scheduled.writer.finish(to: scheduled.entry.path)
+                            if scheduled.eligible {
+                                try receipts.record(scheduled.entry.file, path: scheduled.entry.path,
+                                    metadata: metadata, countVerifiedBytes: false)
+                            }
+                            active.removeValue(forKey: id)
                         }
+                        report(DownloadProgress(depotID: manifest.depotID, file: scheduled.entry.path,
+                            bytesDone: done, bytesTotal: total, bytesWritten: written))
                     }
-                    try Task.checkCancellation()
-                    let assembled = done + completed, fresh = written
-                    let metadata = try await writer.finish(to: entry.path)
-                    if eligible { try receipts.record(entry.file, path: entry.path, metadata: metadata, countVerifiedBytes: false) }
-                    report(DownloadProgress(depotID: manifest.depotID, file: entry.path,
-                        bytesDone: assembled, bytesTotal: total, bytesWritten: fresh))
-                } catch {
-                    // Task groups drain their children before this catch, so no writer can
-                    // race the final checkpoint. Pause/network failure keeps received chunks.
-                    try await writer.checkpoint()
-                    throw error
                 }
-                done += entry.file.size
+            } catch {
+                // Structured workers have drained. Checkpoint every open file even if
+                // another checkpoint fails; the outer catch also flushes dirty receipts.
+                var checkpointError: Error?
+                for scheduled in active.values {
+                    do { try await scheduled.writer.checkpoint() }
+                    catch { if checkpointError == nil { checkpointError = error } }
+                }
+                throw checkpointError ?? error
             }
             // Links are applied last. No later file write in this manifest can traverse a newly created link.
             for entry in entries where entry.file.isSymlink {
@@ -178,6 +217,14 @@ public struct ResumableDepotDownload: Sendable {
     public func cleanCompletedDepotState(depotID: UInt32, gid: UInt64) throws {
         let workspace = try DownloadWorkspace(destination: destination, diagnostics: diagnostics)
         try workspace.cleanCheckpoints(depotID: depotID, keepingGID: gid)
+    }
+    private struct ScheduledFile {
+        let entry: Entry
+        let writer: ChunkCheckpointWriter
+        let eligible: Bool
+        var pending: [Int] = []
+        var next = 0
+        var remaining = 0
     }
     private struct Entry { let file: DepotManifest.File; let path: String; let link: String }
     /// Validate a resolved manifest before reserving storage or touching a destination.

@@ -1,0 +1,2192 @@
+[
+  {
+    "chunkConcurrency" : 8,
+    "download" : {
+      "adler32" : {
+        "bytes" : 134219776,
+        "count" : 130,
+        "nanoseconds" : 9236631
+      },
+      "checkpoint" : {
+        "bytes" : 0,
+        "count" : 2,
+        "nanoseconds" : 1103208
+      },
+      "contentRead" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "directorySync" : {
+        "bytes" : 0,
+        "count" : 12,
+        "nanoseconds" : 6291
+      },
+      "directoryWalk" : {
+        "bytes" : 0,
+        "count" : 35,
+        "nanoseconds" : 1238171
+      },
+      "emulatorPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileSync" : {
+        "bytes" : 0,
+        "count" : 5,
+        "nanoseconds" : 3826013959
+      },
+      "fileValidation" : {
+        "bytes" : 0,
+        "count" : 3,
+        "nanoseconds" : 181375
+      },
+      "fileWrite" : {
+        "bytes" : 134220809,
+        "count" : 132,
+        "nanoseconds" : 7766544
+      },
+      "finalValidation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "keyPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "networkTransfer" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "preparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "progressCallback" : {
+        "bytes" : 0,
+        "count" : 266,
+        "nanoseconds" : 69302
+      },
+      "sessionCreation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha1" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha256" : {
+        "bytes" : 34813,
+        "count" : 9,
+        "nanoseconds" : 39045
+      }
+    },
+    "downloadWallNanoseconds" : 3883989917,
+    "fileCount" : 3,
+    "fixture" : "large-file",
+    "installedBytes" : 134219776,
+    "iteration" : 1,
+    "originalVerification" : {
+      "adler32" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "checkpoint" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "contentRead" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "directorySync" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "directoryWalk" : {
+        "bytes" : 0,
+        "count" : 7,
+        "nanoseconds" : 103417
+      },
+      "emulatorPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileSync" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileValidation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileWrite" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "finalValidation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "keyPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "networkTransfer" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "preparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "progressCallback" : {
+        "bytes" : 0,
+        "count" : 19,
+        "nanoseconds" : 1871
+      },
+      "sessionCreation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha1" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha256" : {
+        "bytes" : 17385,
+        "count" : 3,
+        "nanoseconds" : 10249
+      }
+    },
+    "originalVerificationWallNanoseconds" : 1846500,
+    "preparation" : {
+      "adler32" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "checkpoint" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "contentRead" : {
+        "bytes" : 54197568,
+        "count" : 20,
+        "nanoseconds" : 2359915
+      },
+      "directorySync" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "directoryWalk" : {
+        "bytes" : 0,
+        "count" : 7,
+        "nanoseconds" : 86251
+      },
+      "emulatorPreparation" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 215734375
+      },
+      "fileSync" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileValidation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileWrite" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "finalValidation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "keyPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "networkTransfer" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "preparation" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 241993208
+      },
+      "progressCallback" : {
+        "bytes" : 0,
+        "count" : 34,
+        "nanoseconds" : 14210
+      },
+      "sessionCreation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha1" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha256" : {
+        "bytes" : 33711665,
+        "count" : 16,
+        "nanoseconds" : 26014500
+      }
+    },
+    "preparationWallNanoseconds" : 242198708,
+    "simulatedFetch" : {
+      "bytes" : 134219776,
+      "count" : 130,
+      "nanoseconds" : 357566004
+    },
+    "simulatedLatencyNanoseconds" : 2000000,
+    "validation" : {
+      "adler32" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "checkpoint" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 476750
+      },
+      "contentRead" : {
+        "bytes" : 7308200,
+        "count" : 12,
+        "nanoseconds" : 1664251
+      },
+      "directorySync" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 459
+      },
+      "directoryWalk" : {
+        "bytes" : 0,
+        "count" : 12,
+        "nanoseconds" : 202542
+      },
+      "emulatorPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileSync" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 237958
+      },
+      "fileValidation" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 620042
+      },
+      "fileWrite" : {
+        "bytes" : 352,
+        "count" : 1,
+        "nanoseconds" : 8625
+      },
+      "finalValidation" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 10487208
+      },
+      "keyPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "networkTransfer" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "preparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "progressCallback" : {
+        "bytes" : 0,
+        "count" : 42,
+        "nanoseconds" : 9044
+      },
+      "sessionCreation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha1" : {
+        "bytes" : 1024,
+        "count" : 3,
+        "nanoseconds" : 3124
+      },
+      "sha256" : {
+        "bytes" : 7322270,
+        "count" : 10,
+        "nanoseconds" : 5625625
+      }
+    },
+    "validationWallNanoseconds" : 10757792
+  },
+  {
+    "chunkConcurrency" : 8,
+    "download" : {
+      "adler32" : {
+        "bytes" : 8390656,
+        "count" : 514,
+        "nanoseconds" : 419924
+      },
+      "checkpoint" : {
+        "bytes" : 0,
+        "count" : 2,
+        "nanoseconds" : 6090375
+      },
+      "contentRead" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "directorySync" : {
+        "bytes" : 0,
+        "count" : 1034,
+        "nanoseconds" : 543169
+      },
+      "directoryWalk" : {
+        "bytes" : 0,
+        "count" : 3612,
+        "nanoseconds" : 111275920
+      },
+      "emulatorPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileSync" : {
+        "bytes" : 0,
+        "count" : 516,
+        "nanoseconds" : 319879294
+      },
+      "fileValidation" : {
+        "bytes" : 0,
+        "count" : 514,
+        "nanoseconds" : 13412582
+      },
+      "fileWrite" : {
+        "bytes" : 8556643,
+        "count" : 516,
+        "nanoseconds" : 32270745
+      },
+      "finalValidation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "keyPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "networkTransfer" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "preparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "progressCallback" : {
+        "bytes" : 0,
+        "count" : 2056,
+        "nanoseconds" : 288373
+      },
+      "sessionCreation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha1" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha256" : {
+        "bytes" : 270021,
+        "count" : 1542,
+        "nanoseconds" : 1319632
+      }
+    },
+    "downloadWallNanoseconds" : 545946667,
+    "fileCount" : 514,
+    "fixture" : "many-small-files",
+    "installedBytes" : 8390656,
+    "iteration" : 1,
+    "originalVerification" : {
+      "adler32" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "checkpoint" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "contentRead" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "directorySync" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "directoryWalk" : {
+        "bytes" : 0,
+        "count" : 518,
+        "nanoseconds" : 13720957
+      },
+      "emulatorPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileSync" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileValidation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileWrite" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "finalValidation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "keyPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "networkTransfer" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "preparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "progressCallback" : {
+        "bytes" : 0,
+        "count" : 2063,
+        "nanoseconds" : 169089
+      },
+      "sessionCreation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha1" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha256" : {
+        "bytes" : 129068,
+        "count" : 514,
+        "nanoseconds" : 493139
+      }
+    },
+    "originalVerificationWallNanoseconds" : 46656875,
+    "preparation" : {
+      "adler32" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "checkpoint" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "contentRead" : {
+        "bytes" : 54197568,
+        "count" : 20,
+        "nanoseconds" : 1241084
+      },
+      "directorySync" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "directoryWalk" : {
+        "bytes" : 0,
+        "count" : 518,
+        "nanoseconds" : 8106288
+      },
+      "emulatorPreparation" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 199733584
+      },
+      "fileSync" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileValidation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileWrite" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "finalValidation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "keyPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "networkTransfer" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "preparation" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 253789708
+      },
+      "progressCallback" : {
+        "bytes" : 0,
+        "count" : 3100,
+        "nanoseconds" : 280911
+      },
+      "sessionCreation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha1" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha256" : {
+        "bytes" : 33823348,
+        "count" : 527,
+        "nanoseconds" : 11314121
+      }
+    },
+    "preparationWallNanoseconds" : 253797208,
+    "simulatedFetch" : {
+      "bytes" : 8390656,
+      "count" : 514,
+      "nanoseconds" : 1231397324
+    },
+    "simulatedLatencyNanoseconds" : 2000000,
+    "validation" : {
+      "adler32" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "checkpoint" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 476334
+      },
+      "contentRead" : {
+        "bytes" : 7308200,
+        "count" : 12,
+        "nanoseconds" : 1735666
+      },
+      "directorySync" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 459
+      },
+      "directoryWalk" : {
+        "bytes" : 0,
+        "count" : 523,
+        "nanoseconds" : 8020713
+      },
+      "emulatorPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileSync" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 235333
+      },
+      "fileValidation" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 1051958
+      },
+      "fileWrite" : {
+        "bytes" : 352,
+        "count" : 1,
+        "nanoseconds" : 8792
+      },
+      "finalValidation" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 52498042
+      },
+      "keyPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "networkTransfer" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "preparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "progressCallback" : {
+        "bytes" : 0,
+        "count" : 3108,
+        "nanoseconds" : 296424
+      },
+      "sessionCreation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha1" : {
+        "bytes" : 1024,
+        "count" : 3,
+        "nanoseconds" : 3666
+      },
+      "sha256" : {
+        "bytes" : 7433953,
+        "count" : 521,
+        "nanoseconds" : 2858994
+      }
+    },
+    "validationWallNanoseconds" : 52505958
+  },
+  {
+    "chunkConcurrency" : 8,
+    "download" : {
+      "adler32" : {
+        "bytes" : 134219776,
+        "count" : 130,
+        "nanoseconds" : 8913426
+      },
+      "checkpoint" : {
+        "bytes" : 0,
+        "count" : 2,
+        "nanoseconds" : 1030208
+      },
+      "contentRead" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "directorySync" : {
+        "bytes" : 0,
+        "count" : 12,
+        "nanoseconds" : 5998
+      },
+      "directoryWalk" : {
+        "bytes" : 0,
+        "count" : 35,
+        "nanoseconds" : 1160834
+      },
+      "emulatorPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileSync" : {
+        "bytes" : 0,
+        "count" : 5,
+        "nanoseconds" : 3738790958
+      },
+      "fileValidation" : {
+        "bytes" : 0,
+        "count" : 3,
+        "nanoseconds" : 34459
+      },
+      "fileWrite" : {
+        "bytes" : 134220809,
+        "count" : 132,
+        "nanoseconds" : 25193416
+      },
+      "finalValidation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "keyPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "networkTransfer" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "preparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "progressCallback" : {
+        "bytes" : 0,
+        "count" : 266,
+        "nanoseconds" : 100428
+      },
+      "sessionCreation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha1" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha256" : {
+        "bytes" : 34813,
+        "count" : 9,
+        "nanoseconds" : 29958
+      }
+    },
+    "downloadWallNanoseconds" : 3809395209,
+    "fileCount" : 3,
+    "fixture" : "large-file",
+    "installedBytes" : 134219776,
+    "iteration" : 2,
+    "originalVerification" : {
+      "adler32" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "checkpoint" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "contentRead" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "directorySync" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "directoryWalk" : {
+        "bytes" : 0,
+        "count" : 7,
+        "nanoseconds" : 131626
+      },
+      "emulatorPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileSync" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileValidation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileWrite" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "finalValidation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "keyPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "networkTransfer" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "preparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "progressCallback" : {
+        "bytes" : 0,
+        "count" : 19,
+        "nanoseconds" : 3502
+      },
+      "sessionCreation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha1" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha256" : {
+        "bytes" : 17385,
+        "count" : 3,
+        "nanoseconds" : 11126
+      }
+    },
+    "originalVerificationWallNanoseconds" : 3328250,
+    "preparation" : {
+      "adler32" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "checkpoint" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "contentRead" : {
+        "bytes" : 54197568,
+        "count" : 20,
+        "nanoseconds" : 6116124
+      },
+      "directorySync" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "directoryWalk" : {
+        "bytes" : 0,
+        "count" : 7,
+        "nanoseconds" : 78874
+      },
+      "emulatorPreparation" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 211428042
+      },
+      "fileSync" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileValidation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileWrite" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "finalValidation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "keyPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "networkTransfer" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "preparation" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 238107458
+      },
+      "progressCallback" : {
+        "bytes" : 0,
+        "count" : 34,
+        "nanoseconds" : 4252
+      },
+      "sessionCreation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha1" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha256" : {
+        "bytes" : 33711665,
+        "count" : 16,
+        "nanoseconds" : 23943041
+      }
+    },
+    "preparationWallNanoseconds" : 238113875,
+    "simulatedFetch" : {
+      "bytes" : 134219776,
+      "count" : 130,
+      "nanoseconds" : 348944376
+    },
+    "simulatedLatencyNanoseconds" : 2000000,
+    "validation" : {
+      "adler32" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "checkpoint" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 477375
+      },
+      "contentRead" : {
+        "bytes" : 7308200,
+        "count" : 12,
+        "nanoseconds" : 960875
+      },
+      "directorySync" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 459
+      },
+      "directoryWalk" : {
+        "bytes" : 0,
+        "count" : 12,
+        "nanoseconds" : 213124
+      },
+      "emulatorPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileSync" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 235458
+      },
+      "fileValidation" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 598583
+      },
+      "fileWrite" : {
+        "bytes" : 352,
+        "count" : 1,
+        "nanoseconds" : 7833
+      },
+      "finalValidation" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 5915583
+      },
+      "keyPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "networkTransfer" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "preparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "progressCallback" : {
+        "bytes" : 0,
+        "count" : 42,
+        "nanoseconds" : 8331
+      },
+      "sessionCreation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha1" : {
+        "bytes" : 1024,
+        "count" : 3,
+        "nanoseconds" : 3667
+      },
+      "sha256" : {
+        "bytes" : 7322270,
+        "count" : 10,
+        "nanoseconds" : 2242497
+      }
+    },
+    "validationWallNanoseconds" : 5921958
+  },
+  {
+    "chunkConcurrency" : 8,
+    "download" : {
+      "adler32" : {
+        "bytes" : 8390656,
+        "count" : 514,
+        "nanoseconds" : 441955
+      },
+      "checkpoint" : {
+        "bytes" : 0,
+        "count" : 2,
+        "nanoseconds" : 7356709
+      },
+      "contentRead" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "directorySync" : {
+        "bytes" : 0,
+        "count" : 1034,
+        "nanoseconds" : 502341
+      },
+      "directoryWalk" : {
+        "bytes" : 0,
+        "count" : 3612,
+        "nanoseconds" : 96065339
+      },
+      "emulatorPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileSync" : {
+        "bytes" : 0,
+        "count" : 516,
+        "nanoseconds" : 322341244
+      },
+      "fileValidation" : {
+        "bytes" : 0,
+        "count" : 514,
+        "nanoseconds" : 11109765
+      },
+      "fileWrite" : {
+        "bytes" : 8556643,
+        "count" : 516,
+        "nanoseconds" : 6543134
+      },
+      "finalValidation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "keyPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "networkTransfer" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "preparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "progressCallback" : {
+        "bytes" : 0,
+        "count" : 2056,
+        "nanoseconds" : 262170
+      },
+      "sessionCreation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha1" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha256" : {
+        "bytes" : 270021,
+        "count" : 1542,
+        "nanoseconds" : 1177005
+      }
+    },
+    "downloadWallNanoseconds" : 513503000,
+    "fileCount" : 514,
+    "fixture" : "many-small-files",
+    "installedBytes" : 8390656,
+    "iteration" : 2,
+    "originalVerification" : {
+      "adler32" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "checkpoint" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "contentRead" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "directorySync" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "directoryWalk" : {
+        "bytes" : 0,
+        "count" : 518,
+        "nanoseconds" : 8184219
+      },
+      "emulatorPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileSync" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileValidation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileWrite" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "finalValidation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "keyPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "networkTransfer" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "preparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "progressCallback" : {
+        "bytes" : 0,
+        "count" : 2063,
+        "nanoseconds" : 117696
+      },
+      "sessionCreation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha1" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha256" : {
+        "bytes" : 129068,
+        "count" : 514,
+        "nanoseconds" : 303964
+      }
+    },
+    "originalVerificationWallNanoseconds" : 36050000,
+    "preparation" : {
+      "adler32" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "checkpoint" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "contentRead" : {
+        "bytes" : 54197568,
+        "count" : 20,
+        "nanoseconds" : 1230000
+      },
+      "directorySync" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "directoryWalk" : {
+        "bytes" : 0,
+        "count" : 518,
+        "nanoseconds" : 7938464
+      },
+      "emulatorPreparation" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 196610333
+      },
+      "fileSync" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileValidation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileWrite" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "finalValidation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "keyPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "networkTransfer" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "preparation" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 250183583
+      },
+      "progressCallback" : {
+        "bytes" : 0,
+        "count" : 3100,
+        "nanoseconds" : 280400
+      },
+      "sessionCreation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha1" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha256" : {
+        "bytes" : 33823348,
+        "count" : 527,
+        "nanoseconds" : 11303383
+      }
+    },
+    "preparationWallNanoseconds" : 250191166,
+    "simulatedFetch" : {
+      "bytes" : 8390656,
+      "count" : 514,
+      "nanoseconds" : 1250505969
+    },
+    "simulatedLatencyNanoseconds" : 2000000,
+    "validation" : {
+      "adler32" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "checkpoint" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 465333
+      },
+      "contentRead" : {
+        "bytes" : 7308200,
+        "count" : 12,
+        "nanoseconds" : 901082
+      },
+      "directorySync" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 375
+      },
+      "directoryWalk" : {
+        "bytes" : 0,
+        "count" : 523,
+        "nanoseconds" : 7734994
+      },
+      "emulatorPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileSync" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 254083
+      },
+      "fileValidation" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 394458
+      },
+      "fileWrite" : {
+        "bytes" : 352,
+        "count" : 1,
+        "nanoseconds" : 6917
+      },
+      "finalValidation" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 49240417
+      },
+      "keyPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "networkTransfer" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "preparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "progressCallback" : {
+        "bytes" : 0,
+        "count" : 3108,
+        "nanoseconds" : 281235
+      },
+      "sessionCreation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha1" : {
+        "bytes" : 1024,
+        "count" : 3,
+        "nanoseconds" : 2958
+      },
+      "sha256" : {
+        "bytes" : 7433953,
+        "count" : 521,
+        "nanoseconds" : 2598049
+      }
+    },
+    "validationWallNanoseconds" : 49246750
+  },
+  {
+    "chunkConcurrency" : 8,
+    "download" : {
+      "adler32" : {
+        "bytes" : 134219776,
+        "count" : 130,
+        "nanoseconds" : 7367836
+      },
+      "checkpoint" : {
+        "bytes" : 0,
+        "count" : 2,
+        "nanoseconds" : 936208
+      },
+      "contentRead" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "directorySync" : {
+        "bytes" : 0,
+        "count" : 12,
+        "nanoseconds" : 5086
+      },
+      "directoryWalk" : {
+        "bytes" : 0,
+        "count" : 35,
+        "nanoseconds" : 949122
+      },
+      "emulatorPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileSync" : {
+        "bytes" : 0,
+        "count" : 5,
+        "nanoseconds" : 4013675085
+      },
+      "fileValidation" : {
+        "bytes" : 0,
+        "count" : 3,
+        "nanoseconds" : 28000
+      },
+      "fileWrite" : {
+        "bytes" : 134220809,
+        "count" : 132,
+        "nanoseconds" : 97593333
+      },
+      "finalValidation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "keyPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "networkTransfer" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "preparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "progressCallback" : {
+        "bytes" : 0,
+        "count" : 266,
+        "nanoseconds" : 53210
+      },
+      "sessionCreation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha1" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha256" : {
+        "bytes" : 34813,
+        "count" : 9,
+        "nanoseconds" : 24207
+      }
+    },
+    "downloadWallNanoseconds" : 4160283625,
+    "fileCount" : 3,
+    "fixture" : "large-file",
+    "installedBytes" : 134219776,
+    "iteration" : 3,
+    "originalVerification" : {
+      "adler32" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "checkpoint" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "contentRead" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "directorySync" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "directoryWalk" : {
+        "bytes" : 0,
+        "count" : 7,
+        "nanoseconds" : 97208
+      },
+      "emulatorPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileSync" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileValidation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileWrite" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "finalValidation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "keyPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "networkTransfer" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "preparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "progressCallback" : {
+        "bytes" : 0,
+        "count" : 19,
+        "nanoseconds" : 1833
+      },
+      "sessionCreation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha1" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha256" : {
+        "bytes" : 17385,
+        "count" : 3,
+        "nanoseconds" : 8709
+      }
+    },
+    "originalVerificationWallNanoseconds" : 1288500,
+    "preparation" : {
+      "adler32" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "checkpoint" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "contentRead" : {
+        "bytes" : 54197568,
+        "count" : 20,
+        "nanoseconds" : 1391830
+      },
+      "directorySync" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "directoryWalk" : {
+        "bytes" : 0,
+        "count" : 7,
+        "nanoseconds" : 80333
+      },
+      "emulatorPreparation" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 222689667
+      },
+      "fileSync" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileValidation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileWrite" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "finalValidation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "keyPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "networkTransfer" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "preparation" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 232719500
+      },
+      "progressCallback" : {
+        "bytes" : 0,
+        "count" : 34,
+        "nanoseconds" : 4500
+      },
+      "sessionCreation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha1" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha256" : {
+        "bytes" : 33711665,
+        "count" : 16,
+        "nanoseconds" : 11155750
+      }
+    },
+    "preparationWallNanoseconds" : 232725416,
+    "simulatedFetch" : {
+      "bytes" : 134219776,
+      "count" : 130,
+      "nanoseconds" : 372020707
+    },
+    "simulatedLatencyNanoseconds" : 2000000,
+    "validation" : {
+      "adler32" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "checkpoint" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 568459
+      },
+      "contentRead" : {
+        "bytes" : 7308200,
+        "count" : 12,
+        "nanoseconds" : 1155875
+      },
+      "directorySync" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 542
+      },
+      "directoryWalk" : {
+        "bytes" : 0,
+        "count" : 12,
+        "nanoseconds" : 229375
+      },
+      "emulatorPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileSync" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 285541
+      },
+      "fileValidation" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 762542
+      },
+      "fileWrite" : {
+        "bytes" : 352,
+        "count" : 1,
+        "nanoseconds" : 11625
+      },
+      "finalValidation" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 6172208
+      },
+      "keyPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "networkTransfer" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "preparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "progressCallback" : {
+        "bytes" : 0,
+        "count" : 42,
+        "nanoseconds" : 8414
+      },
+      "sessionCreation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha1" : {
+        "bytes" : 1024,
+        "count" : 3,
+        "nanoseconds" : 4584
+      },
+      "sha256" : {
+        "bytes" : 7322270,
+        "count" : 10,
+        "nanoseconds" : 2234417
+      }
+    },
+    "validationWallNanoseconds" : 6179000
+  },
+  {
+    "chunkConcurrency" : 8,
+    "download" : {
+      "adler32" : {
+        "bytes" : 8390656,
+        "count" : 514,
+        "nanoseconds" : 451038
+      },
+      "checkpoint" : {
+        "bytes" : 0,
+        "count" : 2,
+        "nanoseconds" : 6342042
+      },
+      "contentRead" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "directorySync" : {
+        "bytes" : 0,
+        "count" : 1034,
+        "nanoseconds" : 427146
+      },
+      "directoryWalk" : {
+        "bytes" : 0,
+        "count" : 3612,
+        "nanoseconds" : 93525583
+      },
+      "emulatorPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileSync" : {
+        "bytes" : 0,
+        "count" : 516,
+        "nanoseconds" : 353511740
+      },
+      "fileValidation" : {
+        "bytes" : 0,
+        "count" : 514,
+        "nanoseconds" : 10314876
+      },
+      "fileWrite" : {
+        "bytes" : 8556643,
+        "count" : 516,
+        "nanoseconds" : 3148904
+      },
+      "finalValidation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "keyPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "networkTransfer" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "preparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "progressCallback" : {
+        "bytes" : 0,
+        "count" : 2056,
+        "nanoseconds" : 261381
+      },
+      "sessionCreation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha1" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha256" : {
+        "bytes" : 270021,
+        "count" : 1542,
+        "nanoseconds" : 1137197
+      }
+    },
+    "downloadWallNanoseconds" : 539928333,
+    "fileCount" : 514,
+    "fixture" : "many-small-files",
+    "installedBytes" : 8390656,
+    "iteration" : 3,
+    "originalVerification" : {
+      "adler32" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "checkpoint" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "contentRead" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "directorySync" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "directoryWalk" : {
+        "bytes" : 0,
+        "count" : 518,
+        "nanoseconds" : 8169019
+      },
+      "emulatorPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileSync" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileValidation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileWrite" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "finalValidation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "keyPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "networkTransfer" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "preparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "progressCallback" : {
+        "bytes" : 0,
+        "count" : 2063,
+        "nanoseconds" : 110973
+      },
+      "sessionCreation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha1" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha256" : {
+        "bytes" : 129068,
+        "count" : 514,
+        "nanoseconds" : 288880
+      }
+    },
+    "originalVerificationWallNanoseconds" : 35969708,
+    "preparation" : {
+      "adler32" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "checkpoint" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "contentRead" : {
+        "bytes" : 54197568,
+        "count" : 20,
+        "nanoseconds" : 1238750
+      },
+      "directorySync" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "directoryWalk" : {
+        "bytes" : 0,
+        "count" : 518,
+        "nanoseconds" : 8091457
+      },
+      "emulatorPreparation" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 206058792
+      },
+      "fileSync" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileValidation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileWrite" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "finalValidation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "keyPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "networkTransfer" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "preparation" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 260203417
+      },
+      "progressCallback" : {
+        "bytes" : 0,
+        "count" : 3100,
+        "nanoseconds" : 278322
+      },
+      "sessionCreation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha1" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha256" : {
+        "bytes" : 33823348,
+        "count" : 527,
+        "nanoseconds" : 11310741
+      }
+    },
+    "preparationWallNanoseconds" : 260210667,
+    "simulatedFetch" : {
+      "bytes" : 8390656,
+      "count" : 514,
+      "nanoseconds" : 1277651796
+    },
+    "simulatedLatencyNanoseconds" : 2000000,
+    "validation" : {
+      "adler32" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "checkpoint" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 552542
+      },
+      "contentRead" : {
+        "bytes" : 7308200,
+        "count" : 12,
+        "nanoseconds" : 1023958
+      },
+      "directorySync" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 417
+      },
+      "directoryWalk" : {
+        "bytes" : 0,
+        "count" : 523,
+        "nanoseconds" : 8270205
+      },
+      "emulatorPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "fileSync" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 303750
+      },
+      "fileValidation" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 392875
+      },
+      "fileWrite" : {
+        "bytes" : 352,
+        "count" : 1,
+        "nanoseconds" : 7709
+      },
+      "finalValidation" : {
+        "bytes" : 0,
+        "count" : 1,
+        "nanoseconds" : 50516834
+      },
+      "keyPreparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "networkTransfer" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "preparation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "progressCallback" : {
+        "bytes" : 0,
+        "count" : 3108,
+        "nanoseconds" : 279276
+      },
+      "sessionCreation" : {
+        "bytes" : 0,
+        "count" : 0,
+        "nanoseconds" : 0
+      },
+      "sha1" : {
+        "bytes" : 1024,
+        "count" : 3,
+        "nanoseconds" : 3417
+      },
+      "sha256" : {
+        "bytes" : 7433953,
+        "count" : 521,
+        "nanoseconds" : 2500499
+      }
+    },
+    "validationWallNanoseconds" : 50523167
+  }
+]

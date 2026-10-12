@@ -28,6 +28,7 @@ public struct DownloadEngine {
     public let cm: CMClient
     public let appID: UInt32
     public let destination: URL
+    /// Shared across files; the resumable scheduler clamps this to 1...8.
     public var chunkConcurrency = 8
     public let diagnostics: SteamPerformanceDiagnostics?
     public let transport: any CDNTransport
