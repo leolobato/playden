@@ -4,10 +4,12 @@ import Darwin
 /// Every manifest operation is relative to an open destination directory. Parent walks refuse
 /// symlinks, and file replacement uses renameat, so a manifest cannot redirect writes outside it.
 final class DownloadWorkspace: @unchecked Sendable {
+    let diagnostics: SteamPerformanceDiagnostics?
     private let rootHandle: FileHandle
     private var root: Int32 { rootHandle.fileDescriptor }
     private var lease: FileHandle?
-    init(destination: URL, lock: Bool = true) throws {
+    init(destination: URL, lock: Bool = true, diagnostics: SteamPerformanceDiagnostics? = nil) throws {
+        self.diagnostics = diagnostics
         let files = FileManager.default
         try files.createDirectory(at: destination, withIntermediateDirectories: true)
         let fd = Darwin.open(destination.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
@@ -30,6 +32,8 @@ final class DownloadWorkspace: @unchecked Sendable {
         return path
     }
     private func parent(_ path: String, create: Bool) throws -> (Int32, String) {
+        let started = diagnostics?.start()
+        defer { diagnostics?.finish(.directoryWalk, since: started) }
         let normalized = try Self.path(path, allowState: true)
         var parts = normalized.split(separator: "/").map(String.init)
         let leaf = parts.removeLast()
@@ -75,15 +79,15 @@ final class DownloadWorkspace: @unchecked Sendable {
         let (to, destinationLeaf) = try parent(destination, create: true)
         defer { Darwin.close(to) }
         guard renameat(from, sourceLeaf, to, destinationLeaf) == 0 else { throw Self.systemError() }
-        try Self.syncDirectory(to)
-        try Self.syncDirectory(from)
+        try syncDirectory(to)
+        try syncDirectory(from)
     }
     func writeAtomic(_ data: Data, path: String) throws {
         let temporary = path + ".new-" + UUID().uuidString
         let handle = try openFile(temporary, flags: O_WRONLY | O_CREAT | O_EXCL, createParents: true)
         defer { try? handle.close(); try? remove(temporary) }
-        try handle.write(contentsOf: data)
-        try Self.sync(handle)
+        try diagnostics.measure(.fileWrite, bytes: UInt64(data.count)) { try handle.write(contentsOf: data) }
+        try Self.sync(handle, diagnostics: diagnostics)
         try replace(temporary, withDestination: path)
     }
     func read(_ path: String, limit: Int = 16 * 1024 * 1024) throws -> Data {
@@ -100,7 +104,7 @@ final class DownloadWorkspace: @unchecked Sendable {
         guard symlinkat(link, directory, temporary) == 0 else { throw Self.systemError() }
         defer { unlinkat(directory, temporary, 0) }
         guard renameat(directory, temporary, directory, leaf) == 0 else { throw Self.systemError() }
-        try Self.syncDirectory(directory)
+        try syncDirectory(directory)
     }
     func symlinkTarget(_ path: String) throws -> String {
         let (directory, leaf) = try parent(path, create: false)
@@ -110,14 +114,16 @@ final class DownloadWorkspace: @unchecked Sendable {
         guard count >= 0, count < buffer.count else { throw Self.systemError() }
         return String(decoding: buffer.prefix(count), as: UTF8.self)
     }
-    static func sync(_ handle: FileHandle) throws {
+    static func sync(_ handle: FileHandle, diagnostics: SteamPerformanceDiagnostics? = nil) throws {
         // Download bytes are revalidated against their chunk hashes on resume. fsync
         // orders data before its journal without forcing a drive-wide cache flush
         // for every checkpoint (F_FULLFSYNC can stall USB/HFS+ drives for minutes).
-        try handle.synchronize()
+        try diagnostics.measure(.fileSync) { try handle.synchronize() }
     }
-    private static func syncDirectory(_ fd: Int32) throws {
-        if fsync(fd) == -1 && errno != EINVAL && errno != ENOTSUP { throw systemError() }
+    private func syncDirectory(_ fd: Int32) throws {
+        let started = diagnostics?.start()
+        defer { diagnostics?.finish(.directorySync, since: started) }
+        if fsync(fd) == -1 && errno != EINVAL && errno != ENOTSUP { throw Self.systemError() }
     }
     private static func systemError() -> POSIXError { POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
 }

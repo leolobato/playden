@@ -13,6 +13,7 @@ protocol SteamInstallBackend: Sendable {
 }
 struct LiveSteamInstallBackend: SteamInstallBackend {
     let account: SteamAccount
+    var diagnostics: SteamPerformanceDiagnostics? = nil
     func resolve(appID: UInt32, platform: GamePlatform) async throws -> ResolvedSteamContent {
         try await account.withCM(purpose: "resolve", appID: appID) { cm in
             let app = try await cm.appInfo(appID: appID)
@@ -40,17 +41,19 @@ struct LiveSteamInstallBackend: SteamInstallBackend {
                 throw SteamPlanBuilder.failure("Download", "This account no longer has access to all depots in the saved install plan. Resolve the installation again with an account that owns this edition.")
             }
             let servers = try await CDNClient.contentServers(cellID: cm.cellID)
-            let preparation = DownloadEngine(cm: cm, appID: payload.app.appID, destination: directory)
+            let preparation = DownloadEngine(cm: cm, appID: payload.app.appID, destination: directory, diagnostics: diagnostics)
             try await preparation.prepare(manifests: payload.manifests)
             // Entitlements and depot keys were resolved above; transfers only use the CDN.
             // The CM connection is shared with other operations, so it must stay connected.
             let total = payload.manifests.reduce(Int64(0)) { $0 + Int64($1.totalSize) }
-            let transfers = SteamTransferProgress(total: total, report: progress)
+            let transfers = SteamTransferProgress(total: total, report: { value in
+                diagnostics.measure(.progressCallback) { progress(value) }
+            })
             var completed: Int64 = 0
             for manifest in payload.manifests {
                 try Task.checkCancellation()
                 let before = completed
-                var engine = DownloadEngine(cm: cm, appID: payload.app.appID, destination: directory)
+                var engine = DownloadEngine(cm: cm, appID: payload.app.appID, destination: directory, diagnostics: diagnostics)
                 engine.onTransfer = { transfers.received($0) }
                 engine.onProgress = { update in
                     transfers.assembled(depot: update.depotID, completed: before + Int64(update.bytesDone),

@@ -69,6 +69,28 @@ final class SteamMacInstallTests: XCTestCase {
         return url
     }
 
+    func testMacDiagnosticsIncludeNestedPreparationAndValidationWork() async throws {
+        let diagnostics = SteamPerformanceDiagnostics()
+        let content = ResolvedSteamContent(app: app(), manifests: [manifest(macFiles, depot: 102)],
+            entitlements: .init(appIDs: [100], depotIDs: [102]))
+        let installer = SteamInstaller(game: game, backend: MacBackend(content: content, chunks: chunks),
+            emulatorSaves: try temporaryDirectory(), codeSigner: FixtureSigner(), diagnostics: diagnostics)
+        let plan = try await installer.resolve(platform: .macOS), directory = try temporaryDirectory()
+        try await installer.download(plan, to: directory) { _ in }
+        let staging = try await installer.postInstall(plan, at: directory)
+        let prepared = diagnostics.snapshot()
+        XCTAssertEqual(prepared[.preparation].count, 1)
+        XCTAssertEqual(prepared[.emulatorPreparation].count, 1)
+        XCTAssertGreaterThan(prepared[.sha256].bytes, 1024 * 1024)
+        XCTAssertGreaterThan(prepared[.contentRead].bytes, prepared[.sha256].bytes)
+        XCTAssertGreaterThan(prepared[.directoryWalk].count, 0)
+        _ = try await installer.validate(plan, at: directory, staging: staging)
+        let validated = diagnostics.snapshot()
+        XCTAssertEqual(validated[.finalValidation].count, 1)
+        XCTAssertGreaterThan(validated[.sha1].bytes, prepared[.sha1].bytes)
+        XCTAssertGreaterThan(validated[.sha256].bytes, prepared[.sha256].bytes)
+    }
+
     func testPlatformSelectsItsDepotsAndLaunchEntry() throws {
         let shared = manifest([file("shared.txt", Data("both".utf8))], depot: 103)
         let windows = try SteamPlanBuilder.build(game: game, app: app(), manifests: [manifest([file("Game.exe", machO)], depot: 101), shared], ownedApps: [100])

@@ -17,7 +17,7 @@ public struct GBEAssets: Sendable {
         self.steamAPI64 = steamAPI64
     }
 
-    public static func bundled() throws -> GBEAssets {
+    public static func bundled(diagnostics: SteamPerformanceDiagnostics? = nil) throws -> GBEAssets {
         guard let x86 = Bundle.module.url(forResource: "steam_api", withExtension: "dll",
                                           subdirectory: "steampipe"),
               let x64 = Bundle.module.url(forResource: "steam_api64", withExtension: "dll",
@@ -25,7 +25,7 @@ public struct GBEAssets: Sendable {
             throw SteamError.prepare("SteamCore is missing bundled gbe_fork DLLs")
         }
         let assets = GBEAssets(steamAPI32: x86, steamAPI64: x64)
-        guard try sha256(x86) == steamAPI32SHA256, try sha256(x64) == steamAPI64SHA256 else {
+        guard try sha256(x86, diagnostics: diagnostics) == steamAPI32SHA256, try sha256(x64, diagnostics: diagnostics) == steamAPI64SHA256 else {
             throw SteamError.prepare("bundled gbe_fork DLL hash mismatch")
         }
         return assets
@@ -120,11 +120,16 @@ public struct RestoreResult: Sendable {
 public struct SteamPreparer {
     public let assets: GBEAssets
     public var maxDepth = 10
+    public let diagnostics: SteamPerformanceDiagnostics?
 
-    public init(assets: GBEAssets) { self.assets = assets }
+    public init(assets: GBEAssets, diagnostics: SteamPerformanceDiagnostics? = nil) {
+        self.assets = assets; self.diagnostics = diagnostics
+    }
 
     public func prepare(appID: UInt32, gameDirectory: URL, account: PrepareAccount,
                         metadata: PrepareMetadata, offline: Bool = false) throws -> PrepareResult {
+        let started = diagnostics?.start()
+        defer { diagnostics?.finish(.emulatorPreparation, since: started) }
         let fm = FileManager.default
         var isDirectory: ObjCBool = false
         guard fm.fileExists(atPath: gameDirectory.path, isDirectory: &isDirectory), isDirectory.boolValue else {
@@ -138,12 +143,12 @@ public struct SteamPreparer {
             throw SteamError.prepare("no steam_api.dll or steam_api64.dll under \(gameDirectory.path)")
         }
 
-        let asset32Inspection = try PEInspector.inspect(assets.steamAPI32)
-        let asset64Inspection = try PEInspector.inspect(assets.steamAPI64)
+        let asset32Inspection = try PEInspector.inspect(assets.steamAPI32, diagnostics: diagnostics)
+        let asset64Inspection = try PEInspector.inspect(assets.steamAPI64, diagnostics: diagnostics)
         guard asset32Inspection.architecture == .x86, asset64Inspection.architecture == .x86_64 else {
             throw SteamError.prepare("bundled gbe_fork DLL architectures are invalid")
         }
-        let bundledHashes = try Set([sha256(assets.steamAPI32), sha256(assets.steamAPI64)])
+        let bundledHashes = try Set([sha256(assets.steamAPI32, diagnostics: diagnostics), sha256(assets.steamAPI64, diagnostics: diagnostics)])
 
         try? fm.removeItem(at: gameDirectory.appendingPathComponent(".steam_dll_restored"))
         var prepared: [PreparedDLL] = []
@@ -154,11 +159,11 @@ public struct SteamPreparer {
             let backup = URL(fileURLWithPath: dll.path + ".orig")
             let hasBackup = fm.fileExists(atPath: backup.path)
             let original = hasBackup ? backup : dll
-            let currentHash = try sha256(dll)
+            let currentHash = try sha256(dll, diagnostics: diagnostics)
             if !hasBackup && bundledHashes.contains(currentHash) {
                 throw SteamError.prepare("\(dll.path) is already a gbe_fork DLL but has no .orig backup")
             }
-            let inspection = try PEInspector.inspect(original)
+            let inspection = try PEInspector.inspect(original, diagnostics: diagnostics)
             let expected: PEArchitecture = dll.lastPathComponent.caseInsensitiveCompare("steam_api64.dll") == .orderedSame
                 ? .x86_64 : .x86
             guard inspection.architecture == expected else {
@@ -167,7 +172,7 @@ public struct SteamPreparer {
 
             let interfaceCount = try prepareInterfaces(from: original, beside: dll)
             if !hasBackup { try fm.copyItem(at: dll, to: backup) }
-            try Data(contentsOf: assets.url(for: inspection.architecture)).write(to: dll, options: .atomic)
+            try diagnostics.readContent { try Data(contentsOf: assets.url(for: inspection.architecture)) }.write(to: dll, options: .atomic)
             try writeSettings(appID: appID, beside: dll, gameDirectory: gameDirectory,
                               account: account, metadata: metadata, offline: offline)
             if let schema = metadata.achievementSchema ?? metadata.userStats?.schema, !schema.isEmpty {
@@ -310,12 +315,14 @@ public struct SteamPreparer {
             $0.lowercased().hasSuffix(".exe") && !$0.lowercased().hasSuffix(".original.exe")
         }) else { return [] }
         return executables.compactMap { url in
-            guard let inspection = try? PEInspector.inspect(url), inspection.requiresSteamStubRuntime else { return nil }
+            guard let inspection = try? PEInspector.inspect(url, diagnostics: diagnostics), inspection.requiresSteamStubRuntime else { return nil }
             return SteamStubRequirement(executable: url, entryPointRVA: inspection.entryPointRVA)
         }
     }
 
     func files(in root: URL, includingPackages: Bool = false, matching predicate: (String) -> Bool) throws -> [URL] {
+        let started = diagnostics?.start()
+        defer { diagnostics?.finish(.directoryWalk, since: started) }
         guard let enumerator = FileManager.default.enumerator(
             at: root, includingPropertiesForKeys: [.isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey],
             options: includingPackages ? [.skipsHiddenFiles] : [.skipsHiddenFiles, .skipsPackageDescendants]) else { return [] }
@@ -376,7 +383,7 @@ public struct SteamPreparer {
     ]
 
     private func extractInterfaces(from dll: URL) throws -> [String] {
-        let bytes = try Data(contentsOf: dll, options: .mappedIfSafe)
+        let bytes = try diagnostics.readContent { try Data(contentsOf: dll, options: .mappedIfSafe) }
         var current: [UInt8] = []
         var found = Set<String>()
         func flush(_ value: inout [UInt8], into found: inout Set<String>) {
@@ -424,7 +431,8 @@ public struct SteamPreparer {
     ]
 }
 
-private func sha256(_ url: URL) throws -> String {
-    SHA256.hash(data: try Data(contentsOf: url, options: .mappedIfSafe))
+private func sha256(_ url: URL, diagnostics: SteamPerformanceDiagnostics? = nil) throws -> String {
+    let data = try diagnostics.readContent { try Data(contentsOf: url, options: .mappedIfSafe) }
+    return diagnostics.measure(.sha256, bytes: UInt64(data.count)) { SHA256.hash(data: data) }
         .map { String(format: "%02x", $0) }.joined()
 }

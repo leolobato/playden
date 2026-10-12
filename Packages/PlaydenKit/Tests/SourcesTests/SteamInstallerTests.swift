@@ -20,6 +20,46 @@ final class SteamInstallerTests: XCTestCase {
     private func plan(_ files: [DepotManifest.File], app info: AppInfo? = nil) throws -> InstallPlan {
         try SteamPlanBuilder.build(game: game, app: info ?? app(), manifests: [manifest(files)], ownedApps: [100])
     }
+    func testDiagnosticsIncludePreparationScansHashesAndFinalValidation() async throws {
+        let bytes = pe()
+        let content = ResolvedSteamContent(app: app(), manifests: [manifest([file("Game.exe", bytes), file("steam_api64.dll", bytes)])],
+            entitlements: .init(appIDs: [100], depotIDs: [101]))
+        let diagnostics = SteamPerformanceDiagnostics()
+        let installer = SteamInstaller(game: game, backend: FixtureContentBackend(content: content,
+            chunks: [Data(Insecure.SHA1.hash(data: bytes)): bytes]), diagnostics: diagnostics)
+        let plan = try await installer.resolve(), directory = try temporaryDirectory()
+        try await installer.download(plan, to: directory) { _ in }
+        let staging = try await installer.postInstall(plan, at: directory)
+        let prepared = diagnostics.snapshot()
+        XCTAssertEqual(prepared[.preparation].count, 1)
+        XCTAssertEqual(prepared[.emulatorPreparation].count, 1)
+        XCTAssertGreaterThanOrEqual(prepared[.directoryWalk].count, 3)
+        XCTAssertGreaterThan(prepared[.sha256].bytes, 1024 * 1024, "Include bundled asset hashing within SteamPreparer")
+        XCTAssertGreaterThan(prepared[.contentRead].bytes, prepared[.sha256].bytes, "Include PE inspection and interface extraction reads")
+        _ = try await installer.validate(plan, at: directory, staging: staging)
+        let validated = diagnostics.snapshot()
+        XCTAssertEqual(validated[.finalValidation].count, 1)
+        XCTAssertGreaterThan(validated[.sha1].bytes, prepared[.sha1].bytes)
+        XCTAssertGreaterThan(validated[.sha256].bytes, prepared[.sha256].bytes)
+        XCTAssertGreaterThan(validated[.directoryWalk].count, prepared[.directoryWalk].count)
+    }
+
+    func testSteamStubDiagnosticsIncludeBundledToolHashes() async throws {
+        let original = pe(section: ".bind"), unpacked = pe()
+        let content = ResolvedSteamContent(app: app(), manifests: [manifest([file("Game.exe", original)])],
+            entitlements: .init(appIDs: [100], depotIDs: [101]))
+        let diagnostics = SteamPerformanceDiagnostics()
+        let installer = SteamInstaller(game: game, backend: FixtureContentBackend(content: content,
+            chunks: [Data(Insecure.SHA1.hash(data: original)): original]),
+            runtimeTools: FixtureUnpackingTools(output: unpacked), diagnostics: diagnostics)
+        let plan = try await installer.resolve(), directory = try temporaryDirectory()
+        try await installer.download(plan, to: directory) { _ in }
+        let bottle = GameBottle(gameID: game.id, name: "playden-steam-100", ownershipToken: UUID())
+        _ = try await installer.postInstall(plan, at: directory, in: bottle)
+        XCTAssertGreaterThan(diagnostics.snapshot()[.sha256].bytes, UInt64(original.count * 2 + unpacked.count),
+            "Include SHA-256 tool integrity checks inside executable preparation")
+    }
+
     func testCloudCapabilityDoesNotValidateDepotOrLaunchContent() throws {
         let info = AppInfo(appID: 100, name: "Fixture", ufs: UFS(quota: 1024))
         let installer = SteamInstaller(game: game, backend: FixtureContentBackend(

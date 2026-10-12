@@ -19,12 +19,12 @@ public struct DepotManifest: Codable, Equatable, Sendable {
             self.sha = sha; self.offset = offset; self.compressedSize = compressedSize
             self.uncompressedSize = uncompressedSize; self.checksum = checksum
         }
-        public func validate(_ data: Data) throws {
+        public func validate(_ data: Data, diagnostics: SteamPerformanceDiagnostics? = nil) throws {
             guard data.count == Int(uncompressedSize) else { throw SteamError.download("chunk length mismatch") }
             if let checksum {
-                guard Self.adler(data) == checksum else { throw SteamError.download("chunk checksum mismatch") }
+                guard diagnostics.measure(.adler32, bytes: UInt64(data.count)) { Self.adler(data) } == checksum else { throw SteamError.download("chunk checksum mismatch") }
             } else {
-                guard SteamCrypto.sha1(data) == sha else { throw SteamError.download("chunk SHA-1 mismatch") }
+                guard diagnostics.measure(.sha1, bytes: UInt64(data.count)) { SteamCrypto.sha1(data) } == sha else { throw SteamError.download("chunk SHA-1 mismatch") }
             }
         }
         // Steam's manifest checksum is Adler-32 with a zero initial seed.
@@ -84,9 +84,9 @@ public enum CDNClient {
     // MARK: manifest
 
     public static func fetchManifest(server: ContentServer, depotID: UInt32, gid: UInt64,
-                                     requestCode: UInt64, depotKey: Data) async throws -> DepotManifest {
+                                     requestCode: UInt64, depotKey: Data, diagnostics: SteamPerformanceDiagnostics? = nil) async throws -> DepotManifest {
         let url = "https://\(server.vhost)/depot/\(depotID)/manifest/\(gid)/5/\(requestCode)"
-        let raw = try await get(url)
+        let raw = try await get(url, diagnostics: diagnostics)
         let unzipped = try Decompress.unzipFirstEntry(raw)
         let manifest = try parseManifest(unzipped, depotKey: depotKey)
         guard manifest.depotID == depotID, manifest.gid == gid else { throw SteamError.download("CDN returned a different depot manifest") }
@@ -166,10 +166,11 @@ public enum CDNClient {
     /// Downloads and processes (decrypt + decompress) one chunk.
     public static func fetchChunk(server: ContentServer, depotID: UInt32,
                                   chunk: DepotManifest.Chunk, depotKey: Data,
-                                  onTransfer: @Sendable (Int) -> Void = { _ in }) async throws -> Data {
+                                  onTransfer: @Sendable (Int) -> Void = { _ in },
+                                  diagnostics: SteamPerformanceDiagnostics? = nil) async throws -> Data {
         let url = "https://\(server.vhost)/depot/\(depotID)/chunk/\(chunk.sha.hexString)"
-        let raw = try await get(url)
-        onTransfer(raw.count)
+        let raw = try await get(url, diagnostics: diagnostics)
+        diagnostics.measure(.progressCallback) { onTransfer(raw.count) }
         let decrypted = try SteamCrypto.symmetricDecrypt(raw, key: depotKey)
         let data: Data
         do {
@@ -182,11 +183,11 @@ public enum CDNClient {
             try? decrypted.write(to: dump)
             throw SteamError.download("\(error) — decrypted chunk dumped to \(dump.path)")
         }
-        try chunk.validate(data)
+        try chunk.validate(data, diagnostics: diagnostics)
         return data
     }
 
-    static func get(_ urlString: String) async throws -> Data {
+    static func get(_ urlString: String, diagnostics: SteamPerformanceDiagnostics? = nil) async throws -> Data {
         guard let url = URL(string: urlString) else { throw SteamError.download("bad URL \(urlString)") }
         var req = URLRequest(url: url)
         req.setValue("Valve/Steam HTTP Client 1.0", forHTTPHeaderField: "User-Agent")
@@ -194,9 +195,13 @@ public enum CDNClient {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.urlCache = nil; configuration.httpCookieStorage = nil
         configuration.timeoutIntervalForResource = 60
-        let session = URLSession(configuration: configuration)
+        let session = diagnostics.measure(.sessionCreation) { URLSession(configuration: configuration) }
         defer { session.finishTasksAndInvalidate() }
+        let started = diagnostics?.start()
+        var received: UInt64 = 0
+        defer { diagnostics?.finish(.networkTransfer, since: started, bytes: received) }
         let (data, response) = try await session.data(for: req)
+        received = UInt64(data.count)
         guard let http = response as? HTTPURLResponse else { throw SteamError.protocolError("no HTTP response") }
         guard http.statusCode == 200 else { throw SteamError.http(status: http.statusCode, url: urlString) }
         return data

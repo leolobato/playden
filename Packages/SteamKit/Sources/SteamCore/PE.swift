@@ -19,8 +19,8 @@ public struct PEInspection: Sendable {
 /// section. This intentionally parses only the PE/COFF fields needed for those
 /// two decisions.
 public enum PEInspector {
-    public static func inspect(_ url: URL) throws -> PEInspection {
-        let data = try Data(contentsOf: url, options: .mappedIfSafe)
+    public static func inspect(_ url: URL, diagnostics: SteamPerformanceDiagnostics? = nil) throws -> PEInspection {
+        let data = try diagnostics.readContent { try Data(contentsOf: url, options: .mappedIfSafe) }
         guard data.count >= 0x40, data[0] == 0x4d, data[1] == 0x5a else {
             throw SteamError.prepare("\(url.lastPathComponent) is not a PE file (missing MZ)")
         }

@@ -5,21 +5,21 @@ import SteamCore
 
 enum SteamUnpacking {
     static let version = "3.1.0.5"
-    static func executable() throws -> URL {
+    static func executable(diagnostics: SteamPerformanceDiagnostics? = nil) throws -> URL {
         guard let root = Bundle.module.url(forResource: "Steamless", withExtension: nil) else { throw failure("The game preparation tool is missing. Reinstall Playden.") }
-        let data = try Data(contentsOf: root.appendingPathComponent("checksums.json"))
-        guard hex(data) == "817b6edd5c8adaba777eb4d1a4f88ccbe01a5460bd3919260ba6327ebd6fbdef" else { throw failure("The game preparation tool could not be verified. Reinstall Playden.") }
+        let data = try diagnostics.readContent { try Data(contentsOf: root.appendingPathComponent("checksums.json")) }
+        guard hex(data, diagnostics: diagnostics) == "817b6edd5c8adaba777eb4d1a4f88ccbe01a5460bd3919260ba6327ebd6fbdef" else { throw failure("The game preparation tool could not be verified. Reinstall Playden.") }
         for (path, checksum) in try JSONDecoder().decode([String: String].self, from: data) {
-            guard hex(try Data(contentsOf: root.appendingPathComponent(path))) == checksum else { throw failure("The game preparation tool changed. Reinstall Playden.") }
+            guard hex(try diagnostics.readContent { try Data(contentsOf: root.appendingPathComponent(path)) }, diagnostics: diagnostics) == checksum else { throw failure("The game preparation tool changed. Reinstall Playden.") }
         }
         return root.appendingPathComponent("Steamless.CLI.exe")
     }
     /// The tool sees only a disposable copy; callers retain and verify the pinned original.
     /// No output beside the installed executable is trusted as proof of successful unpacking.
-    static func unpack(_ original: URL, in bottle: GameBottle, tools: any RuntimeToolRunning) async throws -> Data {
-        let before = try PEInspector.inspect(original)
+    static func unpack(_ original: URL, in bottle: GameBottle, tools: any RuntimeToolRunning, diagnostics: SteamPerformanceDiagnostics? = nil) async throws -> Data {
+        let before = try PEInspector.inspect(original, diagnostics: diagnostics)
         guard before.requiresSteamStubRuntime else { throw failure("The executable does not require this preparation step.") }
-        let bundledTool = try executable()
+        let bundledTool = try executable(diagnostics: diagnostics)
         let work = FileManager.default.temporaryDirectory.appendingPathComponent("Playden-unpack-" + UUID().uuidString)
         try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         defer { try? FileManager.default.removeItem(at: work) }
@@ -38,11 +38,14 @@ enum SteamUnpacking {
         try Task.checkCancellation()
         let properties = try output.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
         guard properties.isRegularFile == true, properties.isSymbolicLink != true else { throw failure("Game preparation did not produce a valid executable.") }
-        let after = try PEInspector.inspect(output)
+        let after = try PEInspector.inspect(output, diagnostics: diagnostics)
         guard after.architecture == before.architecture, after.entryPointSection != nil,
               !after.requiresSteamStubRuntime else { throw failure("The prepared executable failed validation. Its original has been kept.") }
-        return try Data(contentsOf: output)
+        return try diagnostics.readContent { try Data(contentsOf: output) }
     }
-    private static func hex(_ data: Data) -> String { SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined() }
+    private static func hex(_ data: Data, diagnostics: SteamPerformanceDiagnostics? = nil) -> String {
+        diagnostics.measure(.sha256, bytes: UInt64(data.count)) { SHA256.hash(data: data) }
+            .map { String(format: "%02x", $0) }.joined()
+    }
     private static func failure(_ reason: String) -> OperationFailure { .init(stage: "Prepare executable", reason: reason, output: "") }
 }

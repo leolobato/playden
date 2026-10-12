@@ -9,12 +9,19 @@ public struct ResumableDepotDownload: Sendable {
     public let destination: URL
     public var chunkConcurrency = 8
     public var onProgress: @Sendable (DownloadProgress) -> Void = { _ in }
-    public init(destination: URL) { self.destination = destination }
+    public let diagnostics: SteamPerformanceDiagnostics?
+    public init(destination: URL, diagnostics: SteamPerformanceDiagnostics? = nil) {
+        self.destination = destination; self.diagnostics = diagnostics
+    }
+
+    private func report(_ progress: DownloadProgress) {
+        diagnostics.measure(.progressCallback) { onProgress(progress) }
+    }
 
     public func download(manifest: DepotManifest,
                          fetchChunk: @escaping @Sendable (DepotManifest.Chunk) async throws -> Data) async throws {
         let entries = try Self.validate(manifest)
-        let workspace = try DownloadWorkspace(destination: destination)
+        let workspace = try DownloadWorkspace(destination: destination, diagnostics: diagnostics)
         let total = entries.filter { !$0.file.isDirectory && !$0.file.isSymlink }.reduce(UInt64(0)) { $0 + $1.file.size }
         var done: UInt64 = 0, written: UInt64 = 0
         for entry in entries where !entry.file.isSymlink {
@@ -22,25 +29,26 @@ public struct ResumableDepotDownload: Sendable {
             if entry.file.isDirectory { try workspace.makeDirectory(entry.path); continue }
             let before = done, freshBefore = written
             let checkingExisting: @Sendable (UInt64) -> Void = { checked in
-                onProgress(DownloadProgress(depotID: manifest.depotID, file: entry.path, bytesDone: before,
+                report(DownloadProgress(depotID: manifest.depotID, file: entry.path, bytesDone: before,
                     bytesTotal: total, bytesWritten: freshBefore,
                     verification: .init(bytesChecked: checked, bytesTotal: entry.file.size)))
             }
             if try Self.isValid(entry.file, path: entry.path, workspace: workspace, onVerification: checkingExisting) {
                 done += entry.file.size
-                onProgress(DownloadProgress(depotID: manifest.depotID, file: entry.path, bytesDone: done, bytesTotal: total, bytesWritten: written))
+                report(DownloadProgress(depotID: manifest.depotID, file: entry.path, bytesDone: done, bytesTotal: total, bytesWritten: written))
                 continue
             }
-            let key = SHA256.hash(data: Data(entry.path.utf8)).map { String(format: "%02x", $0) }.joined()
+            let pathBytes = Data(entry.path.utf8)
+            let key = diagnostics.measure(.sha256, bytes: UInt64(pathBytes.count)) { SHA256.hash(data: pathBytes) }.map { String(format: "%02x", $0) }.joined()
             let base = ".gn-download/\(manifest.depotID)/\(manifest.gid)/\(key)"
             let writer = try ChunkCheckpointWriter(workspace: workspace, file: entry.file, base: base)
             let resumed = try await writer.restore { checked, checkTotal, retained in
-                onProgress(DownloadProgress(depotID: manifest.depotID, file: entry.path,
+                report(DownloadProgress(depotID: manifest.depotID, file: entry.path,
                     bytesDone: before + retained, bytesTotal: total, bytesWritten: freshBefore,
                     verification: .init(bytesChecked: checked, bytesTotal: checkTotal)))
             }
             var completed = resumed.bytes
-            onProgress(DownloadProgress(depotID: manifest.depotID, file: entry.path, bytesDone: done + completed, bytesTotal: total, bytesWritten: written))
+            report(DownloadProgress(depotID: manifest.depotID, file: entry.path, bytesDone: done + completed, bytesTotal: total, bytesWritten: written))
             let pending = entry.file.chunks.enumerated().filter { !resumed.indices.contains($0.offset) }
                 .sorted { $0.element.offset < $1.element.offset }
             var iterator = pending.makeIterator()
@@ -52,7 +60,7 @@ public struct ResumableDepotDownload: Sendable {
                             try Task.checkCancellation()
                             let data = try await fetchChunk(chunk)
                             try Task.checkCancellation()
-                            try chunk.validate(data)
+                            try chunk.validate(data, diagnostics: workspace.diagnostics)
                             try await writer.commit(data, index: index)
                             return UInt64(data.count)
                         }
@@ -61,18 +69,18 @@ public struct ResumableDepotDownload: Sendable {
                     while let count = try await group.next() {
                         try Task.checkCancellation()
                         completed += count; written += count
-                        onProgress(DownloadProgress(depotID: manifest.depotID, file: entry.path, bytesDone: done + completed, bytesTotal: total, bytesWritten: written))
+                        report(DownloadProgress(depotID: manifest.depotID, file: entry.path, bytesDone: done + completed, bytesTotal: total, bytesWritten: written))
                         next()
                     }
                 }
                 try Task.checkCancellation()
                 let assembled = done + completed, fresh = written
                 try await writer.finish(to: entry.path) { checked in
-                    onProgress(DownloadProgress(depotID: manifest.depotID, file: entry.path, bytesDone: assembled,
+                    report(DownloadProgress(depotID: manifest.depotID, file: entry.path, bytesDone: assembled,
                         bytesTotal: total, bytesWritten: fresh,
                         verification: .init(bytesChecked: checked, bytesTotal: entry.file.size)))
                 }
-                onProgress(DownloadProgress(depotID: manifest.depotID, file: entry.path,
+                report(DownloadProgress(depotID: manifest.depotID, file: entry.path,
                     bytesDone: assembled, bytesTotal: total, bytesWritten: fresh))
             } catch {
                 // Task groups drain their children before this catch, so no writer can
@@ -92,25 +100,28 @@ public struct ResumableDepotDownload: Sendable {
     /// Returns corrupt/missing original manifest files. The caller maps emulation-transformed files
     /// to their retained originals before using this for a repair; this API never stages emulation.
     public func invalidFiles(in manifest: DepotManifest, onVerification: (String, UInt64, UInt64) -> Void = { _, _, _ in }) throws -> [String] {
+        func reportVerification(_ file: String, _ checked: UInt64, _ total: UInt64) {
+            diagnostics.measure(.progressCallback) { onVerification(file, checked, total) }
+        }
         let entries = try Self.validate(manifest)
         guard FileManager.default.fileExists(atPath: destination.path) else { return entries.filter { !$0.file.isDirectory }.map(\.path) }
-        let workspace = try DownloadWorkspace(destination: destination, lock: false)
+        let workspace = try DownloadWorkspace(destination: destination, lock: false, diagnostics: diagnostics)
         var invalid: [String] = []
         let total = entries.filter { !$0.file.isDirectory && !$0.file.isSymlink }.reduce(UInt64(0)) { $0 + $1.file.size }
         var completed: UInt64 = 0
-        onVerification("", 0, total)
+        reportVerification("", 0, total)
         for entry in entries where !entry.file.isDirectory {
             try Task.checkCancellation()
             if entry.file.isSymlink {
                 if (try? workspace.symlinkTarget(entry.path)) != entry.link { invalid.append(entry.path) }
             } else {
-                onVerification(entry.path, completed, total)
+                reportVerification(entry.path, completed, total)
                 if try !Self.isValid(entry.file, path: entry.path, workspace: workspace, onVerification: { checked in
-                    onVerification(entry.path, completed + checked, total)
+                    reportVerification(entry.path, completed + checked, total)
                 }) { invalid.append(entry.path) }
                 // Examined bytes include files found missing/corrupt; completion is not validity.
                 completed += entry.file.size
-                onVerification(entry.path, completed, total)
+                reportVerification(entry.path, completed, total)
             }
         }
         return invalid
@@ -162,6 +173,8 @@ public struct ResumableDepotDownload: Sendable {
         return entries
     }
     fileprivate static func isValid(_ file: DepotManifest.File, path: String, workspace: DownloadWorkspace, onVerification: (UInt64) -> Void = { _ in }) throws -> Bool {
+        let started = workspace.diagnostics?.start()
+        defer { workspace.diagnostics?.finish(.fileValidation, since: started) }
         let handle: FileHandle
         do { handle = try workspace.openFile(path, flags: O_RDONLY) }
         catch { return false }
@@ -172,11 +185,11 @@ public struct ResumableDepotDownload: Sendable {
         if file.size == 0, file.contentSHA1 == Data(repeating: 0, count: 20) { return true }
         var checked: UInt64 = 0
         var lastReport = ContinuousClock.now
-        onVerification(0)
+        workspace.diagnostics.measure(.progressCallback) { onVerification(0) }
         func report(_ count: Int) {
             checked += UInt64(count)
             if checked == file.size || lastReport.duration(to: .now) >= .milliseconds(250) {
-                onVerification(checked); lastReport = .now
+                workspace.diagnostics.measure(.progressCallback) { onVerification(checked) }; lastReport = .now
             }
         }
         if let sha = file.contentSHA1 {
@@ -187,19 +200,19 @@ public struct ResumableDepotDownload: Sendable {
                 // Foundation reads may autorelease their buffers. Release each block even
                 // on a long-lived async worker checking a multi-gigabyte archive.
                 let count = try autoreleasepool {
-                    let data = try handle.read(upToCount: 1024 * 1024) ?? Data()
-                    hash.update(data: data)
+                    let data = try workspace.diagnostics.readContent { try handle.read(upToCount: 1024 * 1024) ?? Data() }
+                    workspace.diagnostics.measure(.sha1, bytes: UInt64(data.count)) { hash.update(data: data) }
                     return data.count
                 }
                 if count == 0 { break }; report(count)
             }
-            return Data(hash.finalize()) == sha
+            return workspace.diagnostics.measure(.sha1) { Data(hash.finalize()) } == sha
         }
         for chunk in file.chunks {
             try Task.checkCancellation(); try handle.seek(toOffset: chunk.offset)
             let valid = try autoreleasepool {
-                let data = try handle.read(upToCount: Int(chunk.uncompressedSize)) ?? Data()
-                return (try? chunk.validate(data)) != nil
+                let data = try workspace.diagnostics.readContent { try handle.read(upToCount: Int(chunk.uncompressedSize)) ?? Data() }
+                return (try? chunk.validate(data, diagnostics: workspace.diagnostics)) != nil
             }
             guard valid else { return false }
             report(Int(chunk.uncompressedSize))
@@ -225,7 +238,8 @@ private actor ChunkCheckpointWriter {
     init(workspace: DownloadWorkspace, file: DepotManifest.File, base: String) throws {
         self.workspace = workspace; self.file = file; partial = base + ".partial"; journalPath = base + ".json"
         let encoder = JSONEncoder(); encoder.outputFormatting = .sortedKeys
-        let fingerprint = Data(SHA256.hash(data: try encoder.encode(file)))
+        let encoded = try encoder.encode(file)
+        let fingerprint = workspace.diagnostics.measure(.sha256, bytes: UInt64(encoded.count)) { Data(SHA256.hash(data: encoded)) }
         let saved = (try? workspace.read(journalPath)).flatMap { try? JSONDecoder().decode(ChunkJournal.self, from: $0) }
         let canResume = saved?.version == 1 && saved?.fingerprint == fingerprint
         journal = canResume ? saved! : ChunkJournal(fingerprint: fingerprint)
@@ -244,20 +258,20 @@ private actor ChunkCheckpointWriter {
         let total = saved.reduce(UInt64(0)) { $0 + UInt64(file.chunks[$1.key].uncompressedSize) }
         var checked: UInt64 = 0
         var lastReport = ContinuousClock.now
-        if total > 0 { onVerification(0, total, 0) }
+        if total > 0 { workspace.diagnostics.measure(.progressCallback) { onVerification(0, total, 0) } }
         for (index, hash) in saved {
             try Task.checkCancellation()
             let chunk = file.chunks[index]
             let valid = try autoreleasepool {
                 try handle.seek(toOffset: chunk.offset)
-                let data = try handle.read(upToCount: Int(chunk.uncompressedSize)) ?? Data()
-                return Data(SHA256.hash(data: data)) == hash && (try? chunk.validate(data)) != nil
+                let data = try workspace.diagnostics.readContent { try handle.read(upToCount: Int(chunk.uncompressedSize)) ?? Data() }
+                return workspace.diagnostics.measure(.sha256, bytes: UInt64(data.count)) { Data(SHA256.hash(data: data)) } == hash && (try? chunk.validate(data, diagnostics: workspace.diagnostics)) != nil
             }
             if valid { retained[index] = hash; bytes += UInt64(chunk.uncompressedSize) }
             // Checked ranges include rejected chunks; only valid bytes count as retained.
             checked += UInt64(chunk.uncompressedSize)
             if checked == total || lastReport.duration(to: .now) >= .milliseconds(250) {
-                onVerification(checked, total, bytes); lastReport = .now
+                workspace.diagnostics.measure(.progressCallback) { onVerification(checked, total, bytes) }; lastReport = .now
             }
         }
         journal.completed = retained
@@ -266,9 +280,10 @@ private actor ChunkCheckpointWriter {
     func commit(_ data: Data, index: Int) throws {
         try Task.checkCancellation()
         let chunk = file.chunks[index]
-        try chunk.validate(data)
-        try handle.seek(toOffset: chunk.offset); try handle.write(contentsOf: data)
-        journal.completed[index] = Data(SHA256.hash(data: data))
+        try chunk.validate(data, diagnostics: workspace.diagnostics)
+        try handle.seek(toOffset: chunk.offset)
+        try workspace.diagnostics.measure(.fileWrite, bytes: UInt64(data.count)) { try handle.write(contentsOf: data) }
+        journal.completed[index] = workspace.diagnostics.measure(.sha256, bytes: UInt64(data.count)) { Data(SHA256.hash(data: data)) }
         uncheckpointedBytes += UInt64(data.count)
         if uncheckpointedBytes >= 16 * 1024 * 1024 || lastCheckpoint.duration(to: .now) >= .seconds(1) {
             try checkpoint()
@@ -276,7 +291,9 @@ private actor ChunkCheckpointWriter {
     }
     func checkpoint() throws {
         guard uncheckpointedBytes > 0 else { return }
-        try DownloadWorkspace.sync(handle)
+        let started = workspace.diagnostics?.start()
+        defer { workspace.diagnostics?.finish(.checkpoint, since: started) }
+        try DownloadWorkspace.sync(handle, diagnostics: workspace.diagnostics)
         try workspace.writeAtomic(try JSONEncoder().encode(journal), path: journalPath)
         uncheckpointedBytes = 0; lastCheckpoint = .now
     }
@@ -290,7 +307,7 @@ private actor ChunkCheckpointWriter {
             throw SteamError.download("assembled file failed verification: \(file.path)")
         }
         if file.isExecutable { guard fchmod(handle.fileDescriptor, 0o755) == 0 else { throw POSIXError(.EIO) } }
-        try DownloadWorkspace.sync(handle)
+        try DownloadWorkspace.sync(handle, diagnostics: workspace.diagnostics)
         try workspace.replace(partial, withDestination: target)
         try workspace.remove(journalPath)
     }

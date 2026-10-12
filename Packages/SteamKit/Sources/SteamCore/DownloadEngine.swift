@@ -29,11 +29,13 @@ public struct DownloadEngine {
     public let appID: UInt32
     public let destination: URL
     public var chunkConcurrency = 8
+    public let diagnostics: SteamPerformanceDiagnostics?
     public var onProgress: @Sendable (DownloadProgress) -> Void = { _ in }
     /// Received CDN chunk response-body bytes, before decrypt/decompress. May run concurrently.
     public var onTransfer: @Sendable (Int) -> Void = { _ in }
 
-    public init(cm: CMClient, appID: UInt32, destination: URL) {
+    public init(cm: CMClient, appID: UInt32, destination: URL, diagnostics: SteamPerformanceDiagnostics? = nil) {
+        self.diagnostics = diagnostics
         self.cm = cm
         self.appID = appID
         self.destination = destination
@@ -62,12 +64,14 @@ public struct DownloadEngine {
         let key = try await cm.depotKey(appID: appID, depotID: depot.id)
         let code = try await cm.manifestRequestCode(appID: appID, depotID: depot.id, manifestGID: gid)
         return try await CDNClient.fetchManifest(server: server, depotID: depot.id, gid: gid,
-                                                  requestCode: code, depotKey: key)
+                                                  requestCode: code, depotKey: key, diagnostics: diagnostics)
     }
 
     /// Cache every selected key before a long transfer. Once prepared, pinned manifests
     /// download from the CDN without depending on the CM connection staying alive.
     public func prepare(manifests: [DepotManifest]) async throws {
+        let started = diagnostics?.start()
+        defer { diagnostics?.finish(.keyPreparation, since: started) }
         for depotID in Set(manifests.map(\.depotID)).sorted() {
             try Task.checkCancellation()
             _ = try await cm.depotKey(appID: appID, depotID: depotID)
@@ -82,24 +86,25 @@ public struct DownloadEngine {
         guard !servers.isEmpty else { throw SteamError.download("no content servers available") }
         try Task.checkCancellation()
         let key = try await cm.depotKey(appID: appID, depotID: manifest.depotID)
-        var download = ResumableDepotDownload(destination: destination)
+        var download = ResumableDepotDownload(destination: destination, diagnostics: diagnostics)
         download.chunkConcurrency = chunkConcurrency
         download.onProgress = onProgress
         try await download.download(manifest: manifest) { chunk in
-            try await Self.fetchChunkWithRetry(servers: servers, depotID: manifest.depotID, chunk: chunk, key: key, onTransfer: onTransfer)
+            try await Self.fetchChunkWithRetry(servers: servers, depotID: manifest.depotID, chunk: chunk, key: key, onTransfer: onTransfer, diagnostics: diagnostics)
         }
     }
 
     static func fetchChunkWithRetry(servers: [ContentServer], depotID: UInt32,
                                     chunk: DepotManifest.Chunk, key: Data,
-                                    onTransfer: @Sendable (Int) -> Void = { _ in }) async throws -> Data {
+                                    onTransfer: @Sendable (Int) -> Void = { _ in },
+                                    diagnostics: SteamPerformanceDiagnostics? = nil) async throws -> Data {
         guard !servers.isEmpty else { throw SteamError.download("no content servers available") }
         var lastError: Error = SteamError.download("no content servers available")
         for attempt in 0..<3 {
             try Task.checkCancellation()
             do {
                 return try await CDNClient.fetchChunk(server: servers[attempt % servers.count],
-                    depotID: depotID, chunk: chunk, depotKey: key, onTransfer: onTransfer)
+                    depotID: depotID, chunk: chunk, depotKey: key, onTransfer: onTransfer, diagnostics: diagnostics)
             } catch {
                 try Task.checkCancellation()
                 if error is CancellationError { throw error }
