@@ -272,13 +272,16 @@ public actor InstallQueue: InstallQueuing {
             }
         } catch { /* Missing/unowned/unavailable state receives no allocation credit. */ }
     }
-    private func checkSpace(_ id: UUID, required: Int64? = nil, allocated: Int64 = 0) async throws {
+    private func checkSpace(_ id: UUID, required: Int64? = nil, allocated: Int64 = 0,
+                            phase: InstallRepairReservationPhase = .transfer) async throws {
         guard let job = records[id], let volume = job.volume else { throw Self.failure("Reserve space", "The games drive is unavailable.") }
         if let required {
             guard required >= 0, allocated >= 0, allocated <= required else { throw Self.failure("Reserve space", "The allocation estimate is invalid.") }
             let budget = job.kind == .repair && job.spaceReservationVersion == nil
                 ? max(job.plan?.estimate.requiredBytes ?? required, required) : required
-            repairReservationBases[id] = budget
+            // Close allocation credit before the capacity await: buffered transfer reports
+            // still update the meter, but their replacement bytes cannot consume preparation.
+            repairReservationBases[id] = phase == .transfer ? budget : nil
             remainingReservations[id] = budget - allocated
         }
         let free = try await storage.freeBytes(on: volume)
@@ -365,8 +368,8 @@ public actor InstallQueue: InstallQueuing {
                     do {
                         if job.kind == .repair, job.gameID.source == SourceID.steam {
                             // The source gates its exact invalid subset after one full inspection.
-                            try await installer.repair(plan, at: path, staging: job.staging, reserve: { required, allocated in
-                                try await self.checkSpace(id, required: required, allocated: allocated)
+                            try await installer.repair(plan, at: path, staging: job.staging, reserve: { required, allocated, phase in
+                                try await self.checkSpace(id, required: required, allocated: allocated, phase: phase)
                             }, progress: report)
                         } else if job.kind == .repair { try await installer.repair(plan, at: path, staging: job.staging, progress: report) }
                         else { try await installer.download(plan, to: path, progress: report) }

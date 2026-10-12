@@ -26,6 +26,8 @@ private actor OfflineContent {
     var held = Set<String>()
     var failures = Set<String>()
     var verificationFixture = false
+    var beforeRepairPreparation: (@Sendable () async -> Void)?
+    func setRepairPreparationHook(_ hook: @escaping @Sendable () async -> Void) { beforeRepairPreparation = hook }
     var downloadReports: [String: @Sendable (InstallProgress) -> Void] = [:]
     func saveDownloadReport(_ id: String, report: @escaping @Sendable (InstallProgress) -> Void) { downloadReports[id] = report }
     func sendDownloadReport(_ id: String, value: InstallProgress) { downloadReports[id]?(value) }
@@ -76,7 +78,23 @@ private actor SpaceFixtureStorage: InstallStorageManaging {
     var available: Int64 = 100000
     init(_ base: InstallStorage) { self.base = base }
     func setFree(_ value: Int64) { available = value }
-    func freeBytes(on volume: GamesVolumeSelection) async throws -> Int64 { available }
+    private var holdNext = false
+    private var heldRead: CheckedContinuation<Int64, Never>?
+    private var heldObservers: [CheckedContinuation<Void, Never>] = []
+    func holdNextRead() { holdNext = true }
+    func waitForHeldRead() async {
+        if heldRead != nil { return }
+        await withCheckedContinuation { heldObservers.append($0) }
+    }
+    func releaseHeldRead(_ free: Int64) { heldRead?.resume(returning: free); heldRead = nil }
+    func freeBytes(on volume: GamesVolumeSelection) async throws -> Int64 {
+        guard holdNext else { return available }
+        holdNext = false
+        return await withCheckedContinuation { continuation in
+            heldRead = continuation
+            heldObservers.forEach { $0.resume() }; heldObservers.removeAll()
+        }
+    }
     func prepare(gameID: GameID, owner: UUID, on volume: GamesVolumeSelection) async throws -> GameLocation { try await base.prepare(gameID: gameID, owner: owner, on: volume) }
     func directory(_ location: GameLocation, gameID: GameID, owner: UUID) async throws -> URL { try await base.directory(location, gameID: gameID, owner: owner) }
     func remove(_ location: GameLocation, gameID: GameID, owner: UUID) async throws { try await base.remove(location, gameID: gameID, owner: owner) }
@@ -109,6 +127,19 @@ private struct OfflineInstaller: Installer {
         } else { progress(.init(bytesCompleted: 4, bytesTotal: 8, currentFile: "game.exe")) }
         try await content.wait(gameID.value)
         try Data("complete".utf8).write(to: directory.appendingPathComponent("game.exe"))
+    }
+    func repair(_ plan: InstallPlan, at directory: URL, staging: InstallStaging?,
+                reserve: @escaping @Sendable (Int64, Int64, InstallRepairReservationPhase) async throws -> Void,
+                progress: @escaping @Sendable (InstallProgress) -> Void) async throws {
+        guard let beforePreparation = await content.beforeRepairPreparation else {
+            try await reserve(plan.estimate.requiredBytes, 0, .transfer)
+            try await repair(plan, at: directory, staging: staging, progress: progress)
+            return
+        }
+        try await reserve(1280, 0, .transfer)
+        await content.saveDownloadReport(gameID.value, report: progress)
+        await beforePreparation()
+        try await reserve(256, 0, .preparation)
     }
     func verifyOriginals(_ plan: InstallPlan, at directory: URL, staging: InstallStaging?) async throws -> VerificationResult {
         try await content.record("verify:" + gameID.value)
@@ -217,6 +248,52 @@ final class InstallQueueTests: XCTestCase {
         let decoded = try JSONDecoder().decode(JobRecord.self, from: JSONEncoder().encode(paused))
         XCTAssertEqual(decoded.spaceReservationVersion, 2)
         let events = await content.events; XCTAssertEqual(events.filter { $0 == "download:space" }.count, 1)
+        await queue.shutdown()
+    }
+    func testSteamRepairLateAllocationPreservesPreparationCapacityGate() async throws {
+        try await repairPreparationReservation(freeAfterTransfer: 255)
+    }
+    func testSteamRepairLateAllocationPreservesPreparationAfterRelayDrain() async throws {
+        try await repairPreparationReservation(freeAfterTransfer: 256)
+    }
+    private func repairPreparationReservation(freeAfterTransfer: Int64) async throws {
+        let root = try root(), volumes = FixtureVolumes(root: root), content = OfflineContent()
+        let storage = SpaceFixtureStorage(InstallStorage(volumes: volumes))
+        let catalog = try CatalogStore(path: root.appendingPathComponent("repair-space.sqlite").path)
+        let queue = try InstallQueue(catalog: catalog, sources: [SteamSpaceSource(content: content)], storage: storage, bottles: FixtureBottles())
+        let game = SourceGameRecord(id: .init(source: "steam", value: "repair-space"), title: "Repair space")
+        let install = try await queue.enqueue(queue.offer(for: game, volume: volumes.selection))
+        try await queue.start()
+        _ = try await waitFor(queue, jobID: install, state: .completed)
+        await content.enableStageVerificationFixture()
+        await content.hold("stage:" + game.id.value)
+        await content.setRepairPreparationHook { await storage.holdNextRead() }
+        let repair = try await queue.repair(game.id)
+        await storage.waitForHeldRead()
+        // Deliver the final transfer report while the preparation-only gate awaits capacity.
+        // Its allocation exceeds preparation, so applying the old credit would erase the budget.
+        await content.sendDownloadReport(game.id.value, value: .init(bytesCompleted: 8, bytesTotal: 8,
+            currentFile: "late-final", allocatedBytes: 1024))
+        let duringGate = try await waitForSnapshot(queue) { $0.jobs.first { $0.id == repair }?.currentFile == "late-final" }
+        XCTAssertEqual(duringGate.jobs.first { $0.id == repair }?.remainingReservationBytes, 256)
+        let offer = try await queue.offer(for: .init(id: .init(source: "steam", value: "next"), title: "Next"), volume: volumes.selection)
+        XCTAssertEqual(offer.reservedBytes, 256)
+        await storage.releaseHeldRead(freeAfterTransfer)
+        let settled = try await waitForSnapshot(queue) {
+            guard let job = $0.jobs.first(where: { $0.id == repair }) else { return false }
+            return job.state == .paused || job.stage == .stage
+        }
+        let job = try XCTUnwrap(settled.jobs.first { $0.id == repair })
+        XCTAssertEqual(job.remainingReservationBytes, 256)
+        if freeAfterTransfer < 256 {
+            XCTAssertEqual(job.state, .paused)
+            XCTAssertTrue(job.pauseReasons.contains(.insufficientSpace))
+            XCTAssertFalse(job.completedStages.contains(.download))
+        } else {
+            XCTAssertEqual(job.stage, .stage)
+            XCTAssertTrue(job.completedStages.contains(.download))
+        }
+        await content.release("stage:" + game.id.value)
         await queue.shutdown()
     }
     func testRestartedPausedSteamJobDiscardsSavedAllocationAndTransferCredit() async throws {

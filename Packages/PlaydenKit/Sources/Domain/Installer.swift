@@ -58,6 +58,10 @@ public struct InstallPreparationProgress: Equatable, Sendable {
     public init(step: Step, sequence: UInt64) { self.step = step; self.sequence = sequence }
 }
 
+/// Repair allocation reports apply only during transfer. Preparation closes that credit before
+/// checking the remaining backup/headroom budget; buffered transfer reports may still arrive.
+public enum InstallRepairReservationPhase: Equatable, Sendable { case transfer, preparation }
+
 public struct InstallProgress: Equatable, Sendable {
     public let bytesCompleted: Int64
     public let bytesTotal: Int64
@@ -121,6 +125,10 @@ public protocol Installer: Sendable {
     func repair(_ plan: InstallPlan, at directory: URL, staging: InstallStaging?,
                 reserve: @escaping @Sendable (Int64, Int64) async throws -> Void,
                 progress: @escaping @Sendable (InstallProgress) -> Void) async throws
+    /// Phase-aware gate. Preparation is terminal for transfer allocation credit in this invocation.
+    func repair(_ plan: InstallPlan, at directory: URL, staging: InstallStaging?,
+                reserve: @escaping @Sendable (Int64, Int64, InstallRepairReservationPhase) async throws -> Void,
+                progress: @escaping @Sendable (InstallProgress) -> Void) async throws
     func postInstall(_ plan: InstallPlan, at directory: URL) async throws -> InstallStaging
     func preparePrerequisites(_ plan: InstallPlan, at directory: URL, in bottle: GameBottle) async throws
     func postInstall(_ plan: InstallPlan, at directory: URL, in bottle: GameBottle) async throws -> InstallStaging
@@ -141,6 +149,14 @@ public protocol Installer: Sendable {
     func prepareLaunch(_ spec: LaunchSpec, plan: InstallPlan, at directory: URL, offline: Bool) async throws -> LaunchSpec
 }
 public extension Installer {
+    func repair(_ plan: InstallPlan, at directory: URL, staging: InstallStaging?,
+                reserve: @escaping @Sendable (Int64, Int64, InstallRepairReservationPhase) async throws -> Void,
+                progress: @escaping @Sendable (InstallProgress) -> Void) async throws {
+        // Existing conformers retain their original gate and transfer behavior.
+        try await repair(plan, at: directory, staging: staging, reserve: { required, allocated in
+            try await reserve(required, allocated, .transfer)
+        }, progress: progress)
+    }
     func repair(_ plan: InstallPlan, at directory: URL, staging: InstallStaging?,
                 reserve: @escaping @Sendable (Int64, Int64) async throws -> Void,
                 progress: @escaping @Sendable (InstallProgress) -> Void) async throws {

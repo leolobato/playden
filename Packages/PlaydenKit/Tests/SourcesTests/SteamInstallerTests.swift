@@ -100,6 +100,27 @@ final class SteamInstallerTests: XCTestCase {
         XCTAssertEqual(diagnostics.snapshot()[.contentRead].bytes, UInt64(files.count * bytes.count), "The repair performs one full inspection")
         XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("asset-0")), Data(repeating: 9, count: bytes.count))
     }
+    func testRepairClosesAllocationCreditForHealthyAndReplacedContent() async throws {
+        let bytes = Data("original".utf8)
+        let content = ResolvedSteamContent(app: app(), manifests: [manifest([file("Game.exe", bytes), file("asset.bin", bytes)])],
+            entitlements: .init(appIDs: [100], depotIDs: [101]))
+        let installer = SteamInstaller(game: game, backend: FixtureContentBackend(content: content,
+            chunks: [Data(Insecure.SHA1.hash(data: bytes)): bytes]))
+        let plan = try await installer.resolve(), preparation = plan.estimate.requiredBytes - plan.estimate.installedBytes
+        for corrupt in [false, true] {
+            let root = try temporaryDirectory(), samples = RepairReservationSamples()
+            try await installer.download(plan, to: root) { _ in }
+            if corrupt { try Data("corrupt!".utf8).write(to: root.appendingPathComponent("asset.bin")) }
+            try await installer.repair(plan, at: root, staging: nil, reserve: { required, allocated, phase in
+                XCTAssertEqual(required, preparation + (phase == .transfer ? Int64(bytes.count) : 0))
+                XCTAssertEqual(allocated, 0)
+                await samples.append(phase)
+            }, progress: { _ in })
+            let phases = await samples.phases
+            XCTAssertEqual(phases, corrupt ? [.transfer, .preparation] : [.preparation])
+            XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("asset.bin")), bytes)
+        }
+    }
     func testNewRepairOfLegacyPlanUsesCurrentBackupBudgetWithoutRewritingPlan() async throws {
         let bytes = Data("original".utf8), content = ResolvedSteamContent(app: app(), manifests: [manifest([file("Game.exe", bytes), file("asset.bin", bytes)])],
             entitlements: .init(appIDs: [100], depotIDs: [101]))
@@ -1015,4 +1036,9 @@ private actor ReplacingUnpackWorkspace: RuntimeToolRunning {
     func cleanup() {
         for url in [work, moved].compactMap({ $0 }) { try? FileManager.default.removeItem(at: url) }
     }
+}
+
+private actor RepairReservationSamples {
+    var phases: [InstallRepairReservationPhase] = []
+    func append(_ phase: InstallRepairReservationPhase) { phases.append(phase) }
 }

@@ -233,6 +233,13 @@ public struct SteamInstaller: Installer {
     public func repair(_ plan: InstallPlan, at directory: URL, staging: InstallStaging?,
                        reserve: @escaping @Sendable (Int64, Int64) async throws -> Void,
                        progress: @escaping @Sendable (InstallProgress) -> Void) async throws {
+        try await repair(plan, at: directory, staging: staging, reserve: { required, allocated, _ in
+            try await reserve(required, allocated)
+        }, progress: progress)
+    }
+    public func repair(_ plan: InstallPlan, at directory: URL, staging: InstallStaging?,
+                       reserve: @escaping @Sendable (Int64, Int64, InstallRepairReservationPhase) async throws -> Void,
+                       progress: @escaping @Sendable (InstallProgress) -> Void) async throws {
         let payload = try SteamPlanBuilder.payload(plan, for: gameID)
         let preparationBytes = try preparationReservation(payload)
         let mappings = try replacements(staging ?? InstallStaging(), payload: payload)
@@ -240,7 +247,7 @@ public struct SteamInstaller: Installer {
         let invalid = Set(try await verifyOriginals(plan, at: directory, staging: staging, mode: .fullRefreshingReceipts).invalidFiles)
         try paths.checkRoot()
         guard !invalid.isEmpty else {
-            try await reserve(preparationBytes, 0)
+            try await reserve(preparationBytes, 0, .preparation)
             return
         }
         // Download originals to their verified backup paths. Leave the staged DLLs and save
@@ -265,7 +272,7 @@ public struct SteamInstaller: Installer {
         }
         // Old extents may remain referenced by APFS clones or snapshots after rename. The
         // authoritative gate reserves every selected replacement without assuming reclamation.
-        try await reserve(preparationBytes + Int64(replacementBytes), Int64(partial))
+        try await reserve(preparationBytes + Int64(replacementBytes), Int64(partial), .transfer)
         try await backend.repair(SteamInstallPayload(app: payload.app, manifests: manifests, ownedDLC: payload.ownedDLC,
             authorizedDepotIDs: payload.authorizedDepotIDs, platform: payload.platform),
             using: repair, to: directory, progress: progress)
@@ -282,7 +289,7 @@ public struct SteamInstaller: Installer {
             try ResumableDepotDownload(destination: directory, diagnostics: diagnostics)
                 .cleanCompletedDepotState(depotID: manifest.depotID, gid: manifest.gid)
         }
-        try await reserve(preparationBytes, 0)
+        try await reserve(preparationBytes, 0, .preparation)
     }
     public func launchOptions(_ plan: InstallPlan) throws -> [LaunchOption] {
         let payload = try SteamPlanBuilder.payload(plan, for: gameID)
