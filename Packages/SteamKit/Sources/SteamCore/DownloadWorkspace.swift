@@ -88,10 +88,13 @@ final class DownloadWorkspace: @unchecked Sendable {
         defer { Darwin.close(from) }
         let (to, destinationLeaf) = try parent(destination, create: true)
         defer { Darwin.close(to) }
+        var sourceInfo = stat(), destinationInfo = stat()
+        guard fstat(from, &sourceInfo) == 0, fstat(to, &destinationInfo) == 0 else { throw Self.systemError() }
+        let sameDirectory = sourceInfo.st_dev == destinationInfo.st_dev && sourceInfo.st_ino == destinationInfo.st_ino
         try beforePersistence(.rename(source, destination))
         guard renameat(from, sourceLeaf, to, destinationLeaf) == 0 else { throw Self.systemError() }
         try syncDirectory(to)
-        try syncDirectory(from)
+        if !sameDirectory { try syncDirectory(from) }
     }
     func writeAtomic(_ data: Data, path: String) throws {
         let temporary = path + ".new-" + UUID().uuidString

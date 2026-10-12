@@ -43,9 +43,9 @@ final class SteamPerformanceDiagnosticsTests: XCTestCase {
         XCTAssertEqual(result[.adler32].bytes, UInt64(bytes.count * 2))
         XCTAssertEqual(result[.sha1].bytes, UInt64(bytes.count * 2))
         XCTAssertEqual(result[.contentRead].bytes, UInt64(bytes.count * 2))
-        XCTAssertEqual(result[.checkpoint].count, 2)
-        XCTAssertEqual(result[.fileSync].count, 6)
-        XCTAssertEqual(result[.directorySync].count, 8)
+        XCTAssertEqual(result[.checkpoint].count, 0)
+        XCTAssertEqual(result[.fileSync].count, 2)
+        XCTAssertEqual(result[.directorySync].count, 4)
         XCTAssertEqual(result[.sha256].count, 4, "Two path hashes and two pinned manifest fingerprints; no chunk hashes")
         XCTAssertGreaterThan(result[.directoryWalk].count, 0)
         XCTAssertGreaterThan(result[.progressCallback].count, 0)
@@ -103,7 +103,7 @@ final class SteamPerformanceDiagnosticsTests: XCTestCase {
         XCTAssertEqual(result[.contentRead].bytes, UInt64(pieces[0].count))
         XCTAssertEqual(result[.sha1].bytes, 0)
         XCTAssertEqual(result[.adler32].bytes, UInt64(pieces[0].count + pieces[1].count))
-        XCTAssertEqual(result[.checkpoint].count, 1)
+        XCTAssertEqual(result[.checkpoint].count, 0)
         XCTAssertEqual(result[.sha256].count, 2, "Path and manifest only; retained and fresh content receive no SHA-256")
     }
 

@@ -142,7 +142,7 @@ final class CDNTransportTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("file")), Data("fixture".utf8))
         XCTAssertEqual(corrupt.snapshot.requests, 1); XCTAssertEqual(good.snapshot.requests, 1)
         XCTAssertEqual(diagnostics.snapshot()[.adler32].count, 2, "One failed response check and one successful incoming check")
-        XCTAssertEqual(diagnostics.snapshot()[.fileWrite].count, 2, "One content write and one journal write")
+        XCTAssertEqual(diagnostics.snapshot()[.fileWrite].count, 1, "Only content is written; publication replaces a disposable journal")
     }
     func testCorruptPlaintextResponsesExhaustRetryBudget() async throws {
         let server = try KeepAliveHTTPFixture { _, _ in .init(body: corruptEncryptedFixtureChunk) }

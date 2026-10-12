@@ -311,7 +311,9 @@ actor ChunkCheckpointWriter {
         try workspace.write(data, to: handle, path: partial)
         journal.completed.insert(index)
         uncheckpointedBytes += UInt64(data.count)
-        if uncheckpointedBytes >= 16 * 1024 * 1024 || lastCheckpoint.duration(to: .now) >= .seconds(1) {
+        // Complete files use publication as their next durability checkpoint.
+        if journal.completed.count < file.chunks.count,
+           uncheckpointedBytes >= 128 * 1024 * 1024 || lastCheckpoint.duration(to: .now) >= .seconds(5) {
             try checkpoint()
         }
     }
@@ -325,7 +327,6 @@ actor ChunkCheckpointWriter {
     }
     func finish(to target: String) throws {
         try Task.checkCancellation()
-        try checkpoint()
         // Fetch validated new bytes; restore validated retained bytes. Check coverage and
         // length here without rereading content. Explicit repair still hashes whole files.
         guard journal.completed == Set(file.chunks.indices),

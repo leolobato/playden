@@ -258,6 +258,126 @@ final class DownloadResumeTests: XCTestCase {
         let saved = try XCTUnwrap(JSONSerialization.jsonObject(with: workspace.read(".gn-download/test/file.json")) as? [String: Any])
         return try XCTUnwrap(saved["completed"] as? [Int])
     }
+    func testFinishUsesOneFileSyncAndNeverWritesDisposableJournal() async throws {
+        let root = try root(), diagnostics = SteamPerformanceDiagnostics()
+        let workspace = try DownloadWorkspace(destination: root, diagnostics: diagnostics), value = try writer(workspace)
+        try await commitAll(value)
+        try await value.finish(to: "Game/data.bin")
+        XCTAssertEqual(diagnostics.snapshot()[.fileSync].count, 1)
+        XCTAssertEqual(diagnostics.snapshot()[.directorySync].count, 2)
+        XCTAssertEqual(diagnostics.snapshot()[.checkpoint].count, 0)
+        XCTAssertEqual(diagnostics.snapshot()[.fileWrite].bytes, 16)
+        XCTAssertThrowsError(try workspace.read(".gn-download/test/file.json"))
+    }
+    func testAtomicJournalReplacementSyncsOneDirectory() throws {
+        let root = try root(), diagnostics = SteamPerformanceDiagnostics()
+        let workspace = try DownloadWorkspace(destination: root, diagnostics: diagnostics)
+        try workspace.writeAtomic(Data("state".utf8), path: ".gn-download/test/state.json")
+        XCTAssertEqual(diagnostics.snapshot()[.directorySync].count, 1)
+        XCTAssertEqual(try workspace.read(".gn-download/test/state.json"), Data("state".utf8))
+    }
+    func testCheckpointByteThresholdIs128MiBAndFinalChunkDefersToFinish() async throws {
+        let root = try root(), diagnostics = SteamPerformanceDiagnostics()
+        let workspace = try DownloadWorkspace(destination: root, diagnostics: diagnostics)
+        let data = Data(repeating: 7, count: 1024 * 1024)
+        let chunks = (0..<129).map { index in
+            DepotManifest.Chunk(sha: SteamCrypto.sha1(data), offset: UInt64(index * data.count),
+                compressedSize: UInt32(data.count), uncompressedSize: UInt32(data.count), checksum: 0)
+        }
+        let file = DepotManifest.File(path: "large.bin", size: UInt64(129 * data.count), chunks: chunks)
+        let value = try ChunkCheckpointWriter(workspace: workspace, file: file, base: ".gn-download/test/file")
+        for index in 0..<127 { try await value.commit(data, index: index) }
+        XCTAssertEqual(diagnostics.snapshot()[.checkpoint].count, 0)
+        try await value.commit(data, index: 127)
+        XCTAssertEqual(diagnostics.snapshot()[.checkpoint].count, 1)
+        XCTAssertEqual(try completed(workspace), Array(0..<128))
+        try await value.commit(data, index: 128)
+        try await value.finish(to: "large.bin")
+        XCTAssertEqual(diagnostics.snapshot()[.checkpoint].count, 1)
+        XCTAssertEqual(diagnostics.snapshot()[.fileSync].count, 3)
+        XCTAssertEqual(diagnostics.snapshot()[.directorySync].count, 3)
+        let finalDiagnostics = SteamPerformanceDiagnostics()
+        let finalWorkspace = try DownloadWorkspace(destination: root, lock: false, diagnostics: finalDiagnostics)
+        let finalFile = DepotManifest.File(path: "exact.bin", size: UInt64(128 * data.count), chunks: Array(chunks.prefix(128)))
+        let finalWriter = try ChunkCheckpointWriter(workspace: finalWorkspace, file: finalFile, base: ".gn-download/test/exact")
+        for index in 0..<128 { try await finalWriter.commit(data, index: index) }
+        try await finalWriter.finish(to: "exact.bin")
+        XCTAssertEqual(finalDiagnostics.snapshot()[.checkpoint].count, 0, "Final threshold chunk uses publication durability")
+        XCTAssertEqual(finalDiagnostics.snapshot()[.fileSync].count, 1)
+    }
+    func testCheckpointTimeThresholdIsFiveSeconds() async throws {
+        let root = try root(), diagnostics = SteamPerformanceDiagnostics()
+        let workspace = try DownloadWorkspace(destination: root, diagnostics: diagnostics), value = try writer(workspace)
+        try await Task.sleep(for: .milliseconds(1100))
+        try await value.commit(pieces[0], index: 0)
+        XCTAssertEqual(diagnostics.snapshot()[.checkpoint].count, 0)
+        try await Task.sleep(for: .seconds(4))
+        try await value.commit(pieces[1], index: 1)
+        XCTAssertEqual(diagnostics.snapshot()[.checkpoint].count, 1)
+        XCTAssertEqual(try completed(workspace), [0, 1])
+    }
+    func testCancelledTaskCanCheckpointIncompleteWork() async throws {
+        let root = try root(), workspace = try DownloadWorkspace(destination: root), value = try writer(workspace)
+        try await value.commit(pieces[0], index: 0)
+        try await Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            try await value.checkpoint()
+        }.value
+        let retry = try writer(DownloadWorkspace(destination: root, lock: false))
+        let retained = try await retry.restore { _, _, _ in }
+        XCTAssertEqual(retained.indices, [0]); XCTAssertEqual(retained.bytes, 5)
+    }
+    func testCheckpointFailuresBeforeAndAfterEveryBoundaryNeverRetainMissingBytes() async throws {
+        // Five checkpoint boundaries, followed by another content write to fail after the final sync.
+        for failure in 1...6 {
+            let root = try root(), faults = PersistenceFaults()
+            let workspace = try DownloadWorkspace(destination: root, beforePersistence: faults.visit)
+            let value = try writer(workspace)
+            try await value.commit(pieces[0], index: 0)
+            try await value.checkpoint()
+            try await value.commit(pieces[1], index: 1)
+            faults.arm(failure)
+            do {
+                try await value.checkpoint()
+                try await value.commit(pieces[2], index: 2)
+                XCTFail("Boundary \(failure) must fail")
+            } catch let error as POSIXError { XCTAssertEqual(error.code, .EIO) }
+            XCTAssertEqual(try completed(workspace), failure >= 5 ? [0, 1] : [0])
+            let boundaries = faults.boundaries
+            XCTAssertEqual(boundaries.first, .fileSync)
+            if failure >= 2 { XCTAssertEqual(boundaries[1], .write(".gn-download/test/file.json")) }
+            if failure >= 3 { XCTAssertEqual(boundaries[2], .fileSync) }
+            if failure >= 5 { XCTAssertEqual(boundaries[4], .directorySync) }
+            // Simulate missing recent disk bytes, even if a journal was already renamed.
+            let partial = try workspace.openFile(".gn-download/test/file.partial", flags: O_WRONLY)
+            try partial.truncate(atOffset: 5); try partial.close()
+            let retry = try writer(DownloadWorkspace(destination: root, lock: false))
+            let retained = try await retry.restore { _, _, _ in }
+            XCTAssertEqual(retained.indices, [0], "Boundary \(failure) cannot count missing chunk 1")
+            XCTAssertEqual(retained.bytes, 5)
+        }
+    }
+    func testPublicationFailuresKeepOldTargetOrCompleteValidatedNewTarget() async throws {
+        for failure in 1...4 {
+            let root = try root(), target = root.appendingPathComponent("Game/data.bin"), faults = PersistenceFaults()
+            try FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+            let old = Data("old target".utf8); try old.write(to: target)
+            let workspace = try DownloadWorkspace(destination: root, beforePersistence: faults.visit), value = try writer(workspace)
+            try await value.commit(pieces[0], index: 0)
+            try await value.checkpoint()
+            for index in 1...2 { try await value.commit(pieces[index], index: index) }
+            faults.arm(failure)
+            do { try await value.finish(to: "Game/data.bin"); XCTFail("Boundary \(failure) must fail") }
+            catch let error as POSIXError { XCTAssertEqual(error.code, .EIO) }
+            XCTAssertEqual(try Data(contentsOf: target), failure <= 2 ? old : pieces.reduce(Data(), +))
+            XCTAssertEqual(faults.boundaries.first, .fileSync)
+            XCTAssertFalse(faults.boundaries.contains(.write(".gn-download/test/file.json")))
+            let retry = try writer(DownloadWorkspace(destination: root, lock: false))
+            let retained = try await retry.restore { _, _, _ in }
+            XCTAssertEqual(retained.indices, failure <= 2 ? [0] : [])
+            XCTAssertEqual(retained.bytes, failure <= 2 ? 5 : 0)
+        }
+    }
     func testFreshExecutablePublishesWithExecutablePermissions() async throws {
         let root = try root(), source = fixture(), file = source.files[0]
         let manifest = DepotManifest(depotID: 7, gid: 9, files: [.init(path: file.path, size: file.size,
@@ -327,6 +447,8 @@ final class DownloadResumeTests: XCTestCase {
         do { try await value.finish(to: "Game/data.bin"); XCTFail("Expected failed publication") }
         catch let error as POSIXError { XCTAssertEqual(error.code, .EIO) }
         XCTAssertEqual(try Data(contentsOf: target), Data("old target".utf8))
+        // The download caller saves received work after publication failure.
+        try await value.checkpoint()
         XCTAssertEqual(try completed(workspace), [0, 1, 2])
         let retryWorkspace = try DownloadWorkspace(destination: root, lock: false)
         let retry = try writer(retryWorkspace)
@@ -457,4 +579,18 @@ private final class ProgressSamples: @unchecked Sendable {
     private var samples: [DownloadProgress] = []
     func append(_ value: DownloadProgress) { lock.lock(); defer { lock.unlock() }; samples.append(value) }
     var values: [DownloadProgress] { lock.lock(); defer { lock.unlock() }; return samples }
+}
+
+private final class PersistenceFaults: @unchecked Sendable {
+    private let lock = NSLock()
+    private var failure: Int?
+    private var visits: [DownloadWorkspace.PersistenceBoundary] = []
+    func arm(_ failure: Int) { lock.lock(); defer { lock.unlock() }; self.failure = failure; visits = [] }
+    func visit(_ boundary: DownloadWorkspace.PersistenceBoundary) throws {
+        lock.lock(); defer { lock.unlock() }
+        guard let failure else { return }
+        visits.append(boundary)
+        if visits.count == failure { throw POSIXError(.EIO) }
+    }
+    var boundaries: [DownloadWorkspace.PersistenceBoundary] { lock.lock(); defer { lock.unlock() }; return visits }
 }
