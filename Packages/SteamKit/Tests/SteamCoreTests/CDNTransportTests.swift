@@ -142,7 +142,7 @@ final class CDNTransportTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("file")), Data("fixture".utf8))
         XCTAssertEqual(corrupt.snapshot.requests, 1); XCTAssertEqual(good.snapshot.requests, 1)
         XCTAssertEqual(diagnostics.snapshot()[.adler32].count, 2, "One failed response check and one successful incoming check")
-        XCTAssertEqual(diagnostics.snapshot()[.fileWrite].count, 1, "Only content is written; publication replaces a disposable journal")
+        XCTAssertEqual(diagnostics.snapshot()[.fileWrite].count, 2, "One validated content write and one completion receipt; no disposable journal")
     }
     func testCorruptPlaintextResponsesExhaustRetryBudget() async throws {
         let server = try KeepAliveHTTPFixture { _, _ in .init(body: corruptEncryptedFixtureChunk) }
@@ -222,9 +222,9 @@ final class CDNTransportTests: XCTestCase {
         XCTAssertEqual(diagnostics.snapshot()[.adler32].bytes, 28)
         let encoder = JSONEncoder(); encoder.outputFormatting = .sortedKeys
         let metadataBytes = try manifests.reduce(UInt64(0)) { total, manifest in
-            total + UInt64(Data(manifest.files[0].path.utf8).count + (try encoder.encode(manifest.files[0])).count)
+            total + UInt64(Data(manifest.files[0].path.utf8).count + 2 * (try encoder.encode(manifest.files[0])).count)
         }
-        XCTAssertEqual(diagnostics.snapshot()[.sha256].bytes, metadataBytes, "Only path and pinned manifest metadata are hashed")
+        XCTAssertEqual(diagnostics.snapshot()[.sha256].bytes, metadataBytes, "Only path, journal fingerprint and receipt fingerprint metadata are hashed")
     }
 
     private func waitForRequests(_ count: Int, on server: KeepAliveHTTPFixture) async throws {

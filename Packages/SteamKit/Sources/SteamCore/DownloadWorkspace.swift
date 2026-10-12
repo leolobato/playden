@@ -70,6 +70,76 @@ final class DownloadWorkspace: @unchecked Sendable {
         }
         return FileHandle(fileDescriptor: fd, closeOnDealloc: true)
     }
+    func metadata(_ path: String) throws -> DownloadFileMetadata {
+        let handle = try openFile(path, flags: O_RDONLY)
+        defer { try? handle.close() }
+        return try metadata(handle)
+    }
+    func metadata(_ handle: FileHandle) throws -> DownloadFileMetadata {
+        var info = stat()
+        guard fstat(handle.fileDescriptor, &info) == 0 else { throw Self.systemError() }
+        guard info.st_mode & S_IFMT == S_IFREG, info.st_nlink == 1 else {
+            throw SteamError.download("destination is not a private regular file")
+        }
+        return DownloadFileMetadata(device: info.st_dev, inode: info.st_ino, generation: info.st_gen,
+            size: info.st_size, modificationSeconds: Int64(info.st_mtimespec.tv_sec),
+            modificationNanoseconds: Int64(info.st_mtimespec.tv_nsec), changeSeconds: Int64(info.st_ctimespec.tv_sec),
+            changeNanoseconds: Int64(info.st_ctimespec.tv_nsec), birthSeconds: Int64(info.st_birthtimespec.tv_sec),
+            birthNanoseconds: Int64(info.st_birthtimespec.tv_nsec))
+    }
+    /// Delete only this depot's private checkpoint tree after it completes. Directory descriptors
+    /// stay anchored and symlinks are unlinked, never followed. Receipts and the leased lock survive.
+    func cleanCheckpoints(depotID: UInt32, keepingGID: UInt64) throws {
+        let (directory, leaf) = try parent(".gn-download/\(depotID)", create: false)
+        defer { Darwin.close(directory) }
+        try removeTree(at: directory, leaf: leaf)
+        try syncDirectory(directory)
+        let receipts = openat(directory, "receipts", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        if receipts < 0 {
+            if errno == ENOENT { return }; throw Self.systemError()
+        }
+        defer { Darwin.close(receipts) }
+        for name in try childNames(receipts) where name.hasPrefix("\(depotID)-") {
+            let suffix = String(name.dropFirst("\(depotID)-".count))
+            let parts = suffix.components(separatedBy: ".json")
+            guard parts.count == 2, let gid = UInt64(parts[0]),
+                  parts[1].isEmpty || parts[1].hasPrefix(".new-") else { continue }
+            if gid != keepingGID || !parts[1].isEmpty { try removeTree(at: receipts, leaf: name) }
+        }
+        try syncDirectory(receipts)
+    }
+    private func childNames(_ directory: Int32) throws -> [String] {
+        let fd = dup(directory)
+        guard fd >= 0 else { throw Self.systemError() }
+        guard let stream = fdopendir(fd) else { Darwin.close(fd); throw Self.systemError() }
+        defer { closedir(stream) }
+        var names: [String] = []
+        while true {
+            errno = 0
+            guard let entry = readdir(stream) else {
+                if errno != 0 { throw Self.systemError() }; return names
+            }
+            let name = withUnsafePointer(to: &entry.pointee.d_name) {
+                $0.withMemoryRebound(to: CChar.self, capacity: Int(MAXPATHLEN)) { String(cString: $0) }
+            }
+            if name != "." && name != ".." { names.append(name) }
+        }
+    }
+    private func removeTree(at directory: Int32, leaf: String) throws {
+        var info = stat()
+        if fstatat(directory, leaf, &info, AT_SYMLINK_NOFOLLOW) != 0 {
+            if errno == ENOENT { return }; throw Self.systemError()
+        }
+        if info.st_mode & S_IFMT == S_IFDIR {
+            let fd = openat(directory, leaf, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+            guard fd >= 0 else { throw Self.systemError() }
+            defer { Darwin.close(fd) }
+            for name in try childNames(fd) { try removeTree(at: fd, leaf: name) }
+            guard unlinkat(directory, leaf, AT_REMOVEDIR) == 0 || errno == ENOENT else { throw Self.systemError() }
+        } else {
+            guard unlinkat(directory, leaf, 0) == 0 || errno == ENOENT else { throw Self.systemError() }
+        }
+    }
     func makeDirectory(_ path: String) throws {
         let (directory, leaf) = try parent(path, create: true)
         defer { Darwin.close(directory) }

@@ -30,6 +30,305 @@ final class DownloadResumeTests: XCTestCase {
         let files = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil)!
         return try XCTUnwrap(files.allObjects.compactMap { $0 as? URL }.first { $0.pathExtension == "partial" })
     }
+    private func receiptURL(_ root: URL, gid: UInt64 = 9) -> URL {
+        root.appendingPathComponent(".gn-download/receipts/7-\(gid).json")
+    }
+    func testMatchingReceiptSkipsAllCompletedContentReads() async throws {
+        let root = try root(), diagnostics = SteamPerformanceDiagnostics()
+        let value = ResumableDepotDownload(destination: root, diagnostics: diagnostics)
+        try await value.download(manifest: fixture(), fetchChunk: Feed(pieces).fetch)
+        try await value.download(manifest: fixture(), fetchChunk: Feed(pieces).fetch)
+        XCTAssertEqual(diagnostics.snapshot()[.contentRead].bytes, 0)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: receiptURL(root).path))
+        XCTAssertTrue(try value.invalidFiles(in: fixture()).isEmpty)
+        XCTAssertEqual(diagnostics.snapshot()[.contentRead].bytes, 16, "Default full verification still reads content")
+    }
+    func testMissingReceiptVerifiesExactlyOnceThenReuses() async throws {
+        let root = try root(), target = root.appendingPathComponent("Game/data.bin")
+        try FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try pieces.reduce(Data(), +).write(to: target)
+        let diagnostics = SteamPerformanceDiagnostics(), feed = Feed(pieces)
+        let value = ResumableDepotDownload(destination: root, diagnostics: diagnostics)
+        try await value.download(manifest: fixture(), fetchChunk: feed.fetch)
+        XCTAssertEqual(diagnostics.snapshot()[.contentRead].bytes, 16)
+        try await value.download(manifest: fixture(), fetchChunk: feed.fetch)
+        XCTAssertEqual(diagnostics.snapshot()[.contentRead].bytes, 16)
+        let fetched = await feed.requested; XCTAssertTrue(fetched.isEmpty)
+    }
+    func testInterruptionFlushesCompletedReceiptsAndSuccessCleansOldState() async throws {
+        let root = try root(), first = fixture(path: "first"), second = fixture(path: "second")
+        let manifest = DepotManifest(depotID: 7, gid: 9, files: first.files + second.files, totalSize: 32)
+        let feed = InterruptSecondFileFeed(pieces: pieces)
+        do { try await download(root).download(manifest: manifest, fetchChunk: feed.fetch); XCTFail() }
+        catch is CancellationError {}
+        XCTAssertTrue(FileManager.default.fileExists(atPath: receiptURL(root).path))
+        let diagnostics = SteamPerformanceDiagnostics()
+        try await ResumableDepotDownload(destination: root, diagnostics: diagnostics).download(manifest: manifest, fetchChunk: Feed(pieces).fetch)
+        XCTAssertEqual(diagnostics.snapshot()[.contentRead].bytes, 0)
+        let files = FileManager.default.enumerator(at: root.appendingPathComponent(".gn-download"), includingPropertiesForKeys: nil)!
+            .allObjects.compactMap { $0 as? URL }.filter { !$0.hasDirectoryPath }.map { $0.lastPathComponent }.sorted()
+        XCTAssertEqual(files, ["7-9.json", "lock"])
+    }
+    func testSuccessfulNewGIDCleansObsoleteReceiptsAndPartialsOnly() async throws {
+        let root = try root()
+        try await download(root).download(manifest: fixture(), fetchChunk: Feed(pieces).fetch)
+        let workspace = try DownloadWorkspace(destination: root, lock: false)
+        try workspace.writeAtomic(Data("stale".utf8), path: ".gn-download/7/8/stale.partial")
+        try workspace.writeAtomic(Data("other depot".utf8), path: ".gn-download/8/2/keep.partial")
+        try workspace.writeAtomic(Data("other receipt".utf8), path: ".gn-download/receipts/8-2.json")
+        try workspace.writeAtomic(Data("temp".utf8), path: ".gn-download/receipts/7-9.json.new-stale")
+        let lockBefore = try workspace.metadata(".gn-download/lock")
+        try await download(root).download(manifest: fixture(gid: 10), fetchChunk: Feed(pieces).fetch)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: receiptURL(root).path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(".gn-download/7").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(".gn-download/receipts/7-9.json.new-stale").path))
+        XCTAssertEqual(try workspace.read(".gn-download/8/2/keep.partial"), Data("other depot".utf8))
+        XCTAssertEqual(try workspace.read(".gn-download/receipts/8-2.json"), Data("other receipt".utf8))
+        XCTAssertEqual(try workspace.metadata(".gn-download/lock"), lockBefore)
+    }
+    func testForcedSubsetPreservesUnrelatedPartialAndReceipt() async throws {
+        let root = try root(), first = fixture(path: "first"), second = fixture(path: "second")
+        let manifest = DepotManifest(depotID: 7, gid: 9, files: first.files + second.files, totalSize: 32)
+        try await download(root).download(manifest: manifest, fetchChunk: Feed(pieces).fetch)
+        let workspace = try DownloadWorkspace(destination: root, lock: false)
+        try workspace.writeAtomic(Data("retained".utf8), path: ".gn-download/7/9/other.partial")
+        var value = download(root); value.forceDownloadPaths = ["first"]
+        try await value.download(manifest: first, fetchChunk: Feed(pieces).fetch)
+        XCTAssertEqual(try workspace.read(".gn-download/7/9/other.partial"), Data("retained".utf8))
+        let diagnostics = SteamPerformanceDiagnostics()
+        XCTAssertTrue(try ResumableDepotDownload(destination: root, diagnostics: diagnostics)
+            .invalidFiles(in: second, mode: .receiptAssisted).isEmpty)
+        XCTAssertEqual(diagnostics.snapshot()[.contentRead].bytes, 0)
+    }
+    func testChangedMetadataReplacementAndCopiedReceiptFallBackOnce() async throws {
+        for change in ["time", "size", "replacement", "copy", "version", "gid", "fingerprint"] {
+            let root = try root(), target = root.appendingPathComponent("Game/data.bin")
+            try await download(root).download(manifest: fixture(), fetchChunk: Feed(pieces).fetch)
+            var manifest = fixture()
+            switch change {
+            case "time":
+                try FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSince1970: 1_500_000_000)], ofItemAtPath: target.path)
+            case "size": try Data("short".utf8).write(to: target)
+            case "replacement": try pieces.reduce(Data(), +).write(to: target, options: .atomic)
+            case "copy":
+                let other = try self.root()
+                try FileManager.default.copyItem(at: target, to: other.appendingPathComponent("copied"))
+                try FileManager.default.removeItem(at: target)
+                try FileManager.default.moveItem(at: other.appendingPathComponent("copied"), to: target)
+            case "version", "gid":
+                let url = receiptURL(root)
+                var json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+                json[change] = 999
+                try JSONSerialization.data(withJSONObject: json).write(to: url)
+            default:
+                let file = fixture().files[0]
+                manifest = DepotManifest(depotID: 7, gid: 9, files: [.init(path: file.path, size: file.size,
+                    flags: 32, chunks: file.chunks, contentSHA1: file.contentSHA1)], totalSize: 16)
+            }
+            let diagnostics = SteamPerformanceDiagnostics(), feed = Feed(pieces)
+            let value = ResumableDepotDownload(destination: root, diagnostics: diagnostics)
+            try await value.download(manifest: manifest, fetchChunk: feed.fetch)
+            XCTAssertEqual(diagnostics.snapshot()[.contentRead].bytes, change == "size" ? 0 : 16, change)
+            try await value.download(manifest: manifest, fetchChunk: feed.fetch)
+            XCTAssertEqual(diagnostics.snapshot()[.contentRead].bytes, change == "size" ? 0 : 16, change)
+            XCTAssertEqual(try Data(contentsOf: target), pieces.reduce(Data(), +))
+            let fetched = await feed.requested
+            XCTAssertEqual(fetched.count, change == "size" ? 3 : 0, change)
+        }
+    }
+    func testExcludedBackupPathsAlwaysHashButLegitimateOrigReusesReceipt() async throws {
+        let root = try root(), manifest = fixture(path: "legitimate.orig")
+        try await download(root).download(manifest: manifest, fetchChunk: Feed(pieces).fetch)
+        let diagnostics = SteamPerformanceDiagnostics()
+        var value = ResumableDepotDownload(destination: root, diagnostics: diagnostics)
+        XCTAssertTrue(try value.invalidFiles(in: manifest, mode: .receiptAssisted).isEmpty)
+        XCTAssertEqual(diagnostics.snapshot()[.contentRead].bytes, 0)
+        value.receiptExcludedPaths = ["legitimate.orig"]
+        for _ in 0..<2 { XCTAssertTrue(try value.invalidFiles(in: manifest, mode: .receiptAssisted).isEmpty) }
+        XCTAssertEqual(diagnostics.snapshot()[.contentRead].bytes, 32)
+        let saved = try JSONDecoder().decode(DownloadCompletionReceipt.self, from: Data(contentsOf: receiptURL(root)))
+        XCTAssertNil(saved.entries["legitimate.orig"])
+    }
+    func testFallbackDoesNotCertifyReplacementOrMutationDuringHashing() async throws {
+        for replace in [true, false] {
+            let root = try root(), target = root.appendingPathComponent("Game/data.bin")
+            try await download(root).download(manifest: fixture(), fetchChunk: Feed(pieces).fetch)
+            try FileManager.default.removeItem(at: receiptURL(root))
+            var mutated = false
+            let invalid = try download(root).invalidFiles(in: fixture(), mode: .receiptAssisted) { _, checked, _ in
+                if checked == 16 && !mutated {
+                    mutated = true
+                    if replace { try! Data(repeating: 88, count: 16).write(to: target, options: .atomic) }
+                    else {
+                        let handle = try! FileHandle(forWritingTo: target)
+                        try! handle.write(contentsOf: Data(repeating: 88, count: 16)); try! handle.close()
+                    }
+                }
+            }
+            XCTAssertEqual(invalid, ["Game/data.bin"])
+            XCTAssertEqual(try download(root).invalidFiles(in: fixture(), mode: .receiptAssisted), ["Game/data.bin"])
+        }
+    }
+    func testCoarseTimestampModelDocumentsMetadataPreservingCorruptionAndFullDetection() async throws {
+        let root = try root(), target = root.appendingPathComponent("Game/data.bin")
+        try await download(root).download(manifest: fixture(), fetchChunk: Feed(pieces).fetch)
+        // Model a filesystem that reports identical metadata for two same-tick writes. The
+        // receipt retains the original manifest fingerprint while its observed metadata is
+        // the shared value. Actual bytes and full verification use the real filesystem.
+        let handle = try FileHandle(forWritingTo: target)
+        try handle.write(contentsOf: Data(repeating: 88, count: 16)); try handle.close()
+        let workspace = try DownloadWorkspace(destination: root, lock: false)
+        var receipt = try JSONDecoder().decode(DownloadCompletionReceipt.self, from: Data(contentsOf: receiptURL(root)))
+        let original = try XCTUnwrap(receipt.entries["Game/data.bin"])
+        receipt.entries["Game/data.bin"] = .init(fingerprint: original.fingerprint, metadata: try workspace.metadata("Game/data.bin"))
+        try JSONEncoder().encode(receipt).write(to: receiptURL(root))
+        let diagnostics = SteamPerformanceDiagnostics(), value = ResumableDepotDownload(destination: root, diagnostics: diagnostics)
+        XCTAssertTrue(try value.invalidFiles(in: fixture(), mode: .receiptAssisted).isEmpty)
+        XCTAssertEqual(diagnostics.snapshot()[.contentRead].bytes, 0)
+        XCTAssertEqual(try value.invalidFiles(in: fixture()), ["Game/data.bin"])
+        XCTAssertEqual(diagnostics.snapshot()[.contentRead].bytes, 16)
+    }
+    func testReceiptLookupRejectsHardLinksAndSymlinks() async throws {
+        for symbolic in [false, true] {
+            let root = try root(), target = root.appendingPathComponent("Game/data.bin"), outside = try self.root()
+            try await download(root).download(manifest: fixture(), fetchChunk: Feed(pieces).fetch)
+            let copy = outside.appendingPathComponent("copy")
+            if symbolic {
+                try FileManager.default.moveItem(at: target, to: copy)
+                try FileManager.default.createSymbolicLink(at: target, withDestinationURL: copy)
+            } else { try FileManager.default.linkItem(at: target, to: copy) }
+            XCTAssertEqual(try download(root).invalidFiles(in: fixture(), mode: .receiptAssisted), ["Game/data.bin"])
+        }
+    }
+    func testReceiptCadenceUses128MiBOrFiveSecondsAndAtomicFlush() throws {
+        let root = try root(), clock = ReceiptClock(), faults = PersistenceFaults()
+        let workspace = try DownloadWorkspace(destination: root, beforePersistence: { try faults.visit($0) })
+        let target = try workspace.openFile("file", flags: O_CREAT | O_RDWR)
+        try target.truncate(atOffset: 1)
+        let small = DepotManifest.File(path: "file", size: 1, chunks: [])
+        let store = try DownloadCompletionReceipts(workspace: workspace, manifest: fixture(), now: { clock.now() })
+        try store.record(small, path: "file", metadata: workspace.metadata(target))
+        XCTAssertThrowsError(try workspace.read(".gn-download/receipts/7-9.json"))
+        clock.advance(.seconds(4)); try store.checkpoint()
+        XCTAssertThrowsError(try workspace.read(".gn-download/receipts/7-9.json"))
+        clock.advance(.seconds(1)); try store.checkpoint()
+        XCTAssertNoThrow(try workspace.read(".gn-download/receipts/7-9.json"))
+        try store.record(small, path: "file", metadata: workspace.metadata(target))
+        try store.checkpoint(processedBytes: 128 * 1024 * 1024 - 2)
+        let writesBefore = faults.boundaries.count
+        faults.arm(1)
+        XCTAssertThrowsError(try store.checkpoint(processedBytes: 1), "128MiB forces a write even before five seconds")
+        XCTAssertEqual(faults.boundaries.count, 1)
+        XCTAssertEqual(writesBefore, 0)
+        // An atomic write failure leaves the previous receipt decodable and dirty work retryable.
+        XCTAssertNoThrow(try JSONDecoder().decode(DownloadCompletionReceipt.self, from: workspace.read(".gn-download/receipts/7-9.json")))
+        try store.checkpoint(force: true)
+        try target.close()
+    }
+    func testFullRefreshingReceiptsHashesOnceAndKeepsBackupsExcluded() async throws {
+        let root = try root(), original = fixture(path: "original"), backup = fixture(path: "mapped.orig")
+        let manifest = DepotManifest(depotID: 7, gid: 9, files: original.files + backup.files, totalSize: 32)
+        try await download(root).download(manifest: manifest, fetchChunk: Feed(pieces).fetch)
+        try FileManager.default.removeItem(at: receiptURL(root))
+        let diagnostics = SteamPerformanceDiagnostics()
+        var value = ResumableDepotDownload(destination: root, diagnostics: diagnostics)
+        value.receiptExcludedPaths = ["mapped.orig"]
+        XCTAssertTrue(try value.invalidFiles(in: manifest, mode: .fullRefreshingReceipts).isEmpty)
+        XCTAssertEqual(diagnostics.snapshot()[.contentRead].bytes, 32)
+        XCTAssertTrue(try value.invalidFiles(in: manifest, mode: .receiptAssisted).isEmpty)
+        XCTAssertEqual(diagnostics.snapshot()[.contentRead].bytes, 48, "Only mapped backup must be rehashed")
+    }
+    func testPendingReceiptFlushesDuringNextIncompleteFileTransfer() async throws {
+        let root = try root(), first = fixture(path: "first"), second = fixture(path: "second")
+        let manifest = DepotManifest(depotID: 7, gid: 9, files: first.files + second.files, totalSize: 32)
+        let feed = ReceiptDuringTransferFeed(pieces: pieces, receipt: receiptURL(root))
+        do { try await download(root).download(manifest: manifest, fetchChunk: feed.fetch); XCTFail() }
+        catch is CancellationError {}
+        let entries = await feed.entriesDuringTransfer
+        XCTAssertEqual(entries, ["first"], "Previous file must checkpoint while second is still incomplete")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("second").path))
+    }
+    func testCopiedReceiptInDifferentDestinationRequiresVerification() async throws {
+        let root = try root(), copy = try self.root(), target = copy.appendingPathComponent("Game/data.bin")
+        try await download(root).download(manifest: fixture(), fetchChunk: Feed(pieces).fetch)
+        try FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.copyItem(at: root.appendingPathComponent("Game/data.bin"), to: target)
+        let workspace = try DownloadWorkspace(destination: copy, lock: false)
+        try workspace.writeAtomic(Data(contentsOf: receiptURL(root)), path: ".gn-download/receipts/7-9.json")
+        let diagnostics = SteamPerformanceDiagnostics()
+        let value = ResumableDepotDownload(destination: copy, diagnostics: diagnostics)
+        try await value.download(manifest: fixture(), fetchChunk: Feed(pieces).fetch)
+        try await value.download(manifest: fixture(), fetchChunk: Feed(pieces).fetch)
+        XCTAssertEqual(diagnostics.snapshot()[.contentRead].bytes, 16)
+    }
+    func testCleanupPreservesLeaseAndDoesNotFollowStateSymlink() throws {
+        let root = try root(), outside = try self.root(), workspace = try DownloadWorkspace(destination: root)
+        let sentinel = outside.appendingPathComponent("asset")
+        try Data("keep".utf8).write(to: sentinel)
+        try workspace.makeDirectory(".gn-download/7/9")
+        try FileManager.default.createSymbolicLink(at: root.appendingPathComponent(".gn-download/7/9/link"), withDestinationURL: outside)
+        let lockBefore = try workspace.metadata(".gn-download/lock")
+        try workspace.cleanCheckpoints(depotID: 7, keepingGID: 9)
+        XCTAssertThrowsError(try DownloadWorkspace(destination: root))
+        XCTAssertEqual(try workspace.metadata(".gn-download/lock"), lockBefore)
+        XCTAssertEqual(try Data(contentsOf: sentinel), Data("keep".utf8))
+    }
+    func testTransferBytesAreNotCountedAgainWhenFileCompletes() throws {
+        let root = try root(), workspace = try DownloadWorkspace(destination: root)
+        let store = try DownloadCompletionReceipts(workspace: workspace, manifest: fixture())
+        let first = try workspace.openFile("first", flags: O_CREAT | O_RDWR)
+        try first.truncate(atOffset: 1)
+        try store.record(.init(path: "first", size: 1, chunks: []), path: "first", metadata: workspace.metadata(first))
+        let second = try workspace.openFile("second", flags: O_CREAT | O_RDWR)
+        try second.truncate(atOffset: 64 * 1024 * 1024)
+        try store.checkpoint(processedBytes: 64 * 1024 * 1024)
+        try store.record(.init(path: "second", size: 64 * 1024 * 1024, chunks: []), path: "second",
+            metadata: workspace.metadata(second), countVerifiedBytes: false)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: receiptURL(root).path), "Only 64MiB + 1 byte has been processed")
+        try store.checkpoint(processedBytes: 64 * 1024 * 1024 - 1)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: receiptURL(root).path))
+        try first.close(); try second.close()
+    }
+    func testLargeReceiptUsesFullPinnedContextForSubsetReads() async throws {
+        let root = try root(), subset = fixture(), workspace = try DownloadWorkspace(destination: root, lock: false)
+        try await download(root).download(manifest: subset, fetchChunk: Feed(pieces).fetch)
+        var saved = try JSONDecoder().decode(DownloadCompletionReceipt.self, from: Data(contentsOf: receiptURL(root)))
+        let entry = try XCTUnwrap(saved.entries["Game/data.bin"])
+        var files = subset.files
+        // Model a valid many-entry receipt without creating tens of thousands of game files.
+        // Each entry has realistic metadata/fingerprint fields and a distinct legal relative path.
+        for index in 0..<40_000 {
+            let path = "assets/" + String(repeating: "a", count: 180) + "/\(index).bin"
+            let file = DepotManifest.File(path: path, size: 16, chunks: subset.files[0].chunks, contentSHA1: subset.files[0].contentSHA1)
+            files.append(file)
+            let encoder = JSONEncoder(); encoder.outputFormatting = .sortedKeys
+            saved.entries[path] = .init(fingerprint: Data(SHA256.hash(data: try encoder.encode(file))), metadata: entry.metadata)
+        }
+        let large = try JSONEncoder().encode(saved)
+        XCTAssertGreaterThan(large.count, 16 * 1024 * 1024)
+        try workspace.writeAtomic(large, path: ".gn-download/receipts/7-9.json")
+        let full = DepotManifest(depotID: 7, gid: 9, files: files, totalSize: UInt64(files.count * 16))
+        let fullStore = try DownloadCompletionReceipts(workspace: workspace, manifest: full)
+        XCTAssertTrue(try fullStore.matches(subset.files[0], path: "Game/data.bin"), "A full operation sizes its own receipt without extra context")
+        let diagnostics = SteamPerformanceDiagnostics()
+        var value = ResumableDepotDownload(destination: root, diagnostics: diagnostics)
+        value.receiptManifest = full
+        XCTAssertTrue(try value.invalidFiles(in: subset, mode: .receiptAssisted).isEmpty)
+        XCTAssertEqual(diagnostics.snapshot()[.contentRead].bytes, 0)
+        let preserved = try JSONDecoder().decode(DownloadCompletionReceipt.self, from: Data(contentsOf: receiptURL(root)))
+        XCTAssertEqual(preserved.entries.count, 40_001)
+        // Sizing context cannot confer trust on a changed actual per-file manifest.
+        XCTAssertEqual(try value.invalidFiles(in: fixture(badHash: true), mode: .receiptAssisted), ["Game/data.bin"])
+        XCTAssertEqual(diagnostics.snapshot()[.contentRead].bytes, 16)
+    }
+    func testReceiptSizingContextMustMatchPinnedDepotAndGID() async throws {
+        let root = try root()
+        try await download(root).download(manifest: fixture(), fetchChunk: Feed(pieces).fetch)
+        var value = download(root); value.receiptManifest = fixture(gid: 10)
+        XCTAssertThrowsError(try value.invalidFiles(in: fixture(), mode: .receiptAssisted))
+        value.receiptManifest = DepotManifest(depotID: 8, gid: 9, files: fixture().files, totalSize: 16)
+        XCTAssertThrowsError(try value.invalidFiles(in: fixture(), mode: .receiptAssisted))
+    }
     func testZlibZeroSeedMatchesKnownSteamVectorsIncludingEmpty() {
         // Independent literals: sums for abc are a=294, b=586; Python zlib.adler32(b"123456789", 0)=0x091501dd.
         for (data, expected): (Data, UInt32) in [(Data(), 0), (Data("abc".utf8), 0x024a0126),
@@ -181,7 +480,8 @@ final class DownloadResumeTests: XCTestCase {
         let checks = samples.values.filter { $0.verification != nil }
         XCTAssertTrue(checks.isEmpty, "Fresh completion must not reread file content")
         XCTAssertNil(samples.values.last?.verification)
-        // A complete file reused on a later invocation also reports the disk read, without a transfer.
+        // A complete file with a missing receipt reports fallback reads without a transfer.
+        try FileManager.default.removeItem(at: receiptURL(root))
         let reused = ProgressSamples(); value.onProgress = reused.append
         try await value.download(manifest: manifest, fetchChunk: Feed(pieces).fetch)
         XCTAssertEqual(reused.values.first?.verification?.bytesChecked, 0)
@@ -331,7 +631,7 @@ final class DownloadResumeTests: XCTestCase {
         // Five checkpoint boundaries, followed by another content write to fail after the final sync.
         for failure in 1...6 {
             let root = try root(), faults = PersistenceFaults()
-            let workspace = try DownloadWorkspace(destination: root, beforePersistence: faults.visit)
+            let workspace = try DownloadWorkspace(destination: root, beforePersistence: { try faults.visit($0) })
             let value = try writer(workspace)
             try await value.commit(pieces[0], index: 0)
             try await value.checkpoint()
@@ -362,7 +662,7 @@ final class DownloadResumeTests: XCTestCase {
             let root = try root(), target = root.appendingPathComponent("Game/data.bin"), faults = PersistenceFaults()
             try FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
             let old = Data("old target".utf8); try old.write(to: target)
-            let workspace = try DownloadWorkspace(destination: root, beforePersistence: faults.visit), value = try writer(workspace)
+            let workspace = try DownloadWorkspace(destination: root, beforePersistence: { try faults.visit($0) }), value = try writer(workspace)
             try await value.commit(pieces[0], index: 0)
             try await value.checkpoint()
             for index in 1...2 { try await value.commit(pieces[index], index: index) }
@@ -469,7 +769,7 @@ final class DownloadResumeTests: XCTestCase {
         try await commitAll(value)
         try await Task { try await value.checkpoint() }.value
         let task = Task { try await value.finish(to: "Game/data.bin") }
-        do { try await task.value; XCTFail("Cancellation before publication must stop finish") } catch is CancellationError {}
+        do { _ = try await task.value; XCTFail("Cancellation before publication must stop finish") } catch is CancellationError {}
         XCTAssertEqual(try Data(contentsOf: target), Data("old target".utf8))
         XCTAssertEqual(try completed(workspace), [0, 1, 2])
     }
@@ -482,7 +782,7 @@ final class DownloadResumeTests: XCTestCase {
         try await commitAll(value)
         // Flush first so cancellation is injected in publication's directory sync.
         try await Task { try await value.checkpoint() }.value
-        try await Task { try await value.finish(to: "Game/data.bin") }.value
+        _ = try await Task { try await value.finish(to: "Game/data.bin") }.value
         XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("Game/data.bin")), Data("firstsecondthird".utf8))
         XCTAssertThrowsError(try workspace.read(".gn-download/test/file.json"))
     }
@@ -593,4 +893,46 @@ private final class PersistenceFaults: @unchecked Sendable {
         if visits.count == failure { throw POSIXError(.EIO) }
     }
     var boundaries: [DownloadWorkspace.PersistenceBoundary] { lock.lock(); defer { lock.unlock() }; return visits }
+}
+
+private actor InterruptSecondFileFeed {
+    let pieces: [Data]
+    var count = 0
+    init(pieces: [Data]) { self.pieces = pieces }
+    nonisolated var fetch: @Sendable (DepotManifest.Chunk) async throws -> Data {
+        { chunk in try await self.read(chunk) }
+    }
+    func read(_ chunk: DepotManifest.Chunk) throws -> Data {
+        count += 1
+        if count > 3 { throw CancellationError() }
+        return pieces.first { SteamCrypto.sha1($0) == chunk.sha }!
+    }
+}
+
+private final class ReceiptClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private var instant = ContinuousClock.now
+    func now() -> ContinuousClock.Instant { lock.withLock { instant } }
+    func advance(_ duration: Duration) { lock.withLock { instant = instant.advanced(by: duration) } }
+}
+
+private actor ReceiptDuringTransferFeed {
+    let pieces: [Data]
+    let receipt: URL
+    var count = 0
+    var entriesDuringTransfer: [String] = []
+    init(pieces: [Data], receipt: URL) { self.pieces = pieces; self.receipt = receipt }
+    nonisolated var fetch: @Sendable (DepotManifest.Chunk) async throws -> Data {
+        { chunk in try await self.read(chunk) }
+    }
+    func read(_ chunk: DepotManifest.Chunk) async throws -> Data {
+        count += 1
+        if count == 4 { try await Task.sleep(for: .milliseconds(5100)) }
+        if count == 5 {
+            let saved = try JSONDecoder().decode(DownloadCompletionReceipt.self, from: Data(contentsOf: receipt))
+            entriesDuringTransfer = saved.entries.keys.sorted()
+            throw CancellationError()
+        }
+        return pieces.first { SteamCrypto.sha1($0) == chunk.sha }!
+    }
 }

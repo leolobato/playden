@@ -43,10 +43,10 @@ final class SteamPerformanceDiagnosticsTests: XCTestCase {
         XCTAssertEqual(result[.adler32].bytes, UInt64(bytes.count * 2))
         XCTAssertEqual(result[.sha1].bytes, UInt64(bytes.count * 2))
         XCTAssertEqual(result[.contentRead].bytes, UInt64(bytes.count * 2))
-        XCTAssertEqual(result[.checkpoint].count, 0)
-        XCTAssertEqual(result[.fileSync].count, 2)
-        XCTAssertEqual(result[.directorySync].count, 4)
-        XCTAssertEqual(result[.sha256].count, 4, "Two path hashes and two pinned manifest fingerprints; no chunk hashes")
+        XCTAssertEqual(result[.checkpoint].count, 2, "One completion receipt checkpoint per depot")
+        XCTAssertEqual(result[.fileSync].count, 4, "One content sync and one receipt sync per depot")
+        XCTAssertEqual(result[.directorySync].count, 10, "Publication, receipt replacement, and cleanup are durable")
+        XCTAssertEqual(result[.sha256].count, 6, "Two path hashes and four journal/receipt manifest fingerprints; no chunk hashes")
         XCTAssertGreaterThan(result[.directoryWalk].count, 0)
         XCTAssertGreaterThan(result[.progressCallback].count, 0)
         XCTAssertEqual(result[.fileValidation].count, 4)
@@ -103,8 +103,8 @@ final class SteamPerformanceDiagnosticsTests: XCTestCase {
         XCTAssertEqual(result[.contentRead].bytes, UInt64(pieces[0].count))
         XCTAssertEqual(result[.sha1].bytes, 0)
         XCTAssertEqual(result[.adler32].bytes, UInt64(pieces[0].count + pieces[1].count))
-        XCTAssertEqual(result[.checkpoint].count, 0)
-        XCTAssertEqual(result[.sha256].count, 2, "Path and manifest only; retained and fresh content receive no SHA-256")
+        XCTAssertEqual(result[.checkpoint].count, 1, "Completion receipt is checkpointed at depot end")
+        XCTAssertEqual(result[.sha256].count, 3, "Path and journal/receipt manifests only; retained and fresh content receive no SHA-256")
     }
 
     func testHTTPMeasuresSessionsResponseBytesAndFailedStatusWithoutURLs() async throws {
