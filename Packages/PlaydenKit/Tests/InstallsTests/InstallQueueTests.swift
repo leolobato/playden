@@ -25,6 +25,8 @@ private actor OfflineContent {
     var events: [String] = []
     var held = Set<String>()
     var failures = Set<String>()
+    var repairSubsetBytes: Int64?
+    func setRepairSubsetBytes(_ bytes: Int64) { repairSubsetBytes = bytes }
     var verificationFixture = false
     var beforeRepairPreparation: (@Sendable () async -> Void)?
     func setRepairPreparationHook(_ hook: @escaping @Sendable () async -> Void) { beforeRepairPreparation = hook }
@@ -131,6 +133,12 @@ private struct OfflineInstaller: Installer {
     func repair(_ plan: InstallPlan, at directory: URL, staging: InstallStaging?,
                 reserve: @escaping @Sendable (Int64, Int64, InstallRepairReservationPhase) async throws -> Void,
                 progress: @escaping @Sendable (InstallProgress) -> Void) async throws {
+        if let bytes = await content.repairSubsetBytes {
+            try await reserve(1280, 0, .transfer)
+            progress(.init(bytesCompleted: bytes, bytesTotal: bytes, currentFile: "repaired.bin"))
+            try await reserve(256, 0, .preparation)
+            return
+        }
         guard let beforePreparation = await content.beforeRepairPreparation else {
             try await reserve(plan.estimate.requiredBytes, 0, .transfer)
             try await repair(plan, at: directory, staging: staging, progress: progress)
@@ -219,6 +227,26 @@ private actor FixtureBottles: GameBottleManaging {
     }
 }
 final class InstallQueueTests: XCTestCase {
+    func testSteamSubsetRepairFinishesWithCoherentDisplayedAndPersistedCounters() async throws {
+        let root = try root(), volumes = FixtureVolumes(root: root), content = OfflineContent()
+        let catalog = try CatalogStore(path: root.appendingPathComponent("subset.sqlite").path)
+        let queue = try InstallQueue(catalog: catalog, sources: [SteamSpaceSource(content: content)],
+            storage: InstallStorage(volumes: volumes), bottles: FixtureBottles())
+        addTeardownBlock { await queue.shutdown() }
+        let game = SourceGameRecord(id: .init(source: "steam", value: "subset"), title: "Subset repair")
+        let install = try await queue.enqueue(queue.offer(for: game, volume: volumes.selection))
+        try await queue.start()
+        _ = try await waitFor(queue, jobID: install, state: .completed)
+        await content.setRepairSubsetBytes(2)
+        let repair = try await queue.repair(game.id)
+        let completed = try await waitFor(queue, jobID: repair, state: .completed)
+        XCTAssertEqual(completed.bytesCompleted, 2)
+        XCTAssertEqual(completed.bytesTotal, 2)
+        XCTAssertLessThanOrEqual(completed.bytesCompleted, try XCTUnwrap(completed.bytesTotal))
+        let persisted = try XCTUnwrap(catalog.jobs().first { $0.id == repair })
+        XCTAssertEqual(persisted.bytesCompleted, completed.bytesCompleted)
+        XCTAssertEqual(persisted.bytesTotal, completed.bytesTotal)
+    }
     func testSteamLiveReservationChangesOnlyWithAllocationAndRepairsGateSpace() async throws {
         let root = try root(), volumes = FixtureVolumes(root: root), content = OfflineContent()
         let storage = SpaceFixtureStorage(InstallStorage(volumes: volumes)), catalog = try CatalogStore(path: root.appendingPathComponent("catalog.sqlite").path)
@@ -354,8 +382,18 @@ final class InstallQueueTests: XCTestCase {
         XCTAssertEqual(snapshot.jobs.first(where: { $0.id == id })?.state, .running)
         XCTAssertEqual(snapshot.jobs.first(where: { $0.id == id })?.bytesCompleted, 4)
         XCTAssertEqual(try catalog.jobs().first(where: { $0.id == id })?.bytesCompleted, 0)
+        if let verification {
+            await content.sendDownloadReport("advisory", value: .init(bytesCompleted: 4, bytesTotal: 8,
+                currentFile: "game.exe", downloadedBytes: 4, freshlyWrittenBytes: 4, verification: verification, sequence: 9))
+            let failedSave = try await waitForSnapshot(queue) { $0.transfer?.verification == verification }
+            XCTAssertNil(failedSave.persistenceFailure)
+            XCTAssertEqual(failedSave.activeJobID, id)
+            XCTAssertEqual(failedSave.transfer?.verification, verification)
+            XCTAssertEqual(try catalog.jobs().first(where: { $0.id == id })?.bytesCompleted, 0)
+        }
         try await catalog.database.write { try $0.execute(sql: "DROP TRIGGER reject_job_save") }
-        await content.sendDownloadReport("advisory", value: .init(bytesCompleted: 6, bytesTotal: 8, currentFile: "next.exe", verification: verification, sequence: 10))
+        try await Task.sleep(for: .milliseconds(300))
+        await content.sendDownloadReport("advisory", value: .init(bytesCompleted: 6, bytesTotal: 8, currentFile: "next.exe", downloadedBytes: 6, freshlyWrittenBytes: 6, verification: verification, sequence: 10))
         if verification == nil { // Let the ordinary UI cadence elapse before sending a subsequent update.
             try await Task.sleep(for: .milliseconds(300))
             await content.sendDownloadReport("advisory", value: .init(bytesCompleted: 6, bytesTotal: 8, currentFile: "next.exe", sequence: 11))

@@ -33,6 +33,77 @@ final class DownloadResumeTests: XCTestCase {
     private func receiptURL(_ root: URL, gid: UInt64 = 9) -> URL {
         root.appendingPathComponent(".gn-download/receipts/7-\(gid).json")
     }
+    /// This entry point runs only in a child explicitly launched by the parent regression.
+    func testDisposablePersistenceChild() async throws {
+        guard let path = ProcessInfo.processInfo.environment["PLAYDEN_DISPOSABLE_KILL_ROOT"] else { return }
+        let root = URL(fileURLWithPath: path), manifest = fixture()
+        // Publish a completed file/receipt and checkpoint a different incomplete file under
+        // the same pinned depot, then leave newer bytes deliberately outside its journal.
+        let completedFile = fixture(path: "Game/completed.bin").files[0]
+        let full = DepotManifest(depotID: 7, gid: 9, files: [completedFile, manifest.files[0]], totalSize: 32)
+        let workspace = try DownloadWorkspace(destination: root)
+        let receipts = try DownloadCompletionReceipts(workspace: workspace, manifest: full)
+        let complete = try ChunkCheckpointWriter(workspace: workspace, file: completedFile, base: ".gn-download/complete")
+        try await commitAll(complete)
+        let metadata = try await complete.finish(to: completedFile.path)
+        try receipts.record(completedFile, path: completedFile.path, metadata: metadata)
+        try receipts.checkpoint(force: true)
+        let key = SHA256.hash(data: Data(manifest.files[0].path.utf8)).map { String(format: "%02x", $0) }.joined()
+        let writer = try ChunkCheckpointWriter(workspace: workspace, file: manifest.files[0], base: ".gn-download/7/9/" + key)
+        try await writer.commit(pieces[0], index: 0)
+        try await writer.checkpoint()
+        try await writer.commit(pieces[1], index: 1)
+        try Data("durable receipt and first chunk; second chunk uncheckpointed".utf8).write(to: root.appendingPathComponent("ready"))
+        while true { try await Task.sleep(for: .seconds(1)) }
+    }
+    func testKilledChildResumesDurableReceiptsAndOnlyCheckpointedChunks() async throws {
+        let root = try root(), process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
+        process.arguments = ["xctest", "-XCTest", "SteamCoreTests.DownloadResumeTests/testDisposablePersistenceChild",
+            Bundle(for: DownloadResumeTests.self).bundleURL.path]
+        var environment = ProcessInfo.processInfo.environment
+        environment["PLAYDEN_DISPOSABLE_KILL_ROOT"] = root.path
+        process.environment = environment
+        let output = root.appendingPathComponent("child.log")
+        FileManager.default.createFile(atPath: output.path, contents: nil)
+        let handle = try FileHandle(forWritingTo: output)
+        process.standardOutput = handle; process.standardError = handle
+        try process.run()
+        defer {
+            if process.isRunning { kill(process.processIdentifier, SIGKILL); process.waitUntilExit() }
+            try? handle.close()
+        }
+        let deadline = ContinuousClock.now.advanced(by: .seconds(20))
+        while !FileManager.default.fileExists(atPath: root.appendingPathComponent("ready").path),
+              process.isRunning, ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(10)) }
+        guard FileManager.default.fileExists(atPath: root.appendingPathComponent("ready").path) else {
+            XCTFail("Disposable child did not reach persistence boundary: " + (try String(contentsOf: output, encoding: .utf8)))
+            return
+        }
+        XCTAssertEqual(kill(process.processIdentifier, SIGKILL), 0)
+        process.waitUntilExit()
+        XCTAssertEqual(process.terminationReason, .uncaughtSignal)
+        XCTAssertEqual(process.terminationStatus, SIGKILL)
+        let receipt = try JSONDecoder().decode(DownloadCompletionReceipt.self, from: Data(contentsOf: receiptURL(root)))
+        XCTAssertEqual(receipt.entries.keys.sorted(), ["Game/completed.bin"])
+        let savedPartial = try partial(root)
+        XCTAssertEqual(try Data(contentsOf: savedPartial), pieces[0] + pieces[1])
+        let saved = try JSONSerialization.jsonObject(with: Data(contentsOf: savedPartial.deletingPathExtension().appendingPathExtension("json"))) as! [String: Any]
+        XCTAssertEqual(saved["completed"] as? [Int], [0])
+        let manifest = DepotManifest(depotID: 7, gid: 9,
+            files: [fixture(path: "Game/completed.bin").files[0], fixture().files[0]], totalSize: 32)
+        let diagnostics = SteamPerformanceDiagnostics(), samples = ProgressSamples(), feed = Feed(pieces)
+        var resumed = ResumableDepotDownload(destination: root, diagnostics: diagnostics)
+        resumed.chunkConcurrency = 1; resumed.onProgress = { samples.append($0) }
+        try await resumed.download(manifest: manifest, fetchChunk: feed.fetch)
+        let requested = await feed.requested
+        XCTAssertEqual(requested, [5, 11], "Only 11 missing bytes are fetched; uncheckpointed bytes cannot be credited")
+        XCTAssertEqual(diagnostics.snapshot()[.contentRead].bytes, 5, "Only retained incomplete bytes are reread; the completed receipt survives")
+        XCTAssertEqual(samples.values.last?.bytesDone, 32)
+        XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("Game/data.bin")), pieces.reduce(Data(), +))
+        print("Disposable child PID \(process.processIdentifier): SIGKILL=\(process.terminationStatus); retained=5, fetched=11, receipt=16 bytes")
+    }
+
     func testAllocationCreditCapsBlocksAndIgnoresInvalidAndUnrelatedFiles() async throws {
         let root = try root(), value = download(root), manifest = fixture()
         XCTAssertEqual(try value.allocatedContentBytes(in: manifest), 0)
@@ -675,7 +746,7 @@ final class DownloadResumeTests: XCTestCase {
         XCTAssertEqual(try workspace.read(".gn-download/test/state.json"), Data("state".utf8))
     }
     func testCheckpointByteThresholdIs128MiBAndFinalChunkDefersToFinish() async throws {
-        let root = try root(), diagnostics = SteamPerformanceDiagnostics()
+        let root = try root(), diagnostics = SteamPerformanceDiagnostics(), clock = ReceiptClock()
         let workspace = try DownloadWorkspace(destination: root, diagnostics: diagnostics)
         let data = Data(repeating: 7, count: 1024 * 1024)
         let chunks = (0..<129).map { index in
@@ -683,7 +754,7 @@ final class DownloadResumeTests: XCTestCase {
                 compressedSize: UInt32(data.count), uncompressedSize: UInt32(data.count), checksum: 0)
         }
         let file = DepotManifest.File(path: "large.bin", size: UInt64(129 * data.count), chunks: chunks)
-        let value = try ChunkCheckpointWriter(workspace: workspace, file: file, base: ".gn-download/test/file")
+        let value = try ChunkCheckpointWriter(workspace: workspace, file: file, base: ".gn-download/test/file", now: { clock.now() })
         for index in 0..<127 { try await value.commit(data, index: index) }
         XCTAssertEqual(diagnostics.snapshot()[.checkpoint].count, 0)
         try await value.commit(data, index: 127)
@@ -697,11 +768,26 @@ final class DownloadResumeTests: XCTestCase {
         let finalDiagnostics = SteamPerformanceDiagnostics()
         let finalWorkspace = try DownloadWorkspace(destination: root, lock: false, diagnostics: finalDiagnostics)
         let finalFile = DepotManifest.File(path: "exact.bin", size: UInt64(128 * data.count), chunks: Array(chunks.prefix(128)))
-        let finalWriter = try ChunkCheckpointWriter(workspace: finalWorkspace, file: finalFile, base: ".gn-download/test/exact")
+        let finalWriter = try ChunkCheckpointWriter(workspace: finalWorkspace, file: finalFile, base: ".gn-download/test/exact", now: { clock.now() })
         for index in 0..<128 { try await finalWriter.commit(data, index: index) }
         try await finalWriter.finish(to: "exact.bin")
         XCTAssertEqual(finalDiagnostics.snapshot()[.checkpoint].count, 0, "Final threshold chunk uses publication durability")
         XCTAssertEqual(finalDiagnostics.snapshot()[.fileSync].count, 1)
+    }
+    func testCheckpointClockUsesExactlyFiveSecondsAndSkipsIdleFlush() async throws {
+        let root = try root(), diagnostics = SteamPerformanceDiagnostics(), clock = ReceiptClock()
+        let workspace = try DownloadWorkspace(destination: root, diagnostics: diagnostics)
+        let value = try ChunkCheckpointWriter(workspace: workspace, file: fixture().files[0],
+            base: ".gn-download/test/file", now: { clock.now() })
+        clock.advance(.milliseconds(4999))
+        try await value.commit(pieces[0], index: 0)
+        XCTAssertEqual(diagnostics.snapshot()[.checkpoint].count, 0)
+        clock.advance(.milliseconds(1))
+        try await value.commit(pieces[1], index: 1)
+        XCTAssertEqual(diagnostics.snapshot()[.checkpoint].count, 1)
+        XCTAssertEqual(try completed(workspace), [0, 1])
+        try await value.checkpoint()
+        XCTAssertEqual(diagnostics.snapshot()[.checkpoint].count, 1, "An idle forced flush writes no journal")
     }
     func testCheckpointTimeThresholdIsFiveSeconds() async throws {
         let root = try root(), diagnostics = SteamPerformanceDiagnostics()

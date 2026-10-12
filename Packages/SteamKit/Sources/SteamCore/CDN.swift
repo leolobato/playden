@@ -93,7 +93,7 @@ public final class URLSessionCDNTransport: CDNTransport, @unchecked Sendable {
             configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
             configuration.timeoutIntervalForRequest = 30
             configuration.timeoutIntervalForResource = 60
-            // ResumableDepotDownload currently supports up to 16 in-flight chunks.
+            // Keep connection capacity above the downloader’s global eight-chunk budget.
             configuration.httpMaximumConnectionsPerHost = 16
             let created = diagnostics.measure(.sessionCreation) { URLSession(configuration: configuration) }
             session = created

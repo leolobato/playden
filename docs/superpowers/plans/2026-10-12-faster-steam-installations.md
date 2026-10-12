@@ -1,6 +1,8 @@
 # Faster Steam Installations Implementation Plan
 
-**Status:** Planned and reviewed against the code on 2026-10-12. Implementation has not started.
+**Status:** Steps 0–11 implemented and validated on 2026-10-12. Required package and app suites passed; measurements and
+requirement evidence are recorded in [the final results](2026-10-12-faster-steam-installations-results.md). Final controller
+whole-branch review remains pending. The cost descriptions below record the original baseline, before implementation.
 
 **Goal:** Remove redundant disk reads, hashing, flushes and oversized space reservations. Keep reliable downloads, pause/resume,
 preparation and explicit repair.
@@ -100,13 +102,13 @@ rising from ~60 GB.
 
 Files: `SteamInstallBackend.swift`, `ResumableDepotDownload.swift`, `DownloadWorkspace.swift`, `SteamInstaller.swift`, `CDN.swift`.
 
-- [ ] Add lightweight counters and timings: network transfer, session creations, Adler-32 and SHA bytes/time (separately),
+- [x] Add lightweight counters and timings: network transfer, session creations, Adler-32 and SHA bytes/time (separately),
   content bytes reread, checkpoints, fsyncs (file and directory), directory walks, progress callbacks, preparation and final
   validation.
-- [ ] Wire counters through `LiveSteamInstallBackend.download` (`SteamInstallBackend.swift:33-66`), which creates a new
+- [x] Wire counters through `LiveSteamInstallBackend.download` (`SteamInstallBackend.swift:33-66`), which creates a new
   `DownloadEngine` for each depot.
-- [ ] Keep diagnostics out of the ordinary UI. Never log credentials.
-- [ ] Record baselines for a large-file fixture and a many-small-files fixture. Measure a real installation separately when one is
+- [x] Keep diagnostics out of the ordinary UI. Never log credentials.
+- [x] Record baselines for a large-file fixture and a many-small-files fixture. Measure a real installation separately when one is
   available.
 
 **Acceptance:** before/after results separate network time, hashing, filesystem work and preparation.
@@ -115,13 +117,13 @@ Files: `SteamInstallBackend.swift`, `ResumableDepotDownload.swift`, `DownloadWor
 
 Files: `CDN.swift`, `DownloadEngine.swift`, `SteamInstallBackend.swift`; add focused transport tests.
 
-- [ ] Replace per-request `URLSession` creation with a shared, injectable CDN transport. Create it once per download in
+- [x] Replace per-request `URLSession` creation with a shared, injectable CDN transport. Create it once per download in
   `LiveSteamInstallBackend` (or hold it statically), not once per depot engine.
-- [ ] Keep ephemeral configuration, no cookies or cache, request timeouts, cancellation and server failover.
-- [ ] Set `httpMaximumConnectionsPerHost` to at least the in-flight chunk budget, or confirm that the CDN multiplexes over HTTP/2.
+- [x] Keep ephemeral configuration, no cookies or cache, request timeouts, cancellation and server failover.
+- [x] Set `httpMaximumConnectionsPerHost` to at least the in-flight chunk budget, or confirm that the CDN multiplexes over HTTP/2.
   `ArtworkLoader.swift:176` is the existing shared-session example.
-- [ ] Cancelling one request must not invalidate other transfers.
-- [ ] Test session reuse, concurrent requests, cancellation, timeouts and retries.
+- [x] Cancelling one request must not invalidate other transfers.
+- [x] Test session reuse, concurrent requests, cancellation, timeouts and retries.
 
 **Acceptance:** a download reuses one transport across chunks and depots.
 
@@ -129,16 +131,16 @@ Files: `CDN.swift`, `DownloadEngine.swift`, `SteamInstallBackend.swift`; add foc
 
 Files: `CDN.swift`, `DownloadEngine.swift`, `ResumableDepotDownload.swift`, `DownloadResumeTests.swift`.
 
-- [ ] Keep one validation inside the chunk-fetch retry (`CDNClient.fetchChunk`), so corrupt responses still retry. Remove the checks
+- [x] Keep one validation inside the chunk-fetch retry (`CDNClient.fetchChunk`), so corrupt responses still retry. Remove the checks
   at `ResumableDepotDownload.swift:55` and `:269`.
-- [ ] Replace the Adler-32 loop with zlib's `adler32`. First prove with a test vector that `adler32(0, …)` gives the same result as
+- [x] Replace the Adler-32 loop with zlib's `adler32`. First prove with a test vector that `adler32(0, …)` gives the same result as
   Steam's zero-seed variant.
-- [ ] Keep length, offset, range and write-error checks.
-- [ ] Replace per-chunk SHA-256 journal entries with completed chunk indices tied to the pinned file manifest.
-- [ ] When resuming a partial file, validate retained chunks with `chunk.validate` (as `restore` does already).
-- [ ] Version the journal. Version 1 journals migrate by keeping their chunk indices; `restore` rechecks each retained chunk. Never
+- [x] Keep length, offset, range and write-error checks.
+- [x] Replace per-chunk SHA-256 journal entries with completed chunk indices tied to the pinned file manifest.
+- [x] When resuming a partial file, validate retained chunks with `chunk.validate` (as `restore` does already).
+- [x] Version the journal. Version 1 journals migrate by keeping their chunk indices; `restore` rechecks each retained chunk. Never
   discard usable downloads only because the format is old.
-- [ ] Test corrupt responses, invalid ranges, damaged retained chunks, changed manifests and version 1 journals.
+- [x] Test corrupt responses, invalid ranges, damaged retained chunks, changed manifests and version 1 journals.
 
 **Acceptance:** each new chunk gets one content check and no SHA-256.
 
@@ -146,10 +148,10 @@ Files: `CDN.swift`, `DownloadEngine.swift`, `ResumableDepotDownload.swift`, `Dow
 
 Files: `ResumableDepotDownload.swift`, `DownloadWorkspace.swift`.
 
-- [ ] Replace `finish()`'s full-file hash with checks that every expected chunk completed and the file size matches.
-- [ ] Keep executable permissions, atomic replacement and durability ordering.
-- [ ] Record completion only after the file is published.
-- [ ] Test missing chunks, short files, failed writes, failed renames and cancellation during finalization.
+- [x] Replace `finish()`'s full-file hash with checks that every expected chunk completed and the file size matches.
+- [x] Keep executable permissions, atomic replacement and durability ordering.
+- [x] Record completion only after the file is published.
+- [x] Test missing chunks, short files, failed writes, failed renames and cancellation during finalization.
 
 **Acceptance:** completing a fresh file reads none of its content back.
 
@@ -157,13 +159,13 @@ Files: `ResumableDepotDownload.swift`, `DownloadWorkspace.swift`.
 
 Files: `ResumableDepotDownload.swift`, `DownloadWorkspace.swift`.
 
-- [ ] Change checkpoint thresholds from **16 MiB / 1 s** to **128 MiB / 5 s**, whichever comes first.
-- [ ] Checkpoint on orderly pause and cancellation.
-- [ ] `finish()` syncs the file once (after `fchmod`), renames it, then removes the journal if one exists. It never writes a journal
+- [x] Change checkpoint thresholds from **16 MiB / 1 s** to **128 MiB / 5 s**, whichever comes first.
+- [x] Checkpoint on orderly pause and cancellation.
+- [x] `finish()` syncs the file once (after `fchmod`), renames it, then removes the journal if one exists. It never writes a journal
   it is about to delete.
-- [ ] `replace()` syncs a directory once when source and destination are the same directory.
-- [ ] Keep ordering: persist downloaded bytes before a journal claims them.
-- [ ] Test interruption before and after each persistence boundary with injected failures.
+- [x] `replace()` syncs a directory once when source and destination are the same directory.
+- [x] Keep ordering: persist downloaded bytes before a journal claims them.
+- [x] Test interruption before and after each persistence boundary with injected failures.
 
 **Acceptance:** fewer flushes and journal rewrites. An interruption can lose recent progress but never counts missing bytes as
 complete.
@@ -172,15 +174,15 @@ complete.
 
 Files: add `DownloadCompletionReceipt.swift`; update `ResumableDepotDownload.swift` and resume tests.
 
-- [ ] Store versioned receipts in the game folder under `.gn-download/`, **one receipt file per depot manifest** (not per game
+- [x] Store versioned receipts in the game folder under `.gn-download/`, **one receipt file per depot manifest** (not per game
   file). Write it on the checkpoint cadence.
-- [ ] Each entry binds the relative path, pinned manifest, size, file identity and timestamps.
-- [ ] Skip hashing completed files whose entry and metadata still match.
-- [ ] Fully verify a file when its entry is missing, incompatible or mismatched; then refresh its entry or download it again.
-- [ ] Keep checking retained chunks in incomplete files.
-- [ ] Remove the leftover `.gn-download/` state that is not needed after the install finishes. It is never cleaned up today, and
+- [x] Each entry binds the relative path, pinned manifest, size, file identity and timestamps.
+- [x] Skip hashing completed files whose entry and metadata still match.
+- [x] Fully verify a file when its entry is missing, incompatible or mismatched; then refresh its entry or download it again.
+- [x] Keep checking retained chunks in incomplete files.
+- [x] Remove the leftover `.gn-download/` state that is not needed after the install finishes. It is never cleaned up today, and
   `rejectLinks` and `GamesStorage` both walk it.
-- [ ] Test changed size or timestamps, replaced files, copied or stale receipts, older installations and filesystems with coarse
+- [x] Test changed size or timestamps, replaced files, copied or stale receipts, older installations and filesystems with coarse
   timestamps.
 
 **Acceptance:** ordinary resume does not reread matching completed files.
@@ -190,15 +192,15 @@ Files: add `DownloadCompletionReceipt.swift`; update `ResumableDepotDownload.swi
 Files: `SteamInstaller.swift`, `ResumableDepotDownload.swift`; installer tests. **Do not change `Domain/Installer.swift` or
 `InstallQueue` stages.**
 
-- [ ] Make Steam's `verifyOriginals` use the step 6 receipts by default: a file whose metadata matches its receipt is not hashed.
+- [x] Make Steam's `verifyOriginals` use the step 6 receipts by default: a file whose metadata matches its receipt is not hashed.
   The `.verifyOriginals` stage, `prepare` and `validate` then cost only metadata lookups.
-- [ ] Keep the `.verifyOriginals` stage. It stays the restart-safe proof that the download finished: a mismatch still sends the job
+- [x] Keep the `.verifyOriginals` stage. It stays the restart-safe proof that the download finished: a mismatch still sends the job
   back to download (`InstallQueue.swift:362`).
-- [ ] Repair uses a full mode that ignores receipts. It checks once, then downloads **only the files that failed** (pass the
+- [x] Repair uses a full mode that ignores receipts. It checks once, then downloads **only the files that failed** (pass the
   invalid set to the download instead of letting it hash every file again), and refreshes their receipts.
-- [ ] Backups and prepared files (`.orig`, Mac originals) have no receipts and are hashed as today. These are few files.
-- [ ] Keep executable compatibility checks, preparation receipts and Mac signing checks.
-- [ ] Test restart at each stage, interrupted `.orig` creation, damaged backups, Windows executable preparation, Mac signing, and
+- [x] Backups and prepared files (`.orig`, Mac originals) have no receipts and are hashed as today. These are few files.
+- [x] Keep executable compatibility checks, preparation receipts and Mac signing checks.
+- [x] Test restart at each stage, interrupted `.orig` creation, damaged backups, Windows executable preparation, Mac signing, and
   unchanged GOG/Epic behavior.
 
 **Acceptance:** a fresh install has no whole-game content rereads. Repair does one full inspection plus targeted checks.
@@ -207,13 +209,13 @@ Files: `SteamInstaller.swift`, `ResumableDepotDownload.swift`; installer tests. 
 
 Files: `SteamInstaller.swift`, `SteamPrerequisites.swift` and preparation helpers that write files.
 
-- [ ] List every preparation write destination.
-- [ ] Replace repeated recursive walks (including the one per executable at `SteamInstaller.swift:113`) with checks of the source,
+- [x] List every preparation write destination.
+- [x] Replace repeated recursive walks (including the one per executable at `SteamInstaller.swift:113`) with checks of the source,
   destination and parent paths involved.
-- [ ] Keep destination containment and installation ownership checks.
-- [ ] Check once per uninterrupted operation; check again after a restart or interruption.
-- [ ] Keep required Mac framework symlinks and reject write paths that escape the folder.
-- [ ] Test linked parents, replaced destinations, legitimate Mac links and ownership mismatches.
+- [x] Keep destination containment and installation ownership checks.
+- [x] Check once per uninterrupted operation; check again after a restart or interruption.
+- [x] Keep required Mac framework symlinks and reject write paths that escape the folder.
+- [x] Test linked parents, replaced destinations, legitimate Mac links and ownership mismatches.
 
 **Acceptance:** preparation no longer walks unrelated game assets to authorize a few writes.
 
@@ -223,14 +225,15 @@ Files: `ResumableDepotDownload.swift`, `DownloadEngine.swift`, `SteamTransferPro
 
 Do this after step 5, and only if measurements still show per-file latency.
 
-- [ ] Preferred design: one ordered queue of chunks across all files, with **eight chunks in flight in total**. Each file has its
+- [x] Preferred design: one ordered queue of chunks across all files, with **eight chunks in flight in total**. Each file has its
   own writer and journal and is finished when its last chunk lands. This keeps at most a few files open and removes the small/large
   split.
 - [ ] Alternative if that is too large: up to **four files of 16 MiB or less** at a time, sharing the same eight-chunk budget.
-- [ ] One destination lease for all workers.
-- [ ] Create symlinks only after all file writes complete.
-- [ ] Progress stays monotonic. Drain workers before pause or cancellation completes.
-- [ ] Test concurrency limits, shared directories, failures, cancellation, bounded memory and accurate progress.
+  Not selected: the preferred ordered global eight-chunk design was implemented and tested.
+- [x] One destination lease for all workers.
+- [x] Create symlinks only after all file writes complete.
+- [x] Progress stays monotonic. Drain workers before pause or cancellation completes.
+- [x] Test concurrency limits, shared directories, failures, cancellation, bounded memory and accurate progress.
 
 **Acceptance:** small files overlap without increasing network concurrency or causing destination races. Compare SSD and
 external-drive results before tuning defaults.
@@ -239,14 +242,18 @@ external-drive results before tuning defaults.
 
 Files: `SteamInstallPlan.swift`, `GamesStorage.swift`, `InstallQueue.swift`; storage and plan tests.
 
-- [ ] Remove `2 × installed + largest + 256 MiB`.
-- [ ] Peak extra space = installed content + backups of files that preparation may change (executables and API DLLs; copies may not
+- [x] Remove `2 × installed + largest + 256 MiB`.
+- [x] Peak extra space = installed content + backups of files that preparation may change (executables and API DLLs; copies may not
   be clones on HFS+) + **256 MiB**. Download partials count as installed content because they are renamed into place.
 - [ ] Repair: old and new content overlap only for the prepared files, because repair downloads originals to their backup paths.
-- [ ] Keep the reservation separate from transfer progress (`InstallQueue.swift:282`).
-- [ ] Check the correct volume for game content versus runtime storage.
-- [ ] Unfinished older jobs keep their stored, larger estimate. That is safe, so do not recalculate them.
-- [ ] Test fresh installs, resume, repair, multiple queued jobs, low disk space and arithmetic overflow.
+  **Clarification:** this literal assumption is false under retained atomic replacement: invalid ordinary targets also coexist
+  with their replacement partials. Preserve the old target until rename and gate the entire invalid subset plus preparation
+  backups/headroom, crediting only validated replacement partial allocation and assuming no old extents are reclaimed.
+  The implementation and tests prove this conservative behavior; the original wording is retained rather than marked true.
+- [x] Keep the reservation separate from transfer progress (`InstallQueue.swift:282`).
+- [x] Check the correct volume for game content versus runtime storage.
+- [x] Unfinished older jobs keep their stored, larger estimate. That is safe, so do not recalculate them.
+- [x] Test fresh installs, resume, repair, multiple queued jobs, low disk space and arithmetic overflow.
 
 **Acceptance:** reservations reflect peak extra allocation, not a second copy of the game.
 
@@ -262,11 +269,11 @@ swift test --package-path Packages/PlaydenKit
 ./scripts/test.sh
 ```
 
-- [ ] Compare baseline and final counters: content rereads, checksum work, syncs, session creations, callbacks and elapsed time.
-- [ ] Exercise pause/resume, forced termination, network failure, disk-full failure and preparation recovery.
-- [ ] Confirm that explicit repair still finds and fixes corruption.
-- [ ] Confirm that displayed progress and reservations match the new behavior.
-- [ ] Report measured improvements and any workloads that got slower.
+- [x] Compare baseline and final counters: content rereads, checksum work, syncs, session creations, callbacks and elapsed time.
+- [x] Exercise pause/resume, forced termination, network failure, disk-full failure and preparation recovery.
+- [x] Confirm that explicit repair still finds and fixes corruption.
+- [x] Confirm that displayed progress and reservations match the new behavior.
+- [x] Report measured improvements and any workloads that got slower.
 
 ## Commit style
 

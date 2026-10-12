@@ -650,6 +650,7 @@ extension SteamInstaller {
     /// Non-deep codesign rewrites the Info.plist-selected executable and resource seal only.
     /// Nested framework links are unrelated to these writes and keep their original signatures.
     private func authorizeSigning(_ bundle: String, signed: [String], at directory: URL, paths: SteamPreparationPaths) throws {
+        try paths.check(directory.appendingPathComponent(bundle + "/Contents/_CodeSignature/CodeResources"))
         let infoURL = directory.appendingPathComponent(bundle + "/Contents/Info.plist")
         try paths.check(infoURL)
         guard let info = NSDictionary(contentsOf: infoURL), let executable = info["CFBundleExecutable"] as? String,

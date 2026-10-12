@@ -378,7 +378,11 @@ public actor InstallQueue: InstallQueuing {
                         throw error
                     }
                     await relay?.finish()
-                    try update(id) { $0.bytesCompleted = plan.estimate.installedBytes; $0.currentFile = nil }
+                    try update(id) {
+                        $0.bytesCompleted = job.gameID.source == SourceID.steam && job.kind == .repair
+                            ? ($0.bytesTotal ?? 0) : plan.estimate.installedBytes
+                        $0.currentFile = nil
+                    }
                     if job.gameID.source == SourceID.steam, job.kind == .install {
                         // Successful source completion establishes all originals; no second disk scan.
                         remainingReservations[id] = plan.estimate.requiredBytes - plan.estimate.installedBytes

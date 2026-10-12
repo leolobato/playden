@@ -315,6 +315,27 @@ final class SteamMacInstallTests: XCTestCase {
         XCTAssertFalse(try installer.supportsCloudSaves(plan))
     }
 
+    func testMacSigningRejectsManifestSealSymlinkBeforeInvokingSigner() async throws {
+        let seal = "Game.app/Contents/_CodeSignature/CodeResources"
+        let target = "Game.app/Contents/Resources/original-seal"
+        let bytes = Data("original seal".utf8)
+        let files = macFiles.filter { $0.path != seal } + [file(target, bytes),
+            .init(path: seal, size: 0, flags: 512, linkTarget: "../Resources/original-seal", chunks: [])]
+        let content = ResolvedSteamContent(app: app(), manifests: [manifest(files, depot: 102)],
+            entitlements: .init(appIDs: [100], depotIDs: [102]))
+        let signer = FixtureSigner()
+        let installer = SteamInstaller(game: game, backend: MacBackend(content: content, chunks: chunks),
+            emulatorSaves: try temporaryDirectory(), codeSigner: signer)
+        let plan = try await installer.resolve(platform: .macOS), directory = try temporaryDirectory()
+        try await installer.download(plan, to: directory) { _ in }
+        let bottle = GameBottle(gameID: game.id, name: "playden-steam-100", ownershipToken: UUID())
+        do { _ = try await installer.postInstall(plan, at: directory, in: bottle); XCTFail("Signing followed a manifest seal link") }
+        catch {}
+        let signed = await signer.signed
+        XCTAssertEqual(signed, [])
+        XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent(target)), bytes)
+    }
+
     func testUnsignedMacBundlesAreNotSigned() async throws {
         let files = macFiles.filter { !$0.path.contains("_CodeSignature") }
         let chunks = self.chunks

@@ -488,8 +488,11 @@ actor ChunkCheckpointWriter {
     private var journal: ChunkJournal
     private var uncheckpointedBytes: UInt64 = 0
     private var validatedBytes: UInt64 = 0
-    private var lastCheckpoint = ContinuousClock.now
-    init(workspace: DownloadWorkspace, file: DepotManifest.File, base: String) throws {
+    private let now: @Sendable () -> ContinuousClock.Instant
+    private var lastCheckpoint: ContinuousClock.Instant
+    init(workspace: DownloadWorkspace, file: DepotManifest.File, base: String,
+         now: @escaping @Sendable () -> ContinuousClock.Instant = { .now }) throws {
+        self.now = now; lastCheckpoint = now()
         self.workspace = workspace; self.file = file; partial = base + ".partial"; journalPath = base + ".json"
         let encoder = JSONEncoder(); encoder.outputFormatting = .sortedKeys
         let encoded = try encoder.encode(file)
@@ -554,7 +557,7 @@ actor ChunkCheckpointWriter {
         uncheckpointedBytes += UInt64(data.count)
         // Complete files use publication as their next durability checkpoint.
         if journal.completed.count < file.chunks.count,
-           uncheckpointedBytes >= 128 * 1024 * 1024 || lastCheckpoint.duration(to: .now) >= .seconds(5) {
+           uncheckpointedBytes >= 128 * 1024 * 1024 || lastCheckpoint.duration(to: now()) >= .seconds(5) {
             try checkpoint()
         }
     }
@@ -570,7 +573,7 @@ actor ChunkCheckpointWriter {
         defer { workspace.diagnostics?.finish(.checkpoint, since: started) }
         try workspace.syncFile(handle)
         try workspace.writeAtomic(try JSONEncoder().encode(journal), path: journalPath)
-        uncheckpointedBytes = 0; lastCheckpoint = .now
+        uncheckpointedBytes = 0; lastCheckpoint = now()
     }
     @discardableResult
     func finish(to target: String) throws -> DownloadFileMetadata {
