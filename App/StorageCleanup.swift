@@ -72,13 +72,12 @@ extension LibraryModel {
     }
     var storageSelectedBytes: Int64 { storageSelectedRows.reduce(0) { $0 + $1.bytes } }
     var storageSettingSummary: String {
-        let count = isPreview ? games.filter { $0.knownInstalledBytes != nil }.count
-            : (try? catalog?.snapshot().entries.filter { $0.installation.map { !$0.isExternal } == true }.count) ?? 0
+        let count = games.filter { $0.knownInstalledBytes != nil && !$0.isExternal }.count
         return count == 0 ? "Installed games appear here with their size" : "\(count) installed game\(count == 1 ? "" : "s") · free up space by size or last played"
     }
 
     func showStorageCleanup() {
-        storageCleanup = StorageCleanupState(volumeID: gamesVolume?.volumeID)
+        storageCleanup = StorageCleanupState(volumeID: gamesVolume?.volumeID, decisions: storageCleanup.decisions)
         reloadStorageRows()
         show(.storage)
         storageCleanup.focus = storageRows.isEmpty ? .done : .game(0)
@@ -244,7 +243,7 @@ extension LibraryModel {
                 var lines: [String] = []
                 if !queued.isEmpty { lines.append("\(queued.count) game\(queued.count == 1 ? "" : "s") queued for removal.") }
                 if !failed.isEmpty { lines.append("Couldn’t prepare \(failed.joined(separator: ", ")). Their files have been kept.") }
-                storageCleanup.message = lines.joined(separator: " ")
+                storageCleanup.message = lines.isEmpty ? nil : lines.joined(separator: " ")
             }
         }
     }
@@ -263,7 +262,15 @@ extension LibraryModel {
     func configureStorageSnapshot(_ screen: String) {
         selectTab(.settings); settingsSection = 1; settingsRailFocused = false; settingsIndex = 2
         controllerName = "DUALSHOCK 4"; keyboardNavigation = false
+        if screen == "settings-storage-played" {
+            // Most installed games get a session, a few weeks apart; the rest stay never played.
+            let installed = games.indices.filter { games[$0].knownInstalledBytes != nil }
+            for (order, index) in installed.enumerated() where order % 6 != 0 {
+                games[index].lastPlayedAt = Date(timeIntervalSince1970: 1_780_000_000 - Double(order) * 1_900_000)
+            }
+        }
         showStorageCleanup()
+        if screen == "settings-storage-played" { storageCleanup.sort = .lastPlayed; storageCleanup.focus = .sort; return }
         let rows = storageRows
         storageCleanup.selection = Set(rows.prefix(2).map(\.id))
         storageCleanup.focus = rows.count > 2 ? .game(2) : .done
