@@ -20,6 +20,112 @@ final class SteamInstallerTests: XCTestCase {
     private func plan(_ files: [DepotManifest.File], app info: AppInfo? = nil) throws -> InstallPlan {
         try SteamPlanBuilder.build(game: game, app: info ?? app(), manifests: [manifest(files)], ownedApps: [100])
     }
+    func testSpaceEstimateCountsOnlyPreparationBackupsAndVersionsLegacyPlans() throws {
+        let resolved = try plan([file("Game.exe"), file("helper.EXE"), file("bin/steam_api64.dll"), file("asset.bin", Data(repeating: 1, count: 1000))])
+        XCTAssertEqual(resolved.estimate.requiredBytes, 1012 + 12 + 256 * 1024 * 1024)
+        XCTAssertEqual(try SteamPlanBuilder.payload(resolved, for: game.id).version, 2)
+        let decoded = try JSONDecoder().decode(InstallPlan.self, from: JSONEncoder().encode(resolved))
+        XCTAssertEqual(try SteamPlanBuilder.payload(decoded, for: game.id).version, 2)
+        var payload = try JSONDecoder().decode(SteamInstallPayload.self, from: resolved.sourcePayload)
+        payload.version = 1
+        func legacy(required: Int64) throws -> InstallPlan {
+            .init(game: game, manifestIDs: resolved.manifestIDs,
+                  estimate: .init(downloadBytes: 1012, installedBytes: 1012, requiredBytes: required),
+                  launchSpec: resolved.launchSpec, sourcePayload: try JSONEncoder().encode(payload), recipeVersion: resolved.recipeVersion,
+                  launchOptions: resolved.launchOptions)
+        }
+        let older = try legacy(required: 2024 + 1000 + 256 * 1024 * 1024)
+        let roundtrip = try JSONDecoder().decode(InstallPlan.self, from: JSONEncoder().encode(older))
+        XCTAssertEqual(try SteamPlanBuilder.payload(roundtrip, for: game.id).version, 1)
+        XCTAssertEqual(roundtrip.estimate, older.estimate)
+        XCTAssertThrowsError(try SteamPlanBuilder.payload(legacy(required: resolved.estimate.requiredBytes), for: game.id))
+        XCTAssertThrowsError(try SteamPlanBuilder.payload(legacy(required: older.estimate.requiredBytes + 1), for: game.id))
+    }
+
+    func testRemainingReservationMeasuresFilesAndRetainsRepairOverlap() async throws {
+        let bytes = pe(), content = ResolvedSteamContent(app: app(), manifests: [manifest([file("Game.exe", bytes), file("asset.bin", bytes)])],
+            entitlements: .init(appIDs: [100], depotIDs: [101]))
+        let installer = SteamInstaller(game: game, backend: FixtureContentBackend(content: content, chunks: [Data(Insecure.SHA1.hash(data: bytes)): bytes]))
+        let plan = try await installer.resolve(), root = try temporaryDirectory()
+        let initial = try await installer.remainingReservation(plan, at: root, staging: nil, repairing: false)
+        XCTAssertEqual(initial, plan.estimate.requiredBytes)
+        try await installer.download(plan, to: root) { _ in }
+        let resumed = try await installer.remainingReservation(plan, at: root, staging: nil, repairing: false)
+        XCTAssertEqual(resumed, plan.estimate.requiredBytes - Int64(bytes.count * 2))
+        let repair = try await installer.remainingReservation(plan, at: root, staging: nil, repairing: true)
+        XCTAssertEqual(repair, plan.estimate.requiredBytes, "Explicit repair must allow replacement even if receipt metadata matches")
+    }
+
+    func testSourceReservationResumeSharesUnchangedPartialVerificationWithWriter() async throws {
+        let pieces = [Data("first".utf8), Data("second".utf8)]
+        let chunks = pieces.enumerated().map { index, bytes in DepotManifest.Chunk(sha: Data(Insecure.SHA1.hash(data: bytes)),
+            offset: index == 0 ? 0 : 5, compressedSize: UInt32(bytes.count), uncompressedSize: UInt32(bytes.count)) }
+        let file = DepotManifest.File(path: "Game.exe", size: 11, chunks: chunks, contentSHA1: Data(Insecure.SHA1.hash(data: pieces[0] + pieces[1])))
+        let content = ResolvedSteamContent(app: app(), manifests: [manifest([file])], entitlements: .init(appIDs: [100], depotIDs: [101]))
+        let root = try temporaryDirectory()
+        var interrupted = ResumableDepotDownload(destination: root); interrupted.chunkConcurrency = 1
+        do { try await interrupted.download(manifest: content.manifests[0]) { chunk in
+            if chunk.offset > 0 { throw CancellationError() }; return pieces[0]
+        } } catch is CancellationError {}
+        let diagnostics = SteamPerformanceDiagnostics()
+        let installer = SteamInstaller(game: game, backend: FixtureContentBackend(content: content,
+            chunks: Dictionary(uniqueKeysWithValues: zip(chunks.map(\.sha), pieces)), diagnostics: diagnostics), diagnostics: diagnostics)
+        let plan = try await installer.resolve()
+        for _ in 0..<3 {
+            let remaining = try await installer.remainingReservation(plan, at: root, staging: nil, repairing: false)
+            XCTAssertEqual(remaining, plan.estimate.requiredBytes - 5)
+        }
+        try await installer.download(plan, to: root) { _ in }
+        XCTAssertEqual(diagnostics.snapshot()[.contentRead].bytes, 5)
+    }
+    func testRepairGateUsesEntireInvalidSubsetWithoutAssumingOldExtentReclamation() async throws {
+        let bytes = Data("original".utf8), files = [file("Game.exe", bytes)] + (0..<20).map { file("asset-\($0)", bytes) }
+        let content = ResolvedSteamContent(app: app(), manifests: [manifest(files)], entitlements: .init(appIDs: [100], depotIDs: [101]))
+        let diagnostics = SteamPerformanceDiagnostics(), root = try temporaryDirectory()
+        let installer = SteamInstaller(game: game, backend: FixtureContentBackend(content: content,
+            chunks: [Data(Insecure.SHA1.hash(data: bytes)): bytes], diagnostics: diagnostics), diagnostics: diagnostics)
+        let plan = try await installer.resolve()
+        try await installer.download(plan, to: root) { _ in }
+        for file in files.dropFirst() { try Data(repeating: 9, count: bytes.count).write(to: root.appendingPathComponent(file.path)) }
+        let provisional = try await installer.remainingReservation(plan, at: root, staging: nil, repairing: true)
+        XCTAssertEqual(provisional, plan.estimate.requiredBytes - plan.estimate.installedBytes + 8 * Int64(bytes.count))
+        do {
+            try await installer.repair(plan, at: root, staging: nil, reserve: { required, allocated in
+                XCTAssertEqual(required, plan.estimate.requiredBytes - Int64(bytes.count))
+                XCTAssertEqual(allocated, 0)
+                throw OperationFailure(stage: "Reserve space", reason: "fixture", output: "")
+            }, progress: { _ in })
+            XCTFail("Low space must stop replacement before any transfer")
+        } catch let failure as OperationFailure { XCTAssertEqual(failure.stage, "Reserve space") }
+        XCTAssertEqual(diagnostics.snapshot()[.contentRead].bytes, UInt64(files.count * bytes.count), "The repair performs one full inspection")
+        XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("asset-0")), Data(repeating: 9, count: bytes.count))
+    }
+    func testNewRepairOfLegacyPlanUsesCurrentBackupBudgetWithoutRewritingPlan() async throws {
+        let bytes = Data("original".utf8), content = ResolvedSteamContent(app: app(), manifests: [manifest([file("Game.exe", bytes), file("asset.bin", bytes)])],
+            entitlements: .init(appIDs: [100], depotIDs: [101]))
+        let installer = SteamInstaller(game: game, backend: FixtureContentBackend(content: content, chunks: [Data(Insecure.SHA1.hash(data: bytes)): bytes]))
+        let legacy = try SteamPlanBuilder.build(game: game, app: content.app, manifests: content.manifests, ownedApps: [100], payloadVersion: 1)
+        let estimate = legacy.estimate, root = try temporaryDirectory()
+        try await installer.download(legacy, to: root) { _ in }
+        try Data("corrupt!".utf8).write(to: root.appendingPathComponent("asset.bin"))
+        do {
+            try await installer.repair(legacy, at: root, staging: nil, reserve: { required, allocated in
+                XCTAssertEqual(required, 256 * 1024 * 1024 + Int64(bytes.count * 2))
+                XCTAssertEqual(allocated, 0)
+                throw CancellationError()
+            }, progress: { _ in })
+        } catch is CancellationError {}
+        let afterDownload = try await installer.remainingReservation(legacy, at: root, staging: nil, repairing: true, downloadComplete: true)
+        XCTAssertEqual(afterDownload, 256 * 1024 * 1024 + Int64(bytes.count))
+        XCTAssertEqual(legacy.estimate, estimate)
+        XCTAssertEqual(try SteamPlanBuilder.payload(legacy, for: game.id).version, 1)
+    }
+    func testSpaceArithmeticRejectsOverflow() {
+        XCTAssertThrowsError(try SteamPlanBuilder.requiredBytes(installed: .max, backups: 1, largest: 0, version: 2))
+        XCTAssertThrowsError(try SteamPlanBuilder.requiredBytes(installed: UInt64(Int64.max), backups: 0, largest: 0, version: 2))
+        XCTAssertThrowsError(try SteamPlanBuilder.requiredBytes(installed: UInt64(Int64.max), backups: 0, largest: 0, version: 1))
+    }
+
     func testRestartedStagesReuseReceiptsIncludingLegitimateOrigFiles() async throws {
         let bytes = pe(), asset = Data(repeating: 7, count: 128 * 1024)
         let content = ResolvedSteamContent(app: app(), manifests: [manifest([file("Game.exe", bytes), file("asset.orig", asset)])],
@@ -301,7 +407,8 @@ final class SteamInstallerTests: XCTestCase {
         XCTAssertFalse(try installer.supportsCloudSaves(saved(AppInfo(appID: 100, name: "No Cloud"))))
         XCTAssertFalse(try installer.supportsCloudSaves(saved(AppInfo(appID: 100, name: "Unresolved", ufs:
             UFS(saveFilePatterns: [.init(root: .WinMyDocuments, path: "../outside", pattern: "*")])))))
-        XCTAssertThrowsError(try installer.supportsCloudSaves(saved(info, version: 2)))
+        XCTAssertTrue(try installer.supportsCloudSaves(saved(info, version: 2)))
+        XCTAssertThrowsError(try installer.supportsCloudSaves(saved(info, version: 3)))
         XCTAssertThrowsError(try installer.supportsCloudSaves(saved(AppInfo(appID: 999, name: "Wrong game", ufs: UFS(quota: 1)))))
     }
 

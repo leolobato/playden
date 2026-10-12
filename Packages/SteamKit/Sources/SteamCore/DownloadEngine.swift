@@ -11,13 +11,15 @@ public struct FileVerificationProgress: Sendable {
 public struct DownloadProgress: Sendable {
     public let depotID: UInt32
     public let file: String
+    public let allocatedBytes: UInt64?
     public let bytesDone: UInt64
     public let bytesTotal: UInt64
     /// Fresh validated/committed bytes during this invocation, excluding retained files and chunks.
     public let bytesWritten: UInt64?
     /// File-local disk verification, separate from assembled/downloaded bytes.
     public let verification: FileVerificationProgress?
-    public init(depotID: UInt32, file: String, bytesDone: UInt64, bytesTotal: UInt64, bytesWritten: UInt64? = nil, verification: FileVerificationProgress? = nil) {
+    public init(depotID: UInt32, file: String, bytesDone: UInt64, bytesTotal: UInt64, bytesWritten: UInt64? = nil, verification: FileVerificationProgress? = nil, allocatedBytes: UInt64? = nil) {
+        self.allocatedBytes = allocatedBytes
         self.depotID = depotID; self.file = file; self.bytesDone = bytesDone; self.bytesTotal = bytesTotal; self.bytesWritten = bytesWritten; self.verification = verification
     }
 }

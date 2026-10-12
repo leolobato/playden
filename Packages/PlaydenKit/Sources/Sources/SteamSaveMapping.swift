@@ -19,7 +19,7 @@ extension SteamInstaller {
             throw SteamPlanBuilder.failure("Cloud availability", "The saved plan is for a different game or version.")
         }
         let declaration = try JSONDecoder().decode(SteamCloudDeclaration.self, from: plan.sourcePayload)
-        guard declaration.version == 1, String(declaration.app.appID) == gameID.value else {
+        guard [1, 2].contains(declaration.version), String(declaration.app.appID) == gameID.value else {
             throw SteamPlanBuilder.failure("Cloud availability", "The saved Cloud declaration is invalid.")
         }
         let mapping = SteamSaveMapping.build(declaration.app.ufs, appID: declaration.app.appID, platform: plan.resolvedPlatform)

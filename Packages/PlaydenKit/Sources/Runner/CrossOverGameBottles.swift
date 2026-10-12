@@ -6,6 +6,7 @@ import Domain
 public protocol GameBottleManaging: Sendable {
     func updatePresentation(_ bottle: GameBottle, title: String, directory: URL, spec: LaunchSpec) async throws
     func prepare(_ bottle: GameBottle) async throws
+    func prepare(_ bottle: GameBottle, checkingSpace: Bool) async throws
     func isReady(_ bottle: GameBottle) async throws -> Bool
     func requiresSourcePreparation(_ bottle: GameBottle) async throws -> Bool
     func completeSourcePreparation(_ bottle: GameBottle) async throws
@@ -20,6 +21,8 @@ public protocol GameBottleManaging: Sendable {
 }
 
 extension GameBottleManaging {
+    public func prepare(_ bottle: GameBottle, checkingSpace: Bool) async throws { try await prepare(bottle) }
+
     public func updatePresentation(_ bottle: GameBottle, title: String, directory: URL, spec: LaunchSpec) async throws {}
     public func requiresSourcePreparation(_ bottle: GameBottle) async throws -> Bool { false }
     public func completeSourcePreparation(_ bottle: GameBottle) async throws {}
@@ -92,12 +95,14 @@ public actor CrossOverGameBottles: GameBottleManaging {
         marker.sourcePreparationPending = false
         try write(marker, at: directory)
     }
-    public func prepare(_ bottle: GameBottle) async throws {
+    public func prepare(_ bottle: GameBottle) async throws { try await prepare(bottle, checkingSpace: false) }
+    public func prepare(_ bottle: GameBottle, checkingSpace: Bool) async throws {
         try validateIdentity(bottle)
         guard !(try removal(bottle)).isPending else { throw problem("Finish removing this game's runtime before reinstalling it.") }
         guard busy.insert(bottle.name).inserted else { throw problem("Game runtime setup is already running.") }
         defer { busy.remove(bottle.name) }
         try Task.checkCancellation()
+        if checkingSpace { try InstallSpace.require(InstallSpace.headroom, at: bottles) }
         var info = await runtime.inspect()
         if !info.templateReady { info = try await runtime.prepareTemplate(onProgress: { _ in }) }
         guard info.templateReady, info.templateVersion == bottle.templateVersion else { throw problem("The required game runtime template is unavailable.") }
@@ -126,6 +131,7 @@ public actor CrossOverGameBottles: GameBottleManaging {
             }
             let template = bottles.appendingPathComponent(templateName)
             try requireDirectory(template, under: bottles)
+            if checkingSpace { try InstallSpace.require(InstallSpace.add(InstallSpace.copyBytes(in: template), InstallSpace.headroom), at: bottles) }
             try await run("cxbottle", ["--bottle", clone.path, "--copy", template.path], timeout: 120)
             try requireDirectory(clone, under: container)
             try checkConfiguration(clone)

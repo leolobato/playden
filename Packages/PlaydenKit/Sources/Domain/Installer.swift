@@ -65,10 +65,14 @@ public struct InstallProgress: Equatable, Sendable {
     /// Invocation-local counters; never restored from a durable job's assembled byte count.
     public let downloadedBytes: Int64?
     public let freshlyWrittenBytes: Int64?
+    /// Allocation credit: physical blocks for validated partial ranges, planned size for complete
+    /// verified files needing no further writes. Capped per file and independent of transfer bytes.
+    public let allocatedBytes: Int64?
     public let verification: InstallFileVerification?
     /// Invocation-local ordering for concurrent callback delivery.
     public let sequence: UInt64?
-    public init(bytesCompleted: Int64, bytesTotal: Int64, currentFile: String, downloadedBytes: Int64? = nil, freshlyWrittenBytes: Int64? = nil, verification: InstallFileVerification? = nil, sequence: UInt64? = nil) {
+    public init(bytesCompleted: Int64, bytesTotal: Int64, currentFile: String, downloadedBytes: Int64? = nil, freshlyWrittenBytes: Int64? = nil, verification: InstallFileVerification? = nil, sequence: UInt64? = nil, allocatedBytes: Int64? = nil) {
+        self.allocatedBytes = allocatedBytes
         self.bytesCompleted = bytesCompleted; self.bytesTotal = bytesTotal; self.currentFile = currentFile
         self.downloadedBytes = downloadedBytes; self.freshlyWrittenBytes = freshlyWrittenBytes; self.verification = verification; self.sequence = sequence
     }
@@ -101,6 +105,9 @@ public protocol Installer: Sendable {
     func resolve() async throws -> InstallPlan
     /// Resolves the build for one platform. Stores with a single build answer only for Windows.
     func resolve(platform: GamePlatform) async throws -> InstallPlan
+    /// Returns remaining physical allocation after inspecting manifest-relevant owned content.
+    /// Nil keeps the store's existing reservation policy. This is independent of transfer progress.
+    func remainingReservation(_ plan: InstallPlan, at directory: URL, staging: InstallStaging?, repairing: Bool, downloadComplete: Bool) async throws -> Int64?
     func launchOptions(_ plan: InstallPlan) throws -> [LaunchOption]
     func download(_ plan: InstallPlan, to directory: URL,
                   progress: @escaping @Sendable (InstallProgress) -> Void) async throws
@@ -108,6 +115,11 @@ public protocol Installer: Sendable {
     func verifyOriginals(_ plan: InstallPlan, at directory: URL, staging: InstallStaging?,
         progress: @escaping @Sendable (InstallFileVerification) -> Void) async throws -> VerificationResult
     func repair(_ plan: InstallPlan, at directory: URL, staging: InstallStaging?,
+                progress: @escaping @Sendable (InstallProgress) -> Void) async throws
+    /// Gate required replacement/preparation bytes less already materialized replacements,
+    /// after source verification and before writes. The two arguments are required and allocated.
+    func repair(_ plan: InstallPlan, at directory: URL, staging: InstallStaging?,
+                reserve: @escaping @Sendable (Int64, Int64) async throws -> Void,
                 progress: @escaping @Sendable (InstallProgress) -> Void) async throws
     func postInstall(_ plan: InstallPlan, at directory: URL) async throws -> InstallStaging
     func preparePrerequisites(_ plan: InstallPlan, at directory: URL, in bottle: GameBottle) async throws
@@ -129,6 +141,14 @@ public protocol Installer: Sendable {
     func prepareLaunch(_ spec: LaunchSpec, plan: InstallPlan, at directory: URL, offline: Bool) async throws -> LaunchSpec
 }
 public extension Installer {
+    func repair(_ plan: InstallPlan, at directory: URL, staging: InstallStaging?,
+                reserve: @escaping @Sendable (Int64, Int64) async throws -> Void,
+                progress: @escaping @Sendable (InstallProgress) -> Void) async throws {
+        try await reserve(plan.estimate.requiredBytes, 0)
+        try await repair(plan, at: directory, staging: staging, progress: progress)
+    }
+    func remainingReservation(_ plan: InstallPlan, at directory: URL, staging: InstallStaging?, repairing: Bool, downloadComplete: Bool = false) async throws -> Int64? { nil }
+
     func resolve(platform: GamePlatform) async throws -> InstallPlan {
         guard platform == .windows else {
             throw OperationFailure(stage: "Resolve", reason: "This store has no \(platform.title) version of this game.", output: "")

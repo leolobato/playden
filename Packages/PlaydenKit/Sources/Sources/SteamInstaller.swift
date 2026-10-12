@@ -32,6 +32,41 @@ public struct SteamInstaller: Installer {
         return try SteamPlanBuilder.build(game: game, app: resolved.app, manifests: resolved.manifests,
             ownedApps: resolved.entitlements.appIDs, ownedDepots: resolved.entitlements.depotIDs, platform: platform)
     }
+    private func preparationReservation(_ payload: SteamInstallPayload) throws -> Int64 {
+        let backups = try SteamPlanBuilder.preparationFiles(payload.manifests.flatMap(\.files), platform: payload.platform ?? .windows)
+            .reduce(UInt64(0)) { $0 + $1.size }
+        return Int64(try SteamPlanBuilder.requiredBytes(installed: 0, backups: backups, largest: 0, version: 2))
+    }
+    public func remainingReservation(_ plan: InstallPlan, at directory: URL, staging: InstallStaging?, repairing: Bool, downloadComplete: Bool = false) async throws -> Int64? {
+        let payload = try SteamPlanBuilder.payload(plan, for: gameID)
+        if repairing && downloadComplete { return try preparationReservation(payload) }
+        let mapped = try replacements(staging ?? InstallStaging(), payload: payload)
+        var credit: UInt64 = 0, missing: UInt64 = 0, overlaps: [UInt64] = []
+        for manifest in payload.manifests {
+            let files = try manifest.files.map { file in
+                let path = try SteamPlanBuilder.relativePath(file.path)
+                guard let replacement = mapped[path] else { return file }
+                return DepotManifest.File(path: replacement, size: file.size, flags: file.flags,
+                    linkTarget: file.linkTarget, chunks: file.chunks, contentSHA1: file.contentSHA1)
+            }
+            var reader = ResumableDepotDownload(destination: directory, diagnostics: diagnostics)
+            reader.receiptManifest = manifest
+            reader.receiptExcludedPaths = Set(mapped.keys).union(mapped.values)
+            // Provisional repair display only: the full scan may detect corruption even
+            // with matching receipts. Its exact invalid subset is gated before any writes.
+            let mappedManifest = DepotManifest(depotID: manifest.depotID, gid: manifest.gid, files: files, totalSize: manifest.totalSize)
+            if repairing {
+                let allocation = try reader.replacementAllocation(in: mappedManifest)
+                missing += allocation.missingBytes; overlaps += allocation.overlappingBytes
+            }
+            credit += try reader.allocatedContentBytes(in: mappedManifest, includeCompleted: !repairing)
+        }
+        if repairing {
+            let peak = missing + overlaps.sorted(by: >).prefix(8).reduce(0, +)
+            return try preparationReservation(payload) + Int64(peak - min(peak, credit))
+        }
+        return max(0, plan.estimate.requiredBytes - Int64(min(credit, UInt64(plan.estimate.installedBytes))))
+    }
     public func download(_ plan: InstallPlan, to directory: URL, progress: @escaping @Sendable (InstallProgress) -> Void) async throws {
         try await backend.download(SteamPlanBuilder.payload(plan, for: gameID), to: directory, progress: progress)
     }
@@ -193,12 +228,21 @@ public struct SteamInstaller: Installer {
     }
     public func repair(_ plan: InstallPlan, at directory: URL, staging: InstallStaging?,
                        progress: @escaping @Sendable (InstallProgress) -> Void) async throws {
+        try await repair(plan, at: directory, staging: staging, reserve: { _, _ in }, progress: progress)
+    }
+    public func repair(_ plan: InstallPlan, at directory: URL, staging: InstallStaging?,
+                       reserve: @escaping @Sendable (Int64, Int64) async throws -> Void,
+                       progress: @escaping @Sendable (InstallProgress) -> Void) async throws {
         let payload = try SteamPlanBuilder.payload(plan, for: gameID)
+        let preparationBytes = try preparationReservation(payload)
         let mappings = try replacements(staging ?? InstallStaging(), payload: payload)
         let paths = try SteamPreparationPaths(root: directory)
         let invalid = Set(try await verifyOriginals(plan, at: directory, staging: staging, mode: .fullRefreshingReceipts).invalidFiles)
         try paths.checkRoot()
-        guard !invalid.isEmpty else { return }
+        guard !invalid.isEmpty else {
+            try await reserve(preparationBytes, 0)
+            return
+        }
         // Download originals to their verified backup paths. Leave the staged DLLs and save
         // directories in place; postInstall will reapply preparation after all originals verify.
         let manifests = try payload.manifests.map { manifest in
@@ -212,6 +256,16 @@ public struct SteamInstaller: Installer {
         }
         let repair = SteamRepairDownload(invalidPaths: Set(invalid.map { mappings[$0] ?? $0 }),
             receiptExcludedPaths: Set(mappings.keys).union(mappings.values), receiptManifests: payload.manifests)
+        var replacementBytes: UInt64 = 0, partial: UInt64 = 0
+        for manifest in manifests {
+            let subset = try repair.subset(of: manifest)
+            replacementBytes += subset.totalSize
+            let reader = repair.downloader(for: manifest, at: directory, diagnostics: diagnostics)
+            partial += try reader.allocatedContentBytes(in: subset, includeCompleted: false)
+        }
+        // Old extents may remain referenced by APFS clones or snapshots after rename. The
+        // authoritative gate reserves every selected replacement without assuming reclamation.
+        try await reserve(preparationBytes + Int64(replacementBytes), Int64(partial))
         try await backend.repair(SteamInstallPayload(app: payload.app, manifests: manifests, ownedDLC: payload.ownedDLC,
             authorizedDepotIDs: payload.authorizedDepotIDs, platform: payload.platform),
             using: repair, to: directory, progress: progress)
@@ -228,6 +282,7 @@ public struct SteamInstaller: Installer {
             try ResumableDepotDownload(destination: directory, diagnostics: diagnostics)
                 .cleanCompletedDepotState(depotID: manifest.depotID, gid: manifest.gid)
         }
+        try await reserve(preparationBytes, 0)
     }
     public func launchOptions(_ plan: InstallPlan) throws -> [LaunchOption] {
         let payload = try SteamPlanBuilder.payload(plan, for: gameID)

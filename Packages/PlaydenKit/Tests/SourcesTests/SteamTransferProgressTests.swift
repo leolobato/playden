@@ -3,6 +3,15 @@ import Domain
 @testable import Sources
 
 final class SteamTransferProgressTests: XCTestCase {
+    func testPhysicalAllocationIsIndependentAndAggregatesAcrossDepots() {
+        let samples = TransferSamples(), bridge = SteamTransferProgress(total: 100, report: { samples.append($0) })
+        bridge.assembled(depot: 1, completed: 50, fresh: 40, file: "sparse", allocated: 8)
+        XCTAssertEqual(samples.last?.allocatedBytes, 8)
+        bridge.received(70)
+        XCTAssertEqual(samples.last?.allocatedBytes, 8)
+        bridge.assembled(depot: 2, completed: 50, fresh: 40, file: "next", allocated: 9)
+        XCTAssertEqual(samples.last?.allocatedBytes, 17)
+    }
     func testVerificationKeepsTransferCountersAndClearsOnNextFile() throws {
         let samples = TransferSamples()
         let progress = SteamTransferProgress(total: 20_000, report: samples.append)

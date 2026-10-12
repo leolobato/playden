@@ -20,6 +20,12 @@ enum SteamUnpacking {
         let before = try PEInspector.inspect(original, diagnostics: diagnostics)
         guard before.requiresSteamStubRuntime else { throw failure("The executable does not require this preparation step.") }
         let bundledTool = try executable(diagnostics: diagnostics)
+        let originalSize = Int64(try original.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0)
+        let toolsSize = try InstallSpace.copyBytes(in: bundledTool.deletingLastPathComponent())
+        // Tool dependencies copied beside the CLI are covered by a second tool-tree budget.
+        let temporaryBytes = try InstallSpace.add(InstallSpace.add(originalSize, originalSize), InstallSpace.add(toolsSize, toolsSize))
+        try InstallSpace.require(InstallSpace.add(temporaryBytes, InstallSpace.headroom), at: FileManager.default.temporaryDirectory)
+        try await tools.checkSpace(in: bottle, minimumBytes: InstallSpace.headroom)
         let work = FileManager.default.temporaryDirectory.appendingPathComponent("Playden-unpack-" + UUID().uuidString)
         try SteamPreparationPaths.checkStorageDirectory(work)
         try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])

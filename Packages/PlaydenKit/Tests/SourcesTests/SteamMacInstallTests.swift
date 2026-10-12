@@ -73,6 +73,16 @@ final class SteamMacInstallTests: XCTestCase {
         return url
     }
 
+    func testMacSpaceBudgetIncludesLibraryAndSignedOriginalsOnly() throws {
+        let files = macFiles + [file("chmod-only", Data(repeating: 2, count: 800), executable: true)]
+        let shared = file("asset", Data(repeating: 3, count: 900))
+        let plan = try SteamPlanBuilder.build(game: game, app: app(), manifests: [manifest(files, depot: 102), manifest([shared], depot: 103)],
+            ownedApps: [100], platform: .macOS)
+        let backups = macFiles.filter { !$0.path.hasSuffix("Info.plist") }.reduce(Int64(0)) { $0 + Int64($1.size) }
+        XCTAssertEqual(plan.estimate.requiredBytes, plan.estimate.installedBytes + backups + 256 * 1024 * 1024)
+        let decoded = try JSONDecoder().decode(InstallPlan.self, from: JSONEncoder().encode(plan))
+        XCTAssertEqual(try SteamPlanBuilder.payload(decoded, for: game.id).version, 2)
+    }
     func testMacSigningRechecksInstallationAfterAwait() async throws {
         let directory = try temporaryDirectory(), moved = directory.appendingPathExtension("moved")
         addTeardownBlock { try? FileManager.default.removeItem(at: moved) }

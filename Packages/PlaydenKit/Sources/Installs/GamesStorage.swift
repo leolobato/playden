@@ -5,11 +5,17 @@ import Domain
 /// Uses the same remaining-space policy for the install offer, worker and Downloads display.
 public enum InstallReservations {
     public static func bytes(_ jobs: [JobRecord], on volumeID: String, excluding id: UUID? = nil) -> Int64 {
-        jobs.filter { $0.id != id && $0.volume?.volumeID == volumeID && $0.kind == .install && ![.completed, .cancelled].contains($0.state) }
-            .reduce(0) { sum, job in
-                let required = max(0, job.plan?.estimate.requiredBytes ?? 0)
-                return adding(sum, max(0, required - max(0, job.bytesCompleted)))
-            }
+        jobs.filter { $0.id != id && $0.volume?.volumeID == volumeID &&
+            ($0.kind == .install || ($0.gameID.source == SourceID.steam && $0.kind == .repair)) && ![.completed, .cancelled].contains($0.state) }
+            .reduce(0) { adding($0, remaining($1)) }
+    }
+    public static func remaining(_ job: JobRecord) -> Int64 {
+        let required = max(0, job.plan?.estimate.requiredBytes ?? 0)
+        if job.gameID.source == SourceID.steam {
+            guard let measured = job.remainingReservationBytes, measured >= 0 else { return required }
+            return min(required, measured)
+        }
+        return max(0, required - max(0, job.bytesCompleted))
     }
     static func adding(_ a: Int64, _ b: Int64) -> Int64 {
         let sum = a.addingReportingOverflow(b); return sum.overflow ? Int64.max : sum.partialValue

@@ -4,7 +4,7 @@ import Domain
 import SteamCore
 
 struct SteamInstallPayload: Codable, Equatable, Sendable {
-    var version = 1
+    var version = 2
     let app: AppInfo
     let manifests: [DepotManifest]
     let ownedDLC: [UInt32]
@@ -25,7 +25,7 @@ enum SteamOS {
 
 enum SteamPlanBuilder {
     static func build(game: SourceGameRecord, app: AppInfo, manifests: [DepotManifest], ownedApps: Set<UInt32>, ownedDepots: Set<UInt32>? = nil,
-                      recipeVersion: Int? = nil, platform: GamePlatform = .windows) throws -> InstallPlan {
+                      recipeVersion: Int? = nil, platform: GamePlatform = .windows, payloadVersion: Int = 2) throws -> InstallPlan {
         guard game.id.source == "steam", UInt32(game.id.value) == app.appID, ownedApps.contains(app.appID) else {
             throw failure("Resolve", "This account does not own the selected game.")
         }
@@ -62,16 +62,51 @@ enum SteamPlanBuilder {
         let launch = launches[0].spec
         let recipeVersion = recipeVersion ?? SteamRecipes.latestVersion(for: game.id)
         for step in try SteamRecipes.steps(for: game.id, version: recipeVersion) { _ = try SteamRecipes.inputs(step, files: normalized.flatMap(\.files)) }
-        let required = try sum(sum(sum(installed, installed), largest), 256 * 1024 * 1024)
+        guard [1, 2].contains(payloadVersion) else { throw failure("Estimate", "Unsupported space estimate version.") }
+        let backups = try preparationFiles(normalized.flatMap(\.files), platform: platform).reduce(UInt64(0)) { try sum($0, $1.size) }
+        let required = try requiredBytes(installed: installed, backups: backups, largest: largest, version: payloadVersion)
         guard required <= UInt64(Int64.max), downloaded <= UInt64(Int64.max) else { throw failure("Estimate", "The game size exceeds supported storage limits.") }
         let dlc = Set(app.dlcAppIDs + app.depots.compactMap(\.dlcAppID) + app.launches.compactMap(\.requiredDLC)).intersection(ownedApps).sorted()
-        let payload = SteamInstallPayload(app: app, manifests: normalized, ownedDLC: dlc,
+        let payload = SteamInstallPayload(version: payloadVersion, app: app, manifests: normalized, ownedDLC: dlc,
             authorizedDepotIDs: ownedDepots.map { _ in expected.map(\.id) }, platform: platform == .windows ? nil : platform)
         let encoder = JSONEncoder(); encoder.outputFormatting = .sortedKeys
         return InstallPlan(game: game, manifestIDs: Dictionary(uniqueKeysWithValues: manifests.map { (String($0.depotID), String($0.gid)) }),
             estimate: InstallEstimate(downloadBytes: Int64(downloaded), installedBytes: Int64(installed), requiredBytes: Int64(required)),
             launchSpec: launch, sourcePayload: try encoder.encode(payload), recipeVersion: recipeVersion, launchOptions: launches,
             platform: platform == .windows ? nil : platform)
+    }
+    static func requiredBytes(installed: UInt64, backups: UInt64, largest: UInt64, version: Int) throws -> UInt64 {
+        guard [1, 2].contains(version) else { throw failure("Estimate", "Unsupported space estimate version.") }
+        let value = try version == 1
+            ? sum(sum(sum(installed, installed), largest), 256 * 1024 * 1024)
+            : sum(sum(installed, backups), 256 * 1024 * 1024)
+        guard value <= UInt64(Int64.max) else { throw failure("Estimate", "The game size exceeds supported storage limits.") }
+        return value
+    }
+    /// Budget only originals that preparation can copy. Metadata-only chmod needs no content copy.
+    static func preparationFiles(_ files: [DepotManifest.File], platform: GamePlatform) throws -> [DepotManifest.File] {
+        let regular = try files.filter { !$0.isDirectory && !$0.isSymlink }.map { (try relativePath($0.path), $0) }
+        if platform == .windows {
+            return regular.filter { path, _ in
+                path.lowercased().hasSuffix(".exe") || ["steam_api.dll", "steam_api64.dll"].contains((path as NSString).lastPathComponent.lowercased())
+            }.map(\.1)
+        }
+        let paths = Set(regular.map(\.0))
+        let apis = regular.filter { ($0.0 as NSString).lastPathComponent.lowercased() == "libsteam_api.dylib" }
+        let signed = Set(apis.compactMap { path, _ -> String? in
+            let parts = path.split(separator: "/")
+            guard let index = parts.firstIndex(where: { $0.lowercased().hasSuffix(".app") }) else { return nil }
+            let bundle = parts[...index].joined(separator: "/")
+            return paths.contains(bundle + "/Contents/_CodeSignature/CodeResources") ? bundle : nil
+        })
+        let apiPaths = Set(apis.map(\.0))
+        return regular.filter { path, _ in
+            apiPaths.contains(path) || signed.contains { bundle in
+                let prefix = bundle + "/Contents/MacOS/"
+                return path == bundle + "/Contents/_CodeSignature/CodeResources"
+                    || (path.hasPrefix(prefix) && !path.dropFirst(prefix.count).contains("/"))
+            }
+        }.map(\.1)
     }
     static func selectedDepots(_ app: AppInfo, ownedApps: Set<UInt32>, ownedDepots: Set<UInt32>? = nil, platform: GamePlatform = .windows) throws -> [DepotInfo] {
         let eligible = app.depots.filter { depot in
@@ -149,11 +184,11 @@ enum SteamPlanBuilder {
     static func payload(_ plan: InstallPlan, for gameID: GameID) throws -> SteamInstallPayload {
         guard plan.game.id == gameID, plan.language == "english" else { throw failure("Resolve", "The saved install plan is for a different game or version.") }
         let value = try JSONDecoder().decode(SteamInstallPayload.self, from: plan.sourcePayload)
-        guard value.version == 1, gameID.source == "steam", String(value.app.appID) == gameID.value else {
+        guard [1, 2].contains(value.version), gameID.source == "steam", String(value.app.appID) == gameID.value else {
             throw failure("Resolve", "The saved install manifest is invalid.")
         }
         let rebuilt = try build(game: plan.game, app: value.app, manifests: value.manifests, ownedApps: Set(value.ownedDLC + [value.app.appID]),
-            ownedDepots: value.authorizedDepotIDs.map(Set.init), recipeVersion: plan.recipeVersion, platform: value.platform ?? .windows)
+            ownedDepots: value.authorizedDepotIDs.map(Set.init), recipeVersion: plan.recipeVersion, platform: value.platform ?? .windows, payloadVersion: value.version)
         guard rebuilt.manifestIDs == plan.manifestIDs, rebuilt.estimate == plan.estimate, rebuilt.launchSpec == plan.launchSpec,
               plan.launchOptions == nil || rebuilt.launchOptions == plan.launchOptions,
               try JSONDecoder().decode(SteamInstallPayload.self, from: rebuilt.sourcePayload) == value else {

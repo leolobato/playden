@@ -97,6 +97,11 @@ public struct JobRecord: Codable, Equatable, Sendable, Identifiable {
     public var manifestIDs: [String: String]
     public var location: GameLocation?
     public var ownershipToken: UUID
+    /// Ephemeral queue snapshot only; never persisted or trusted after reopening a job.
+    public var remainingReservationBytes: Int64?
+    /// Version 2 repairs use actual failed-file work even when their install plan is legacy.
+    /// Absent on older unfinished jobs, which retain the larger stored reservation policy.
+    public var spaceReservationVersion: Int?
     public var bytesCompleted: Int64
     public var bytesTotal: Int64?
     public var createdAt: Date

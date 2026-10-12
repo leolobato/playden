@@ -33,6 +33,86 @@ public struct ResumableDepotDownload: Sendable {
         self.destination = destination; self.diagnostics = diagnostics
     }
 
+    /// Manifest-scoped remaining-work credit; refreshes eligible completion receipts under the
+    /// destination lease after stable verification. Verified complete files need no more
+    /// content writes; partials credit actual blocks capped by validated ranges. Transfer counters,
+    /// unchecked logical lengths and unrelated files never authorize credit. Not called per chunk.
+    public func allocatedContentBytes(in manifest: DepotManifest, includeCompleted: Bool = true) throws -> UInt64 {
+        let entries = try Self.validate(manifest)
+        let workspace = try DownloadWorkspace(destination: destination, diagnostics: diagnostics)
+        let receipts = try DownloadCompletionReceipts(workspace: workspace, manifest: manifest, sizingManifest: receiptManifest)
+        func allocated(_ handle: FileHandle, cappedAt limit: UInt64) -> UInt64 {
+            var info = stat()
+            guard fstat(handle.fileDescriptor, &info) == 0, info.st_blocks >= 0 else { return 0 }
+            let bytes = UInt64(info.st_blocks).multipliedReportingOverflow(by: 512)
+            return min(limit, bytes.overflow ? UInt64.max : bytes.partialValue)
+        }
+        var total: UInt64 = 0
+        for entry in entries where !entry.file.isDirectory && !entry.file.isSymlink {
+            try Task.checkCancellation()
+            let file = entry.file
+            let originalMetadata = try? workspace.metadata(entry.path)
+            if includeCompleted, let originalMetadata,
+               try Self.check(file, path: entry.path, workspace: workspace, receipts: receipts,
+                              useReceipt: !receiptExcludedPaths.contains(entry.path), recordReceipt: !receiptExcludedPaths.contains(entry.path), onVerification: { _ in }),
+               let handle = try? workspace.openFile(entry.path, flags: O_RDONLY) {
+                defer { try? handle.close() }
+                guard (try? workspace.metadata(handle)) == originalMetadata,
+                      (try? workspace.metadata(entry.path)) == originalMetadata else { continue }
+                total += file.size // Valid complete sparse files need no further content writes.
+                continue
+            }
+            let key = SHA256.hash(data: Data(entry.path.utf8)).map { String(format: "%02x", $0) }.joined()
+            let base = ".gn-download/\(manifest.depotID)/\(manifest.gid)/\(key)"
+            let encoder = JSONEncoder(); encoder.outputFormatting = .sortedKeys
+            guard let saved = try? workspace.read(base + ".json"),
+                  let journal = try? JSONDecoder().decode(ChunkJournal.self, from: saved),
+                  journal.fingerprint == Data(SHA256.hash(data: try encoder.encode(file))),
+                  let handle = try? workspace.openFile(base + ".partial", flags: O_RDONLY) else { continue }
+            defer { try? handle.close() }
+            let before = try workspace.metadata(handle)
+            guard before.size >= 0, UInt64(before.size) <= file.size else { continue }
+            let proofKey = PartialVerificationCache.Key(metadata: before, fingerprint: journal.fingerprint, requested: journal.completed)
+            if let proof = PartialVerificationCache.shared.get(proofKey),
+               (try? workspace.metadata(base + ".partial")) == before {
+                total += allocated(handle, cappedAt: min(file.size, proof.bytes)); continue
+            }
+            var retained: UInt64 = 0, indices: Set<Int> = []
+            for index in journal.completed.sorted() where file.chunks.indices.contains(index) {
+                try Task.checkCancellation()
+                let chunk = file.chunks[index]
+                let valid = try autoreleasepool {
+                    try handle.seek(toOffset: chunk.offset)
+                    let data = try diagnostics.readContent { try handle.read(upToCount: Int(chunk.uncompressedSize)) ?? Data() }
+                    return (try? chunk.validate(data, diagnostics: diagnostics)) != nil
+                }
+                if valid { indices.insert(index); retained += UInt64(chunk.uncompressedSize) }
+            }
+            guard (try? workspace.metadata(handle)) == before,
+                  (try? workspace.metadata(base + ".partial")) == before else { continue }
+            PartialVerificationCache.shared.put(.init(indices: indices, bytes: retained), for: proofKey)
+            total += allocated(handle, cappedAt: min(file.size, retained))
+        }
+        // This ledger is an optimization. A failed advisory refresh earns no persisted trust;
+        // the next boundary fully verifies the unchanged file again.
+        try? receipts.checkpoint(force: true)
+        return total
+    }
+
+    /// Provisional inspection budget only. APFS clones/snapshots can retain old extents:
+    /// callers must gate the complete invalid subset after full verification before writes.
+    public func replacementAllocation(in manifest: DepotManifest) throws -> (missingBytes: UInt64, overlappingBytes: [UInt64]) {
+        let entries = try Self.validate(manifest)
+        let workspace = try DownloadWorkspace(destination: destination, lock: false, diagnostics: diagnostics)
+        var missing: UInt64 = 0, overlaps: [UInt64] = []
+        for entry in entries where !entry.file.isDirectory && !entry.file.isSymlink {
+            let retained = (try? workspace.allocatedBytes(entry.path, cappedAt: entry.file.size)) ?? 0
+            missing += entry.file.size - retained
+            overlaps.append(retained)
+        }
+        return (missing, Array(overlaps.sorted(by: >).prefix(8)))
+    }
+
     private func report(_ progress: DownloadProgress) {
         diagnostics.measure(.progressCallback) { onProgress(progress) }
     }
@@ -46,7 +126,8 @@ public struct ResumableDepotDownload: Sendable {
         let receipts = try DownloadCompletionReceipts(workspace: workspace, manifest: manifest, sizingManifest: receiptManifest)
         for path in receiptExcludedPaths { receipts.invalidate(path) }
         let total = entries.filter { !$0.file.isDirectory && !$0.file.isSymlink }.reduce(UInt64(0)) { $0 + $1.file.size }
-        var done: UInt64 = 0, written: UInt64 = 0
+        var done: UInt64 = 0, written: UInt64 = 0, allocated: UInt64 = 0
+        var writerAllocations: [Int: UInt64] = [:]
         // A lazy ordered chunk queue spans files. Both completed-but-unconsumed tasks
         // and fetching tasks own a slot, so neither payloads nor open writers can grow
         // with manifest size when one early chunk is slow.
@@ -84,8 +165,9 @@ public struct ResumableDepotDownload: Sendable {
                                 if valid {
                                     try receipts.checkpoint()
                                     done += entry.file.size
+                                    allocated += entry.file.size
                                     report(DownloadProgress(depotID: manifest.depotID, file: entry.path,
-                                        bytesDone: done, bytesTotal: total, bytesWritten: written))
+                                        bytesDone: done, bytesTotal: total, bytesWritten: written, allocatedBytes: allocated))
                                     continue
                                 }
                                 let pathBytes = Data(entry.path.utf8)
@@ -101,16 +183,19 @@ public struct ResumableDepotDownload: Sendable {
                                         verification: .init(bytesChecked: checked, bytesTotal: checkTotal)))
                                 }
                                 done += resumed.bytes
+                                let allocation = await writer.allocatedBytes()
+                                writerAllocations[id] = allocation; allocated += allocation
                                 report(DownloadProgress(depotID: manifest.depotID, file: entry.path,
-                                    bytesDone: done, bytesTotal: total, bytesWritten: written))
+                                    bytesDone: done, bytesTotal: total, bytesWritten: written, allocatedBytes: allocated))
                                 let pending = entry.file.chunks.indices.filter { !resumed.indices.contains($0) }
                                     .sorted { entry.file.chunks[$0].offset < entry.file.chunks[$1].offset }
                                 active[id]!.pending = pending
                                 active[id]!.remaining = pending.count
                                 if pending.isEmpty {
                                     let metadata = try await writer.finish(to: entry.path)
+                                    allocated = allocated - (writerAllocations[id] ?? 0) + entry.file.size
                                     if eligible { try receipts.record(entry.file, path: entry.path, metadata: metadata, countVerifiedBytes: false) }
-                                    active.removeValue(forKey: id)
+                                    active.removeValue(forKey: id); writerAllocations.removeValue(forKey: id)
                                     continue
                                 }
                                 schedulingFile = id
@@ -136,16 +221,20 @@ public struct ResumableDepotDownload: Sendable {
                         done += count; written += count
                         active[id]!.remaining -= 1
                         let scheduled = active[id]!
+                        let allocation = await scheduled.writer.allocatedBytes()
+                        allocated = allocated - (writerAllocations[id] ?? 0) + allocation
+                        writerAllocations[id] = allocation
                         if scheduled.remaining == 0 {
                             let metadata = try await scheduled.writer.finish(to: scheduled.entry.path)
+                            allocated = allocated - (writerAllocations[id] ?? 0) + scheduled.entry.file.size
                             if scheduled.eligible {
                                 try receipts.record(scheduled.entry.file, path: scheduled.entry.path,
                                     metadata: metadata, countVerifiedBytes: false)
                             }
-                            active.removeValue(forKey: id)
+                            active.removeValue(forKey: id); writerAllocations.removeValue(forKey: id)
                         }
                         report(DownloadProgress(depotID: manifest.depotID, file: scheduled.entry.path,
-                            bytesDone: done, bytesTotal: total, bytesWritten: written))
+                            bytesDone: done, bytesTotal: total, bytesWritten: written, allocatedBytes: allocated))
                     }
                 }
             } catch {
@@ -337,6 +426,31 @@ public struct ResumableDepotDownload: Sendable {
     }
 }
 
+/// Bounded process-local proof shared by reservation inspection and the immediately following
+/// writer restore. Every reuse matches pinned content, journal indices and full file identity.
+/// Never persisted; any file change requires normal chunk verification again.
+private final class PartialVerificationCache: @unchecked Sendable {
+    static let shared = PartialVerificationCache()
+    struct Key: Hashable { let metadata: DownloadFileMetadata; let fingerprint: Data; let requested: Set<Int> }
+    struct Proof { let indices: Set<Int>; let bytes: UInt64 }
+    private let lock = NSLock()
+    private var proofs: [Key: Proof] = [:]
+    func get(_ key: Key) -> Proof? { lock.withLock { proofs[key] } }
+    func consume(_ key: Key) -> Proof? {
+        lock.withLock {
+            let proof = proofs[key]
+            proofs = proofs.filter { $0.key.metadata.device != key.metadata.device || $0.key.metadata.inode != key.metadata.inode }
+            return proof
+        }
+    }
+    func put(_ proof: Proof, for key: Key) {
+        lock.withLock {
+            if proofs.count >= 128, let oldest = proofs.keys.first { proofs.removeValue(forKey: oldest) }
+            proofs[key] = proof
+        }
+    }
+}
+
 private struct ChunkJournal: Codable {
     let version = 2
     let fingerprint: Data
@@ -373,6 +487,7 @@ actor ChunkCheckpointWriter {
     let handle: FileHandle
     private var journal: ChunkJournal
     private var uncheckpointedBytes: UInt64 = 0
+    private var validatedBytes: UInt64 = 0
     private var lastCheckpoint = ContinuousClock.now
     init(workspace: DownloadWorkspace, file: DepotManifest.File, base: String) throws {
         self.workspace = workspace; self.file = file; partial = base + ".partial"; journalPath = base + ".json"
@@ -393,6 +508,13 @@ actor ChunkCheckpointWriter {
     }
     func restore(onVerification: @Sendable (UInt64, UInt64, UInt64) -> Void) throws -> (indices: Set<Int>, bytes: UInt64) {
         var retained = Set<Int>(), bytes: UInt64 = 0
+        let before = try workspace.metadata(handle)
+        let proofKey = PartialVerificationCache.Key(metadata: before, fingerprint: journal.fingerprint, requested: journal.completed)
+        if let proof = PartialVerificationCache.shared.consume(proofKey), (try? workspace.metadata(partial)) == before {
+            journal.completed = proof.indices; validatedBytes = proof.bytes
+            workspace.diagnostics.measure(.progressCallback) { onVerification(proof.bytes, proof.bytes, proof.bytes) }
+            return (proof.indices, proof.bytes)
+        }
         // Sort completion indices by offset to avoid random seeks across partials on external disks.
         let saved = journal.completed.filter { file.chunks.indices.contains($0) }
             .sorted { file.chunks[$0].offset < file.chunks[$1].offset }
@@ -415,7 +537,7 @@ actor ChunkCheckpointWriter {
                 workspace.diagnostics.measure(.progressCallback) { onVerification(checked, total, bytes) }; lastReport = .now
             }
         }
-        journal.completed = retained
+        journal.completed = retained; validatedBytes = bytes
         return (retained, bytes)
     }
     func commit(_ data: Data, index: Int) throws {
@@ -428,13 +550,19 @@ actor ChunkCheckpointWriter {
         }
         try handle.seek(toOffset: chunk.offset)
         try workspace.write(data, to: handle, path: partial)
-        journal.completed.insert(index)
+        if journal.completed.insert(index).inserted { validatedBytes += UInt64(data.count) }
         uncheckpointedBytes += UInt64(data.count)
         // Complete files use publication as their next durability checkpoint.
         if journal.completed.count < file.chunks.count,
            uncheckpointedBytes >= 128 * 1024 * 1024 || lastCheckpoint.duration(to: .now) >= .seconds(5) {
             try checkpoint()
         }
+    }
+    func allocatedBytes() -> UInt64 {
+        var info = stat()
+        guard fstat(handle.fileDescriptor, &info) == 0, info.st_blocks >= 0 else { return 0 }
+        let bytes = UInt64(info.st_blocks).multipliedReportingOverflow(by: 512)
+        return min(validatedBytes, min(file.size, bytes.overflow ? UInt64.max : bytes.partialValue))
     }
     func checkpoint() throws {
         guard uncheckpointedBytes > 0 else { return }

@@ -70,6 +70,14 @@ final class DownloadWorkspace: @unchecked Sendable {
         }
         return FileHandle(fileDescriptor: fd, closeOnDealloc: true)
     }
+    func allocatedBytes(_ path: String, cappedAt limit: UInt64) throws -> UInt64 {
+        let handle = try openFile(path, flags: O_RDONLY)
+        defer { try? handle.close() }
+        var info = stat()
+        guard fstat(handle.fileDescriptor, &info) == 0, info.st_blocks >= 0 else { return 0 }
+        let bytes = UInt64(info.st_blocks).multipliedReportingOverflow(by: 512)
+        return min(limit, bytes.overflow ? UInt64.max : bytes.partialValue)
+    }
     func metadata(_ path: String) throws -> DownloadFileMetadata {
         let handle = try openFile(path, flags: O_RDONLY)
         defer { try? handle.close() }

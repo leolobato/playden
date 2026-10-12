@@ -3,7 +3,7 @@ import CryptoKit
 
 /// An optimization for normal resume, not a content-integrity guarantee. Full verification
 /// remains available for corruption that preserves filesystem identity and timestamps.
-struct DownloadFileMetadata: Codable, Equatable, Sendable {
+struct DownloadFileMetadata: Codable, Hashable, Sendable {
     let device: Int32
     let inode: UInt64
     let generation: UInt32

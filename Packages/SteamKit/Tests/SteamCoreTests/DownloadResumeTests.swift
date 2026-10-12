@@ -33,6 +33,104 @@ final class DownloadResumeTests: XCTestCase {
     private func receiptURL(_ root: URL, gid: UInt64 = 9) -> URL {
         root.appendingPathComponent(".gn-download/receipts/7-\(gid).json")
     }
+    func testAllocationCreditCapsBlocksAndIgnoresInvalidAndUnrelatedFiles() async throws {
+        let root = try root(), value = download(root), manifest = fixture()
+        XCTAssertEqual(try value.allocatedContentBytes(in: manifest), 0)
+        try Data(repeating: 9, count: 10000).write(to: root.appendingPathComponent("incidental"))
+        try await value.download(manifest: manifest, fetchChunk: Feed(pieces).fetch)
+        XCTAssertEqual(try value.allocatedContentBytes(in: manifest), 16, "Small-file blocks cannot credit more than planned content")
+        XCTAssertEqual(try value.allocatedContentBytes(in: manifest, includeCompleted: false), 0, "Repair budgets replacements even with matching receipts")
+        try Data(repeating: 8, count: 16).write(to: root.appendingPathComponent("Game/data.bin"))
+        XCTAssertEqual(try value.allocatedContentBytes(in: manifest), 0)
+    }
+    func testAllocationCreditRestoresOnlyValidJournalRanges() async throws {
+        let root = try root(), manifest = fixture(), value = download(root)
+        let feed = Feed(pieces, failAt: 5)
+        do { try await value.download(manifest: manifest, fetchChunk: feed.fetch); XCTFail() } catch {}
+        XCTAssertEqual(try value.allocatedContentBytes(in: manifest), 5)
+        let partial = try partial(root)
+        try Data(repeating: 0, count: 5).write(to: partial)
+        XCTAssertEqual(try value.allocatedContentBytes(in: manifest), 0)
+    }
+
+    func testLiveAllocationCreditTracksPhysicalWritesIndependently() async throws {
+        let root = try root(), samples = ProgressSamples()
+        var value = download(root); value.onProgress = { samples.append($0) }
+        try await value.download(manifest: fixture(), fetchChunk: Feed(pieces).fetch)
+        XCTAssertEqual(samples.values.last?.allocatedBytes, 16)
+        XCTAssertTrue(samples.values.contains { $0.allocatedBytes == 5 })
+    }
+    func testRepairReplacementAllocationBoundsEightExistingTargets() throws {
+        let root = try root(), files = (0..<20).map { index in
+            DepotManifest.File(path: "file-\(index)", size: 16, chunks: fixture().files[0].chunks, contentSHA1: fixture().files[0].contentSHA1)
+        }
+        for file in files { try Data(repeating: 8, count: 16).write(to: root.appendingPathComponent(file.path)) }
+        let manifest = DepotManifest(depotID: 7, gid: 9, files: files, totalSize: 320)
+        let allocation = try download(root).replacementAllocation(in: manifest)
+        XCTAssertEqual(allocation.missingBytes, 0)
+        XCTAssertEqual(allocation.overlappingBytes.sorted(by: >).prefix(8).reduce(0, +), 128)
+    }
+
+    func testReservationPreflightsAndResumeVerifyRetainedChunksOnlyOnce() async throws {
+        let root = try root(), manifest = fixture()
+        do { try await download(root).download(manifest: manifest, fetchChunk: Feed(pieces, failAt: 5).fetch) } catch {}
+        let diagnostics = SteamPerformanceDiagnostics()
+        var resumed = ResumableDepotDownload(destination: root, diagnostics: diagnostics); resumed.chunkConcurrency = 1
+        for _ in 0..<3 { XCTAssertEqual(try resumed.allocatedContentBytes(in: manifest), 5) }
+        try await resumed.download(manifest: manifest, fetchChunk: Feed(pieces).fetch)
+        XCTAssertEqual(diagnostics.snapshot()[.contentRead].bytes, 5, "Preflight and the production writer share only unchanged in-memory partial proof")
+    }
+    func testSparseCompleteFilesNeedNoWritesButSparsePartialsReceiveNoUnearnedCredit() throws {
+        let root = try root(), data = Data(repeating: 0, count: 1024 * 1024)
+        let file = DepotManifest.File(path: "sparse", size: UInt64(data.count), chunks: [
+            .init(sha: SteamCrypto.sha1(data), offset: 0, compressedSize: 10, uncompressedSize: UInt32(data.count))], contentSHA1: SteamCrypto.sha1(data))
+        let manifest = DepotManifest(depotID: 7, gid: 9, files: [file], totalSize: file.size)
+        FileManager.default.createFile(atPath: root.appendingPathComponent("sparse").path, contents: nil)
+        let handle = try FileHandle(forWritingTo: root.appendingPathComponent("sparse")); try handle.truncate(atOffset: file.size); try handle.close()
+        XCTAssertEqual(try download(root).allocatedContentBytes(in: manifest), file.size)
+        try FileManager.default.removeItem(at: root.appendingPathComponent("sparse"))
+        let workspace = try DownloadWorkspace(destination: root, lock: false)
+        let key = SHA256.hash(data: Data(file.path.utf8)).map { String(format: "%02x", $0) }.joined()
+        let base = ".gn-download/7/9/" + key
+        let partial = try workspace.openFile(base + ".partial", flags: O_RDWR | O_CREAT, createParents: true)
+        try partial.truncate(atOffset: file.size); try partial.close()
+        let encoder = JSONEncoder(); encoder.outputFormatting = .sortedKeys
+        try workspace.writeAtomic(JSONSerialization.data(withJSONObject: ["version": 2,
+            "fingerprint": Data(SHA256.hash(data: try encoder.encode(file))).base64EncodedString(), "completed": []]), path: base + ".json")
+        XCTAssertEqual(try download(root).allocatedContentBytes(in: manifest), 0)
+    }
+
+    func testPartialProofIsConsumedByRestoreAndRejectsChangedJournalOrContent() async throws {
+        let root = try root(), manifest = fixture()
+        do { try await download(root).download(manifest: manifest, fetchChunk: Feed(pieces, failAt: 5).fetch) } catch {}
+        let diagnostics = SteamPerformanceDiagnostics(), reader = ResumableDepotDownload(destination: root, diagnostics: diagnostics)
+        let partial = try partial(root), journal = partial.deletingPathExtension().appendingPathExtension("json")
+        let originalJournal = try Data(contentsOf: journal)
+        XCTAssertEqual(try reader.allocatedContentBytes(in: manifest), 5)
+        var changed = try XCTUnwrap(JSONSerialization.jsonObject(with: originalJournal) as? [String: Any]); changed["completed"] = []
+        try JSONSerialization.data(withJSONObject: changed).write(to: journal)
+        XCTAssertEqual(try reader.allocatedContentBytes(in: manifest), 0)
+        try originalJournal.write(to: journal)
+        let workspace = try DownloadWorkspace(destination: root, lock: false, diagnostics: diagnostics)
+        let base = ".gn-download/7/9/" + partial.deletingPathExtension().lastPathComponent
+        let writer = try ChunkCheckpointWriter(workspace: workspace, file: manifest.files[0], base: base)
+        let firstRestore = try await writer.restore { _, _, _ in }; XCTAssertEqual(firstRestore.bytes, 5)
+        XCTAssertEqual(diagnostics.snapshot()[.contentRead].bytes, 5)
+        let secondRestore = try await writer.restore { _, _, _ in }; XCTAssertEqual(secondRestore.bytes, 5)
+        XCTAssertEqual(diagnostics.snapshot()[.contentRead].bytes, 10, "A second resume cycle must verify unchanged chunks again")
+        try Data("WRONG".utf8).write(to: partial)
+        XCTAssertEqual(try reader.allocatedContentBytes(in: manifest), 0)
+    }
+
+    func testOlderCompletedAllocationBoundariesRefreshReceiptOnce() async throws {
+        let root = try root(), manifest = fixture(path: "legitimate.orig")
+        try pieces.reduce(Data(), +).write(to: root.appendingPathComponent("legitimate.orig"))
+        let diagnostics = SteamPerformanceDiagnostics(), value = ResumableDepotDownload(destination: root, diagnostics: diagnostics)
+        for _ in 0..<3 { XCTAssertEqual(try value.allocatedContentBytes(in: manifest), 16) }
+        try await value.download(manifest: manifest, fetchChunk: Feed(pieces).fetch)
+        XCTAssertEqual(diagnostics.snapshot()[.contentRead].bytes, 16)
+    }
+
     func testMatchingReceiptSkipsAllCompletedContentReads() async throws {
         let root = try root(), diagnostics = SteamPerformanceDiagnostics()
         let value = ResumableDepotDownload(destination: root, diagnostics: diagnostics)

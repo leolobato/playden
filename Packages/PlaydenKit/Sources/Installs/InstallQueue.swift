@@ -56,6 +56,9 @@ public actor InstallQueue: InstallQueuing {
     private let sources: [String: any GameSource]
     private let storage: any InstallStorageManaging
     private let bottles: any GameBottleManaging
+    private var reservationRefreshes: Set<UUID> = []
+    private var remainingReservations: [UUID: Int64] = [:]
+    private var repairReservationBases: [UUID: Int64] = [:]
     private var records: [UUID: JobRecord]
     private var observers: [UUID: AsyncStream<InstallQueueSnapshot>.Continuation] = [:]
     private var activeTask: Task<Void, Never>?
@@ -81,11 +84,11 @@ public actor InstallQueue: InstallQueuing {
             guard registry.updateValue(source, forKey: source.id) == nil else { throw Self.failure("Source", "A store was registered more than once.") }
         }
         self.sources = registry
-        records = Dictionary(uniqueKeysWithValues: try catalog.jobs().map { ($0.id, $0) })
+        records = Dictionary(uniqueKeysWithValues: try catalog.jobs().map { value in var job = value; job.remainingReservationBytes = nil; return (job.id, job) })
     }
     public func snapshot() -> InstallQueueSnapshot {
         let downloading = activeID.flatMap { records[$0] }.map { $0.stage == .download && $0.state == .running } ?? false
-        return .init(jobs: ordered, activeJobID: activeID, persistenceFailure: persistenceFailure,
+        return .init(jobs: ordered.map(reservationSnapshot), activeJobID: activeID, persistenceFailure: persistenceFailure,
             transfer: downloading ? transferMeter?.metrics(now: ProcessInfo.processInfo.systemUptime) :
                 (activeID.flatMap { records[$0] }?.state == .running ? stageVerification.map {
                     InstallTransferMetrics(bytesPerSecond: 0, secondsRemaining: nil, verification: $0)
@@ -112,6 +115,7 @@ public actor InstallQueue: InstallQueuing {
                 try save(job)
             }
         }
+        await refreshReservations()
         // Refresh older installs before opening the queue to new work. The bottle manager
         // refuses running games; disconnected drives and unfinished maintenance retry next start.
         let activeGames = Set(try catalog.unfinishedSessions().map(\.gameID))
@@ -149,6 +153,7 @@ public actor InstallQueue: InstallQueuing {
     }
     public func offer(plan: InstallPlan, volume: GamesVolumeSelection) async throws -> InstallOffer {
         try validateEstimate(plan.estimate)
+        await refreshReservations(on: volume.volumeID)
         return InstallOffer(plan: plan, volume: volume, freeBytes: try await storage.freeBytes(on: volume), reservedBytes: reserved(on: volume.volumeID))
     }
     @discardableResult public func enqueue(_ offer: InstallOffer) async throws -> UUID {
@@ -191,6 +196,7 @@ public actor InstallQueue: InstallQueuing {
         }
         _ = try source.installer(for: installed.game)
         var job = JobRecord(gameID: gameID, kind: .repair, queuePosition: records.count)
+        if gameID.source == SourceID.steam { job.spaceReservationVersion = 2 }
         job.originalInstallation = installed; job.plan = plan; job.staging = installed.staging
         job.ownershipToken = installed.ownershipToken; job.manifestIDs = installed.manifestIDs; job.location = installed.location
         job.bottle = GameBottle(gameID: gameID, name: installed.bottleID, ownershipToken: installed.ownershipToken, templateVersion: installed.templateVersion)
@@ -236,11 +242,56 @@ public actor InstallQueue: InstallQueuing {
         records.values.sorted { $0.queuePosition == $1.queuePosition ? $0.createdAt < $1.createdAt : $0.queuePosition < $1.queuePosition }
     }
     private func reserved(on volumeID: String, excluding id: UUID? = nil) -> Int64 {
-        InstallReservations.bytes(Array(records.values), on: volumeID, excluding: id)
+        InstallReservations.bytes(records.values.map(reservationSnapshot), on: volumeID, excluding: id)
+    }
+    private func reservationSnapshot(_ value: JobRecord) -> JobRecord {
+        var job = value; job.remainingReservationBytes = remainingReservations[job.id]; return job
+    }
+    private func refreshReservations(on volumeID: String? = nil) async {
+        for job in ordered where job.gameID.source == SourceID.steam && [.install, .repair].contains(job.kind)
+            && ![.completed, .cancelled].contains(job.state) && (volumeID == nil || job.volume?.volumeID == volumeID)
+            && job.id != activeID {
+            await refreshReservation(job)
+        }
+    }
+    private func refreshReservation(_ job: JobRecord) async {
+        guard job.gameID.source == SourceID.steam, let plan = job.plan,
+              reservationRefreshes.insert(job.id).inserted else { return }
+        // Receipt refresh owns the download lease. Scheduling must wait until it releases it.
+        defer { reservationRefreshes.remove(job.id); pump() }
+        remainingReservations[job.id] = nil
+        do {
+            guard let source = sources[job.gameID.source] else { return }
+            let path = try await directory(job)
+            let installer = try source.installer(for: plan.game)
+            let measured = try await installer.remainingReservation(plan, at: path, staging: job.staging,
+                repairing: job.kind == .repair, downloadComplete: job.completedStages.contains(.download))
+            if let measured, measured >= 0 {
+                remainingReservations[job.id] = job.kind == .repair && job.spaceReservationVersion == nil
+                    ? plan.estimate.requiredBytes : min(plan.estimate.requiredBytes, measured)
+            }
+        } catch { /* Missing/unowned/unavailable state receives no allocation credit. */ }
+    }
+    private func checkSpace(_ id: UUID, required: Int64? = nil, allocated: Int64 = 0) async throws {
+        guard let job = records[id], let volume = job.volume else { throw Self.failure("Reserve space", "The games drive is unavailable.") }
+        if let required {
+            guard required >= 0, allocated >= 0, allocated <= required else { throw Self.failure("Reserve space", "The allocation estimate is invalid.") }
+            let budget = job.kind == .repair && job.spaceReservationVersion == nil
+                ? max(job.plan?.estimate.requiredBytes ?? required, required) : required
+            repairReservationBases[id] = budget
+            remainingReservations[id] = budget - allocated
+        }
+        let free = try await storage.freeBytes(on: volume)
+        guard max(0, free - reserved(on: volume.volumeID, excluding: id)) >= InstallReservations.remaining(reservationSnapshot(job)) else {
+            throw Self.failure("Reserve space", "There is not enough free space to continue this installation.")
+        }
+        try checkpoint(id)
+        publish()
     }
     private func pump() {
         guard running, persistenceFailure == nil, activeTask == nil,
-              let job = ordered.first(where: { $0.state == .queued && ($0.pauseReasons.isEmpty || $0.cancellationRequested == true) }) else { return }
+              let job = ordered.first(where: { $0.state == .queued && ($0.pauseReasons.isEmpty || $0.cancellationRequested == true) }),
+              !reservationRefreshes.contains(job.id) else { return }
         let run = UUID(); activeRun = run; activeID = job.id; progressTime = 0
         activeTask = Task {
             await DiagnosticOutputContext.$sink.withValue(catalog.diagnosticSink(for: job.id)) {
@@ -265,6 +316,9 @@ public actor InstallQueue: InstallQueuing {
             if !native, initial.completedStages.contains(.createBottle), try await !bottles.isReady(bottle) {
                 try invalidateRuntimeStages(id)
             }
+            if initial.gameID.source == SourceID.steam, initial.completedStages.contains(.download) {
+                await refreshReservation(initial); try await checkSpace(id)
+            }
             for stage in stages {
                 try checkpoint(id)
                 guard var job = records[id] else { return }
@@ -280,14 +334,16 @@ public actor InstallQueue: InstallQueuing {
                 }
                 switch stage {
                 case .reserve:
-                    let free = try await storage.freeBytes(on: volume)
-                    guard max(0, free - reserved(on: volume.volumeID, excluding: id)) >= max(0, plan.estimate.requiredBytes - job.bytesCompleted) else {
-                        throw Self.failure("Reserve space", "There is not enough free space to continue this installation.")
-                    }
+                    if job.gameID.source == SourceID.steam { await refreshReservation(job) }
+                    try await checkSpace(id)
                     let location = try await storage.prepare(gameID: job.gameID, owner: job.ownershipToken, on: volume)
                     try update(id) { $0.location = location }
                 case .download:
                     let path = try await directory(job)
+                    if job.gameID.source == SourceID.steam {
+                        await refreshReservation(job)
+                        if job.kind != .repair { try await checkSpace(id) }
+                    }
                     progressCompleted = 0; progressSequence = nil
                     transferMeter = TransferRateEstimator(now: ProcessInfo.processInfo.systemUptime)
                     transferTicker = Task {
@@ -307,7 +363,12 @@ public actor InstallQueue: InstallQueuing {
                         else { Task { await self.progress(progress, id: id, run: run) } }
                     }
                     do {
-                        if job.kind == .repair { try await installer.repair(plan, at: path, staging: job.staging, progress: report) }
+                        if job.kind == .repair, job.gameID.source == SourceID.steam {
+                            // The source gates its exact invalid subset after one full inspection.
+                            try await installer.repair(plan, at: path, staging: job.staging, reserve: { required, allocated in
+                                try await self.checkSpace(id, required: required, allocated: allocated)
+                            }, progress: report)
+                        } else if job.kind == .repair { try await installer.repair(plan, at: path, staging: job.staging, progress: report) }
                         else { try await installer.download(plan, to: path, progress: report) }
                     } catch {
                         await relay?.finish()
@@ -315,12 +376,18 @@ public actor InstallQueue: InstallQueuing {
                     }
                     await relay?.finish()
                     try update(id) { $0.bytesCompleted = plan.estimate.installedBytes; $0.currentFile = nil }
+                    if job.gameID.source == SourceID.steam, job.kind == .install {
+                        // Successful source completion establishes all originals; no second disk scan.
+                        remainingReservations[id] = plan.estimate.requiredBytes - plan.estimate.installedBytes
+                    }
                 case .verifyOriginals:
                     let result = try await installer.verifyOriginals(plan, at: directory(job), staging: job.staging) { value in
                         Task { await self.verificationProgress(value, id: id, run: run, stage: .verifyOriginals) }
                     }
                     guard result.isValid else { throw Self.failure("Verify", "Downloaded game files are missing or damaged. Retry to repair the download.") }
-                case .createBottle: try await bottles.prepare(bottle)
+                case .createBottle:
+                    if job.gameID.source == SourceID.steam { try await bottles.prepare(bottle, checkingSpace: true) }
+                    else { try await bottles.prepare(bottle) }
                 case .prerequisites: try await installer.preparePrerequisites(plan, at: directory(job), in: bottle)
                 case .stage:
                     let staging = try await installer.postInstall(plan, at: directory(job), in: bottle) { value in
@@ -450,6 +517,14 @@ public actor InstallQueue: InstallQueuing {
             progressSequence = sequence
         }
         progressCompleted = value.bytesCompleted
+        if job.gameID.source == SourceID.steam, let allocated = value.allocatedBytes, allocated >= 0,
+           let plan = job.plan {
+            if job.kind == .install {
+                remainingReservations[id] = max(0, plan.estimate.requiredBytes - min(plan.estimate.installedBytes, allocated))
+            } else if let required = repairReservationBases[id] {
+                remainingReservations[id] = required - min(required, allocated)
+            }
+        }
         let previousVerification = transferMeter?.verification
         transferMeter?.record(value, now: now)
         let phaseChanged = (previousVerification == nil) != (value.verification == nil)

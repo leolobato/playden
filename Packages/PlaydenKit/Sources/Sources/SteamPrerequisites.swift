@@ -25,6 +25,9 @@ enum SteamPrerequisites {
             guard try ResumableDepotDownload(destination: directory).invalidFiles(in: manifest).isEmpty else {
                 throw failure("A game prerequisite is missing or damaged. Verify files before retrying.")
             }
+            let inputBytes = try inputs.reduce(Int64(0)) { try InstallSpace.add($0, Int64($1.size)) }
+            try InstallSpace.require(InstallSpace.add(inputBytes, InstallSpace.headroom), at: FileManager.default.temporaryDirectory)
+            try await tools.checkSpace(in: bottle, minimumBytes: InstallSpace.headroom)
             let work = FileManager.default.temporaryDirectory.appendingPathComponent("Playden-prerequisites-" + UUID().uuidString)
             try SteamPreparationPaths.checkStorageDirectory(work)
             try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])

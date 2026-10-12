@@ -63,6 +63,24 @@ private struct OfflineSource: GameSource {
     func metadata(for game: SourceGameRecord) async throws -> SourceGameRecord { game }
     func installer(for game: SourceGameRecord) throws -> any Installer { OfflineInstaller(game: game, content: content) }
 }
+private struct SteamSpaceSource: GameSource {
+    let id = "steam", displayName = "Steam space fixture"
+    let auth: any SourceAuth = OfflineAuth()
+    let content: OfflineContent
+    func ownedGames() async throws -> [SourceGameRecord] { [] }
+    func metadata(for game: SourceGameRecord) async throws -> SourceGameRecord { game }
+    func installer(for game: SourceGameRecord) throws -> any Installer { OfflineInstaller(game: game, content: content) }
+}
+private actor SpaceFixtureStorage: InstallStorageManaging {
+    let base: InstallStorage
+    var available: Int64 = 100000
+    init(_ base: InstallStorage) { self.base = base }
+    func setFree(_ value: Int64) { available = value }
+    func freeBytes(on volume: GamesVolumeSelection) async throws -> Int64 { available }
+    func prepare(gameID: GameID, owner: UUID, on volume: GamesVolumeSelection) async throws -> GameLocation { try await base.prepare(gameID: gameID, owner: owner, on: volume) }
+    func directory(_ location: GameLocation, gameID: GameID, owner: UUID) async throws -> URL { try await base.directory(location, gameID: gameID, owner: owner) }
+    func remove(_ location: GameLocation, gameID: GameID, owner: UUID) async throws { try await base.remove(location, gameID: gameID, owner: owner) }
+}
 private struct OfflineInstaller: Installer {
     let game: SourceGameRecord
     let content: OfflineContent
@@ -170,6 +188,54 @@ private actor FixtureBottles: GameBottleManaging {
     }
 }
 final class InstallQueueTests: XCTestCase {
+    func testSteamLiveReservationChangesOnlyWithAllocationAndRepairsGateSpace() async throws {
+        let root = try root(), volumes = FixtureVolumes(root: root), content = OfflineContent()
+        let storage = SpaceFixtureStorage(InstallStorage(volumes: volumes)), catalog = try CatalogStore(path: root.appendingPathComponent("catalog.sqlite").path)
+        let queue = try InstallQueue(catalog: catalog, sources: [SteamSpaceSource(content: content)], storage: storage, bottles: FixtureBottles())
+        let game = SourceGameRecord(id: .init(source: "steam", value: "space"), title: "Space")
+        await content.hold("space")
+        let id = try await queue.enqueue(queue.offer(for: game, volume: volumes.selection))
+        try await queue.start()
+        _ = try await waitForSnapshot(queue) { $0.activeJobID == id && $0.jobs.first?.currentFile != nil }
+        await content.sendDownloadReport("space", value: .init(bytesCompleted: 4, bytesTotal: 8, currentFile: "game.exe", allocatedBytes: 2))
+        _ = try await waitForSnapshot(queue) { $0.jobs.first?.remainingReservationBytes == 1022 }
+        let offer = try await queue.offer(for: .init(id: .init(source: "steam", value: "next"), title: "Next"), volume: volumes.selection)
+        XCTAssertEqual(offer.reservedBytes, 1022)
+        try await Task.sleep(for: .milliseconds(300))
+        await content.sendDownloadReport("space", value: .init(bytesCompleted: 4, bytesTotal: 8, currentFile: "game.exe", downloadedBytes: 99, freshlyWrittenBytes: 99))
+        try await Task.sleep(for: .milliseconds(300))
+        let current = await queue.snapshot(); XCTAssertEqual(current.jobs.first?.remainingReservationBytes, 1022)
+        await content.sendDownloadReport("space", value: .init(bytesCompleted: 4, bytesTotal: 8, currentFile: "game.exe", allocatedBytes: 4))
+        _ = try await waitForSnapshot(queue) { $0.jobs.first?.remainingReservationBytes == 1020 }
+        await content.release("space")
+        _ = try await waitFor(queue, jobID: id, state: .completed)
+        await storage.setFree(0)
+        let repair = try await queue.repair(game.id)
+        let paused = try await waitFor(queue, jobID: repair, state: .paused)
+        XCTAssertTrue(paused.pauseReasons.contains(.insufficientSpace))
+        XCTAssertEqual(paused.spaceReservationVersion, 2)
+        let decoded = try JSONDecoder().decode(JobRecord.self, from: JSONEncoder().encode(paused))
+        XCTAssertEqual(decoded.spaceReservationVersion, 2)
+        let events = await content.events; XCTAssertEqual(events.filter { $0 == "download:space" }.count, 1)
+        await queue.shutdown()
+    }
+    func testRestartedPausedSteamJobDiscardsSavedAllocationAndTransferCredit() async throws {
+        let root = try root(), volumes = FixtureVolumes(root: root), catalog = try CatalogStore(path: root.appendingPathComponent("restart.sqlite").path)
+        let content = OfflineContent(), game = SourceGameRecord(id: .init(source: "steam", value: "paused"), title: "Paused")
+        var job = JobRecord(gameID: game.id)
+        job.plan = try await OfflineInstaller(game: game, content: content).resolve()
+        job.volume = await volumes.selection; job.state = .paused; job.pauseReasons = [.user]
+        job.bytesCompleted = 8; job.remainingReservationBytes = 0
+        try catalog.saveJob(job)
+        let queue = try InstallQueue(catalog: catalog, sources: [SteamSpaceSource(content: content)], storage: InstallStorage(volumes: volumes), bottles: FixtureBottles())
+        try await queue.start()
+        let snapshot = await queue.snapshot()
+        XCTAssertEqual(InstallReservations.bytes(snapshot.jobs, on: "fixture-volume"), 1024)
+        XCTAssertNil(snapshot.jobs.first?.remainingReservationBytes)
+        let offer = try await queue.offer(for: .init(id: .init(source: "steam", value: "next"), title: "Next"), volume: volumes.selection)
+        XCTAssertEqual(offer.reservedBytes, 1024)
+        await queue.shutdown()
+    }
     private func rejectJobWrites(_ catalog: CatalogStore, when condition: String) throws {
         try catalog.database.write { db in
             try db.execute(sql: """

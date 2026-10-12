@@ -4,6 +4,21 @@ import Domain
 @testable import Installs
 
 final class GamesStorageTests: XCTestCase {
+    func testSteamReservationsIgnoreTransferBytesAndIncludeRepair() throws {
+        var job = JobRecord(gameID: .init(source: "steam", value: "1"))
+        job.volume = selection(URL(fileURLWithPath: "/test")); job.bytesCompleted = Int64.max
+        job.plan = .init(game: .init(id: job.gameID, title: "Test"), manifestIDs: [:],
+            estimate: .init(downloadBytes: 10, installedBytes: 80, requiredBytes: 100),
+            launchSpec: .init(executableRelativePath: "game.exe"), sourcePayload: Data())
+        XCTAssertEqual(InstallReservations.bytes([job], on: "test-volume"), 100)
+        job.remainingReservationBytes = 35
+        var repair = job; repair.id = UUID(); repair.kind = .repair; repair.state = .paused
+        XCTAssertEqual(InstallReservations.bytes([job, repair], on: "test-volume"), 70)
+        repair.remainingReservationBytes = nil
+        XCTAssertEqual(InstallReservations.bytes([job, repair], on: "test-volume"), 135)
+        job.remainingReservationBytes = -1
+        XCTAssertEqual(InstallReservations.bytes([job], on: "test-volume"), 100, "Invalid evidence falls back conservatively")
+    }
     func testReservationUsesRemainingInstallBytesAcrossPausedAndFailedJobs() {
         let volume = selection(URL(fileURLWithPath: "/test"))
         func job(_ state: JobState, _ kind: JobKind = .install, completed: Int64 = 30) -> JobRecord {

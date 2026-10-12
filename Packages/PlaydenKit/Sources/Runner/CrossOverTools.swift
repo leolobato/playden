@@ -12,6 +12,9 @@ public actor CrossOverTools: RuntimeToolRunning {
                 commands: any CommandExecuting = CommandExecutor()) {
         self.manager = manager; self.application = application; self.commands = commands
     }
+    public func checkSpace(in bottle: GameBottle, minimumBytes: Int64) async throws {
+        try InstallSpace.require(minimumBytes, at: await manager.ownedDirectory(bottle))
+    }
     public func runTool(executable: URL, arguments: [String], in bottle: GameBottle) async throws {
         guard busy.insert(bottle.name).inserted else { throw prerequisiteFailure("Game preparation is already running.") }
         defer { busy.remove(bottle.name) }

@@ -3,6 +3,7 @@ import Foundation
 /// Finite source-preparation utilities run in the already owned game runtime. The source
 /// supplies its bundled tool; the runtime verifies bottle ownership and bounds execution.
 public protocol RuntimeToolRunning: Sendable {
+    func checkSpace(in bottle: GameBottle, minimumBytes: Int64) async throws
     func runTool(executable: URL, arguments: [String], in bottle: GameBottle) async throws
     func preparePrerequisite(_ prerequisite: RuntimePrerequisite, executable: URL, in bottle: GameBottle) async throws
     func prerequisiteReady(_ prerequisite: RuntimePrerequisite, in bottle: GameBottle) async throws -> Bool
@@ -18,6 +19,7 @@ public struct RuntimePrerequisite: Codable, Equatable, Sendable {
     }
 }
 public extension RuntimeToolRunning {
+    func checkSpace(in bottle: GameBottle, minimumBytes: Int64) async throws {}
     func prerequisiteReady(_ prerequisite: RuntimePrerequisite, in bottle: GameBottle) async throws -> Bool { false }
     func preparePrerequisite(_ prerequisite: RuntimePrerequisite, executable: URL, in bottle: GameBottle) async throws {
         try await runTool(executable: executable, arguments: prerequisite.arguments, in: bottle)

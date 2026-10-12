@@ -99,7 +99,7 @@ struct LiveSteamInstallBackend: SteamInstallBackend {
                         fresh: update.bytesWritten.map(Int64.init), file: update.file,
                         verification: update.verification.map {
                             .init(file: update.file, bytesChecked: Int64($0.bytesChecked), bytesTotal: Int64($0.bytesTotal))
-                        })
+                        }, allocated: update.allocatedBytes.map(Int64.init))
                 }
                 try await engine.download(manifest: manifest, servers: servers,
                     forceDownloadPaths: repair?.invalidPaths ?? [], receiptExcludedPaths: repair?.receiptExcludedPaths ?? [],
