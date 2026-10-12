@@ -2,7 +2,7 @@ import Foundation
 import CryptoKit
 import Darwin
 
-/// The CDN boundary supplies decrypted chunks. The writer validates and writes them, then
+/// The CDN boundary supplies decrypted, content-validated chunks. The writer checks ranges and writes them, then
 /// periodically syncs bytes before atomically checkpointing completion. Reopening validates
 /// every retained range; abrupt termination may redownload the last uncheckpointed batch.
 public struct ResumableDepotDownload: Sendable {
@@ -18,6 +18,8 @@ public struct ResumableDepotDownload: Sendable {
         diagnostics.measure(.progressCallback) { onProgress(progress) }
     }
 
+    /// `fetchChunk` must return plaintext already validated with `chunk.validate` (as CDNClient.fetchChunk does).
+    /// Fetchers own retrying corrupt responses. The writer checks length and ranges, and restore revalidates disk bytes.
     public func download(manifest: DepotManifest,
                          fetchChunk: @escaping @Sendable (DepotManifest.Chunk) async throws -> Data) async throws {
         let entries = try Self.validate(manifest)
@@ -60,7 +62,6 @@ public struct ResumableDepotDownload: Sendable {
                             try Task.checkCancellation()
                             let data = try await fetchChunk(chunk)
                             try Task.checkCancellation()
-                            try chunk.validate(data, diagnostics: workspace.diagnostics)
                             try await writer.commit(data, index: index)
                             return UInt64(data.count)
                         }
@@ -222,9 +223,32 @@ public struct ResumableDepotDownload: Sendable {
 }
 
 private struct ChunkJournal: Codable {
-    var version = 1
+    let version = 2
     let fingerprint: Data
-    var completed: [Int: Data] = [:]
+    var completed: Set<Int> = []
+
+    init(fingerprint: Data) { self.fingerprint = fingerprint }
+    private enum CodingKeys: String, CodingKey { case version, fingerprint, completed }
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        let savedVersion = try values.decode(Int.self, forKey: .version)
+        fingerprint = try values.decode(Data.self, forKey: .fingerprint)
+        switch savedVersion {
+        case 1:
+            // The pinned manifest and restored chunk checks replace legacy content hashes.
+            completed = Set(try values.decode([Int: Data].self, forKey: .completed).keys)
+        case 2:
+            completed = Set(try values.decode([Int].self, forKey: .completed))
+        default:
+            throw DecodingError.dataCorruptedError(forKey: .version, in: values, debugDescription: "unsupported chunk journal version")
+        }
+    }
+    func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(version, forKey: .version)
+        try values.encode(fingerprint, forKey: .fingerprint)
+        try values.encode(completed.sorted(), forKey: .completed)
+    }
 }
 private actor ChunkCheckpointWriter {
     let workspace: DownloadWorkspace
@@ -241,33 +265,35 @@ private actor ChunkCheckpointWriter {
         let encoded = try encoder.encode(file)
         let fingerprint = workspace.diagnostics.measure(.sha256, bytes: UInt64(encoded.count)) { Data(SHA256.hash(data: encoded)) }
         let saved = (try? workspace.read(journalPath)).flatMap { try? JSONDecoder().decode(ChunkJournal.self, from: $0) }
-        let canResume = saved?.version == 1 && saved?.fingerprint == fingerprint
-        journal = canResume ? saved! : ChunkJournal(fingerprint: fingerprint)
-        handle = try workspace.openFile(partial, flags: O_RDWR | O_CREAT, createParents: true)
+        let canResume = saved?.fingerprint == fingerprint
+        var restoredJournal = canResume ? saved! : ChunkJournal(fingerprint: fingerprint)
+        let openedHandle = try workspace.openFile(base + ".partial", flags: O_RDWR | O_CREAT, createParents: true)
         // Grow only as chunks arrive. HFS+ allocates/zero-fills the entire length
         // when truncating upward, which can block a multi-GB download before it starts.
-        if try !canResume || handle.seekToEnd() > file.size {
-            journal.completed = [:]; try handle.truncate(atOffset: 0)
+        if try !canResume || openedHandle.seekToEnd() > file.size {
+            restoredJournal.completed = []; try openedHandle.truncate(atOffset: 0)
         }
+        journal = restoredJournal
+        handle = openedHandle
     }
     func restore(onVerification: @Sendable (UInt64, UInt64, UInt64) -> Void) throws -> (indices: Set<Int>, bytes: UInt64) {
-        var retained: [Int: Data] = [:], bytes: UInt64 = 0
-        // Dictionary order causes random seeks across multi-GB partials on external disks.
-        let saved = journal.completed.filter { file.chunks.indices.contains($0.key) }
-            .sorted { file.chunks[$0.key].offset < file.chunks[$1.key].offset }
-        let total = saved.reduce(UInt64(0)) { $0 + UInt64(file.chunks[$1.key].uncompressedSize) }
+        var retained = Set<Int>(), bytes: UInt64 = 0
+        // Sort completion indices by offset to avoid random seeks across partials on external disks.
+        let saved = journal.completed.filter { file.chunks.indices.contains($0) }
+            .sorted { file.chunks[$0].offset < file.chunks[$1].offset }
+        let total = saved.reduce(UInt64(0)) { $0 + UInt64(file.chunks[$1].uncompressedSize) }
         var checked: UInt64 = 0
         var lastReport = ContinuousClock.now
         if total > 0 { workspace.diagnostics.measure(.progressCallback) { onVerification(0, total, 0) } }
-        for (index, hash) in saved {
+        for index in saved {
             try Task.checkCancellation()
             let chunk = file.chunks[index]
             let valid = try autoreleasepool {
                 try handle.seek(toOffset: chunk.offset)
                 let data = try workspace.diagnostics.readContent { try handle.read(upToCount: Int(chunk.uncompressedSize)) ?? Data() }
-                return workspace.diagnostics.measure(.sha256, bytes: UInt64(data.count)) { Data(SHA256.hash(data: data)) } == hash && (try? chunk.validate(data, diagnostics: workspace.diagnostics)) != nil
+                return (try? chunk.validate(data, diagnostics: workspace.diagnostics)) != nil
             }
-            if valid { retained[index] = hash; bytes += UInt64(chunk.uncompressedSize) }
+            if valid { retained.insert(index); bytes += UInt64(chunk.uncompressedSize) }
             // Checked ranges include rejected chunks; only valid bytes count as retained.
             checked += UInt64(chunk.uncompressedSize)
             if checked == total || lastReport.duration(to: .now) >= .milliseconds(250) {
@@ -275,15 +301,19 @@ private actor ChunkCheckpointWriter {
             }
         }
         journal.completed = retained
-        return (Set(retained.keys), bytes)
+        return (retained, bytes)
     }
     func commit(_ data: Data, index: Int) throws {
         try Task.checkCancellation()
+        guard file.chunks.indices.contains(index) else { throw SteamError.download("chunk index out of range") }
         let chunk = file.chunks[index]
-        try chunk.validate(data, diagnostics: workspace.diagnostics)
+        guard data.count == Int(chunk.uncompressedSize) else { throw SteamError.download("chunk length mismatch") }
+        guard chunk.offset <= file.size, UInt64(data.count) <= file.size - chunk.offset else {
+            throw SteamError.download("chunk range outside file")
+        }
         try handle.seek(toOffset: chunk.offset)
         try workspace.diagnostics.measure(.fileWrite, bytes: UInt64(data.count)) { try handle.write(contentsOf: data) }
-        journal.completed[index] = workspace.diagnostics.measure(.sha256, bytes: UInt64(data.count)) { Data(SHA256.hash(data: data)) }
+        journal.completed.insert(index)
         uncheckpointedBytes += UInt64(data.count)
         if uncheckpointedBytes >= 16 * 1024 * 1024 || lastCheckpoint.duration(to: .now) >= .seconds(1) {
             try checkpoint()
@@ -302,7 +332,7 @@ private actor ChunkCheckpointWriter {
         guard journal.completed.count == file.chunks.count,
               try ResumableDepotDownload.isValid(file, path: partial, workspace: workspace, onVerification: onVerification) else {
             // A failed whole-file digest must not trap retries into reusing the same bad chunks.
-            journal.completed = [:]
+            journal.completed = []
             try workspace.writeAtomic(try JSONEncoder().encode(journal), path: journalPath)
             throw SteamError.download("assembled file failed verification: \(file.path)")
         }

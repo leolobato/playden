@@ -619,6 +619,7 @@ private struct FixtureContentBackend: SteamInstallBackend {
         for manifest in payload.manifests {
             try await ResumableDepotDownload(destination: directory).download(manifest: manifest) { chunk in
                 guard let data = chunks[chunk.sha] else { throw SourceFailure.unavailable }
+                try chunk.validate(data)
                 return data
             }
         }

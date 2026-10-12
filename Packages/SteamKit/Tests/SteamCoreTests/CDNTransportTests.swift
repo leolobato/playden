@@ -1,5 +1,6 @@
 import XCTest
 import Darwin
+import CryptoKit
 @testable import SteamCore
 
 final class CDNTransportTests: XCTestCase {
@@ -124,6 +125,39 @@ final class CDNTransportTests: XCTestCase {
         XCTAssertEqual(diagnostics.snapshot()[.adler32].bytes, 7)
     }
 
+    func testCorruptPlaintextResponseRetriesBeforeWriterCommit() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("cdn-corrupt-" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let corrupt = try KeepAliveHTTPFixture { _, _ in .init(body: corruptEncryptedFixtureChunk) }
+        let good = try KeepAliveHTTPFixture { _, _ in .init(body: encryptedFixtureChunk) }
+        defer { corrupt.stop(); good.stop() }
+        let diagnostics = SteamPerformanceDiagnostics()
+        let transport = LoopbackCDNTransport(pool: URLSessionCDNTransport(), ports: ["corrupt.fixture": corrupt.port, "good.fixture": good.port])
+        let manifest = DepotManifest(depotID: 1, gid: 1, files: [.init(path: "file", size: 7, chunks: [fixtureChunk()],
+            contentSHA1: SteamCrypto.sha1(Data("fixture".utf8)))], totalSize: 7)
+        try await ResumableDepotDownload(destination: root, diagnostics: diagnostics).download(manifest: manifest) { chunk in
+            try await DownloadEngine.fetchChunkWithRetry(servers: [contentServer("corrupt.fixture"), contentServer("good.fixture")],
+                depotID: 1, chunk: chunk, key: Data(repeating: 0, count: 32), diagnostics: diagnostics, transport: transport)
+        }
+        XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("file")), Data("fixture".utf8))
+        XCTAssertEqual(corrupt.snapshot.requests, 1); XCTAssertEqual(good.snapshot.requests, 1)
+        XCTAssertEqual(diagnostics.snapshot()[.adler32].count, 2, "One failed response check and one successful incoming check")
+        XCTAssertEqual(diagnostics.snapshot()[.fileWrite].count, 2, "One content write and one journal write")
+    }
+    func testCorruptPlaintextResponsesExhaustRetryBudget() async throws {
+        let server = try KeepAliveHTTPFixture { _, _ in .init(body: corruptEncryptedFixtureChunk) }
+        defer { server.stop() }
+        let diagnostics = SteamPerformanceDiagnostics()
+        let transport = LoopbackCDNTransport(pool: URLSessionCDNTransport(), ports: ["corrupt.fixture": server.port])
+        do {
+            _ = try await DownloadEngine.fetchChunkWithRetry(servers: [contentServer("corrupt.fixture")], depotID: 1,
+                chunk: fixtureChunk(), key: Data(repeating: 0, count: 32), diagnostics: diagnostics, transport: transport)
+            XCTFail("Corrupt decoded content must exhaust retries")
+        } catch SteamError.download(let message) { XCTAssertEqual(message, "chunk checksum mismatch") }
+        XCTAssertEqual(server.snapshot.requests, 3)
+        XCTAssertEqual(diagnostics.snapshot()[.adler32].count, 3)
+    }
+
     func testRetryExhaustionKeepsThreeAttemptBudgetAndConnection() async throws {
         let server = try KeepAliveHTTPFixture { _, _ in .init(status: "503 Service Unavailable") }
         defer { server.stop() }
@@ -183,6 +217,14 @@ final class CDNTransportTests: XCTestCase {
         XCTAssertEqual(server.snapshot.requests, 4)
         XCTAssertEqual(diagnostics.snapshot()[.sessionCreation].count, 1)
         XCTAssertEqual(diagnostics.snapshot()[.networkTransfer].bytes, 576)
+        // Four fresh fetch validations plus four assembled-file fallback checks (step 4 removes those).
+        XCTAssertEqual(diagnostics.snapshot()[.adler32].count, 8)
+        XCTAssertEqual(diagnostics.snapshot()[.adler32].bytes, 56)
+        let encoder = JSONEncoder(); encoder.outputFormatting = .sortedKeys
+        let metadataBytes = try manifests.reduce(UInt64(0)) { total, manifest in
+            total + UInt64(Data(manifest.files[0].path.utf8).count + (try encoder.encode(manifest.files[0])).count)
+        }
+        XCTAssertEqual(diagnostics.snapshot()[.sha256].bytes, metadataBytes, "Only path and pinned manifest metadata are hashed")
     }
 
     private func waitForRequests(_ count: Int, on server: KeepAliveHTTPFixture) async throws {
@@ -220,6 +262,9 @@ private func fixtureChunk(offset: UInt64 = 0) -> DepotManifest.Chunk {
 // preceded by the ECB-encrypted IV. Fixed synthetic bytes, never a depot credential.
 private let encryptedFixtureChunk = Data(hexString:
     "dc95c078a2408989ad48a21492842087aad318afca76531f80bc989bdd0db73f6fb7e75d506029df28c58c8c9c116a95ef2b5029da6dbb65cafce11b371e4b11aa8cf227631366bd1ef1f9f95a798939c991a7fd948bc9d7abe213f4ea44817ba879b60990dd2ace3ef8ab7af284ba0ddf4110f3dc5609cb592413c9233d1f0e12529733f474fd54d6c61dee211a4899")!
+
+// Same valid encrypted ZIP container carrying seven wrong plaintext bytes.
+private let corruptEncryptedFixtureChunk = Data(hexString: "dc95c078a2408989ad48a21492842087aad318afca76531f80bc989bdd0db73f045a08fc04950f0855ecc6add7d8ac53c5b7605682014b99075e3a99ca1ae8cb1d74e80cc792cb7ecf0fa4f9b458a36421380a86a459be66dca09bb19aaceac52e01c6c74b553a674c5f2b2f43bc853478189b37733bf319caa5b1b1cff136b6159773b8929c6f0455c8f32121f8b97c")!
 
 /// Real HTTP/1.1 keep-alive with independent socket workers and numeric evidence.
 /// All request bytes stay inside this bounded loopback fixture.

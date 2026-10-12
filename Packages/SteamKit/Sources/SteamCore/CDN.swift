@@ -1,5 +1,6 @@
 import Foundation
 import SteamProto
+import zlib
 
 public struct ContentServer: Sendable {
     public let host: String
@@ -29,9 +30,18 @@ public struct DepotManifest: Codable, Equatable, Sendable {
         }
         // Steam's manifest checksum is Adler-32 with a zero initial seed.
         static func adler(_ data: Data) -> UInt32 {
-            var a: UInt32 = 0, b: UInt32 = 0
-            for byte in data { a = (a + UInt32(byte)) % 65521; b = (b + a) % 65521 }
-            return (b << 16) | a
+            // A null buffer initializes zlib to 1 even with seed 0; Steam's empty checksum is 0.
+            guard !data.isEmpty else { return 0 }
+            return data.withUnsafeBytes { buffer in
+                var checksum: uLong = 0
+                var offset = 0
+                while offset < buffer.count {
+                    let count = min(buffer.count - offset, Int(uInt.max))
+                    checksum = zlib.adler32(checksum, buffer.bindMemory(to: UInt8.self).baseAddress!.advanced(by: offset), uInt(count))
+                    offset += count
+                }
+                return UInt32(checksum)
+            }
         }
     }
     public struct File: Codable, Equatable, Sendable {
@@ -210,7 +220,8 @@ public enum CDNClient {
 
     // MARK: chunks
 
-    /// Downloads and processes (decrypt + decompress) one chunk.
+    /// Downloads, decrypts, decompresses and validates one chunk. Returns trusted plaintext;
+    /// callers retry failures here and do not need another incoming content check.
     public static func fetchChunk(server: ContentServer, depotID: UInt32,
                                   chunk: DepotManifest.Chunk, depotKey: Data,
                                   onTransfer: @Sendable (Int) -> Void = { _ in },

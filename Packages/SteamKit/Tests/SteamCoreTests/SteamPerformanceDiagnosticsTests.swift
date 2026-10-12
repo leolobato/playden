@@ -32,25 +32,28 @@ final class SteamPerformanceDiagnosticsTests: XCTestCase {
             let manifest = DepotManifest(depotID: depot, gid: 1, files: [.init(path: "sub/file\(depot)",
                 size: UInt64(bytes.count), chunks: [chunk], contentSHA1: SteamCrypto.sha1(bytes))], totalSize: UInt64(bytes.count))
             let download = ResumableDepotDownload(destination: root, diagnostics: diagnostics)
-            try await download.download(manifest: manifest) { _ in bytes }
+            try await download.download(manifest: manifest) { chunk in
+                try chunk.validate(bytes, diagnostics: diagnostics)
+                return bytes
+            }
             XCTAssertTrue(try download.invalidFiles(in: manifest).isEmpty)
         }
         let result = diagnostics.snapshot()
-        // Existing validations, duplicate Adler checks, checkpoints and fsyncs stay unchanged in this step.
-        XCTAssertEqual(result[.adler32].bytes, UInt64(bytes.count * 4))
+        // Fetch validates once; assembled-file verification and explicit disk verification remain.
+        XCTAssertEqual(result[.adler32].bytes, UInt64(bytes.count * 2))
         XCTAssertEqual(result[.sha1].bytes, UInt64(bytes.count * 4))
         XCTAssertEqual(result[.contentRead].bytes, UInt64(bytes.count * 4))
         XCTAssertEqual(result[.checkpoint].count, 2)
         XCTAssertEqual(result[.fileSync].count, 6)
         XCTAssertEqual(result[.directorySync].count, 8)
-        XCTAssertGreaterThan(result[.sha256].bytes, UInt64(bytes.count * 2))
+        XCTAssertEqual(result[.sha256].count, 4, "Two path hashes and two pinned manifest fingerprints; no chunk hashes")
         XCTAssertGreaterThan(result[.directoryWalk].count, 0)
         XCTAssertGreaterThan(result[.progressCallback].count, 0)
         XCTAssertEqual(result[.fileValidation].count, 6)
         XCTAssertEqual(result[.networkTransfer].count, 0, "Injected plaintext fixture fetch is not a real CDN transfer")
         XCTAssertEqual(result[.sessionCreation].count, 0)
     }
-    func testChunkSHA1FallbackMeasuresEveryExistingValidation() async throws {
+    func testChunkSHA1FallbackMeasuresFetchAndDiskValidations() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("performance-test-" + UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
         let diagnostics = SteamPerformanceDiagnostics(), bytes = Data("fixture".utf8)
@@ -58,14 +61,17 @@ final class SteamPerformanceDiagnosticsTests: XCTestCase {
             compressedSize: UInt32(bytes.count), uncompressedSize: UInt32(bytes.count))
         let manifest = DepotManifest(depotID: 1, gid: 1, files: [.init(path: "file", size: UInt64(bytes.count), chunks: [chunk])], totalSize: UInt64(bytes.count))
         let download = ResumableDepotDownload(destination: root, diagnostics: diagnostics)
-        try await download.download(manifest: manifest) { _ in bytes }
+        try await download.download(manifest: manifest) { chunk in
+            try chunk.validate(bytes, diagnostics: diagnostics)
+            return bytes
+        }
         XCTAssertTrue(try download.invalidFiles(in: manifest).isEmpty)
-        XCTAssertEqual(diagnostics.snapshot()[.sha1].bytes, UInt64(bytes.count * 4))
+        XCTAssertEqual(diagnostics.snapshot()[.sha1].bytes, UInt64(bytes.count * 3))
         XCTAssertEqual(diagnostics.snapshot()[.adler32].bytes, 0)
         XCTAssertEqual(diagnostics.snapshot()[.contentRead].bytes, UInt64(bytes.count * 2))
     }
 
-    func testResumeMeasuresRetainedChunkRereadAndHashes() async throws {
+    func testResumeMeasuresRetainedChunkRereadAndValidation() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("performance-test-" + UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
         let pieces = [Data("first".utf8), Data("second".utf8)]
@@ -81,6 +87,7 @@ final class SteamPerformanceDiagnosticsTests: XCTestCase {
         do {
             try await interrupted.download(manifest: manifest) { chunk in
                 if chunk.offset > 0 { throw CancellationError() }
+                try chunk.validate(pieces[0])
                 return pieces[0]
             }
             XCTFail("Expected interrupted fixture")
@@ -89,13 +96,15 @@ final class SteamPerformanceDiagnosticsTests: XCTestCase {
         let resumed = ResumableDepotDownload(destination: root, diagnostics: diagnostics)
         try await resumed.download(manifest: manifest) { chunk in
             XCTAssertGreaterThan(chunk.offset, 0, "Verified checkpointed chunk must be retained")
+            try chunk.validate(pieces[1], diagnostics: diagnostics)
             return pieces[1]
         }
         let result = diagnostics.snapshot()
         XCTAssertEqual(result[.contentRead].bytes, UInt64(pieces[0].count) + offset)
         XCTAssertEqual(result[.sha1].bytes, offset)
-        XCTAssertEqual(result[.adler32].bytes, UInt64(pieces[0].count + pieces[1].count * 2))
+        XCTAssertEqual(result[.adler32].bytes, UInt64(pieces[0].count + pieces[1].count))
         XCTAssertEqual(result[.checkpoint].count, 1)
+        XCTAssertEqual(result[.sha256].count, 2, "Path and manifest only; retained and fresh content receive no SHA-256")
     }
 
     func testHTTPMeasuresSessionsResponseBytesAndFailedStatusWithoutURLs() async throws {

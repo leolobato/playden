@@ -1,5 +1,6 @@
 import XCTest
 import CryptoKit
+import zlib
 @testable import SteamCore
 
 final class DownloadResumeTests: XCTestCase {
@@ -27,6 +28,73 @@ final class DownloadResumeTests: XCTestCase {
     private func partial(_ root: URL) throws -> URL {
         let files = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil)!
         return try XCTUnwrap(files.allObjects.compactMap { $0 as? URL }.first { $0.pathExtension == "partial" })
+    }
+    func testZlibZeroSeedMatchesKnownSteamVectorsIncludingEmpty() {
+        // Independent literals: sums for abc are a=294, b=586; Python zlib.adler32(b"123456789", 0)=0x091501dd.
+        for (data, expected): (Data, UInt32) in [(Data(), 0), (Data("abc".utf8), 0x024a0126),
+                                               (Data("123456789".utf8), 0x091501dd)] {
+            var nonNullByte: UInt8 = 0
+            let actual = data.withUnsafeBytes { buffer in
+                withUnsafePointer(to: &nonNullByte) { empty in
+                    UInt32(zlib.adler32(0, buffer.bindMemory(to: UInt8.self).baseAddress ?? empty, uInt(buffer.count)))
+                }
+            }
+            XCTAssertEqual(actual, expected)
+            XCTAssertEqual(DepotManifest.Chunk.adler(data), expected)
+        }
+        XCTAssertEqual(zlib.adler32(0, nil, 0), 1, "zlib's null-buffer initializer differs from Steam's empty zero-seed checksum")
+    }
+    private func journalURL(_ root: URL) throws -> URL { try partial(root).deletingPathExtension().appendingPathExtension("json") }
+    func testInterruptedJournalStoresOnlyCompletedIndices() async throws {
+        let root = try root()
+        do { try await download(root).download(manifest: fixture(), fetchChunk: Feed(pieces, failAt: 11).fetch) }
+        catch is CancellationError {}
+        let saved = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: journalURL(root))) as? [String: Any])
+        XCTAssertEqual(saved["version"] as? Int, 2)
+        XCTAssertEqual(saved["completed"] as? [Int], [0, 1])
+    }
+    func testVersionOneJournalKeepsValidIndicesAndRechecksCorruption() async throws {
+        let root = try root()
+        do { try await download(root).download(manifest: fixture(), fetchChunk: Feed(pieces, failAt: 11).fetch) }
+        catch is CancellationError {}
+        let url = try journalURL(root)
+        var saved = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        saved["version"] = 1
+        // Legacy hash values must not control retention; chunk.validate is authoritative.
+        saved["completed"] = ["0": Data(repeating: 0, count: 32).base64EncodedString(),
+                              "1": Data(SHA256.hash(data: pieces[1])).base64EncodedString()]
+        try JSONSerialization.data(withJSONObject: saved).write(to: url)
+        let handle = try FileHandle(forWritingTo: partial(root))
+        try handle.seek(toOffset: 5); try handle.write(contentsOf: Data("WRONG!".utf8)); try handle.close()
+        let resumed = Feed(pieces)
+        try await download(root).download(manifest: fixture(), fetchChunk: resumed.fetch)
+        let requested = await resumed.requested
+        XCTAssertEqual(requested, [5, 11], "Keep usable legacy chunk 0 despite obsolete hash, refetch corrupt chunk 1")
+    }
+    func testChangedFileManifestAtSameGIDRejectsCheckpoint() async throws {
+        let root = try root()
+        do { try await download(root).download(manifest: fixture(), fetchChunk: Feed(pieces, failAt: 5).fetch) }
+        catch is CancellationError {}
+        let resumed = Feed(pieces)
+        do { try await download(root).download(manifest: fixture(badHash: true), fetchChunk: resumed.fetch); XCTFail() } catch {}
+        let requested = await resumed.requested; XCTAssertEqual(requested, [0, 5, 11])
+    }
+    func testInvalidChunkRangesRejectedBeforeFetching() async throws {
+        let root = try root(), source = fixture(), file = source.files[0], feed = Feed(pieces)
+        for offset: UInt64 in [1, UInt64.max] {
+            let first = file.chunks[0]
+            let bad = DepotManifest.Chunk(sha: first.sha, offset: offset, compressedSize: first.compressedSize,
+                uncompressedSize: first.uncompressedSize, checksum: first.checksum)
+            let manifest = DepotManifest(depotID: 7, gid: 9, files: [.init(path: file.path, size: file.size,
+                chunks: [bad] + file.chunks.dropFirst())], totalSize: file.size)
+            do { try await download(root).download(manifest: manifest, fetchChunk: feed.fetch); XCTFail() } catch {}
+        }
+        let requested = await feed.requested; XCTAssertTrue(requested.isEmpty)
+    }
+    func testWriterRejectsIncomingLengthBeforeWriting() async throws {
+        let root = try root()
+        do { try await download(root).download(manifest: fixture()) { _ in Data("short".utf8).dropLast() }; XCTFail() } catch {}
+        XCTAssertEqual(try Data(contentsOf: partial(root)).count, 0)
     }
     func testOriginalVerificationReportsAggregateBytesAndStillRejectsCorruption() async throws {
         let root = try root(), first = fixture(path: "first.bin"), second = fixture(path: "second.bin")
@@ -245,6 +313,7 @@ private actor LargeFileFeed {
         let partial = try XCTUnwrap(files.allObjects.compactMap { $0 as? URL }.first { $0.pathExtension == "partial" })
         partialSizes.append(try partial.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? -1)
         guard chunk.offset == 0 else { throw CancellationError() }
+        try chunk.validate(data)
         return data
     }
 }
@@ -260,7 +329,9 @@ private actor Feed {
     func read(_ chunk: DepotManifest.Chunk) throws -> Data {
         requested.append(chunk.offset)
         if chunk.offset == failAt { throw CancellationError() }
-        return pieces.first { SteamCrypto.sha1($0) == chunk.sha }!
+        let data = pieces.first { SteamCrypto.sha1($0) == chunk.sha }!
+        try chunk.validate(data)
+        return data
     }
 }
 
