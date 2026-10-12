@@ -3,6 +3,11 @@ import Domain
 import Input
 
 enum UninstallPhase { case confirm, checking, unsynced, failed }
+enum UninstallPreparation {
+    case ready(UninstallAuthorization)
+    /// Local saves could not be synced; the player decides in the uninstall dialog.
+    case needsDecision(UninstallReview, message: String)
+}
 enum UninstallChoice: String { case cancel = "Cancel", remove = "Uninstall", retry = "Retry sync", review = "Review saves", discard = "Discard and uninstall" }
 
 extension LibraryModel {
@@ -44,7 +49,7 @@ extension LibraryModel {
             if let index = games.firstIndex(where: { $0.id == id }) { games[index].status = .notInstalled }
             panel = nil; detailAction = 0; return
         }
-        guard let catalog, let installQueue else { uninstallPhase = .failed; uninstallError = "The install queue is unavailable."; return }
+        guard catalog != nil, let installQueue else { uninstallPhase = .failed; uninstallError = "The install queue is unavailable."; return }
         let displayedReview = uninstallReview
         uninstallBusy = true; uninstallPhase = .checking; uninstallError = nil; panelIndex = 0
         uninstallTask = Task { [weak self] in
@@ -57,34 +62,13 @@ extension LibraryModel {
                     authorization = .init(review: displayedReview, discardUnsyncedProgress: true)
                 } else {
                     if hasActiveSession, session.session?.gameID == id { try await sessions?.quit() }
-                    if let command = cloudCommands[id] { await command.value }
-                    try Task.checkCancellation()
-                    guard panel == .uninstall(id), let installed = try catalog.snapshot().entries.first(where: { $0.id == id })?.installation else { return }
-                    // Stores that don't sync saves have nothing to upload first; their saves go with the game.
-                    let syncsSaves = storeHasCloudSaves(id)
-                    var synchronized = !syncsSaves
-                    if syncsSaves, let cloudService, let source = source(for: id), let plan = installed.plan {
-                        do {
-                            let mapping = try source.installer(for: installed.game).saveMapping(plan)
-                            let result = await cloudService.synchronize(installed, mapping: mapping, preparingSessionID: nil, authorization: nil)
-                            cloudStatuses[id] = result; synchronized = result.state == .upToDate
-                        } catch {
-                            cloudStatuses[id] = .init(gameID: id, state: .unavailable, message: "This game's Cloud save locations could not be checked. Local progress has been kept.")
-                        }
-                    }
-                    try Task.checkCancellation()
-                    guard panel == .uninstall(id) else { return }
-                    let review = try catalog.reviewUninstall(id)
-                    uninstallReview = review
-                    if !syncsSaves {
-                        // The confirmation said saves kept with the game are removed with it.
-                        authorization = .init(review: review, discardUnsyncedProgress: true)
-                    } else if !synchronized || review.requiresDiscardConfirmation {
-                        uninstallPhase = .unsynced
-                        uninstallError = cloudStatuses[id]?.message ?? "This game's local saves could not be synced to Steam Cloud."
+                    guard let preparation = try await prepareUninstall(id, while: { self.panel == .uninstall(id) }) else { return }
+                    switch preparation {
+                    case .ready(let ready):
+                        uninstallReview = ready.review; authorization = ready
+                    case .needsDecision(let review, let message):
+                        uninstallReview = review; uninstallPhase = .unsynced; uninstallError = message
                         panelIndex = 0; return
-                    } else {
-                        authorization = .init(review: review, discardUnsyncedProgress: false)
                     }
                 }
                 try Task.checkCancellation()
@@ -98,6 +82,34 @@ extension LibraryModel {
                 uninstallError = (error as? OperationFailure)?.reason ?? "Uninstall could not be prepared. Retry to check the latest game and save state."
             }
         }
+    }
+    /// Syncs a game's Cloud saves and reviews its removal. Nil when `current` stops holding.
+    func prepareUninstall(_ id: GameID, while current: () -> Bool) async throws -> UninstallPreparation? {
+        guard let catalog else { throw SourceFailure.unavailable }
+        if let command = cloudCommands[id] { await command.value }
+        try Task.checkCancellation()
+        guard current(), let installed = try catalog.snapshot().entries.first(where: { $0.id == id })?.installation else { return nil }
+        // Stores that don't sync saves have nothing to upload first; their saves go with the game.
+        let syncsSaves = storeHasCloudSaves(id)
+        var synchronized = !syncsSaves
+        if syncsSaves, let cloudService, let source = source(for: id), let plan = installed.plan {
+            do {
+                let mapping = try source.installer(for: installed.game).saveMapping(plan)
+                let result = await cloudService.synchronize(installed, mapping: mapping, preparingSessionID: nil, authorization: nil)
+                cloudStatuses[id] = result; synchronized = result.state == .upToDate
+            } catch {
+                cloudStatuses[id] = .init(gameID: id, state: .unavailable, message: "This game's Cloud save locations could not be checked. Local progress has been kept.")
+            }
+        }
+        try Task.checkCancellation()
+        guard current() else { return nil }
+        let review = try catalog.reviewUninstall(id)
+        // The confirmation said saves kept with the game are removed with it.
+        if !syncsSaves { return .ready(.init(review: review, discardUnsyncedProgress: true)) }
+        if !synchronized || review.requiresDiscardConfirmation {
+            return .needsDecision(review, message: cloudStatuses[id]?.message ?? "This game's local saves could not be synced to Steam Cloud.")
+        }
+        return .ready(.init(review: review, discardUnsyncedProgress: false))
     }
     func stopUninstallPreparation() async {
         uninstallTask?.cancel(); await uninstallTask?.value; uninstallTask = nil
