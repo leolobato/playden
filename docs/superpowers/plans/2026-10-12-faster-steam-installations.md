@@ -3,7 +3,8 @@
 **Status:** Steps 0–11 implemented and validated on 2026-10-12. Required package and app suites passed; measurements and
 requirement evidence are recorded in [the final results](2026-10-12-faster-steam-installations-results.md). Final whole-branch
 review approved revision `2ba75aa` with no Critical or Important findings; the two Minor test findings and focused cleanup
-are recorded in the results. The cost descriptions below record the original baseline, before implementation.
+are recorded in the results. The cost descriptions below record the original baseline, before implementation. Follow-up
+steps 12–15 (lessons from Playden for PS5) are planned and not started.
 
 **Goal:** Remove redundant disk reads, hashing, flushes and oversized space reservations. Keep reliable downloads, pause/resume,
 preparation and explicit repair.
@@ -275,6 +276,82 @@ swift test --package-path Packages/PlaydenKit
 - [x] Confirm that explicit repair still finds and fixes corruption.
 - [x] Confirm that displayed progress and reservations match the new behavior.
 - [x] Report measured improvements and any workloads that got slower.
+
+## Follow-up: lessons from Playden for PS5
+
+**Status:** Planned; not started.
+
+Playden for PS5 (`/Users/leolobato/Documents/Projetos/Personal/playden/ps5/playden-ps5`, branch `main`) made the same kind of
+Steam download work on 2026-10-12: commits `2581f38` (stage measurement), `15ba7d1` (connection and DNS reuse), `0e17808` (several
+chunks at once), `9c260cd` (journals bound to manifests), `f4fbd0c`, `8affe33` and `a8cde7b` (speed and time-left labels). Read
+those commits for reference. They are C++; do not copy code.
+
+Already covered by steps 0–11, no work needed: connection reuse (`URLSession` also caches DNS), bounded chunk slots with
+serialized writes per file (step 9), and journals bound to the pinned manifest (`.gn-download/<depot>/<gid>/` plus the per-file
+fingerprint). PS5's Mbed TLS threading change (`ebd0edd`) does not apply.
+
+Order: 12 → 13 → 14. Step 15 is independent and small.
+
+### 12. Record download stats for live installations
+
+Steps 1–11 measured only fixtures. The results say they make **no live CDN throughput claim**, and `SteamPerformanceDiagnostics` is
+not enabled for real installs. PS5 records stats for every real run and reports them with `tools/download_speed_report.py`.
+
+Files: `SteamInstallBackend.swift`, `ResumableDepotDownload.swift`, `DownloadEngine.swift`; the job diagnostic log
+(`CatalogStore.diagnosticSink`).
+
+- [ ] For each live download run (start to finish, pause, cancel or failure), write one summary event to the job's diagnostic log:
+  wall time, compressed and assembled bytes **excluding resumed bytes**, fetch / decrypt-decompress / write / checkpoint / backoff
+  time, chunk retries, corrupt-chunk retries, peak busy and peak waiting chunk slots, and the slot count used.
+- [ ] Keep the hot path cheap: counters only, one summary write per run. Do not write per-chunk events.
+- [ ] Add `scripts/steam-download-report.sh` (or a Swift CLI) that reads a copied catalog or an exported diagnostic archive and prints
+  per-run throughput and stage totals. **Never read the live `catalog.sqlite` in a loop** (see step 0).
+- [ ] Never log credentials, depot keys or CDN auth tokens.
+- [ ] Test that the summary excludes resumed bytes and that a paused run still writes one summary.
+
+**Acceptance:** after a real install, one command shows its real throughput and where the time went.
+
+### 13. Make chunk slots tunable, then choose the default from live runs
+
+PS5 reads a tuning file (slots clamped to 1–8, default 4). The Mac uses a fixed 8 slots (`ResumableDepotDownload.chunkConcurrency`).
+The fixture results also show the HFS+ large-file download got slower (+44.9%, mostly sync time), so the right default may differ
+between internal and external drives.
+
+- [ ] Add a development-only override for chunk slots (for example a `defaults` key or environment variable), clamped to 1–16.
+  Ordinary users never see it.
+- [ ] Keep `httpMaximumConnectionsPerHost` at least the slot count.
+- [ ] With step 12 stats, run the same real game at 4, 8 and 12 slots on internal APFS and on the external HFS+ drive. Record the
+  results in the results document.
+- [ ] Change the default only if the data supports it. Do not add per-drive defaults unless the difference is large and repeatable.
+
+**Acceptance:** the default slot count is backed by live measurements.
+
+### 14. Steadier speed and time-left labels
+
+The Mac estimator (`Installs/TransferRateEstimator.swift`) already averages speed over 8 s and time left over 30 s, and updates time
+left at most every 5 s. It divides by the real elapsed time, so it does not have the PS5 bug fixed in `8affe33`. Remaining
+differences from PS5 `a8cde7b`:
+
+- [ ] Change the speed label at most every 2 s. The queue publishes every second, so today it can change every second.
+- [ ] A new or resumed download shows "Measuring…" for its first 3 s (today: 1 s for speed).
+- [ ] With no new bytes for 5 s, show 0 speed at once and hide time left. Today the speed decays slowly over the 8 s window.
+- [ ] Leaving a stall updates both labels at once; it does not wait for the throttle.
+- [ ] Extend `TransferRateEstimatorTests` with an injected clock: warm-up, throttle, stall, recovery after a stall, resume and the
+  switch between verification and download.
+
+**Acceptance:** during a steady download the labels do not jump, and a stall shows within 5 s.
+
+### 15. Remove download state for superseded manifests
+
+PS5 resets a journal when its manifest identifiers change (`9c260cd`). On the Mac, a different manifest uses a different
+`.gn-download/<depot>/<gid>/` folder, so old partial data cannot be reused by mistake. It can, however, stay on disk.
+
+- [ ] Confirm whether a job can change its pinned manifests (re-resolve, update, repair after a game update). If it can, delete
+  `.gn-download/<depot>/<gid>/` folders that are not in the current plan when the download starts, under the destination lease.
+- [ ] Test that the current manifest's partials are kept and that a superseded gid's folder is removed.
+- [ ] If no job can change its manifests, record that here and close this step.
+
+**Acceptance:** no partial downloads for superseded manifests stay on disk.
 
 ## Commit style
 
