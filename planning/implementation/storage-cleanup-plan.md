@@ -42,4 +42,4 @@ once it builds and its tests pass. Mark steps done here and commit this file wit
 
 ## Step 4 — Docs
 
-- [ ] PRD 05 §5 gets FR-STOR-4; README feature list if it lists settings.
+- [x] PRD 05 §5 gets FR-STOR-4; README feature list if it lists settings.

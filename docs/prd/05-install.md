@@ -72,6 +72,12 @@ Installed.**
 - **FR-STOR-2 (v1):** An unmounted games volume shows its games as "Drive disconnected", not "Not
   installed"; Play is disabled with that reason.
 - **FR-STOR-3 (v2):** Move an installed game to another volume; multiple game volumes.
+- **FR-STOR-4 (v1):** Settings › Library › Storage lists each connected games volume (games, other
+  files, free space) and its installed games with size and last played, sorted by size (largest
+  first) or last played (never played first). The player checks games and removes them after one
+  confirmation. Each game gets the FR-UN-1 Cloud check; a game with unsynced saves is not removed
+  and opens its own uninstall decision afterwards (FR-UN-4). The running game, games with an active
+  job and This Mac apps cannot be removed here.
 
 ## 6. Steam Cloud saves (v1)
 

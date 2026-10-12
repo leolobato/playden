@@ -25,7 +25,8 @@ shortcuts or the desktop.
 - **One couch-friendly library** with cover art, search, filters, collections, favorites and your
   own compatibility notes. Works with a controller, keyboard or mouse.
 - **Downloads you can manage**: a queue with pause, resume, reorder, retry, verify and uninstall,
-  on any drive you choose.
+  on any drive you choose. A storage screen lists installed games by size or last played, so you
+  can remove several at once to free up space.
 - **Per-game settings**: curated runtime profiles plus graphics translator (D3DMetal, DXVK, DXMT),
   Windows version, launch options, overlays and more.
 - **Steam Cloud saves** sync before and after you play, with conflict resolution and offline play.
