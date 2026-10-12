@@ -22,7 +22,8 @@ struct LiveSteamInstallBackend: SteamInstallBackend {
             let depots = try SteamPlanBuilder.selectedDepots(app, ownedApps: owned.appIDs, ownedDepots: owned.depotIDs, platform: platform)
             let servers = try await CDNClient.contentServers(cellID: cm.cellID)
             // Manifest resolution does not create or write a destination directory.
-            let engine = DownloadEngine(cm: cm, appID: appID, destination: URL(fileURLWithPath: "/"))
+            let transport = URLSessionCDNTransport()
+            let engine = DownloadEngine(cm: cm, appID: appID, destination: URL(fileURLWithPath: "/"), transport: transport)
             var manifests: [DepotManifest] = []
             for depot in depots {
                 try Task.checkCancellation()
@@ -41,7 +42,8 @@ struct LiveSteamInstallBackend: SteamInstallBackend {
                 throw SteamPlanBuilder.failure("Download", "This account no longer has access to all depots in the saved install plan. Resolve the installation again with an account that owns this edition.")
             }
             let servers = try await CDNClient.contentServers(cellID: cm.cellID)
-            let preparation = DownloadEngine(cm: cm, appID: payload.app.appID, destination: directory, diagnostics: diagnostics)
+            let transport = URLSessionCDNTransport()
+            let preparation = DownloadEngine(cm: cm, appID: payload.app.appID, destination: directory, diagnostics: diagnostics, transport: transport)
             try await preparation.prepare(manifests: payload.manifests)
             // Entitlements and depot keys were resolved above; transfers only use the CDN.
             // The CM connection is shared with other operations, so it must stay connected.
@@ -53,7 +55,7 @@ struct LiveSteamInstallBackend: SteamInstallBackend {
             for manifest in payload.manifests {
                 try Task.checkCancellation()
                 let before = completed
-                var engine = DownloadEngine(cm: cm, appID: payload.app.appID, destination: directory, diagnostics: diagnostics)
+                var engine = DownloadEngine(cm: cm, appID: payload.app.appID, destination: directory, diagnostics: diagnostics, transport: transport)
                 engine.onTransfer = { transfers.received($0) }
                 engine.onProgress = { update in
                     transfers.assembled(depot: update.depotID, completed: before + Int64(update.bytesDone),

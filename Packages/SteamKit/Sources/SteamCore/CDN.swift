@@ -59,6 +59,52 @@ public struct DepotManifest: Codable, Equatable, Sendable {
     }
 }
 
+/// A download may share this transport across all of its depot engines.
+/// Implementations record their actual network/session work in the optional collector.
+public protocol CDNTransport: Sendable {
+    func data(for request: URLRequest, diagnostics: SteamPerformanceDiagnostics?) async throws -> (Data, URLResponse)
+}
+
+/// Owns one ephemeral connection pool. Cancelling a task cancels only its request.
+public final class URLSessionCDNTransport: CDNTransport, @unchecked Sendable {
+    public static let shared = URLSessionCDNTransport()
+    private let lock = NSLock()
+    private var session: URLSession?
+
+    public init() {}
+
+    private func pooledSession(diagnostics: SteamPerformanceDiagnostics?) -> URLSession {
+        lock.withLock {
+            if let session { return session }
+            let configuration = URLSessionConfiguration.ephemeral
+            configuration.urlCache = nil
+            configuration.httpCookieStorage = nil
+            configuration.httpShouldSetCookies = false
+            configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+            configuration.timeoutIntervalForRequest = 30
+            configuration.timeoutIntervalForResource = 60
+            // ResumableDepotDownload currently supports up to 16 in-flight chunks.
+            configuration.httpMaximumConnectionsPerHost = 16
+            let created = diagnostics.measure(.sessionCreation) { URLSession(configuration: configuration) }
+            session = created
+            return created
+        }
+    }
+
+    public func data(for request: URLRequest, diagnostics: SteamPerformanceDiagnostics? = nil) async throws -> (Data, URLResponse) {
+        try Task.checkCancellation()
+        let session = pooledSession(diagnostics: diagnostics)
+        let started = diagnostics?.start()
+        var received: UInt64 = 0
+        defer { diagnostics?.finish(.networkTransfer, since: started, bytes: received) }
+        let result = try await session.data(for: request)
+        received = UInt64(result.0.count)
+        return result
+    }
+
+    deinit { session?.finishTasksAndInvalidate() }
+}
+
 public enum CDNClient {
 
     public static func contentServers(cellID: UInt32) async throws -> [ContentServer] {
@@ -84,9 +130,10 @@ public enum CDNClient {
     // MARK: manifest
 
     public static func fetchManifest(server: ContentServer, depotID: UInt32, gid: UInt64,
-                                     requestCode: UInt64, depotKey: Data, diagnostics: SteamPerformanceDiagnostics? = nil) async throws -> DepotManifest {
+                                     requestCode: UInt64, depotKey: Data, diagnostics: SteamPerformanceDiagnostics? = nil,
+                                     transport: any CDNTransport = URLSessionCDNTransport.shared) async throws -> DepotManifest {
         let url = "https://\(server.vhost)/depot/\(depotID)/manifest/\(gid)/5/\(requestCode)"
-        let raw = try await get(url, diagnostics: diagnostics)
+        let raw = try await get(url, diagnostics: diagnostics, transport: transport)
         let unzipped = try Decompress.unzipFirstEntry(raw)
         let manifest = try parseManifest(unzipped, depotKey: depotKey)
         guard manifest.depotID == depotID, manifest.gid == gid else { throw SteamError.download("CDN returned a different depot manifest") }
@@ -167,9 +214,10 @@ public enum CDNClient {
     public static func fetchChunk(server: ContentServer, depotID: UInt32,
                                   chunk: DepotManifest.Chunk, depotKey: Data,
                                   onTransfer: @Sendable (Int) -> Void = { _ in },
-                                  diagnostics: SteamPerformanceDiagnostics? = nil) async throws -> Data {
+                                  diagnostics: SteamPerformanceDiagnostics? = nil,
+                                  transport: any CDNTransport = URLSessionCDNTransport.shared) async throws -> Data {
         let url = "https://\(server.vhost)/depot/\(depotID)/chunk/\(chunk.sha.hexString)"
-        let raw = try await get(url, diagnostics: diagnostics)
+        let raw = try await get(url, diagnostics: diagnostics, transport: transport)
         diagnostics.measure(.progressCallback) { onTransfer(raw.count) }
         let decrypted = try SteamCrypto.symmetricDecrypt(raw, key: depotKey)
         let data: Data
@@ -187,21 +235,13 @@ public enum CDNClient {
         return data
     }
 
-    static func get(_ urlString: String, diagnostics: SteamPerformanceDiagnostics? = nil) async throws -> Data {
+    static func get(_ urlString: String, diagnostics: SteamPerformanceDiagnostics? = nil,
+                    transport: any CDNTransport = URLSessionCDNTransport.shared) async throws -> Data {
         guard let url = URL(string: urlString) else { throw SteamError.download("bad URL \(urlString)") }
         var req = URLRequest(url: url)
         req.setValue("Valve/Steam HTTP Client 1.0", forHTTPHeaderField: "User-Agent")
         req.timeoutInterval = 30
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.urlCache = nil; configuration.httpCookieStorage = nil
-        configuration.timeoutIntervalForResource = 60
-        let session = diagnostics.measure(.sessionCreation) { URLSession(configuration: configuration) }
-        defer { session.finishTasksAndInvalidate() }
-        let started = diagnostics?.start()
-        var received: UInt64 = 0
-        defer { diagnostics?.finish(.networkTransfer, since: started, bytes: received) }
-        let (data, response) = try await session.data(for: req)
-        received = UInt64(data.count)
+        let (data, response) = try await transport.data(for: req, diagnostics: diagnostics)
         guard let http = response as? HTTPURLResponse else { throw SteamError.protocolError("no HTTP response") }
         guard http.statusCode == 200 else { throw SteamError.http(status: http.statusCode, url: urlString) }
         return data

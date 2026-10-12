@@ -102,14 +102,15 @@ final class SteamPerformanceDiagnosticsTests: XCTestCase {
         let server = try NumericHTTPFixture()
         let diagnostics = SteamPerformanceDiagnostics()
         let base = "http://127.0.0.1:\(server.port)/fixture-private-token"
-        let response = try await CDNClient.get(base, diagnostics: diagnostics)
+        let transport = URLSessionCDNTransport()
+        let response = try await CDNClient.get(base, diagnostics: diagnostics, transport: transport)
         XCTAssertEqual(response, Data("fixture".utf8))
         do {
-            _ = try await CDNClient.get(base, diagnostics: diagnostics)
+            _ = try await CDNClient.get(base, diagnostics: diagnostics, transport: transport)
             XCTFail("Expected failed HTTP status")
         } catch SteamError.http(let status, _) { XCTAssertEqual(status, 404) }
         let result = diagnostics.snapshot()
-        XCTAssertEqual(result[.sessionCreation].count, 2)
+        XCTAssertEqual(result[.sessionCreation].count, 1)
         XCTAssertEqual(result[.networkTransfer].count, 2)
         XCTAssertEqual(result[.networkTransfer].bytes, 14, "Count response bodies on failed status as well")
         XCTAssertGreaterThan(result[.networkTransfer].nanoseconds, 0)

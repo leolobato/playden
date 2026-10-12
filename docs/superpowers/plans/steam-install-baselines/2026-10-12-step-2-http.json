@@ -1,0 +1,578 @@
+[
+  {
+    "diagnostics" : {
+      "measurements" : {
+        "adler32" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "checkpoint" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "contentRead" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "directorySync" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "directoryWalk" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "emulatorPreparation" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "fileSync" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "fileValidation" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "fileWrite" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "finalValidation" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "keyPreparation" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "networkTransfer" : {
+          "bytes" : 448,
+          "count" : 64,
+          "nanoseconds" : 27896120
+        },
+        "preparation" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "progressCallback" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "sessionCreation" : {
+          "bytes" : 0,
+          "count" : 64,
+          "nanoseconds" : 1577209
+        },
+        "sha1" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "sha256" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        }
+      }
+    },
+    "elapsedNanoseconds" : 31782041,
+    "mode" : "per-request",
+    "repetition" : 1,
+    "requests" : 64,
+    "tcpConnections" : 64
+  },
+  {
+    "diagnostics" : {
+      "measurements" : {
+        "adler32" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "checkpoint" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "contentRead" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "directorySync" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "directoryWalk" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "emulatorPreparation" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "fileSync" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "fileValidation" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "fileWrite" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "finalValidation" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "keyPreparation" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "networkTransfer" : {
+          "bytes" : 448,
+          "count" : 64,
+          "nanoseconds" : 11090874
+        },
+        "preparation" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "progressCallback" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "sessionCreation" : {
+          "bytes" : 0,
+          "count" : 1,
+          "nanoseconds" : 8291
+        },
+        "sha1" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "sha256" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        }
+      }
+    },
+    "elapsedNanoseconds" : 11463958,
+    "mode" : "shared",
+    "repetition" : 1,
+    "requests" : 64,
+    "tcpConnections" : 1
+  },
+  {
+    "diagnostics" : {
+      "measurements" : {
+        "adler32" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "checkpoint" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "contentRead" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "directorySync" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "directoryWalk" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "emulatorPreparation" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "fileSync" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "fileValidation" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "fileWrite" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "finalValidation" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "keyPreparation" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "networkTransfer" : {
+          "bytes" : 448,
+          "count" : 64,
+          "nanoseconds" : 19285580
+        },
+        "preparation" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "progressCallback" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "sessionCreation" : {
+          "bytes" : 0,
+          "count" : 64,
+          "nanoseconds" : 591043
+        },
+        "sha1" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "sha256" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        }
+      }
+    },
+    "elapsedNanoseconds" : 20523208,
+    "mode" : "per-request",
+    "repetition" : 2,
+    "requests" : 64,
+    "tcpConnections" : 64
+  },
+  {
+    "diagnostics" : {
+      "measurements" : {
+        "adler32" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "checkpoint" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "contentRead" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "directorySync" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "directoryWalk" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "emulatorPreparation" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "fileSync" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "fileValidation" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "fileWrite" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "finalValidation" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "keyPreparation" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "networkTransfer" : {
+          "bytes" : 448,
+          "count" : 64,
+          "nanoseconds" : 9619125
+        },
+        "preparation" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "progressCallback" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "sessionCreation" : {
+          "bytes" : 0,
+          "count" : 1,
+          "nanoseconds" : 6833
+        },
+        "sha1" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "sha256" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        }
+      }
+    },
+    "elapsedNanoseconds" : 10007667,
+    "mode" : "shared",
+    "repetition" : 2,
+    "requests" : 64,
+    "tcpConnections" : 1
+  },
+  {
+    "diagnostics" : {
+      "measurements" : {
+        "adler32" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "checkpoint" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "contentRead" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "directorySync" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "directoryWalk" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "emulatorPreparation" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "fileSync" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "fileValidation" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "fileWrite" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "finalValidation" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "keyPreparation" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "networkTransfer" : {
+          "bytes" : 448,
+          "count" : 64,
+          "nanoseconds" : 19257579
+        },
+        "preparation" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "progressCallback" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "sessionCreation" : {
+          "bytes" : 0,
+          "count" : 64,
+          "nanoseconds" : 591627
+        },
+        "sha1" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "sha256" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        }
+      }
+    },
+    "elapsedNanoseconds" : 20528917,
+    "mode" : "per-request",
+    "repetition" : 3,
+    "requests" : 64,
+    "tcpConnections" : 64
+  },
+  {
+    "diagnostics" : {
+      "measurements" : {
+        "adler32" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "checkpoint" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "contentRead" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "directorySync" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "directoryWalk" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "emulatorPreparation" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "fileSync" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "fileValidation" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "fileWrite" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "finalValidation" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "keyPreparation" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "networkTransfer" : {
+          "bytes" : 448,
+          "count" : 64,
+          "nanoseconds" : 9729500
+        },
+        "preparation" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "progressCallback" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "sessionCreation" : {
+          "bytes" : 0,
+          "count" : 1,
+          "nanoseconds" : 8292
+        },
+        "sha1" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        },
+        "sha256" : {
+          "bytes" : 0,
+          "count" : 0,
+          "nanoseconds" : 0
+        }
+      }
+    },
+    "elapsedNanoseconds" : 10108875,
+    "mode" : "shared",
+    "repetition" : 3,
+    "requests" : 64,
+    "tcpConnections" : 1
+  }
+]
