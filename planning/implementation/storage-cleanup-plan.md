@@ -37,8 +37,8 @@ once it builds and its tests pass. Mark steps done here and commit this file wit
 
 ## Step 3 — View and snapshots
 
-- [ ] `App/StorageCleanupViews.swift` and the `ModalLayer` branch.
-- [ ] `settings-storage` and `settings-storage-confirm` snapshot screens; review the captures.
+- [x] `App/StorageCleanupViews.swift` and the `ModalLayer` branch.
+- [x] `settings-storage` and `settings-storage-confirm` snapshot screens; review the captures.
 
 ## Step 4 — Docs
 

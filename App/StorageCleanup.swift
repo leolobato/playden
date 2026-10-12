@@ -258,3 +258,15 @@ extension LibraryModel {
         show(.uninstall(next.id))
     }
 }
+
+extension LibraryModel {
+    func configureStorageSnapshot(_ screen: String) {
+        selectTab(.settings); settingsSection = 1; settingsRailFocused = false; settingsIndex = 2
+        controllerName = "DUALSHOCK 4"; keyboardNavigation = false
+        showStorageCleanup()
+        let rows = storageRows
+        storageCleanup.selection = Set(rows.prefix(2).map(\.id))
+        storageCleanup.focus = rows.count > 2 ? .game(2) : .done
+        if screen == "settings-storage-confirm" { storageCleanup.focus = .delete; storageCleanup.confirming = true; storageCleanup.confirmIndex = 1 }
+    }
+}

@@ -42,6 +42,7 @@
 		3F963FB2F6D4818A9263E6AF /* LauncherDisplayPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F56102BE8D863AEDCC31332 /* LauncherDisplayPresentationTests.swift */; };
 		45A14BF6ED853D533057C505 /* InstallInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEE961063B0260AD590FA052 /* InstallInteractionTests.swift */; };
 		48B1D6D02EC67BD0D691F3A3 /* LibraryEditingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7C09FF192C0F23FDCE9D0A5 /* LibraryEditingTests.swift */; };
+		4E4DE8AABDAE85A1816A241F /* StorageCleanupViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17C108F54615AFA3D8E41E3C /* StorageCleanupViews.swift */; };
 		4F9B336414B24B27F394FE7C /* UninstallModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FE2794BC88B622A76CF530B /* UninstallModel.swift */; };
 		54F4DEE69DAF5BDB60169222 /* UninstallInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E79718CB4BDC9092602F17F /* UninstallInteractionTests.swift */; };
 		56406AA6136535F0396ED203 /* Barlow-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 3CFCAEB37DE821F8D07D2E5E /* Barlow-SemiBold.ttf */; };
@@ -155,6 +156,7 @@
 		1378F022883744BB700E37F5 /* SetupModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupModel.swift; sourceTree = "<group>"; };
 		14F5411925F8EEECCDF8B9BC /* GameDetails.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameDetails.swift; sourceTree = "<group>"; };
 		155C0243D82E059250D4C913 /* Playden.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Playden.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		17C108F54615AFA3D8E41E3C /* StorageCleanupViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageCleanupViews.swift; sourceTree = "<group>"; };
 		1A70DF0746FB0F749E93593A /* CloudSnapshots.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSnapshots.swift; sourceTree = "<group>"; };
 		1A8534EFEF92CAEA1DD637EF /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
 		1B83656734C6979C7A7C92AC /* ResetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResetView.swift; sourceTree = "<group>"; };
@@ -447,6 +449,7 @@
 				1378F022883744BB700E37F5 /* SetupModel.swift */,
 				E7817305A0EE8FCC3F88CD6D /* SetupView.swift */,
 				35FB9073B89E61A5AEE1681A /* StorageCleanup.swift */,
+				17C108F54615AFA3D8E41E3C /* StorageCleanupViews.swift */,
 				08D1EBD9C06D503D05610BB1 /* StorePage.swift */,
 				4EAC88265073C6C8B2CA0AFA /* StoresModel.swift */,
 				CD9862F05AC94A932790AC65 /* SupportViews.swift */,
@@ -711,6 +714,7 @@
 				650E2B81E5ED730E43B42FFC /* SetupModel.swift in Sources */,
 				A4D10BC76B48DADFB4FD11E5 /* SetupView.swift in Sources */,
 				010A1AF33EB7BBC3EDDE15EC /* StorageCleanup.swift in Sources */,
+				4E4DE8AABDAE85A1816A241F /* StorageCleanupViews.swift in Sources */,
 				FDC63CF5D3A99E9564D21626 /* StorePage.swift in Sources */,
 				C74D292CC9405BE2A6DFCB48 /* StoresModel.swift in Sources */,
 				37C53CC0C79441C898AE598C /* SupportViews.swift in Sources */,

@@ -119,12 +119,15 @@ struct ModalLayer: View {
                 if model.panel == .resetAppData { model.closeResetAppData() }
                 else if case .uninstall(let id) = model.panel { model.activateUninstall(.cancel, id: id) }
                 else if case .cloudSaves(let id) = model.panel { model.activateCloud(.close, id: id) }
+                else if model.panel == .storage { _ = model.performStorageInput(.back) }
                 else { model.panel = nil }
             }
             if model.panel == .resetAppData {
                 ResetAppDataDialog(model: model).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if case .firstRunFeedback(let id) = model.panel {
                 FirstRunFeedbackDialog(model: model, gameID: id).frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if model.panel == .storage {
+                StorageCleanupSheet(model: model).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if model.panel == .volumePicker(nil) {
                 InstallVolumesPicker(model: model).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if model.panel == .filters {
