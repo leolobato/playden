@@ -1,8 +1,9 @@
 # Faster Steam Installations Implementation Plan
 
 **Status:** Steps 0–11 implemented and validated on 2026-10-12. Required package and app suites passed; measurements and
-requirement evidence are recorded in [the final results](2026-10-12-faster-steam-installations-results.md). Final controller
-whole-branch review remains pending. The cost descriptions below record the original baseline, before implementation.
+requirement evidence are recorded in [the final results](2026-10-12-faster-steam-installations-results.md). Final whole-branch
+review approved revision `2ba75aa` with no Critical or Important findings; the two Minor test findings and focused cleanup
+are recorded in the results. The cost descriptions below record the original baseline, before implementation.
 
 **Goal:** Remove redundant disk reads, hashing, flushes and oversized space reservations. Keep reliable downloads, pause/resume,
 preparation and explicit repair.

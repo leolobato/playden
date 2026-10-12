@@ -330,7 +330,10 @@ final class SteamMacInstallTests: XCTestCase {
         try await installer.download(plan, to: directory) { _ in }
         let bottle = GameBottle(gameID: game.id, name: "playden-steam-100", ownershipToken: UUID())
         do { _ = try await installer.postInstall(plan, at: directory, in: bottle); XCTFail("Signing followed a manifest seal link") }
-        catch {}
+        catch SteamError.prepare(let message) {
+            let sealPath = try SteamPreparationPaths(root: directory).root.appendingPathComponent(seal).path
+            XCTAssertEqual(message, "a preparation path is linked or has an unexpected file type: \(sealPath)")
+        }
         let signed = await signer.signed
         XCTAssertEqual(signed, [])
         XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent(target)), bytes)

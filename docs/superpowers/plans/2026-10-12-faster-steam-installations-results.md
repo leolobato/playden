@@ -164,7 +164,7 @@ Evidence: SteamPerformanceDiagnosticsTests (concurrent totals, shared collector,
 
 Source: `CDN.swift; SteamInstallBackend.swift`.
 
-Evidence: CDNTransportTests (all 14 tests), CDNTransportBenchmarkTests.testHTTPConnectionReuseIfRequested; shared pool configuration and cancellation independence.
+Evidence: CDNTransportTests (all 13 tests), CDNTransportBenchmarkTests.testHTTPConnectionReuseIfRequested; shared pool configuration and cancellation independence.
 
 - **Covered:** Replace per-request `URLSession` creation with a shared, injectable CDN transport. Create it once per download in   `LiveSteamInstallBackend` (or hold it statically), not once per depot engine.
 - **Covered:** Keep ephemeral configuration, no cookies or cache, request timeouts, cancellation and server failover.
@@ -281,7 +281,7 @@ Evidence: SteamInstallerTests space budget, remaining reservation, authoritative
 
 Source: `Final raw JSON and this result document; tests above`.
 
-Evidence: Final required suites, killed-child proof, recovery/repair/display map and measured regressions below; controller broad review remains separate.
+Evidence: Final required suites, killed-child proof, recovery/repair/display map and measured regressions below; final whole-branch review approved revision `2ba75aa` with no Critical or Important findings.
 
 - **Covered:** Compare baseline and final counters: content rereads, checksum work, syncs, session creations, callbacks and elapsed time.
 - **Covered:** Exercise pause/resume, forced termination, network failure, disk-full failure and preparation recovery.
@@ -352,4 +352,19 @@ Compiler output was not pristine: existing SteamAuth/DownloadResumeTests Sendabl
 | Unconditional signing write path | `SteamMacInstallTests.testMacSigningRejectsManifestSealSymlinkBeforeInvokingSigner` uses a legal pinned seal symlink to another fixture file. RED invoked the signer and changed its target from 13 to 6 bytes; GREEN rejects before invocation and preserves the target. The one-line guard covers `CodeResources` independently of manifest regular-file filtering. |
 | Cadence isolation | Internal monotonic clock injection freezes time in the 127/128 MiB byte test; an exact 4.999/5-second virtual-clock test checks the time boundary and idle flush. Production defaults and thresholds stay 128 MiB / 5 seconds. The existing real 5.1-second integration test remains and passed. |
 
-After required full-suite completion, the only production-source edit was an explanatory CDN comment: connection capacity 16 remains above the scheduler's actual eight-chunk budget. The optional benchmark assertion correction then passed its single focused release recheck; ordinary suites skip that opt-in benchmark. No production behavior changed after the required suite runs. Final whole-branch controller review is separate from these implementation/verification results.
+After required full-suite completion, the only production-source edit was an explanatory CDN comment: connection capacity 16 remains above the scheduler's actual eight-chunk budget. The optional benchmark assertion correction then passed its single focused release recheck; ordinary suites skip that opt-in benchmark. No production behavior changed after the required suite runs. The final test cleanup below was validated separately; the retained full-suite runs predate those modified tests.
+
+## Final review and focused test cleanup
+
+Final whole-branch review approved `3c1b585..2ba75aa`: ready to merge, with no Critical or Important findings. It read the full production/test/documentation diff and parsed all 13 raw JSON artifacts, checking 1,052 displayed phase-metric cells including the 272 final comparison cells and all 20 final phase/total elapsed comparisons. The review accepted the step-10 atomic-replacement overlap clarification and the optional HTTP benchmark correction; the original failed benchmark dataset/log and corrected dataset remain distinct and unchanged.
+
+The two Minor findings received localized test cleanup. `CDNTransportTests.testSequentialRequestsAcrossDepotsReuseConnection` now runs 16 sequential requests alternating two depots, checks every response, exactly one session, 16 requests and 112 transferred bytes, and proves real reuse with fewer accepted sockets than requests while allowing Foundation's spare sockets. Unrelated exact socket-count assertions were removed from cancellation, privacy, warmed-session, retry-exhaustion and multiple-engine tests; their response, request, session, cancellation, validation and retry assertions remain. Privacy and warmed-session tests now explicitly check two served requests. `SteamMacInstallTests.testMacSigningRejectsManifestSealSymlinkBeforeInvokingSigner` now matches `SteamError.prepare` and the exact linked/unexpected-file-type rejection at the canonical `CodeResources` path, retaining the uncalled signer and unchanged linked target assertions.
+
+| Exact cleanup command | Exit | Result and log |
+| --- | ---: | --- |
+| `swift test --package-path Packages/SteamKit --filter CDNTransportTests` | 0 | All 13 class tests, 0 failures; `/tmp/final-steam-fix-cdn.log` |
+| `swift test --package-path Packages/PlaydenKit --filter SteamMacInstallTests.testMacSigningRejectsManifestSealSymlinkBeforeInvokingSigner` | 0 | 1 test, 0 failures; `/tmp/final-steam-fix-seal.log` |
+
+The seal command initially exited 1 because the new expected path used Foundation's `/var` spelling while the guard reports `/private/var`. The expected path now uses `SteamPreparationPaths.root` and still matches the exact rejection message and leaf. This test-expectation error is retained in `/tmp/final-steam-fix-seal-path-mismatch.log`; it was not a production failure. The CDN class contains 13 tests in both the reviewed and cleanup revisions; the separate optional benchmark test is not part of that class. No full suites or benchmarks were rerun for this test/documentation cleanup.
+
+Earlier deferred concerns are addressed: verification progress is tested while catalog writes fail; diagnostic closure warnings are corrected; virtual-clock cadence tests retain the real-clock integration test; and the signer destination is authorized independently of manifest regular-file filtering. Existing environment/compiler warnings remain disclosed. Review limits remain the offline/warm fixtures, unavailable live CDN/GTA V recovery, untested physical power loss, synchronous filesystem race model, undeclared runtime expansion sizing and unrelated LibrarySync scheduling race; no broader guarantee or universal speedup is claimed. This cleanup changes only tests and final status documentation, with no new benchmarks or production changes. Its scoped re-review is separate from the approved whole-branch revision.
