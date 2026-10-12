@@ -43,6 +43,7 @@ public struct ResumableDepotDownload: Sendable {
         let entries = try Self.validate(manifest)
         let workspace = try DownloadWorkspace(destination: destination, diagnostics: diagnostics)
         let receipts = try DownloadCompletionReceipts(workspace: workspace, manifest: manifest, sizingManifest: receiptManifest)
+        for path in receiptExcludedPaths { receipts.invalidate(path) }
         let total = entries.filter { !$0.file.isDirectory && !$0.file.isSymlink }.reduce(UInt64(0)) { $0 + $1.file.size }
         var done: UInt64 = 0, written: UInt64 = 0
         do {
@@ -143,6 +144,7 @@ public struct ResumableDepotDownload: Sendable {
         guard FileManager.default.fileExists(atPath: destination.path) else { return entries.filter { !$0.file.isDirectory }.map(\.path) }
         let workspace = try DownloadWorkspace(destination: destination, lock: mode != .full, diagnostics: diagnostics)
         let receipts = try mode != .full ? DownloadCompletionReceipts(workspace: workspace, manifest: manifest, sizingManifest: receiptManifest) : nil
+        for path in receiptExcludedPaths { receipts?.invalidate(path) }
         var invalid: [String] = []
         let total = entries.filter { !$0.file.isDirectory && !$0.file.isSymlink }.reduce(UInt64(0)) { $0 + $1.file.size }
         var completed: UInt64 = 0

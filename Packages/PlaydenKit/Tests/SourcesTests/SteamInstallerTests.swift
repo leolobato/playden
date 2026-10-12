@@ -20,6 +20,141 @@ final class SteamInstallerTests: XCTestCase {
     private func plan(_ files: [DepotManifest.File], app info: AppInfo? = nil) throws -> InstallPlan {
         try SteamPlanBuilder.build(game: game, app: info ?? app(), manifests: [manifest(files)], ownedApps: [100])
     }
+    func testRestartedStagesReuseReceiptsIncludingLegitimateOrigFiles() async throws {
+        let bytes = pe(), asset = Data(repeating: 7, count: 128 * 1024)
+        let content = ResolvedSteamContent(app: app(), manifests: [manifest([file("Game.exe", bytes), file("asset.orig", asset)])],
+            entitlements: .init(appIDs: [100], depotIDs: [101]))
+        let backend = FixtureContentBackend(content: content, chunks: [Data(Insecure.SHA1.hash(data: bytes)): bytes, Data(Insecure.SHA1.hash(data: asset)): asset])
+        let directory = try temporaryDirectory(), initial = SteamInstaller(game: game, backend: backend)
+        let plan = try await initial.resolve()
+        try await initial.download(plan, to: directory) { _ in }
+        let diagnostics = SteamPerformanceDiagnostics()
+        for _ in 0..<2 {
+            let restarted = SteamInstaller(game: game, backend: backend, diagnostics: diagnostics)
+            let check = try await restarted.verifyOriginals(plan, at: directory, staging: nil)
+            XCTAssertTrue(check.isValid)
+            let staging = try await restarted.postInstall(plan, at: directory)
+            _ = try await restarted.validate(plan, at: directory, staging: staging)
+        }
+        XCTAssertEqual(diagnostics.snapshot()[.sha1].bytes, 0, "All stage content checks should reuse completion receipts")
+        try Data("damage".utf8).write(to: directory.appendingPathComponent("asset.orig"))
+        let check = try await initial.verifyOriginals(plan, at: directory, staging: nil)
+        XCTAssertEqual(check.invalidFiles, ["asset.orig"], "Restart proof must still reject changed content")
+    }
+
+    func testRepairInspectsOlderInstallOnceAndDownloadsOnlyInvalidFiles() async throws {
+        let bytes = pe(), asset = Data(repeating: 7, count: 128 * 1024)
+        let content = ResolvedSteamContent(app: app(), manifests: [manifest([file("Game.exe", bytes), file("asset.bin", asset)])],
+            entitlements: .init(appIDs: [100], depotIDs: [101]))
+        let diagnostics = SteamPerformanceDiagnostics()
+        let backend = FixtureContentBackend(content: content, chunks: [Data(Insecure.SHA1.hash(data: bytes)): bytes, Data(Insecure.SHA1.hash(data: asset)): asset], diagnostics: diagnostics)
+        let installer = SteamInstaller(game: game, backend: backend, diagnostics: diagnostics)
+        let plan = try await installer.resolve(), directory = try temporaryDirectory()
+        try bytes.write(to: directory.appendingPathComponent("Game.exe"))
+        try Data(repeating: 8, count: asset.count).write(to: directory.appendingPathComponent("asset.bin"))
+        try await installer.repair(plan, at: directory, staging: nil) { _ in }
+        XCTAssertEqual(diagnostics.snapshot()[.contentRead].bytes, UInt64(bytes.count + asset.count), "Repair must inspect content exactly once")
+        XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent("asset.bin")), asset)
+        let before = diagnostics.snapshot()[.contentRead].bytes
+        let restarted = SteamInstaller(game: game, backend: backend, diagnostics: diagnostics)
+        let checked = try await restarted.verifyOriginals(plan, at: directory, staging: nil)
+        XCTAssertTrue(checked.isValid)
+        XCTAssertEqual(diagnostics.snapshot()[.contentRead].bytes, before, "Full repair refreshes valid older files too")
+    }
+
+    func testInterruptedBackupCopyRecoversFromIntactOriginalBeforeStagingReceipt() async throws {
+        for path in ["steam_api64.dll", "Game.exe"] {
+            let original = pe(section: path == "Game.exe" ? ".bind" : ".text")
+            let content = ResolvedSteamContent(app: app(), manifests: [manifest([file("Game.exe", original), file("steam_api64.dll", original)])],
+                entitlements: .init(appIDs: [100], depotIDs: [101]))
+            let installer = SteamInstaller(game: game, backend: FixtureContentBackend(content: content,
+                chunks: [Data(Insecure.SHA1.hash(data: original)): original]), runtimeTools: FixtureUnpackingTools(output: pe()))
+            let plan = try await installer.resolve(), directory = try temporaryDirectory()
+            try await installer.download(plan, to: directory) { _ in }
+            try original.prefix(128).write(to: directory.appendingPathComponent(path + ".orig"))
+            let bottle = GameBottle(gameID: game.id, name: "playden-steam-100", ownershipToken: UUID())
+            let staging = try await installer.postInstall(plan, at: directory, in: bottle)
+            XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent(path + ".orig")), original)
+            _ = try await installer.validate(plan, at: directory, staging: staging)
+        }
+    }
+
+    func testPreparedStagesHashOnlyMappedBackupsAndRemoveTheirReceiptTrust() async throws {
+        let bytes = pe(), asset = Data(repeating: 3, count: 128 * 1024)
+        let content = ResolvedSteamContent(app: app(), manifests: [manifest([file("Game.exe", bytes), file("bin\\steam_api64.dll", bytes), file("assets.orig", asset)])],
+            entitlements: .init(appIDs: [100], depotIDs: [101]))
+        let backend = FixtureContentBackend(content: content, chunks: [Data(Insecure.SHA1.hash(data: bytes)): bytes, Data(Insecure.SHA1.hash(data: asset)): asset])
+        let diagnostics = SteamPerformanceDiagnostics(), installer = SteamInstaller(game: game, backend: backend, diagnostics: diagnostics)
+        let plan = try await installer.resolve(), directory = try temporaryDirectory()
+        try await installer.download(plan, to: directory) { _ in }
+        let staging = try await installer.postInstall(plan, at: directory)
+        XCTAssertEqual(diagnostics.snapshot()[.sha1].bytes, 0)
+        for _ in 0..<2 {
+            let restarted = SteamInstaller(game: game, backend: backend, diagnostics: diagnostics)
+            _ = try await restarted.validate(plan, at: directory, staging: staging)
+        }
+        XCTAssertEqual(diagnostics.snapshot()[.sha1].bytes, 2048, "Only the 1 KiB original API is hashed on each validation")
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: directory.appendingPathComponent(".gn-download/receipts/101-7.json"))) as? [String: Any])
+        let entries = try XCTUnwrap(json["entries"] as? [String: Any])
+        XCTAssertEqual(Set(entries.keys), ["Game.exe", "assets.orig"], "Prepared and backup paths cannot retain receipt trust")
+        try Data(repeating: 0, count: bytes.count).write(to: directory.appendingPathComponent("bin/steam_api64.dll.orig"))
+        do { _ = try await installer.postInstall(plan, at: directory); XCTFail("Damaged backup and prepared live DLL must not be accepted as originals") } catch {}
+        try await installer.repair(plan, at: directory, staging: staging) { _ in }
+        let repaired = try await installer.postInstall(plan, at: directory)
+        _ = try await installer.validate(plan, at: directory, staging: repaired)
+        XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent("bin/steam_api64.dll.orig")), bytes)
+    }
+
+    func testExplicitRepairIgnoresMatchingReceipts() async throws {
+        let bytes = pe()
+        let content = ResolvedSteamContent(app: app(), manifests: [manifest([file("Game.exe", bytes), file("asset.bin", bytes)])], entitlements: .init(appIDs: [100], depotIDs: [101]))
+        let diagnostics = SteamPerformanceDiagnostics()
+        let installer = SteamInstaller(game: game, backend: FixtureContentBackend(content: content,
+            chunks: [Data(Insecure.SHA1.hash(data: bytes)): bytes]), diagnostics: diagnostics)
+        let plan = try await installer.resolve(), directory = try temporaryDirectory()
+        try await installer.download(plan, to: directory) { _ in }
+        try await installer.repair(plan, at: directory, staging: nil) { _ in }
+        XCTAssertEqual(diagnostics.snapshot()[.contentRead].bytes, 2048)
+        let checked = try await installer.verifyOriginals(plan, at: directory, staging: nil)
+        XCTAssertTrue(checked.isValid)
+        XCTAssertEqual(diagnostics.snapshot()[.contentRead].bytes, 2048)
+    }
+
+    func testInterruptedTargetedRepairKeepsDepotStateUntilAllTargetsComplete() async throws {
+        let bytes = pe(), asset = Data("asset".utf8)
+        let content = ResolvedSteamContent(app: app(), manifests: [manifest([file("Game.exe", bytes), file("asset.bin", asset)])], entitlements: .init(appIDs: [100], depotIDs: [101]))
+        let partialBackend = FixtureContentBackend(content: content, chunks: [Data(Insecure.SHA1.hash(data: bytes)): bytes])
+        let installer = SteamInstaller(game: game, backend: partialBackend)
+        let plan = try await installer.resolve(), directory = try temporaryDirectory()
+        let stale = directory.appendingPathComponent(".gn-download/101/6/other.partial")
+        try FileManager.default.createDirectory(at: stale.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("checkpoint".utf8).write(to: stale)
+        do { try await installer.repair(plan, at: directory, staging: nil) { _ in }; XCTFail("Missing fixture chunk should interrupt repair") } catch {}
+        XCTAssertTrue(FileManager.default.fileExists(atPath: stale.path), "A completed target cannot clean the authoritative depot yet")
+        XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent("Game.exe")), bytes)
+        let complete = SteamInstaller(game: game, backend: FixtureContentBackend(content: content,
+            chunks: [Data(Insecure.SHA1.hash(data: asset)): asset]))
+        try await complete.repair(plan, at: directory, staging: nil) { _ in }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: stale.path))
+        XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent("asset.bin")), asset)
+        let checked = try await complete.verifyOriginals(plan, at: directory, staging: nil)
+        XCTAssertTrue(checked.isValid)
+    }
+
+    func testInterruptedBackupRecoveryPreservesUnexpectedBackupDirectory() async throws {
+        let bytes = pe()
+        let content = ResolvedSteamContent(app: app(), manifests: [manifest([file("Game.exe", bytes), file("steam_api64.dll", bytes)])], entitlements: .init(appIDs: [100], depotIDs: [101]))
+        let installer = SteamInstaller(game: game, backend: FixtureContentBackend(content: content, chunks: [Data(Insecure.SHA1.hash(data: bytes)): bytes]))
+        let plan = try await installer.resolve(), directory = try temporaryDirectory()
+        try await installer.download(plan, to: directory) { _ in }
+        let backup = directory.appendingPathComponent("steam_api64.dll.orig")
+        try FileManager.default.createDirectory(at: backup, withIntermediateDirectories: true)
+        let sentinel = backup.appendingPathComponent("keep")
+        try Data("keep".utf8).write(to: sentinel)
+        do { _ = try await installer.postInstall(plan, at: directory); XCTFail("An unexpected directory must not be removed as an interrupted file copy") } catch {}
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sentinel.path))
+    }
+
     func testDiagnosticsIncludePreparationScansHashesAndFinalValidation() async throws {
         let bytes = pe()
         let content = ResolvedSteamContent(app: app(), manifests: [manifest([file("Game.exe", bytes), file("steam_api64.dll", bytes)])],
@@ -614,10 +749,23 @@ private actor FixtureUnpackingTools: RuntimeToolRunning {
 private struct FixtureContentBackend: SteamInstallBackend {
     let content: ResolvedSteamContent
     let chunks: [Data: Data]
+    var diagnostics: SteamPerformanceDiagnostics? = nil
     func resolve(appID: UInt32, platform: GamePlatform) async throws -> ResolvedSteamContent { content }
+    func repair(_ payload: SteamInstallPayload, using repair: SteamRepairDownload, to directory: URL,
+                progress: @escaping @Sendable (InstallProgress) -> Void) async throws {
+        for manifest in payload.manifests {
+            let download = repair.downloader(for: manifest, at: directory, diagnostics: diagnostics)
+            try await download.download(manifest: repair.subset(of: manifest)) { chunk in
+                guard let data = chunks[chunk.sha] else { throw SourceFailure.unavailable }
+                try chunk.validate(data)
+                return data
+            }
+        }
+    }
+
     func download(_ payload: SteamInstallPayload, to directory: URL, progress: @escaping @Sendable (InstallProgress) -> Void) async throws {
         for manifest in payload.manifests {
-            try await ResumableDepotDownload(destination: directory).download(manifest: manifest) { chunk in
+            try await ResumableDepotDownload(destination: directory, diagnostics: diagnostics).download(manifest: manifest) { chunk in
                 guard let data = chunks[chunk.sha] else { throw SourceFailure.unavailable }
                 try chunk.validate(data)
                 return data

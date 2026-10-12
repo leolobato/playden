@@ -70,6 +70,77 @@ final class SteamMacInstallTests: XCTestCase {
         return url
     }
 
+    func testUnsignedMacStagesKeepExecutableReceiptsAcrossPreparationRetry() async throws {
+        let files = macFiles.filter { !$0.path.contains("_CodeSignature") && !$0.path.contains("libsteam_api") }
+        let content = ResolvedSteamContent(app: app(), manifests: [manifest(files, depot: 102)], entitlements: .init(appIDs: [100], depotIDs: [102]))
+        let backend = MacBackend(content: content, chunks: chunks)
+        let initial = SteamInstaller(game: game, backend: backend)
+        let plan = try await initial.resolve(platform: .macOS), directory = try temporaryDirectory()
+        try await initial.download(plan, to: directory) { _ in }
+        let diagnostics = SteamPerformanceDiagnostics()
+        for _ in 0..<2 {
+            let restarted = SteamInstaller(game: game, backend: backend, diagnostics: diagnostics)
+            let check = try await restarted.verifyOriginals(plan, at: directory, staging: nil)
+            XCTAssertTrue(check.isValid)
+            let staging = try await restarted.postInstall(plan, at: directory)
+            _ = try await restarted.validate(plan, at: directory, staging: staging)
+        }
+        XCTAssertEqual(diagnostics.snapshot()[.contentRead].bytes, 0, "Redundant chmod must not invalidate executable receipts")
+    }
+
+    func testInterruptedMacOriginalCopyRecoversBeforePreparationReceipt() async throws {
+        let content = ResolvedSteamContent(app: app(), manifests: [manifest(macFiles, depot: 102)], entitlements: .init(appIDs: [100], depotIDs: [102]))
+        let installer = SteamInstaller(game: game, backend: MacBackend(content: content, chunks: chunks),
+            emulatorSaves: try temporaryDirectory(), codeSigner: FixtureSigner())
+        let plan = try await installer.resolve(platform: .macOS), directory = try temporaryDirectory()
+        try await installer.download(plan, to: directory) { _ in }
+        let backup = directory.appendingPathComponent(".playden-originals/Game.app/Contents/MacOS/Game")
+        try FileManager.default.createDirectory(at: backup.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try machO.prefix(8).write(to: backup)
+        let staging = try await installer.postInstall(plan, at: directory)
+        XCTAssertEqual(try Data(contentsOf: backup), machO)
+        _ = try await installer.validate(plan, at: directory, staging: staging)
+    }
+
+    func testSignedMacValidationHashesOnlyKeptOriginalsAcrossRestart() async throws {
+        let content = ResolvedSteamContent(app: app(), manifests: [manifest(macFiles, depot: 102)], entitlements: .init(appIDs: [100], depotIDs: [102]))
+        let backend = MacBackend(content: content, chunks: chunks), diagnostics = SteamPerformanceDiagnostics(), signer = FixtureSigner()
+        let installer = SteamInstaller(game: game, backend: backend, emulatorSaves: try temporaryDirectory(), codeSigner: signer, diagnostics: diagnostics)
+        let plan = try await installer.resolve(platform: .macOS), directory = try temporaryDirectory()
+        try await installer.download(plan, to: directory) { _ in }
+        let staging = try await installer.postInstall(plan, at: directory)
+        XCTAssertEqual(diagnostics.snapshot()[.sha1].bytes, 0)
+        for _ in 0..<2 {
+            let restarted = SteamInstaller(game: game, backend: backend, codeSigner: signer, diagnostics: diagnostics)
+            _ = try await restarted.validate(plan, at: directory, staging: staging)
+        }
+        XCTAssertEqual(diagnostics.snapshot()[.sha1].bytes, 308, "Each validation hashes only the 73-byte API, 68-byte executable and 13-byte seal originals")
+        let verified = await signer.verified
+        XCTAssertEqual(verified, ["Game.app", "Game.app"])
+        let backup = directory.appendingPathComponent(".playden-originals/Game.app/Contents/MacOS/Game")
+        try Data(repeating: 0, count: machO.count).write(to: backup)
+        let broken = try await installer.verifyOriginals(plan, at: directory, staging: staging)
+        XCTAssertEqual(broken.invalidFiles, ["Game.app/Contents/MacOS/Game"])
+        do { _ = try await installer.postInstall(plan, at: directory); XCTFail("Damaged backup and signed executable are not original content") } catch {}
+        try await installer.repair(plan, at: directory, staging: staging) { _ in }
+        let repaired = try await installer.postInstall(plan, at: directory)
+        _ = try await installer.validate(plan, at: directory, staging: repaired)
+        XCTAssertEqual(try Data(contentsOf: backup), machO)
+    }
+
+    func testMissingMacExecutableFlagRestoresPermissionsWithoutReadingOrdinaryAssets() async throws {
+        let files = [file("Game.app/Contents/Info.plist", info), file("Game.app/Contents/MacOS/Game", machO)]
+        let content = ResolvedSteamContent(app: app(), manifests: [manifest(files, depot: 102)], entitlements: .init(appIDs: [100], depotIDs: [102]))
+        let diagnostics = SteamPerformanceDiagnostics(), installer = SteamInstaller(game: game, backend: MacBackend(content: content, chunks: chunks), diagnostics: diagnostics)
+        let plan = try await installer.resolve(platform: .macOS), directory = try temporaryDirectory()
+        try await installer.download(plan, to: directory) { _ in }
+        for _ in 0..<2 {
+            let staging = try await installer.postInstall(plan, at: directory)
+            _ = try await installer.validate(plan, at: directory, staging: staging)
+        }
+        XCTAssertEqual(diagnostics.snapshot()[.contentRead].bytes, 68, "Only the executable whose permissions changed needs refreshed metadata")
+    }
+
     func testMacDiagnosticsIncludeNestedPreparationAndValidationWork() async throws {
         let diagnostics = SteamPerformanceDiagnostics()
         let content = ResolvedSteamContent(app: app(), manifests: [manifest(macFiles, depot: 102)],

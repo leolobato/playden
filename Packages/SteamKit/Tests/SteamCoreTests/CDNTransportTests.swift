@@ -227,6 +227,42 @@ final class CDNTransportTests: XCTestCase {
         XCTAssertEqual(diagnostics.snapshot()[.sha256].bytes, metadataBytes, "Only path, journal fingerprint and receipt fingerprint metadata are hashed")
     }
 
+    func testEngineForwardsTargetedRepairReceiptAndCleanupOptions() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("cdn-targeted-" + UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let server = try KeepAliveHTTPFixture { _, _ in .init(body: encryptedFixtureChunk) }
+        defer { server.stop() }
+        let keys = MemoryDepotKeys(); keys.save(Data(repeating: 0, count: 32), for: 1)
+        let cm = CMClient(depotKeyStore: keys), diagnostics = SteamPerformanceDiagnostics()
+        let transport = LoopbackCDNTransport(pool: URLSessionCDNTransport(), ports: ["good.fixture": server.port])
+        let files = ["asset", "backup.orig"].map { DepotManifest.File(path: $0, size: 7, chunks: [fixtureChunk()], contentSHA1: SteamCrypto.sha1(Data("fixture".utf8))) }
+        let full = DepotManifest(depotID: 1, gid: 1, files: files, totalSize: 14)
+        let engine = DownloadEngine(cm: cm, appID: 1, destination: root, diagnostics: diagnostics, transport: transport)
+        try await engine.download(manifest: full, servers: [contentServer("good.fixture")])
+        let before = diagnostics.snapshot()[.contentRead].bytes
+        try Data("damaged".utf8).write(to: root.appendingPathComponent("backup.orig"))
+        let stale = root.appendingPathComponent(".gn-download/1/0/checkpoint")
+        try FileManager.default.createDirectory(at: stale.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("keep".utf8).write(to: stale)
+        let subset = DepotManifest(depotID: 1, gid: 1, files: [files[1]], totalSize: 7)
+        try await engine.download(manifest: subset, servers: [contentServer("good.fixture")], forceDownloadPaths: ["backup.orig"],
+            receiptExcludedPaths: ["backup.orig"], receiptManifest: full, cleanupCompletedDepot: false)
+        XCTAssertEqual(server.snapshot.requests, 3, "Repair fetches only the failed target")
+        XCTAssertEqual(diagnostics.snapshot()[.contentRead].bytes, before, "The failed target must not be hashed again before download")
+        XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("backup.orig")), Data("fixture".utf8))
+        let receipt = try JSONDecoder().decode(DownloadCompletionReceipt.self, from: Data(contentsOf: root.appendingPathComponent(".gn-download/receipts/1-1.json")))
+        XCTAssertEqual(Set(receipt.entries.keys), ["asset"], "Excluded backups cannot acquire receipt trust; unrelated receipts survive")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: stale.path))
+        let ordinary = DepotManifest(depotID: 1, gid: 1, files: [files[0]], totalSize: 7)
+        try await engine.download(manifest: ordinary, servers: [contentServer("good.fixture")], receiptManifest: full, cleanupCompletedDepot: false)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: stale.path), "A non-forced projection also defers cleanup")
+        let wrongContext = DepotManifest(depotID: 2, gid: 1, files: files, totalSize: 14)
+        do {
+            try await engine.download(manifest: subset, servers: [contentServer("good.fixture")], receiptManifest: wrongContext)
+            XCTFail("Mismatched receipt sizing context must reach downloader validation")
+        } catch SteamError.download(let message) { XCTAssertTrue(message.contains("sizing context")) }
+    }
+
     private func waitForRequests(_ count: Int, on server: KeepAliveHTTPFixture) async throws {
         let deadline = Date().addingTimeInterval(2)
         while server.snapshot.requests < count, Date() < deadline { try await Task.sleep(nanoseconds: 5_000_000) }

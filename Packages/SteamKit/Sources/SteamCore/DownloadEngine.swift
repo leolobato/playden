@@ -85,11 +85,17 @@ public struct DownloadEngine {
         try await download(manifest: manifest(depot: depot, servers: servers), servers: servers)
     }
 
-    public func download(manifest: DepotManifest, servers: [ContentServer]) async throws {
+    public func download(manifest: DepotManifest, servers: [ContentServer],
+                         forceDownloadPaths: Set<String> = [], receiptExcludedPaths: Set<String> = [],
+                         receiptManifest: DepotManifest? = nil, cleanupCompletedDepot: Bool = true) async throws {
         guard !servers.isEmpty else { throw SteamError.download("no content servers available") }
         try Task.checkCancellation()
         let key = try await cm.depotKey(appID: appID, depotID: manifest.depotID)
         var download = ResumableDepotDownload(destination: destination, diagnostics: diagnostics)
+        download.forceDownloadPaths = forceDownloadPaths
+        download.receiptExcludedPaths = receiptExcludedPaths
+        download.receiptManifest = receiptManifest
+        download.cleanupCompletedDepot = cleanupCompletedDepot
         download.chunkConcurrency = chunkConcurrency
         download.onProgress = onProgress
         try await download.download(manifest: manifest) { chunk in

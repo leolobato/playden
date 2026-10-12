@@ -40,6 +40,11 @@ public struct SteamInstaller: Installer {
     }
     public func verifyOriginals(_ plan: InstallPlan, at directory: URL, staging: InstallStaging?,
         progress: @escaping @Sendable (InstallFileVerification) -> Void) async throws -> VerificationResult {
+        try await verifyOriginals(plan, at: directory, staging: staging, mode: .receiptAssisted, progress: progress)
+    }
+    private func verifyOriginals(_ plan: InstallPlan, at directory: URL, staging: InstallStaging?,
+        mode: ResumableDepotDownload.VerificationMode,
+        progress: @escaping @Sendable (InstallFileVerification) -> Void = { _ in }) async throws -> VerificationResult {
         let payload = try SteamPlanBuilder.payload(plan, for: gameID)
         let replacements = try replacements(staging ?? InstallStaging(), payload: payload)
         let total = try verificationBytes(payload)
@@ -50,10 +55,14 @@ public struct SteamInstaller: Installer {
             try Task.checkCancellation()
             let mapped = try manifest.files.map { file in
                 let path = try SteamPlanBuilder.relativePath(file.path)
-                return DepotManifest.File(path: replacements[path] ?? path, size: file.size, flags: file.flags,
+                guard let replacement = replacements[path] else { return file }
+                return DepotManifest.File(path: replacement, size: file.size, flags: file.flags,
                     linkTarget: file.linkTarget, chunks: file.chunks, contentSHA1: file.contentSHA1)
             }
-            let result = try ResumableDepotDownload(destination: directory, diagnostics: diagnostics).invalidFiles(in: DepotManifest(depotID: manifest.depotID, gid: manifest.gid, files: mapped, totalSize: manifest.totalSize)) { file, checked, _ in
+            var verifier = ResumableDepotDownload(destination: directory, diagnostics: diagnostics)
+            verifier.receiptManifest = manifest
+            verifier.receiptExcludedPaths = Set(replacements.keys).union(replacements.values)
+            let result = try verifier.invalidFiles(in: DepotManifest(depotID: manifest.depotID, gid: manifest.gid, files: mapped, totalSize: manifest.totalSize), mode: mode) { file, checked, _ in
                 diagnostics.measure(.progressCallback) { progress(.init(file: replacements.first(where: { $0.value == file })?.key ?? file,
                     bytesChecked: completed + Int64(checked), bytesTotal: total, scope: .installation)) }
             }
@@ -95,9 +104,7 @@ public struct SteamInstaller: Installer {
         let recovered = InstallStaging(mutations: (apis + executables).filter { FileManager.default.fileExists(atPath: directory.appendingPathComponent($0 + ".orig").path) }.map {
             FileMutation(relativePath: $0, originalRelativePath: $0 + ".orig", stagedSHA256: Data(repeating: 0, count: 32))
         }, version: 2)
-        guard try await verifyOriginals(plan, at: directory, staging: recovered, progress: { reporter.report(.verifying($0)) }).isValid else {
-            throw SteamPlanBuilder.failure("Prepare", "Original game files must be repaired before preparation can continue.")
-        }
+        try await verifyForPreparation(plan, payload: payload, at: directory, recovered: recovered, reporter: reporter)
         var mutations: [FileMutation] = []
         let manifestPaths = Set(try payload.manifests.flatMap(\.files).map { try SteamPlanBuilder.relativePath($0.path).lowercased() })
         for path in executables {
@@ -148,25 +155,72 @@ public struct SteamInstaller: Installer {
         }
         return InstallStaging(mutations: mutations, dllOverrides: Array(Set(result.dlls.map { $0.dll.deletingPathExtension().lastPathComponent.lowercased() + "=n,b" })).sorted(), version: stagingVersion)
     }
+    /// An interrupted copy can leave an incomplete backup before any staging receipt is saved.
+    /// Discard it only after fully checking the still-live original against the pinned manifest.
+    private func verifyForPreparation(_ plan: InstallPlan, payload: SteamInstallPayload, at directory: URL,
+        recovered: InstallStaging, reporter: PreparationReporter) async throws {
+        let invalid = Set(try await verifyOriginals(plan, at: directory, staging: recovered,
+            progress: { reporter.report(.verifying($0)) }).invalidFiles)
+        guard !invalid.isEmpty else { return }
+        let mappings = try replacements(recovered, payload: payload)
+        guard invalid.isSubset(of: Set(mappings.keys)) else {
+            throw SteamPlanBuilder.failure("Prepare", "Original game files must be repaired before preparation can continue.")
+        }
+        for manifest in payload.manifests {
+            let files = try manifest.files.filter { invalid.contains(try SteamPlanBuilder.relativePath($0.path)) }
+            guard !files.isEmpty else { continue }
+            var verifier = ResumableDepotDownload(destination: directory, diagnostics: diagnostics)
+            verifier.receiptManifest = manifest
+            verifier.receiptExcludedPaths = invalid
+            let subset = DepotManifest(depotID: manifest.depotID, gid: manifest.gid, files: files, totalSize: files.reduce(0) { $0 + $1.size })
+            guard try verifier.invalidFiles(in: subset, mode: .fullRefreshingReceipts).isEmpty else {
+                throw SteamPlanBuilder.failure("Prepare", "Original game files must be repaired before preparation can continue.")
+            }
+        }
+        for (path, backup) in mappings where invalid.contains(path) {
+            let url = directory.appendingPathComponent(backup)
+            let values = try url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
+            guard values.isRegularFile == true, values.isSymbolicLink != true else {
+                throw SteamPlanBuilder.failure("Prepare", "An original backup is not a regular file. Its contents have been kept.")
+            }
+            try FileManager.default.removeItem(at: url)
+        }
+    }
     public func repair(_ plan: InstallPlan, at directory: URL, staging: InstallStaging?,
                        progress: @escaping @Sendable (InstallProgress) -> Void) async throws {
         let payload = try SteamPlanBuilder.payload(plan, for: gameID)
         let mappings = try replacements(staging ?? InstallStaging(), payload: payload)
         try checkLinks(in: directory, payload: payload)
-        guard try await !verifyOriginals(plan, at: directory, staging: staging).isValid else { return }
+        let invalid = Set(try await verifyOriginals(plan, at: directory, staging: staging, mode: .fullRefreshingReceipts).invalidFiles)
+        guard !invalid.isEmpty else { return }
         // Download originals to their verified backup paths. Leave the staged DLLs and save
         // directories in place; postInstall will reapply preparation after all originals verify.
         let manifests = try payload.manifests.map { manifest in
             let files = try manifest.files.map { file in
                 let path = try SteamPlanBuilder.relativePath(file.path)
-                return DepotManifest.File(path: mappings[path] ?? path, size: file.size, flags: file.flags,
+                guard let replacement = mappings[path] else { return file }
+                return DepotManifest.File(path: replacement, size: file.size, flags: file.flags,
                     linkTarget: file.linkTarget, chunks: file.chunks, contentSHA1: file.contentSHA1)
             }
             return DepotManifest(depotID: manifest.depotID, gid: manifest.gid, files: files, totalSize: manifest.totalSize)
         }
-        try await backend.download(SteamInstallPayload(app: payload.app, manifests: manifests, ownedDLC: payload.ownedDLC,
-                                   authorizedDepotIDs: payload.authorizedDepotIDs),
-                                   to: directory, progress: progress)
+        let repair = SteamRepairDownload(invalidPaths: Set(invalid.map { mappings[$0] ?? $0 }),
+            receiptExcludedPaths: Set(mappings.keys).union(mappings.values), receiptManifests: payload.manifests)
+        try await backend.repair(SteamInstallPayload(app: payload.app, manifests: manifests, ownedDLC: payload.ownedDLC,
+            authorizedDepotIDs: payload.authorizedDepotIDs, platform: payload.platform),
+            using: repair, to: directory, progress: progress)
+        // The full pass established all other originals. Check only the repaired targets before
+        // declaring the authoritative depot complete and removing obsolete checkpoints.
+        for manifest in manifests {
+            let verifier = repair.downloader(for: manifest, at: directory, diagnostics: diagnostics)
+            guard try verifier.invalidFiles(in: repair.subset(of: manifest), mode: .receiptAssisted).isEmpty else {
+                throw SteamPlanBuilder.failure("Verify", "Some repaired game files are still missing or damaged.")
+            }
+        }
+        for manifest in manifests {
+            try ResumableDepotDownload(destination: directory, diagnostics: diagnostics)
+                .cleanCompletedDepotState(depotID: manifest.depotID, gid: manifest.gid)
+        }
     }
     public func launchOptions(_ plan: InstallPlan) throws -> [LaunchOption] {
         let payload = try SteamPlanBuilder.payload(plan, for: gameID)
@@ -458,9 +512,7 @@ extension SteamInstaller {
         let recovered = InstallStaging(mutations: (apis + signed).filter { FileManager.default.fileExists(atPath: originals.appendingPathComponent($0).path) }.map {
             FileMutation(relativePath: $0, originalRelativePath: Self.macOriginals + "/" + $0, stagedSHA256: Data(repeating: 0, count: 32))
         }, version: 3)
-        guard try await verifyOriginals(plan, at: directory, staging: recovered, progress: { reporter.report(.verifying($0)) }).isValid else {
-            throw SteamPlanBuilder.failure("Prepare", "Original game files must be repaired before preparation can continue.")
-        }
+        try await verifyForPreparation(plan, payload: payload, at: directory, recovered: recovered, reporter: reporter)
         try applyExecutableModes(payload, at: directory)
         guard !apis.isEmpty else { return InstallStaging(version: 1) }
         reporter.report(.applyingSettings)
@@ -528,7 +580,8 @@ extension SteamInstaller {
             guard file.isExecutable || path.contains("/Contents/MacOS/") else { continue }
             let url = directory.appendingPathComponent(path)
             guard FileManager.default.fileExists(atPath: url.path) else { continue }
-            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+            let mode = try FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions] as? Int
+            if mode != 0o755 { try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path) }
         }
     }
     private func checkLinks(in directory: URL, payload: SteamInstallPayload) throws {
