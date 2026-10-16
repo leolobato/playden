@@ -179,6 +179,11 @@ final class StoresInteractionTests: XCTestCase {
         XCTAssertEqual(model.detailActions.first, "Play"); XCTAssertTrue(model.detailActions.contains("Game settings"))
         XCTAssertTrue(model.contextActions.contains("Copy into Playden"))
         XCTAssertEqual(model.localGamesActions(relocating: game.id), ["Choose its folder…", "Done"])
+
+        // After its copy is uninstalled, the folder makes the game playable again.
+        var uninstalled = JobRecord(gameID: game.id, kind: .uninstall); uninstalled.state = .completed; uninstalled.stage = .finished
+        model.installJobs = [uninstalled]; model.applyInstallStatuses()
+        XCTAssertEqual(model.games.first { $0.id == game.id }?.status, .installed)
     }
 
     @MainActor func testAddedGamesListsThisMacGamesAndRemovesThePickedOnes() async throws {

@@ -111,6 +111,8 @@ extension LibraryModel {
         for job in latestInstallJobs {
             guard let index = games.firstIndex(where: { $0.id == job.gameID }) else { continue }
             if job.kind == .uninstall {
+                // A Windows game whose copy was uninstalled plays from its folder again once a scan finds it.
+                if job.state == .completed && games[index].isExternal { continue }
                 games[index].status = job.state == .completed ? .notInstalled : .installed
                 continue
             }
