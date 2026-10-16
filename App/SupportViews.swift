@@ -173,7 +173,7 @@ struct ModalLayer: View {
                     }
                     if model.panel == .signOut { Text("Installed games, saves, collections and play history stay on this Mac.").font(Design.body(24)).foregroundStyle(Design.secondary) }
                     if case .localGames(let id) = model.panel {
-                        Text(model.localBusy ? "Looking for games in your Applications and Games folders…" : model.localMessage ?? (id == nil ? "Choose any app, or pick one Playden found. Playden never changes its files." : "Pick the app’s new location."))
+                        Text(model.localBusy ? "Looking for games in your Applications and Games folders…" : model.localMessage ?? (id == nil ? "Choose any app, or pick one Playden found. Playden never changes its files." : model.isWindowsLocalGame(id!) ? "Choose the game’s folder in its new place." : "Pick the app’s new location."))
                             .font(Design.body(22)).foregroundStyle(Design.secondary).lineLimit(3)
                     }
                     if model.panel == .localAdded {
@@ -181,7 +181,7 @@ struct ModalLayer: View {
                             .font(Design.body(22)).foregroundStyle(Design.secondary).lineLimit(3)
                     }
                     if case .windowsExecutables = model.panel {
-                        Text(model.localMessage ?? (model.windowsExecutableChoices.isEmpty ? "This folder has no Windows executables (.exe)." : "Pick the executable that starts the game."))
+                        Text(model.localMessage ?? (model.localBusy ? "Looking for executables…" : model.windowsExecutableChoices.isEmpty ? "This folder has no Windows executables (.exe)." : "Pick the executable that starts the game."))
                             .font(Design.body(22)).foregroundStyle(Design.secondary).lineLimit(3)
                     }
                     if case .windowsImport(_, let executable) = model.panel {

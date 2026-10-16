@@ -263,12 +263,12 @@ extension LibraryModel {
             }
             return
         }
-        localMessage = nil; windowsExecutableChoices = []
+        localMessage = nil; windowsExecutableChoices = []; localBusy = true
         show(.windowsExecutables(folder))
         Task { [weak self] in
             let found = await Task.detached { LocalWindowsGame.executables(in: folder) }.value
             guard let self, self.panel == .windowsExecutables(folder) else { return }
-            self.windowsExecutableChoices = found; self.panelIndex = 0
+            self.windowsExecutableChoices = found; self.localBusy = false; self.panelIndex = 0
         }
     }
     var windowsExecutableActions: [String] {
