@@ -97,9 +97,11 @@ struct PlatformPickerDialog: View {
 struct InstallOfferDialog: View {
     @Bindable var model: LibraryModel
     let gameID: GameID
+    /// A This Mac game is copied from its folder, not downloaded.
+    private var copies: Bool { gameID.source == SourceID.local }
     var body: some View {
         VStack(alignment: .leading, spacing: 28) {
-            Text("Install \(model.gameName(gameID))?").font(Design.condensed(40)).fixedSize(horizontal: false, vertical: true)
+            Text(copies ? "Copy \(model.gameName(gameID)) into Playden?" : "Install \(model.gameName(gameID))?").font(Design.condensed(40)).fixedSize(horizontal: false, vertical: true)
             if let platforms = model.games.first(where: { $0.id == gameID })?.platforms, platforms.count > 1 || model.installPlatform == .macOS {
                 Text(model.installPlatform == .macOS ? "Mac version · runs natively" : "Windows version · runs with CrossOver")
                     .font(Design.body(24, weight: "Medium")).foregroundStyle(Design.text)
@@ -130,8 +132,15 @@ struct InstallOfferDialog: View {
                 Text(error).font(Design.body(24)).foregroundStyle(Design.secondary).fixedSize(horizontal: false, vertical: true)
             } else if let offer = model.installOffer {
                 HStack(spacing: 16) {
-                    sizeCard("Download", offer.plan.estimate.downloadBytes)
-                    sizeCard("Installed size", offer.plan.estimate.installedBytes)
+                    if copies { sizeCard("Files to copy", offer.plan.estimate.installedBytes) }
+                    else {
+                        sizeCard("Download", offer.plan.estimate.downloadBytes)
+                        sizeCard("Installed size", offer.plan.estimate.installedBytes)
+                    }
+                }
+                if copies {
+                    Text("The game keeps its bottle and settings. When the copy finishes, you can delete the original folder.")
+                        .font(Design.body(22)).foregroundStyle(Design.secondary).fixedSize(horizontal: false, vertical: true)
                 }
                 VStack(alignment: .leading, spacing: 16) {
                     sizeLine("Space needed to install", offer.plan.estimate.requiredBytes)
