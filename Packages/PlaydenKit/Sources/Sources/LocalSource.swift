@@ -1,8 +1,10 @@
 import Foundation
 import Domain
+import Runner
 
-/// Mac games that are already on this Mac. Playden finds and launches them; it never installs,
-/// changes or removes their files.
+/// Games that are already on this Mac. Playden finds and launches Mac apps; it never installs,
+/// changes or removes their files. Windows game folders run in a Playden bottle, from the folder or
+/// from a copy in Playden storage, which the install queue owns like any download.
 public struct LocalSource: GameSource {
     public let id = SourceID.local
     public let displayName = "This Mac"
@@ -52,6 +54,12 @@ public struct LocalSource: GameSource {
     public func ownedGames() async throws -> [SourceGameRecord] {
         let library = try await scan()
         return library.entries.map { entry in
+            if entry.isWindows {
+                var record = SourceGameRecord(id: gameID(entry), title: entry.title ?? LocalWindowsGame.title(for: entry.lastKnownPath),
+                                              metadataUpdatedAt: .now, sourceAcquiredAt: entry.addedAt)
+                record.platforms = [.windows]
+                return record
+            }
             let bundle = Self.resolve(entry).url.flatMap(LocalAppBundle.init(url:))
             var record = SourceGameRecord(id: gameID(entry), title: bundle?.title ?? entry.title ?? entry.lastKnownPath.deletingPathExtension().lastPathComponent,
                                           metadataUpdatedAt: .now, sourceAcquiredAt: entry.addedAt)
@@ -61,14 +69,29 @@ public struct LocalSource: GameSource {
     }
     public func metadata(for game: SourceGameRecord) async throws -> SourceGameRecord { game }
     public func installer(for game: SourceGameRecord) throws -> any Installer {
-        throw OperationFailure(stage: "Install", reason: "This game is already on your Mac.", output: "")
+        guard installs(game) else { throw OperationFailure(stage: "Install", reason: "This game is already on your Mac.", output: "") }
+        return LocalWindowsInstaller(gameID: game.id, game: game, store: store)
     }
+    /// Only Windows games are copied into Playden storage; Mac apps always stay where they are.
+    public func installs(_ game: SourceGameRecord) -> Bool { game.id.source == id && game.availablePlatforms == [.windows] }
     public func externalInstallations(for games: [SourceGameRecord]) async throws -> [InstallationRecord] {
         let library = try await store.load()
         let records = Dictionary(uniqueKeysWithValues: games.map { ($0.id, $0) })
         return library.entries.compactMap { entry in
             guard let game = records[gameID(entry)] else { return nil }
             let resolved = Self.resolve(entry)
+            if let executable = entry.windowsExecutable, let token = entry.ownershipToken {
+                let folder = resolved.url ?? entry.lastKnownPath
+                var installation = InstallationRecord(game: game,
+                    location: GameLocation(volumeID: entry.volumeUUID ?? "", lastKnownRoot: folder.deletingLastPathComponent(), relativePath: folder.lastPathComponent),
+                    bottleID: CrossOverGameBottles.name(for: game.id), ownershipToken: token, manifestIDs: [:], templateVersion: CrossOverRuntime.templateVersion,
+                    launchSpec: LocalWindowsGame.launchSpec(executable: executable), installedAt: entry.addedAt, installedBytes: 0)
+                installation.runtime = .crossOver
+                installation.plan = LocalWindowsGame.inPlacePlan(for: game, executable: executable, token: token, addedAt: entry.addedAt)
+                installation.staging = InstallStaging()
+                installation.external = ExternalLocation(bookmark: entry.bookmark, lastKnownPath: folder, executableName: executable, availability: resolved.availability)
+                return installation
+            }
             let app = resolved.url ?? entry.lastKnownPath
             var installation = InstallationRecord(game: game,
                 location: GameLocation(volumeID: entry.volumeUUID ?? "", lastKnownRoot: app.deletingLastPathComponent(), relativePath: app.lastPathComponent),
@@ -114,6 +137,29 @@ public struct LocalSource: GameSource {
             return gameID(entry)
         }
     }
+    /// Adds a Windows game folder and the executable to start. Adding the same folder again picks the
+    /// new executable; a previously removed folder gets its old identity, bottle and history back.
+    @discardableResult public func addWindowsGame(folder: URL, executable: String) async throws -> GameID {
+        guard Self.isWindowsGame(folder, executable: executable) else {
+            throw OperationFailure(stage: "Add game", reason: "That folder doesn’t contain \(executable).", output: folder.path)
+        }
+        return try await store.update { library in
+            let path = Self.realPath(folder)
+            if let index = library.entries.firstIndex(where: { $0.isWindows && Self.realPath(Self.resolve($0).url ?? $0.lastKnownPath) == path }) {
+                library.entries[index].windowsExecutable = executable
+                return gameID(library.entries[index])
+            }
+            let removed = library.removed.firstIndex { $0.windowsExecutable != nil && Self.realPath($0.lastKnownPath) == path }.map { library.removed.remove(at: $0) }
+            var entry = LocalLibrary.Entry(bookmark: Self.bookmark(folder), lastKnownPath: folder, volumeUUID: Self.volumeUUID(folder),
+                                           bundleIdentifier: nil, executableName: nil, origin: .manual)
+            if let removed { entry.id = removed.id }
+            entry.title = removed?.title ?? LocalWindowsGame.title(for: folder)
+            entry.windowsExecutable = executable
+            entry.ownershipToken = removed?.ownershipToken ?? UUID()
+            library.entries.append(entry)
+            return gameID(entry)
+        }
+    }
     /// Removes the game from the library. Folders skip it from now on; its playtime is kept.
     public func remove(_ id: GameID) async throws {
         try await store.update { library in
@@ -123,7 +169,7 @@ public struct LocalSource: GameSource {
             let folderID: UUID? = if case .folder(let folder) = entry.origin { folder } else { nil }
             library.removed.append(.init(id: entry.id, lastKnownPath: Self.resolve(entry).url ?? entry.lastKnownPath,
                                          bundleIdentifier: entry.bundleIdentifier, executableName: entry.executableName, removedAt: .now,
-                                         title: entry.title, folderID: folderID))
+                                         title: entry.title, folderID: folderID, windowsExecutable: entry.windowsExecutable, ownershipToken: entry.ownershipToken))
         }
     }
     /// Games the player removed, most recent first.
@@ -132,7 +178,8 @@ public struct LocalSource: GameSource {
         return library.removed.sorted { $0.removedAt > $1.removedAt }.map { removed in
             RemovedGame(id: GameID(source: id, value: removed.id),
                         title: removed.title ?? removed.lastKnownPath.deletingPathExtension().lastPathComponent,
-                        lastKnownPath: removed.lastKnownPath, found: Self.locate(removed, in: library) != nil)
+                        lastKnownPath: removed.lastKnownPath,
+                        found: removed.windowsExecutable.map { Self.isWindowsGame(removed.lastKnownPath, executable: $0) } ?? (Self.locate(removed, in: library) != nil))
         }
     }
     /// Puts a removed game back with its identity and playtime. A game from a watched folder
@@ -141,6 +188,18 @@ public struct LocalSource: GameSource {
         try await store.update { library in
             guard let index = library.removed.firstIndex(where: { GameID(source: self.id, value: $0.id) == id }) else { throw ExternalLocationFailure.missing }
             let removed = library.removed[index]
+            if let executable = removed.windowsExecutable {
+                guard Self.isWindowsGame(removed.lastKnownPath, executable: executable) else {
+                    throw OperationFailure(stage: "Restore game", reason: "Playden can’t find this game’s folder anymore. Add it again from its new place.",
+                                           output: removed.lastKnownPath.path)
+                }
+                library.removed.remove(at: index)
+                var entry = LocalLibrary.Entry(id: removed.id, bookmark: Self.bookmark(removed.lastKnownPath), lastKnownPath: removed.lastKnownPath,
+                                               volumeUUID: Self.volumeUUID(removed.lastKnownPath), bundleIdentifier: nil, executableName: nil, origin: .manual)
+                entry.title = removed.title; entry.windowsExecutable = executable; entry.ownershipToken = removed.ownershipToken ?? UUID()
+                library.entries.append(entry)
+                return gameID(entry)
+            }
             guard let app = Self.locate(removed, in: library) else {
                 throw OperationFailure(stage: "Restore game", reason: "Playden can’t find this app anymore. Choose an app to add it from its new place.",
                                        output: removed.lastKnownPath.path)
@@ -156,6 +215,18 @@ public struct LocalSource: GameSource {
     }
     /// Points a missing game at the app's new location, keeping its identity.
     public func relocate(_ id: GameID, to url: URL) async throws {
+        if let entry = try await store.load().entries.first(where: { gameID($0) == id }), let executable = entry.windowsExecutable {
+            guard Self.isWindowsGame(url, executable: executable) else {
+                throw OperationFailure(stage: "Locate game", reason: "That folder doesn’t contain \(executable).", output: url.path)
+            }
+            try await store.update { library in
+                guard let index = library.entries.firstIndex(where: { gameID($0) == id }) else { throw ExternalLocationFailure.missing }
+                library.entries[index].lastKnownPath = url
+                library.entries[index].bookmark = Self.bookmark(url)
+                library.entries[index].volumeUUID = Self.volumeUUID(url)
+            }
+            return
+        }
         guard let app = LocalAppBundle(url: url) else {
             throw OperationFailure(stage: "Locate game", reason: "That isn’t a Mac app Playden can open.", output: url.path)
         }
@@ -284,9 +355,9 @@ public struct LocalSource: GameSource {
         if let bookmark = entry.bookmark {
             var stale = false
             if let url = try? URL(resolvingBookmarkData: bookmark, options: [.withoutUI, .withoutMounting], relativeTo: nil, bookmarkDataIsStale: &stale),
-               isApp(url) { return (url, .available) }
+               isPresent(entry, at: url) { return (url, .available) }
         }
-        if isApp(entry.lastKnownPath) { return (entry.lastKnownPath, .available) }
+        if isPresent(entry, at: entry.lastKnownPath) { return (entry.lastKnownPath, .available) }
         return (nil, volumeMounted(uuid: entry.volumeUUID, path: entry.lastKnownPath) ? .missing : .volumeUnavailable)
     }
     static func resolveFolder(_ folder: LocalLibrary.Folder) -> URL? {
@@ -295,6 +366,14 @@ public struct LocalSource: GameSource {
            let url = try? URL(resolvingBookmarkData: bookmark, options: [.withoutUI, .withoutMounting], relativeTo: nil, bookmarkDataIsStale: &stale),
            FileManager.default.fileExists(atPath: url.path) { return url }
         return FileManager.default.fileExists(atPath: folder.lastKnownPath.path) ? folder.lastKnownPath : nil
+    }
+    private static func isPresent(_ entry: LocalLibrary.Entry, at url: URL) -> Bool {
+        entry.windowsExecutable.map { isWindowsGame(url, executable: $0) } ?? isApp(url)
+    }
+    static func isWindowsGame(_ folder: URL, executable: String) -> Bool {
+        let parts = executable.split(separator: "/", omittingEmptySubsequences: false)
+        guard executable.lowercased().hasSuffix(".exe"), !executable.hasPrefix("/"), parts.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }) else { return false }
+        return (try? folder.appendingPathComponent(executable).resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
     }
     private static func isApp(_ url: URL) -> Bool {
         FileManager.default.fileExists(atPath: url.appendingPathComponent("Contents/Info.plist").path)

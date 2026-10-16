@@ -34,7 +34,7 @@ let package = Package(
         .testTarget(name: "InstallsTests", dependencies: ["Installs", "Domain"]),
         .testTarget(name: "RunnerTests", dependencies: ["Runner", "Domain"]),
         .target(name: "SteamCloudProto", dependencies: [.product(name: "SwiftProtobuf", package: "swift-protobuf")]),
-        .target(name: "Sources", dependencies: ["Domain", "SteamCloudProto", .product(name: "SteamCore", package: "SteamKit"),
+        .target(name: "Sources", dependencies: ["Domain", "Runner", "SteamCloudProto", .product(name: "SteamCore", package: "SteamKit"),
                                           .product(name: "EpicCore", package: "EpicKit"),
                                           .product(name: "GOGCore", package: "GOGKit")], resources: [.copy("Resources/Steamless")]),
         .testTarget(name: "SourcesTests", dependencies: ["Sources", "Domain", "SteamCloudProto", "Runner",

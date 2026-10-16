@@ -144,7 +144,7 @@ public actor InstallQueue: InstallQueuing {
     }
     public func offer(for game: SourceGameRecord, volume: GamesVolumeSelection, platform: GamePlatform) async throws -> InstallOffer {
         guard let source = sources[game.id.source] else { throw Self.failure("Resolve", "This game's store is unavailable.") }
-        guard source.capabilities.acquisition == .download else { throw Self.externalFailure("Resolve") }
+        guard source.installs(game) else { throw Self.externalFailure("Resolve") }
         let installer = try source.installer(for: game)
         let plan = platform == .windows ? try await installer.resolve() : try await installer.resolve(platform: platform)
         guard plan.resolvedPlatform == platform else { throw Self.failure("Resolve", "The store returned a different version of this game.") }
@@ -158,17 +158,20 @@ public actor InstallQueue: InstallQueuing {
     }
     @discardableResult public func enqueue(_ offer: InstallOffer) async throws -> UUID {
         guard let source = sources[offer.plan.game.id.source] else { throw Self.failure("Queue", "This game's store is unavailable.") }
-        guard source.capabilities.acquisition == .download else { throw Self.externalFailure("Queue") }
+        guard source.installs(offer.plan.game) else { throw Self.externalFailure("Queue") }
         _ = try source.installer(for: offer.plan.game)
         let checked = try await self.offer(plan: offer.plan, volume: offer.volume)
         try Task.checkCancellation()
         guard checked.canInstall else { throw Self.failure("Reserve space", "There is not enough free space after queued installations are reserved.") }
         let gameID = offer.plan.game.id
+        // A Windows game that plays from its folder can be copied in; the copy keeps its bottle.
+        let external = try catalog.snapshot().entries.first(where: { $0.id == gameID })?.installation.flatMap { $0.isExternal && $0.usesBottle ? $0 : nil }
         guard !records.values.contains(where: { $0.gameID == gameID && ![.completed, .cancelled].contains($0.state) }),
-              try !catalog.snapshot().entries.contains(where: { $0.id == gameID && $0.installation != nil }) else {
+              try external != nil || !catalog.snapshot().entries.contains(where: { $0.id == gameID && $0.installation != nil }) else {
             throw Self.failure("Queue", "This game is already installed or has an unfinished job.")
         }
         var job = JobRecord(gameID: gameID, queuePosition: records.count)
+        if let external { job.ownershipToken = external.ownershipToken }
         job.plan = offer.plan; job.volume = offer.volume; job.manifestIDs = offer.plan.manifestIDs
         job.bottle = GameBottle(gameID: gameID, name: CrossOverGameBottles.name(for: gameID), ownershipToken: job.ownershipToken)
         var location = GameLocation(volumeID: offer.volume.volumeID, rootBookmark: offer.volume.rootBookmark,

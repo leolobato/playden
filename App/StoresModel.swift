@@ -215,17 +215,22 @@ extension LibraryModel {
         }
     }
     static let browseForAppTitle = "Choose an app…"
+    static let addWindowsGameTitle = "Add a Windows game…"
     /// Choosing any app comes first and works while suggestions are still loading; suggestions follow.
+    /// A Windows game is relocated by choosing its folder, so it gets no suggestions.
     func localGamesActions(relocating id: GameID?) -> [String] {
+        if let id, isWindowsLocalGame(id) { return ["Choose its folder…", "Done"] }
         let suggestions = localBusy ? [] : localCandidates.map { $0.added && id == nil ? $0.app.title + " · Added" : $0.app.title }
-        return [Self.browseForAppTitle] + suggestions + ["Done"]
+        return [Self.browseForAppTitle] + (id == nil ? [Self.addWindowsGameTitle] : []) + suggestions + ["Done"]
     }
     func activateLocalGames(_ index: Int, relocating id: GameID?) {
         let actions = localGamesActions(relocating: id)
         guard actions.indices.contains(index) else { return }
         if index == actions.count - 1 { panel = nil; return }
+        if let id, isWindowsLocalGame(id) { browseForWindowsFolder(relocating: id); return }
         if index == 0 { browseForApp(relocating: id); return }
-        guard let candidate = localCandidates[safe: index - 1] else { return }
+        if id == nil && index == 1 { browseForWindowsFolder(relocating: nil); return }
+        guard let candidate = localCandidates[safe: index - (id == nil ? 2 : 1)] else { return }
         if candidate.added && id == nil { return }
         addLocalApp(candidate.app.url, origin: .suggested, relocating: id)
     }
@@ -236,6 +241,66 @@ extension LibraryModel {
         guard open.runModal() == .OK, let url = open.url else { return }
         addLocalApp(url, origin: .manual, relocating: id)
     }
+    func isWindowsLocalGame(_ id: GameID) -> Bool {
+        id.source == SourceID.local && games.first { $0.id == id }?.platforms == [.windows]
+    }
+
+    // MARK: Windows games
+
+    /// Picks a Windows game folder, then its executable; relocating picks only the folder.
+    func browseForWindowsFolder(relocating id: GameID?) {
+        guard let localSource else { return }
+        let open = NSOpenPanel()
+        open.canChooseDirectories = true; open.canChooseFiles = false; open.allowsMultipleSelection = false
+        open.directoryURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Games")
+        open.prompt = id == nil ? "Choose folder" : "Locate"
+        open.message = id == nil ? "Choose the folder that has the game’s .exe file." : "Choose the game’s folder in its new place."
+        guard open.runModal() == .OK, let folder = open.url else { return }
+        if let id {
+            Task { [weak self] in
+                do { try await localSource.relocate(id, to: folder) } catch { self?.localMessage = (error as? OperationFailure)?.reason ?? error.localizedDescription; return }
+                self?.refreshScannedLibraries(); self?.panel = nil
+            }
+            return
+        }
+        localMessage = nil; windowsExecutableChoices = []
+        show(.windowsExecutables(folder))
+        Task { [weak self] in
+            let found = await Task.detached { LocalWindowsGame.executables(in: folder) }.value
+            guard let self, self.panel == .windowsExecutables(folder) else { return }
+            self.windowsExecutableChoices = found; self.panelIndex = 0
+        }
+    }
+    var windowsExecutableActions: [String] {
+        windowsExecutableChoices.map { $0.relativePath + ($0.isLikelyHelper ? " · Installer or tool" : "") } + ["Cancel"]
+    }
+    func activateWindowsExecutable(_ index: Int, in folder: URL) {
+        guard let executable = windowsExecutableChoices[safe: index] else { panel = nil; return }
+        localMessage = nil
+        show(.windowsImport(folder, executable.relativePath))
+    }
+    static let playInPlaceTitle = "Play from this folder"
+    static let copyIntoPlaydenTitle = "Copy into Playden"
+    var windowsImportActions: [String] { [Self.playInPlaceTitle, Self.copyIntoPlaydenTitle, "Back"] }
+    /// Both choices add the folder first. Copying then offers the install, which copies the files
+    /// into Playden storage; until it finishes, the game plays from the folder.
+    func activateWindowsImport(_ label: String, folder: URL, executable: String) {
+        guard let localSource else { return }
+        if label == "Back" { show(.windowsExecutables(folder)); return }
+        let copy = label == Self.copyIntoPlaydenTitle
+        Task { [weak self] in
+            let id: GameID
+            do { id = try await localSource.addWindowsGame(folder: folder, executable: executable) } catch {
+                self?.localMessage = (error as? OperationFailure)?.reason ?? error.localizedDescription; return
+            }
+            guard let self else { return }
+            self.refreshScannedLibraries()
+            await self.scanTask?.value
+            if copy { self.beginInstall(id, platform: .windows) }
+            else if let game = self.games.first(where: { $0.id == id }) { self.openGame(game) } else { self.panel = nil }
+        }
+    }
+
     private func addLocalApp(_ url: URL, origin: LocalLibrary.Entry.Origin, relocating id: GameID?) {
         guard let localSource else { return }
         Task { [weak self] in
@@ -306,6 +371,10 @@ extension LibraryModel {
     /// The apps stay on the Mac; adding one again brings its playtime back.
     func removeFromLibrary(_ ids: [GameID], returningToList: Bool) {
         guard let localSource else { return }
+        // A copied Windows game is owned by Playden; removing it from the library would orphan its files.
+        if let copied = ids.compactMap({ id in games.first { $0.id == id } }).first(where: { !$0.isExternal && $0.status != .notInstalled }) {
+            show(.information("Uninstall \(copied.title) first. Its files are in Playden storage.")); return
+        }
         Task { [weak self] in
             for id in ids {
                 do { try await localSource.remove(id) } catch { self?.show(.information(error.localizedDescription)); return }

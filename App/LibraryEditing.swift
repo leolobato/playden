@@ -2,6 +2,7 @@ import Foundation
 import Domain
 import Input
 import Focus
+import Sources
 
 extension LibraryModel {
     var libraryFilters: [LibraryFilter] {
@@ -220,6 +221,8 @@ extension LibraryModel {
         case .localGames(let id): id == nil ? "Add games on this Mac" : "Locate \(gameName(id!))"
         case .localFolders: "Watched folders"
         case .localAdded: "Added games"
+        case .windowsExecutables(let folder): LocalWindowsGame.title(for: folder)
+        case .windowsImport(let folder, _): "Add \(LocalWindowsGame.title(for: folder))"
         case .localFolderOptions(let id): localFolderOptionsTitle(id)
         case .compatibility: "Compatibility"
         case .gameDetails: "Game details"

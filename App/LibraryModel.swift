@@ -39,6 +39,10 @@ enum Panel: Equatable {
     case localFolderOptions(UUID)
     /// This Mac games in the library, to pick ones to remove.
     case localAdded
+    /// A Windows game folder: pick the executable to start.
+    case windowsExecutables(URL)
+    /// A Windows game folder and executable: play from the folder or copy it into Playden.
+    case windowsImport(URL, String)
     /// Installed games per volume, to pick ones to uninstall and free space.
     case storage
 }
@@ -86,6 +90,7 @@ final class LibraryModel {
     var scanErrors: [String: String] = [:]
     @ObservationIgnored var storedEdits: [GameID: GameEdits] = [:]
     var localCandidates: [LocalSource.Candidate] = []
+    var windowsExecutableChoices: [LocalWindowsGame.Executable] = []
     var localFolderSummaries: [LocalSource.FolderSummary] = []
     var localBusy = false
     var localRemovalSelection: Set<GameID> = []
@@ -532,7 +537,8 @@ final class LibraryModel {
     /// This Mac apps are never installed or removed by Playden; Mac builds have no Cloud sync yet.
     private func installedActions(_ game: Game, primary: String) -> [String] {
         if game.isExternal {
-            return ["Rename", "Remove from library"] + (steamVersion(of: game) != nil && game.usesSteamClient ? ["Show Steam version"] : [])
+            let copy = game.installedPlatform == .windows && game.status == .installed ? ["Copy into Playden"] : []
+            return copy + ["Rename", "Remove from library"] + (steamVersion(of: game) != nil && game.usesSteamClient ? ["Show Steam version"] : [])
         }
         guard game.status == .installed else { return [] }
         let cloud = storeHasCloudSaves(game.id) ? ["Cloud saves"] : []
@@ -540,7 +546,7 @@ final class LibraryModel {
         return (primary == "Verify files" ? [] : ["Verify files"]) + ["Uninstall"] + cloud + switchVersion
     }
     /// Game settings are CrossOver runtime profiles; Mac apps and Mac builds don't use them.
-    func hasGameSettings(_ game: Game) -> Bool { !game.isExternal && game.installedPlatform != .macOS }
+    func hasGameSettings(_ game: Game) -> Bool { game.installedPlatform == .windows || (!game.isExternal && game.installedPlatform != .macOS) }
     var contextActions: [String] {
         let actions = gameActions
         var result = [actions.first ?? "Open game"] + ((focusedGame.map(hasGameSettings) ?? true) ? ["Game settings"] : [])
@@ -548,7 +554,7 @@ final class LibraryModel {
         result += [focusedGame?.isFavorite == true ? "Unfavorite" : "Favorite", "Set compatibility",
                    focusedGame?.isHidden == true ? "Unhide" : "Hide", "View logs", "Add to collection"]
         if let game = focusedGame, installFolder(game) != nil { result.append("Game details") }
-        for action in ["Verify files", "Cloud saves", "Uninstall", "Rename", "Remove from library", "Show Steam version", "Switch to Mac version", "Switch to Windows version"] where actions.contains(action) && actions.first != action {
+        for action in ["Verify files", "Cloud saves", "Uninstall", "Copy into Playden", "Rename", "Remove from library", "Show Steam version", "Switch to Mac version", "Switch to Windows version"] where actions.contains(action) && actions.first != action {
             result.append(action)
         }
         return result
@@ -576,6 +582,8 @@ final class LibraryModel {
         case .localGames(let id): localGamesActions(relocating: id)
         case .localFolders: localFolderActions
         case .localAdded: addedGamesActions
+        case .windowsExecutables: windowsExecutableActions
+        case .windowsImport: windowsImportActions
         case .localFolderOptions: ["Keep its games", "Remove its games too", "Cancel"]
         default: []
         }
@@ -831,6 +839,7 @@ final class LibraryModel {
             if !isPreview, let id = focusedGame?.id { startInstall(id) }
             else if let id = focusedGame?.id { show(.confirmation(.install(id))) }
         case "Locate game": if let id = focusedGame?.id { showLocalGames(relocating: id) }
+        case "Copy into Playden": if let id = focusedGame?.id { beginInstall(id, platform: .windows) }
         case "Rename": if let id = focusedGame?.id { beginText(.renameGame(id)) }
         case "Remove from library": if let id = focusedGame?.id { show(.confirmation(.removeFromLibrary(id))) }
         case "Show Steam version": if let game = focusedGame, let steam = steamVersion(of: game) { openGame(steam) }
@@ -871,7 +880,7 @@ final class LibraryModel {
         case .context:
             if !panelActionEnabled(at: panelIndex) { return }
             if panelIndex == 0, let game = focusedGame { openGame(game); activateDetail() }
-            else if ["Game settings", "Game details", "Verify files", "Cloud saves", "Quit game", "Rename", "Remove from library", "Show Steam version", "Switch to Mac version", "Switch to Windows version"].contains(label) { activateGameAction(label) }
+            else if ["Game settings", "Game details", "Verify files", "Cloud saves", "Quit game", "Copy into Playden", "Rename", "Remove from library", "Show Steam version", "Switch to Mac version", "Switch to Windows version"].contains(label) { activateGameAction(label) }
             else if label == "Favorite" || label == "Unfavorite" { toggleFavorite(); panel = nil }
             else if label == "Set compatibility" { show(.compatibility) }
             else if label == "Hide" || label == "Unhide" { hideFocused(); panel = nil }
@@ -897,6 +906,8 @@ final class LibraryModel {
         case .localGames(let id): activateLocalGames(panelIndex, relocating: id)
         case .localFolders: activateLocalFolders(panelIndex)
         case .localAdded: activateAddedGames(panelIndex)
+        case .windowsExecutables(let folder): activateWindowsExecutable(panelIndex, in: folder)
+        case .windowsImport(let folder, let executable): activateWindowsImport(label, folder: folder, executable: executable)
         case .localFolderOptions(let id): activateLocalFolderOption(label, id: id)
         case .confirmation(let intent):
             if panelIndex == 0 { panel = nil }

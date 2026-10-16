@@ -469,6 +469,8 @@ public actor SessionService: SessionManaging {
         guard let source = sources[installation.gameID.source] else { throw issue("Launch game", "This game's store is unavailable.") }
         do {
             let app = try await source.locate(installation)
+            // A Windows game resolves to its folder; its launch spec names the executable inside.
+            if installation.usesBottle { return (app, nil) }
             return (app.deletingLastPathComponent(), app.lastPathComponent)
         }
         catch ExternalLocationFailure.volumeUnavailable {

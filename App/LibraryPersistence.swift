@@ -53,7 +53,10 @@ extension LibraryModel {
                 game.platforms = record.availablePlatforms
                 game.installedPlatform = entry.installation?.runtimeBinding.platform
                 game.isExternal = entry.installation?.isExternal == true
-                game.appURL = entry.installation?.external?.lastKnownPath
+                // A Windows game's folder is listed by its executable, whose icon stands in for art.
+                game.appURL = entry.installation.flatMap { installed in
+                    installed.external.map { installed.usesBottle ? $0.lastKnownPath.appendingPathComponent(installed.launchSpec.executableRelativePath) : $0.lastKnownPath }
+                }
                 game.usesSteamClient = entry.installation?.external?.usesSteam == true
                 if game.isExternal { game.size = "—"; game.installedBytes = nil }
                 return game

@@ -54,6 +54,25 @@ final class ExternalCatalogTests: XCTestCase {
         XCTAssertEqual(try store.snapshot().entries.first?.installation?.isExternal, false)
     }
 
+    func testCopiedWindowsGameReplacesItsFolderRecordAndSurvivesRescans() async throws {
+        let store = try CatalogStore()
+        let sync = LibrarySyncCoordinator(catalog: store, metadataDelay: .zero)
+        let record = game("blur")
+        _ = try await sync.refresh(source: ScannedSource(records: [record]))
+        let external = try XCTUnwrap(try store.snapshot().entries.first?.installation)
+        var owned = Self.installation(for: record); owned.external = nil; owned.runtime = .crossOver
+        var job = JobRecord(gameID: record.id); job.state = .completed; job.stage = .finished
+        try store.commitInstallation(owned, completing: job)
+        let committed = try XCTUnwrap(try store.snapshot().entries.first?.installation)
+        XCTAssertEqual(committed.id, owned.id); XCTAssertFalse(committed.isExternal)
+        XCTAssertNotEqual(committed.id, external.id)
+
+        _ = try await sync.refresh(source: ScannedSource(records: [record]))
+        let rescanned = try store.snapshot().entries
+        XCTAssertEqual(rescanned.count, 1)
+        XCTAssertEqual(rescanned.first?.installation?.id, owned.id, "A scan never replaces the copy with the folder")
+    }
+
     func testLegacyRecordsDecodeAsWindowsCrossOverInstalls() throws {
         let record = game("legacy")
         let installation = Self.installation(for: record)

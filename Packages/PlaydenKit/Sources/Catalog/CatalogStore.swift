@@ -325,6 +325,12 @@ public final class CatalogStore: Sendable {
         try database.write { db in
             try Self.requireNoUninstall(db, gameID: job.gameID)
             try Self.requireCloudIdle(db, gameID: job.gameID)
+            // A copied Windows game replaces the record of the folder it was copied from.
+            let existing: [InstallationRecord] = try Self.values(db, table: "installations", whereSQL: "source = ? AND game = ?",
+                                                                 arguments: [installation.gameID.source, installation.gameID.value])
+            for external in existing where external.isExternal && external.id != installation.id {
+                try db.execute(sql: "DELETE FROM installations WHERE id = ?", arguments: [external.id.uuidString])
+            }
             try Self.putOperation(db, table: "installations", id: installation.id, gameID: installation.gameID, value: installation)
             try Self.putOperation(db, table: "jobs", id: job.id, gameID: job.gameID, value: job)
         }

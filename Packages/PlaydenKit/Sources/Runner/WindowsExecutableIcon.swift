@@ -6,8 +6,8 @@ import UniformTypeIdentifiers
 /// Layout: https://learn.microsoft.com/windows/win32/debug/pe-format#the-rsrc-section
 /// https://devblogs.microsoft.com/oldnewthing/20120720-00/?p=7083
 /// A missing or malformed icon is optional metadata, never a failed installation.
-enum WindowsExecutableIcon {
-    static func png(at executable: URL) -> Data? {
+public enum WindowsExecutableIcon {
+    public static func png(at executable: URL) -> Data? {
         guard let data = try? Data(contentsOf: executable, options: .mappedIfSafe),
               let ico = try? icon(in: data), let source = CGImageSourceCreateWithData(ico as CFData, nil) else { return nil }
         let indices = (0..<CGImageSourceGetCount(source)).sorted { a, b in

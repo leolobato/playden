@@ -2,6 +2,19 @@ import SwiftUI
 import CoreText
 import CryptoKit
 import Domain
+import Runner
+
+/// Mac apps use their Finder icon; Windows executables use the icon inside the file, read once.
+@MainActor enum AppIcons {
+    private static var executables: [URL: NSImage] = [:]
+    static func icon(for url: URL) -> NSImage {
+        guard url.pathExtension.lowercased() == "exe" else { return NSWorkspace.shared.icon(forFile: url.path) }
+        if let cached = executables[url] { return cached }
+        let image = WindowsExecutableIcon.png(at: url).flatMap(NSImage.init(data:)) ?? NSWorkspace.shared.icon(forFile: url.path)
+        executables[url] = image
+        return image
+    }
+}
 
 enum Design {
     static let background = Color(hex: 0x0E0D0C)
@@ -90,7 +103,7 @@ struct Artwork: View {
                 } else if let appIcon {
                     let side = min(geometry.size.width, geometry.size.height) * 0.5
                     VStack(spacing: 16) {
-                        Image(nsImage: NSWorkspace.shared.icon(forFile: appIcon.path)).resizable().interpolation(.high).frame(width: side, height: side)
+                        Image(nsImage: AppIcons.icon(for: appIcon)).resizable().interpolation(.high).frame(width: side, height: side)
                         if !title.isEmpty && geometry.size.height > geometry.size.width {
                             Text(title).font(Design.condensed(28)).multilineTextAlignment(.center).lineLimit(3).padding(.horizontal, 16)
                         }

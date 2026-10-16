@@ -79,6 +79,8 @@ public protocol GameSource: Sendable {
     func downloadSizeAccountKey() async throws -> String?
     func downloadSize(for game: SourceGameRecord) async throws -> DownloadSizeEstimate?
     func installer(for game: SourceGameRecord) throws -> any Installer
+    /// Whether Playden can install this game into its own storage. Download stores install every game.
+    func installs(_ game: SourceGameRecord) -> Bool
     func storePageURL(for id: GameID) -> URL?
     func storePageAllows(host: String) -> Bool
     func artworkFallbacks(for id: GameID) -> [URL]
@@ -89,6 +91,7 @@ public extension GameSource {
     /// The default describes a Steam-like store: an account, downloads and Cloud saves.
     var capabilities: SourceCapabilities { SourceCapabilities(account: .steam, acquisition: .download, cloudSaves: true) }
     func downloadSizeAccountKey() async throws -> String? { nil }
+    func installs(_ game: SourceGameRecord) -> Bool { capabilities.acquisition == .download }
     func downloadSize(for game: SourceGameRecord) async throws -> DownloadSizeEstimate? { nil }
     /// Public store page; nil hides the action.
     func storePageURL(for id: GameID) -> URL? { nil }

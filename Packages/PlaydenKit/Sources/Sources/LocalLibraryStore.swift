@@ -17,6 +17,11 @@ public struct LocalLibrary: Codable, Equatable, Sendable {
         public var usesSteam: Bool?
         /// Last title read from the bundle, shown while the app is missing.
         public var title: String?
+        /// Set for a Windows game: `lastKnownPath` is then its folder, and this is the executable inside it.
+        public var windowsExecutable: String?
+        /// A Windows game's bottle ownership, stable across scans so its bottle and settings stay its own.
+        public var ownershipToken: UUID?
+        public var isWindows: Bool { windowsExecutable != nil }
         public init(id: String = UUID().uuidString, bookmark: Data?, lastKnownPath: URL, volumeUUID: String?, bundleIdentifier: String?,
                     executableName: String?, origin: Origin, addedAt: Date = .now, usesSteam: Bool? = nil) {
             self.id = id; self.bookmark = bookmark; self.lastKnownPath = lastKnownPath; self.volumeUUID = volumeUUID
@@ -44,6 +49,8 @@ public struct LocalLibrary: Codable, Equatable, Sendable {
         public var title: String?
         /// The watched folder the game came from, so restoring it makes it a folder game again.
         public var folderID: UUID?
+        public var windowsExecutable: String?
+        public var ownershipToken: UUID?
     }
     public var entries: [Entry] = []
     public var folders: [Folder] = []

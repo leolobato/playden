@@ -180,6 +180,14 @@ struct ModalLayer: View {
                         Text(model.localMessage ?? (model.addedLocalGames.isEmpty && model.localRemovedGames.isEmpty ? "Games you add from this Mac appear here." : "Select games to remove. The apps stay on your Mac. Restore a removed game to bring it back with its playtime."))
                             .font(Design.body(22)).foregroundStyle(Design.secondary).lineLimit(3)
                     }
+                    if case .windowsExecutables = model.panel {
+                        Text(model.localMessage ?? (model.windowsExecutableChoices.isEmpty ? "This folder has no Windows executables (.exe)." : "Pick the executable that starts the game."))
+                            .font(Design.body(22)).foregroundStyle(Design.secondary).lineLimit(3)
+                    }
+                    if case .windowsImport(_, let executable) = model.panel {
+                        Text(model.localMessage ?? "Starts \(executable) in its own CrossOver bottle. Play it from this folder, or copy it into Playden so you can delete the folder.")
+                            .font(Design.body(22)).foregroundStyle(Design.secondary).lineLimit(4)
+                    }
                     if model.panel == .localFolders {
                         Text("New games in these folders join your library automatically.").font(Design.body(22)).foregroundStyle(Design.secondary)
                     }
