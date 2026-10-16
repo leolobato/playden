@@ -147,10 +147,38 @@ final class StoresInteractionTests: XCTestCase {
     @MainActor func testChoosingAnyAppComesFirstEvenWhileSuggestionsLoad() {
         let model = mixedLibrary()
         model.localBusy = true
-        XCTAssertEqual(model.localGamesActions(relocating: nil), ["Choose an app…", "Done"])
+        XCTAssertEqual(model.localGamesActions(relocating: nil), ["Choose an app…", "Add a Windows game…", "Done"])
         model.localBusy = false
         XCTAssertEqual(model.localGamesActions(relocating: nil).first, "Choose an app…")
         XCTAssertEqual(model.localGamesActions(relocating: nil).last, "Done")
+    }
+
+    @MainActor func testWindowsFolderPlaysInPlaceAndCanBeCopiedLater() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("StoresWindows-\(UUID().uuidString)")
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let folder = root.appendingPathComponent("Blur/game")
+        try FileManager.default.createDirectory(at: folder.appendingPathComponent("_Redist"), withIntermediateDirectories: true)
+        try Data([1]).write(to: folder.appendingPathComponent("Blur.exe"))
+        try Data([1]).write(to: folder.appendingPathComponent("unins000.exe"))
+        let local = LocalSource(store: LocalLibraryStore(file: root.appendingPathComponent("local.json")), suggestionRoots: [])
+        let model = LibraryModel(catalog: try CatalogStore(), preview: false, otherSources: [local])
+        model.windowsExecutableChoices = LocalWindowsGame.executables(in: folder)
+        model.show(.windowsExecutables(folder))
+        XCTAssertEqual(model.panelTitle, "Blur")
+        XCTAssertEqual(model.panelActions, ["Blur.exe", "unins000.exe · Installer or tool", "Cancel"])
+        model.panelIndex = 0; model.activatePanel()
+        XCTAssertEqual(model.panel, .windowsImport(folder, "Blur.exe"))
+        XCTAssertEqual(model.panelActions, ["Play from this folder", "Copy into Playden", "Back"])
+        model.panelIndex = 0; model.activatePanel()
+        for _ in 0..<200 where !model.games.contains(where: { $0.title == "Blur" }) { try await Task.sleep(for: .milliseconds(10)) }
+        let game = try XCTUnwrap(model.games.first { $0.title == "Blur" })
+        XCTAssertTrue(game.isExternal); XCTAssertEqual(game.installedPlatform, .windows); XCTAssertEqual(game.status, .installed)
+        XCTAssertTrue(model.hasGameSettings(game))
+        XCTAssertEqual(game.appURL?.lastPathComponent, "Blur.exe")
+        model.openGame(game)
+        XCTAssertEqual(model.detailActions.first, "Play"); XCTAssertTrue(model.detailActions.contains("Game settings"))
+        XCTAssertTrue(model.contextActions.contains("Copy into Playden"))
+        XCTAssertEqual(model.localGamesActions(relocating: game.id), ["Choose its folder…", "Done"])
     }
 
     @MainActor func testAddedGamesListsThisMacGamesAndRemovesThePickedOnes() async throws {
